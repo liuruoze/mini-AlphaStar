@@ -2,11 +2,15 @@
 
 ## Introduction
 
-We release the mini-AlphaStar project (v_0.7), which is a mini source version of the original AlphaStar program by DeepMind. "v_0.7" means I think we have implemented above 70 percent code of it. "Mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
+We release the mini-AlphaStar project (v_0.7), which is a mini source version of the original AlphaStar program by DeepMind. 
+
+"v_0.7" means we think we have implemented above 70 percent code of it. 
+
+"mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
 
 ## Contents
 
-The below table shows the majorites for the contents of the project.
+The below table shows the majorites of the project.
 
 Packages | Content
 ------------ | -------------
@@ -17,9 +21,7 @@ alphastarmini.core.ma | codes for Multi-Agent League Traning in it
 
 ## Requirements
 
-Pytorch >= 1.5, others see requirements.txt.
-
-**Notes:**
+Pytorch >= 1.5, others please see requirements.txt.
 
 ## Citing
 
@@ -37,8 +39,8 @@ If you find this repository useful, please cite our project:
 
 ## Report
 
-We will present a technical report online to introduce the design and usage details of it in about one month. 
+We will present a technical report to introduce the design and usage details of it in about one month. 
 
-## Paper (future available)
+## Paper
 
-We will give a paper that is available in the future presenting the experiments and evaluations on using it. 
+We will give a paper which may be available in the future presenting the experiments and evaluations on using it. 
