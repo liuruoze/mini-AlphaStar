@@ -10,25 +10,29 @@ We release the mini-AlphaStar project (v_0.7), which is a mini source version of
 
 ## Contents
 
-The below table shows the majorites of the project.
+The below table shows the corresponding packages in the project.
 
 Packages | Content
 ------------ | -------------
-alphastarmini.core.arch | codes for the AlphaStar Architecture
-alphastarmini.core.sl | codes for Surpervised Learning in it
-alphastarmini.core.rl | codes for Reinforcement Learning in it
-alphastarmini.core.ma | codes for Multi-Agent League Traning in it
+alphastarmini.core.arch | the alphaStar architecture
+alphastarmini.core.sl | surpervised learning
+alphastarmini.core.rl | reinforcement learning
+alphastarmini.core.ma | multi-agent league traning
 
 ## Requirements
 
 Pytorch >= 1.5, others please see requirements.txt.
+
+## Missing parts 
+
+There are some parts that still need to be fulfilled, e.g., the calculation of z, the loss part of the vtrace, and some missing information of the env to be filled up.
 
 ## Citing
 
 If you find this repository useful, please cite our project:
 ```
 @misc{mini-AlphaStar,
-  author = {Ruo-Ze Liu, Wenhai Wang, Yang Yu, and Tong Lu},
+  author = {Ruo{-}Ze Liu and Wenhai Wang and Yang Yu and Tong Lu},
   title = {mini-AlphaStar},
   year = {2021},
   publisher = {GitHub},
