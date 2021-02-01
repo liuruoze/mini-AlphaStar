@@ -2,28 +2,31 @@
 
 ## 介绍
 
-我们发布了mini-AlphaStar项目（v_0.7），它是DeepMind原始AlphaStar程序的微型复现版本。
+我们发布了mini-AlphaStar项目（v_0.7版），它是DeepMind原始AlphaStar程序的微型复现版本。
 
 “v_0.7”表示我们认为已经实现了70％以上的代码。
 
-“mini”意味着我们使原始的AlphaStar超参数可调，以便可以小规模运行。
+“mini”意味着我们使原始的AlphaStar超参数可调且微小化，以便可以小规模地运行。
 
 本项目的英文版描述在 [这里](README_ENG.MD).
 
 ## 目录
 
-下表显示了项目中的相应软件包。
+下表显示了项目中的相应模块。
 
-套餐|内容
+模块|内容
 ------------ | -------------
 alphastarmini.core.arch | alphaStar体系结构
-alphastarmini.core.sl |监督学习
-alphastarmini.core.rl |强化学习
-alphastarmini.core.ma |多代理联赛训练
+alphastarmini.core.sl | 监督学习
+alphastarmini.core.rl | 强化学习
+alphastarmini.core.ma | 多代理联赛训练
+alphastarmini.lib | 相关库函数
+alphastarmini.third | 第三方函数
+res | 其它有用的资料
 
 ## 要求
 
-Pytorch> = 1.5，其他请参阅requirements.txt。
+Pytorch >= 1.5，其他请参阅requirements.txt。
 
 ## 地点
 
@@ -54,7 +57,7 @@ Gitee | [https://gitee.com/easypr/mini-AlphaStar](https://gitee.com/easypr/mini-
 
 ## 报告
 
-我们将在大约一个月的时间内提交一份技术报告，以介绍其设计和使用细节。
+我们将在大约一个月的时间以内提交一份技术报告，以介绍其设计和使用细节。
 
 ## 论文
 

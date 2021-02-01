@@ -20,6 +20,9 @@ alphastarmini.core.arch | the alphaStar architecture
 alphastarmini.core.sl | surpervised learning
 alphastarmini.core.rl | reinforcement learning
 alphastarmini.core.ma | multi-agent league traning
+alphastarmini.lib | lib functions
+alphastarmini.third | third party functions
+res | other useful resources
 
 ## Requirements
 
