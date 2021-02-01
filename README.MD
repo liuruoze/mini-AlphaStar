@@ -8,6 +8,8 @@ We release the mini-AlphaStar project (v_0.7), which is a mini source version of
 
 "mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
 
+The readme for the Chinese version is at [here](README_CHS.MD).
+
 ## Contents
 
 The below table shows the corresponding packages in the project.
@@ -23,7 +25,16 @@ alphastarmini.core.ma | multi-agent league traning
 
 Pytorch >= 1.5, others please see requirements.txt.
 
-## Missing parts 
+## Location
+
+The codes are in these places:
+
+Location | URL
+------------ | -------------
+Github | [https://github.com/liuruoze/mini-AlphaStar](https://github.com/liuruoze/mini-AlphaStar)
+Gitee | [https://gitee.com/easypr/mini-AlphaStar](https://gitee.com/easypr/mini-AlphaStar)
+
+## Furture
 
 There are some parts that still need to be fulfilled, e.g., the calculation of z, the loss part of the vtrace, and some missing information of the env to be filled up.
 
