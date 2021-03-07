@@ -5,3 +5,4 @@ scipy==1.5.3
 seaborn==0.11.0
 tqdm==4.51.0
 dataclasses==0.6
+python-Levenshtein-wheels==0.13.2
