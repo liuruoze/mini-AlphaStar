@@ -180,7 +180,7 @@ class SelectedUnitsHead(nn.Module):
             # mask shape: [batch_size x entity_size]
             assert y.shape == mask.shape
 
-            y_2 = y.clone() * mask.detach()
+            y_2 = y * mask.clone().detach()
             # y_2 shape: [batch_size x entity_size]
             print("y_2:", y_2) if debug else None
             print("y_2.shape:", y_2.shape) if debug else None

@@ -59,7 +59,7 @@ NORM = args.norm
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
 SEQ_LEN = AHP.sequence_length
-NUM_EPOCHS = SLTHP.num_epochs
+NUM_EPOCHS = 1000  # SLTHP.num_epochs
 LEARNING_RATE = SLTHP.learning_rate
 WEIGHT_DECAY = SLTHP.weight_decay
 CLIP = SLTHP.clip

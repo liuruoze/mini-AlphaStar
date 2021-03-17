@@ -33,3 +33,4 @@ _ReSharper*/
 packages/
 data/
 res/paper/
+model/*

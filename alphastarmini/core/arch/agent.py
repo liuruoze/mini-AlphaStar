@@ -148,6 +148,7 @@ class Agent(object):
         feature_size = Feature.getSize()
         label_size = Label.getSize()
 
+        print('traj_batch.shape:', traj_batch.shape) if 1 else None
         batch_size = traj_batch.shape[0]
         seq_len = traj_batch.shape[1]
 
@@ -156,21 +157,23 @@ class Agent(object):
         is_final = traj_batch[:, :, -1:]
 
         state = Feature.feature2state(feature)
-        print('state:', state)
+        print('state:', state) if 1 else None
+
         action_gt = Label.label2action(label)
-        print('action_gt:', action_gt)
+        print('action_gt:', action_gt) if 1 else None
 
         device = next(self.model.parameters()).device
-        print("model.device:", device) if debug else None
+        print("model.device:", device) if 1 else None
+
         state.to(device)
         action_gt.to(device)
 
-        def unroll(state):
-            action_pt, _, _ = self.model.forward(state, return_logits=True)
+        def unroll(state, batch_size=None, sequence_length=None):
+            action_pt, _, _ = self.model.forward(state, batch_size=batch_size, sequence_length=sequence_length, return_logits=True)
             return action_pt
 
-        action_pt = unroll(state)
-        print('action_pt:', action_pt)
+        action_pt = unroll(state, batch_size=batch_size, sequence_length=seq_len)
+        print('action_pt:', action_pt) if 1 else None
 
         loss = self.get_classify_loss(action_pt, action_gt, criterion)
         print('loss:', loss) if 1 else None
@@ -190,8 +193,8 @@ class Agent(object):
         loss += queue_loss
 
         if action_gt.units is not None and action_pt.units is not None:
-            #units_loss = criterion(action_pt.units, action_gt.units)
-            units_loss = 0
+            units_loss = criterion(action_pt.units, action_gt.units)
+            #units_loss = 0
             loss += units_loss
 
         if action_gt.target_unit is not None and action_pt.target_unit is not None:

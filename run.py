@@ -44,7 +44,7 @@ if __name__ == '__main__':
     location_head.test()
     '''
 
-    # arch_model.test()
+    arch_model.test()
     # agent.test()
     # sc2_env.test(on_server=False)
     # actor.test(on_server=False)
@@ -55,11 +55,11 @@ if __name__ == '__main__':
     # load_feature_label.test()
     # load_pickle.test()
 
-    # sl_train_by_pickle.test(on_server=False)
+    sl_train_by_pickle.test(on_server=False)
 
     # rl_train.test(on_server=False)
 
-    vs_computer.test(on_server=False)
+    # vs_computer.test(on_server=False)
 
     # edit_distance.test()
     # 

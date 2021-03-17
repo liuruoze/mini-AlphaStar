@@ -159,6 +159,8 @@ class AllReplayDataset(Dataset):
     @staticmethod
     def get_training_for_val_data(trajs):
         training_size = int(len(trajs) * DATASET_SPLIT_RATIO.training)
+        if training_size == 0 and len(trajs) == 1:
+            training_size = 1
         print('training_size:', training_size)
         return trajs[0:training_size]
 
