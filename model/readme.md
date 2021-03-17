@@ -1,1 +1,1 @@
-move trained model here
+* The program will save trained model here;

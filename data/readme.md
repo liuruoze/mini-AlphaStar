@@ -1,1 +1,1 @@
-move replay data here
+* Move replay data here before training;
