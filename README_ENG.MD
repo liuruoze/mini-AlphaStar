@@ -4,7 +4,7 @@
 
 We release the mini-AlphaStar project, which is a mini source version of the original AlphaStar program by DeepMind. 
 
-"v_0.X" means we think we have implemented above X * 10 percent code of it. 
+"v_0.X" means we think we have implemented above X * 10 percent code of it.  
 
 "mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
 
