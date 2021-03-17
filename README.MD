@@ -1,10 +1,19 @@
 # mini-AlphaStar
 
+
+## Update
+
+This is the "v_0.8" version, and the updates are as follows:
+
+* Add code for Levenshtein and Hamming distance;
+* Add the function for fighting against built-in AI computer;
+* Fix the SL training loss problem for select units;
+
 ## Introduction
 
-We release the mini-AlphaStar project (v_0.7), which is a mini source version of the original AlphaStar program by DeepMind. 
+We release the mini-AlphaStar project, which is a mini source version of the original AlphaStar program by DeepMind. 
 
-"v_0.7" means we think we have implemented above 70 percent code of it. 
+"v_0.X" means we think we have implemented above X * 10 percent code of it. 
 
 "mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
 

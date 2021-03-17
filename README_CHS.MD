@@ -2,9 +2,9 @@
 
 ## 介绍
 
-我们发布了mini-AlphaStar项目（v_0.7版），它是DeepMind原始AlphaStar程序的微型复现版本。
+我们发布了mini-AlphaStar项目（v_0.X版），它是DeepMind原始AlphaStar程序的微型复现版本。
 
-“v_0.7”表示我们认为已经实现了70％以上的代码。
+“v_0.X”表示我们认为已经实现了X * 10％以上的代码。
 
 “mini”意味着我们使原始的AlphaStar超参数可调且微小化，以便可以小规模地运行。
 
