@@ -31,6 +31,7 @@ _ReSharper*/
 .vs/
 #Nuget packages folder
 packages/
-data/
+data/replay_data/*
+data/*.zip
 res/paper/
-model/*
+model/*.pkl
