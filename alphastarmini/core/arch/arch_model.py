@@ -222,13 +222,18 @@ def test():
     action_logits, action, _ = arch_model.forward(state, batch_size=AHP.batch_size, sequence_length=AHP.sequence_length, return_logits=True)
 
     if action.action_type is not None:
-        print("action:", action.action_type) if 1 else None
+        print("action:", action.action_type) if debug else None
     else:
         print("action is None!")
 
     # test loss and backward
     print("Test backward!")
-    print("action_logits.action_type:", action_logits.action_type)
+    print("action_logits.action_type:", action_logits.action_type) if debug else None
+
+    # if MiniStar_Arch_Hyper_Parameters is used, and Mini_Scale = 16,
+    # then batch_size = 96 / 16 = 6, sequence_length = 64 / 16 = 4, batch_seq_size = 6 * 4 = 24.
+    # Thus shape = [24, number_of_action_types=564]
+    print("action_logits.action_type.shape:", action_logits.action_type.shape) if 1 else None
 
     optimizer = Adam(arch_model.parameters(), lr=1e-4)
     with torch.autograd.set_detect_anomaly(True):
@@ -248,10 +253,16 @@ def test():
                                                                                          baseline_opponent_state=opponenet_scalar_out, 
                                                                                          return_baseline=True)
             optimizer.zero_grad()
-            print("action_logits.action_type:", action_logits.action_type)
-            print("baseline_value:", baseline_value)
+            print("action_logits.action_type:", action_logits.action_type) if debug else None
+            print("action_logits.action_type.shape:", action_logits.action_type.shape) if 1 else None
+
+            print("baseline_value:", baseline_value) if debug else None
+            print("baseline_value.shape:", baseline_value.shape) if 1 else None
+
+            print("new_hidden_state.shape:", new_hidden_state[0].shape) if 1 else None
+
             loss = action_logits.action_type.sum() + baseline_value.sum()
-            print("loss:", loss)
+            print("loss:", loss) if debug else None
 
             loss.backward()
             optimizer.step()
