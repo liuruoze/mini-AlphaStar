@@ -5,7 +5,7 @@
 
 import os
 
-USED_DEVICES = "-1"
+USED_DEVICES = "0"
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
@@ -30,11 +30,15 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+# model path
+MODEL_TYPE = "sl"
+MODEL_PATH = "./model/"
+
 
 def test(on_server=False):
     league = League(
         initial_agents={
-            race: get_supervised_agent(race)
+            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=True)
             for race in [Race.protoss]
         },
         main_players=1, 
@@ -47,7 +51,7 @@ def test(on_server=False):
 
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
-        learner = Learner(player)
+        learner = Learner(player, max_time_for_training=60 * 60 * 24)
         learners.append(learner)
         actors.extend([ActorLoop(player, coordinator) for _ in range(1)])
 

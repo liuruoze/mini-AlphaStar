@@ -817,8 +817,8 @@ def split_upgo_loss(target_logits, baselines, trajectories):
     split_target_logits = split_target_logits[:-1, :, :]
     # shape: [seq_batch_size x action_size]
     split_target_logits = split_target_logits.reshape(-1, split_target_logits.shape[-1])
-    print("split_target_logits", split_target_logits) 
-    print("split_target_logits.shape", split_target_logits.shape)
+    print("split_target_logits", split_target_logits) if debug else None   
+    print("split_target_logits.shape", split_target_logits.shape) if debug else None   
 
     # shape: list of [seq_size x batch_size]
     behavior_lists = cut_trajectories.behavior_logits
@@ -826,8 +826,8 @@ def split_upgo_loss(target_logits, baselines, trajectories):
 
     behavior_logits = torch.cat([b.action_type for a in behavior_lists for b in a], dim=0)
     # shape: [seq_batch_size x action_size]
-    print("behavior_logits", behavior_logits) 
-    print("behavior_logits.shape", behavior_logits.shape)
+    print("behavior_logits", behavior_logits) if debug else None   
+    print("behavior_logits.shape", behavior_logits.shape) if debug else None   
 
     # shape: list of [seq_size x batch_size]
     actions_lists = cut_trajectories.action
@@ -845,8 +845,8 @@ def split_upgo_loss(target_logits, baselines, trajectories):
 
     weighted_advantage = (returns.reshape(-1) - values.reshape(-1)) * importance_weights
     # shape: [seq_batch_size x 1]
-    print("weighted_advantage:", weighted_advantage)
-    print("weighted_advantage.shape:", weighted_advantage.shape)
+    print("weighted_advantage:", weighted_advantage) if debug else None   
+    print("weighted_advantage.shape:", weighted_advantage.shape) if debug else None   
 
     loss += policy_gradient_loss(split_target_logits, actions, weighted_advantage, 1).sum()
 
@@ -971,12 +971,12 @@ def loss_function(agent, trajectories):
     # shape: [batch_size x dict_name x seq_size]
     trajectories = U.stack_namedtuple(trajectories) 
     # shape: [dict_name x batch_size x seq_size]
-    print("trajectories.reward", trajectories.reward)
+    print("trajectories.reward", trajectories.reward) if debug else None   
 
     # shape: [dict_name x batch_size x seq_size]
     trajectories = U.namedtuple_zip(trajectories) 
     # shape: [dict_name x seq_size x batch_size]
-    print("trajectories.reward", trajectories.reward)
+    print("trajectories.reward", trajectories.reward) if debug else None   
 
     UPGO_WEIGHT = 1.0
     loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines[0], trajectories)

@@ -34,6 +34,7 @@ from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 from alphastarmini.core.sl.dataset_pickle import OneReplayDataset, AllReplayDataset
 
+from alphastarmini.lib.utils import load_latest_model
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import SL_Training_Hyper_Parameters as SLTHP
 
@@ -45,7 +46,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--path", default="./data/replay_data/", help="The path where data stored")
 parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument("-t", "--type", choices=["val", "test", "deploy"], default="val", help="Train type")
-parser.add_argument("-m", "--model", choices=["lstm", "gru", "fc"], default="lstm", help="Choose policy network")
+parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-n", "--norm", choices=[True, False], default=False, help="Use norm for data")
 args = parser.parse_args()
 
@@ -59,7 +60,7 @@ NORM = args.norm
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
 SEQ_LEN = AHP.sequence_length
-NUM_EPOCHS = 1000  # SLTHP.num_epochs
+NUM_EPOCHS = SLTHP.num_epochs
 LEARNING_RATE = SLTHP.learning_rate
 WEIGHT_DECAY = SLTHP.weight_decay
 CLIP = SLTHP.clip
@@ -92,10 +93,10 @@ def train_for_val(replays, replay_data):
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
 
-    #model = load_latest_model() if RESTORE else choose_model(MODEL)
-    # model.to(DEVICE)
-
     agent = Agent()
+
+    if RESTORE:
+        agent.model = load_latest_model(model_type=MODEL, path=MODEL_PATH)
 
     print('torch.cuda.device_count():', torch.cuda.device_count())
     if torch.cuda.device_count() > 1:
@@ -118,49 +119,43 @@ def train_for_val(replays, replay_data):
             print('traj.shape:', traj.shape)
             traj = traj.to(DEVICE).float()
 
-            with torch.autograd.detect_anomaly():
-                loss = agent.get_sl_loss_new(traj)
-                optimizer.zero_grad()
-                loss.backward()  # note, we don't need retain_graph=True if we set hidden_state.detach()
+            # with torch.autograd.detect_anomaly():
+            loss = agent.get_sl_loss_new(traj)
+            optimizer.zero_grad()
+            loss.backward()  # note, we don't need retain_graph=True if we set hidden_state.detach()
 
-                # add a grad clip
-                parameters = [p for p in agent.model.parameters() if p is not None and p.requires_grad]
-                torch.nn.utils.clip_grad_norm_(parameters, CLIP)
+            # add a grad clip
+            parameters = [p for p in agent.model.parameters() if p is not None and p.requires_grad]
+            torch.nn.utils.clip_grad_norm_(parameters, CLIP)
 
-                optimizer.step()
-                loss_sum += loss.item()
+            optimizer.step()
+            loss_sum += loss.item()
+
             i += 1
 
         train_loss = loss_sum / (i + 1e-9)
-        #val_loss = eval(model, criterion, val_loader, train_set, val_set)
+        val_loss = eval(agent, val_loader)
+
         print("Train loss: {:.6f}.".format(train_loss))
-        #print("Train loss: {:.6f}, Val loss: {:.6f}.".format(train_loss, val_loss))
+        print("Val loss: {:.6f}.".format(val_loss))
 
-    torch.save(agent.model, SAVE_PATH + "_val" + ".pkl")
+        torch.save(agent.model, SAVE_PATH + "" + ".pkl")
 
 
-def eval(model, criterion, data_loader, train_set, val_set):
-    model.eval()
+def eval(agent, val_loader):
+    agent.model.eval()
 
-    n_samples = len(val_set)
     loss_sum = 0.0
+    i = 0
+    for traj in val_loader:
+        traj = traj.to(DEVICE).float()
 
-    for feature, target in data_loader:
-        feature = feature.to(DEVICE).float()
-        target = target.to(DEVICE).float()
+        loss = agent.get_sl_loss_new(traj)
+        loss_sum += loss.item()
+        i += 1
 
-        output = agent.unroll(feature)
-
-        if debug:
-            print("feature.size(): ", feature.size())
-            print("target.size(): ", target.size())
-            print("output.size(): ", output.size())
-            break
-
-        loss = criterion(output, target)
-        loss_sum += output.size(0) * loss.item()
-
-    return loss_sum / n_samples
+    val_loss = loss_sum / (i + 1e-9)
+    return val_loss
 
 
 def test(on_server):

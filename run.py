@@ -22,8 +22,7 @@ from alphastarmini.core.rl import baseline
 from alphastarmini.core.rl import env_utils
 from alphastarmini.core.rl import actor
 from alphastarmini.core.rl import rl_train
-
-from alphastarmini.core.ma import vs_computer
+from alphastarmini.core.rl import against_computer
 
 from alphastarmini.lib import edit_distance
 
@@ -44,7 +43,7 @@ if __name__ == '__main__':
     location_head.test()
     '''
 
-    arch_model.test()
+    # arch_model.test()
     # agent.test()
     # sc2_env.test(on_server=False)
     # actor.test(on_server=False)
@@ -55,11 +54,11 @@ if __name__ == '__main__':
     # load_feature_label.test()
     # load_pickle.test()
 
-    sl_train_by_pickle.test(on_server=False)
+    # sl_train_by_pickle.test(on_server=False)
 
     # rl_train.test(on_server=False)
 
-    # vs_computer.test(on_server=False)
+    against_computer.test(on_server=False)
 
     # edit_distance.test()
     # 

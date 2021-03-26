@@ -3,6 +3,8 @@
 
 " Some useful lib functions "
 
+import os
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -19,6 +21,24 @@ from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCH
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+
+
+def load_latest_model(model_type, path):
+    models = list(filter(lambda x: model_type in x, os.listdir(path)))
+    if len(models) == 0:
+        print("None models found!")
+        return None
+
+    model_path = os.path.join(path, models[-1])
+    print("load model from {}".format(model_path))
+    model = torch.load(model_path)
+
+    return model
+
+
+def load_the_model(model_path):
+    model = torch.load(model_path)
+    return model
 
 
 def show_map_data_test(obs, map_width=128, show_original=True, show_resacel=True):

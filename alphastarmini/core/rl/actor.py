@@ -39,14 +39,14 @@ class ActorLoop:
     TODO: implement the batched version
     """
 
-    def __init__(self, player, coordinator, max_time_for_training = 60 * 2,
-                 max_time_per_one_opponent=60 * 1,
-                 max_frames_per_episode=22.4 * 4, max_frames=22.4 * 8, max_episodes=1):
+    def __init__(self, player, coordinator, max_time_for_training = 60 * 60 * 24,
+                 max_time_per_one_opponent=60 * 60 * 2,
+                 max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, max_episodes=100):
 
         self.player = player
         self.player.add_actor(self)
 
-        self.teacher = get_supervised_agent(player.race)
+        self.teacher = get_supervised_agent(player.race, model_type="sl")
 
         # below code is not used because we only can create the env when we know the opponnet information (e.g., race)
         # AlphaStar: self.environment = SC2Environment()
@@ -247,7 +247,7 @@ class ActorLoop:
 def test(on_server=False):
     league = League(
         initial_agents={
-            race: get_supervised_agent(race)
+            race: get_supervised_agent(race, model_type="sl")
             for race in [Race.protoss]
         },
         main_players=1, 

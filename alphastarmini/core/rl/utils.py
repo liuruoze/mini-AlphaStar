@@ -4,9 +4,12 @@
 " Help code for rl training "
 
 # modified from AlphaStar pseudo-code
+import os
+import torch
 import traceback
 import collections
 
+from alphastarmini.lib.utils import load_latest_model
 from alphastarmini.core.rl.alphastar_agent import AlphaStarAgent
 
 __author__ = "Ruo-Ze Liu"
@@ -31,8 +34,12 @@ TRAJECTORY_FIELDS = [
 Trajectory = collections.namedtuple('Trajectory', TRAJECTORY_FIELDS)
 
 
-def get_supervised_agent(race):
+def get_supervised_agent(race, path="./model/", model_type="sl", restore=True):
     agent = AlphaStarAgent(name='supervised', race=race, initial_weights=None)
+
+    if restore:
+        agent.model = load_latest_model(model_type=model_type, path=path)
+
     return agent
 
 

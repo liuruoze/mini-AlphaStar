@@ -4,9 +4,9 @@
 " The code for the learner in the actor-learner mode in the IMPALA architecture"
 
 # modified from AlphaStar pseudo-code
-# 
+import os
 import traceback
-from time import time, sleep
+from time import time, sleep, strftime, localtime
 import threading
 import itertools
 
@@ -21,6 +21,14 @@ from alphastarmini.lib.hyper_parameters import RL_Training_Hyper_Parameters as T
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+
+
+# model path
+MODEL = "rl"
+MODEL_PATH = "./model/"
+if not os.path.exists(MODEL_PATH):
+    os.mkdir(MODEL_PATH)
+SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S", localtime()))
 
 
 class Learner:
@@ -56,15 +64,19 @@ class Learner:
         trajectories = self.trajectories[:AHP.batch_size]
         self.trajectories = self.trajectories[AHP.batch_size:]
 
+        agent = self.player.agent
+
         print("begin backward")
         self.optimizer.zero_grad()
-        loss = loss_function(self.player.agent, trajectories)
+        loss = loss_function(agent, trajectories)
         print("loss:", loss)
         loss.backward()
         self.optimizer.step()
         print("end backward")
 
-        self.player.agent.steps += AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
+        torch.save(agent.agent_nn.model, SAVE_PATH + "" + ".pkl")
+
+        agent.steps += AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
         # self.player.agent.set_weights(self.optimizer.minimize(loss))
 
     def start(self):

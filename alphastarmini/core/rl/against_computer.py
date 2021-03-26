@@ -42,15 +42,16 @@ class ActorLoopVersusComputer:
 
     def __init__(self, player, coordinator, max_time_for_training = 60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
-                 max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, max_episodes=2):
+                 max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
+                 max_episodes=2, is_training=False):
 
         self.player = player
         self.player.add_actor(self)
 
-        self.teacher = get_supervised_agent(player.race)
-
         # below code is not used because we only can create the env when we know the opponnet information (e.g., race)
         # AlphaStar: self.environment = SC2Environment()
+
+        self.teacher = get_supervised_agent(player.race, model_type="sl")
 
         self.coordinator = coordinator
         self.max_time_for_training = max_time_for_training
@@ -58,10 +59,11 @@ class ActorLoopVersusComputer:
         self.max_frames_per_episode = max_frames_per_episode
         self.max_frames = max_frames
         self.max_episodes = max_episodes
+        self.is_training = is_training
 
         self.thread = threading.Thread(target=self.run, args=())
-        self.thread.daemon = True                            # Daemonize thread
 
+        self.thread.daemon = True                            # Daemonize thread
         self.is_running = True
         self.is_start = False
 
@@ -130,9 +132,6 @@ class ActorLoopVersusComputer:
 
                             print("player_function_call:", player_function_call)
 
-                            # Q: how to do it ?
-                            # teacher_logits = self.teacher(home_obs, player_action, teacher_memory)
-                            # TODO: add the right implemention of teacher_logits
                             teacher_logits = player_logits
 
                             env_actions = [player_function_call]
@@ -176,9 +175,10 @@ class ActorLoopVersusComputer:
 
                                 if self.player.learner is not None:
                                     if self.player.learner.is_running:
-                                        print("Learner send_trajectory!")
-                                        # self.player.learner.send_trajectory(trajectories)
-                                        trajectory = []
+                                        if self.is_training:
+                                            print("Learner send_trajectory!")
+                                            self.player.learner.send_trajectory(trajectories)
+                                            trajectory = []
                                     else:
                                         print("Learner stops!")
 
@@ -242,7 +242,7 @@ class ActorLoopVersusComputer:
 def test(on_server=False):
     league = League(
         initial_agents={
-            race: get_supervised_agent(race)
+            race: get_supervised_agent(race, model_type="rl")
             for race in [Race.protoss]
         },
         main_players=1, 
