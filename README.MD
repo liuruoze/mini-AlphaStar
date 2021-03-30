@@ -44,7 +44,7 @@ The codes are in these places:
 Location | URL
 ------------ | -------------
 Github | [https://github.com/liuruoze/mini-AlphaStar](https://github.com/liuruoze/mini-AlphaStar)
-Gitee | [https://gitee.com/easypr/mini-AlphaStar](https://gitee.com/easypr/mini-AlphaStar)
+Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/mini-AlphaStar)
 
 ## Furture
 

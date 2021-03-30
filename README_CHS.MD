@@ -35,7 +35,7 @@ Pytorch >= 1.5，其他请参阅requirements.txt。
 位置 | 网址
 ------------ | -------------
 Github | [https://github.com/liuruoze/mini-AlphaStar](https://github.com/liuruoze/mini-AlphaStar)
-Gitee | [https://gitee.com/easypr/mini-AlphaStar](https://gitee.com/easypr/mini-AlphaStar)
+Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/mini-AlphaStar)
 
 ## 展望
 
