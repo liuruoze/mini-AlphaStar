@@ -9,6 +9,7 @@ This is the "v_0.8" version, and the updates are as follows:
 * Add the function for fighting against built-in AI computer;
 * Fix the SL training loss problem for select units;
 
+
 ## Introduction
 
 We release the mini-AlphaStar project, which is a mini source version of the original AlphaStar program by DeepMind. 
