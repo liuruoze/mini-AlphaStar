@@ -164,7 +164,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
 
 # mini-alphastar hyper parameters
 Mini_Scale = 16  # default is 1 on server
-MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(96 / Mini_Scale),
+MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(48 / Mini_Scale),
                                                      sequence_length=int(64 / Mini_Scale),
                                                      max_selected=int(32 / Mini_Scale),                                                    
                                                      max_entities=int(384 / Mini_Scale),

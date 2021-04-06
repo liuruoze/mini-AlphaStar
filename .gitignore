@@ -35,3 +35,4 @@ data/replay_data/*
 data/*.zip
 res/paper/
 model/*.pkl
+data/experiment.txt

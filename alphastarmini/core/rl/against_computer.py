@@ -5,8 +5,16 @@
 
 # modified from AlphaStar pseudo-code
 import traceback
-from time import time, sleep
+from time import time, sleep, strftime, localtime
 import threading
+
+import os
+
+USED_DEVICES = "0"
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 import torch
 from torch.optim import Adam
@@ -32,6 +40,13 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+STEP_MUL = 8
+GAME_STEPS_PER_EPISODE = 12000    # 9000
+MAX_EPISODES = 25      # 100   
+MAIN_PLAYER_NUMS = 1
+ACTOR_NUMS = 2
+IS_TRAINING = True
+
 
 class ActorLoopVersusComputer:
     """A single actor loop that generates trajectories by playing with built-in AI (computer).
@@ -43,7 +58,7 @@ class ActorLoopVersusComputer:
     def __init__(self, player, coordinator, max_time_for_training = 60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
-                 max_episodes=2, is_training=False):
+                 max_episodes=MAX_EPISODES, is_training=IS_TRAINING):
 
         self.player = player
         self.player.add_actor(self)
@@ -79,12 +94,16 @@ class ActorLoopVersusComputer:
             total_frames = 0
             total_episodes = 0
 
+            results = [0, 0, 0]
+
             start_time = time()
+            print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_time)))
+
             # use max_episodes to end the loop
             while time() - start_time < self.max_time_for_training:
                 agents = [self.player]
 
-                with self.create_env_one_player(self.player, self.max_frames_per_episode, step_mul=1) as env:
+                with self.create_env_one_player(self.player) as env:
 
                     # set the obs and action spec
                     observation_spec = env.observation_spec()
@@ -98,6 +117,7 @@ class ActorLoopVersusComputer:
 
                     trajectory = []
                     start_time = time()  # in seconds.
+                    print("start_time before reset:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_time)))
 
                     # one opponent match (may include several games) defaultly lasts for no more than 2 hour
                     while time() - start_time < self.max_time_per_one_opponent:
@@ -107,6 +127,8 @@ class ActorLoopVersusComputer:
 
                         # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
                         total_episodes += 1
+                        print("total_episodes:", total_episodes)
+
                         timesteps = env.reset()
                         for a in agents:
                             a.reset()
@@ -122,6 +144,10 @@ class ActorLoopVersusComputer:
                         outcome = 0
 
                         # in one episode (game)
+                        # 
+                        start_episode_time = time()  # in seconds.
+                        print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
+
                         while not is_final:
                             total_frames += 1
                             episode_frames += 1
@@ -130,7 +156,7 @@ class ActorLoopVersusComputer:
                             player_step = self.player.agent.step_logits(home_obs, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory = player_step
 
-                            print("player_function_call:", player_function_call)
+                            print("player_function_call:", player_function_call) if 0 else None
 
                             teacher_logits = player_logits
 
@@ -143,7 +169,8 @@ class ActorLoopVersusComputer:
                             timesteps = env.step(env_actions)
                             [home_next_obs] = timesteps
                             reward = home_next_obs.reward
-                            print("reward: ", reward) if debug else None
+                            print("reward: ", reward) if 0 else None
+
                             is_final = home_next_obs.last()
 
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
@@ -168,7 +195,8 @@ class ActorLoopVersusComputer:
 
                             if is_final:
                                 outcome = reward
-                                print("outcome: ", outcome) if debug else None
+                                print("outcome: ", outcome) if 1 else None
+                                results[outcome + 1] += 1
 
                             if len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = U.stack_namedtuple(trajectory)
@@ -176,7 +204,8 @@ class ActorLoopVersusComputer:
                                 if self.player.learner is not None:
                                     if self.player.learner.is_running:
                                         if self.is_training:
-                                            print("Learner send_trajectory!")
+                                            print("Learner send_trajectory!") if debug else None
+
                                             self.player.learner.send_trajectory(trajectories)
                                             trajectory = []
                                     else:
@@ -201,6 +230,8 @@ class ActorLoopVersusComputer:
                         # use max_frames_per_episode to end the episode
                         if self.max_episodes and total_episodes >= self.max_episodes:
                             print("Beyond the max_episodes, return!")
+                            print("results: ", results) if 1 else None
+                            print("win rate: ", results[2] / (1e-8 + sum(results))) if 1 else None
                             return
 
         except Exception as e:
@@ -211,8 +242,8 @@ class ActorLoopVersusComputer:
             self.is_running = False
 
     # create env function
-    def create_env_one_player(self, player, max_frames_per_episode, 
-                              step_mul=1, version=None, 
+    def create_env_one_player(self, player, game_steps_per_episode=GAME_STEPS_PER_EPISODE, 
+                              step_mul=STEP_MUL, version=None, 
                               map_name="Simple64", random_seed=1):
 
         player_aif = AgentInterfaceFormat(**AAIFP._asdict())
@@ -231,7 +262,7 @@ class ActorLoopVersusComputer:
                      players=[Agent(player.race, player.name),
                               sc2_computer],
                      step_mul=step_mul,
-                     game_steps_per_episode=max_frames_per_episode,
+                     game_steps_per_episode=game_steps_per_episode,
                      agent_interface_format=agent_interface_format,
                      version=version,
                      random_seed=random_seed)
@@ -245,7 +276,7 @@ def test(on_server=False):
             race: get_supervised_agent(race, model_type="rl")
             for race in [Race.protoss]
         },
-        main_players=1, 
+        main_players=MAIN_PLAYER_NUMS, 
         main_exploiters=0,
         league_exploiters=0)
 
@@ -257,7 +288,7 @@ def test(on_server=False):
         player = league.get_learning_player(idx)
         learner = Learner(player, max_time_for_training=60 * 60 * 24)
         learners.append(learner)
-        actors.extend([ActorLoopVersusComputer(player, coordinator) for _ in range(1)])
+        actors.extend([ActorLoopVersusComputer(player, coordinator) for _ in range(ACTOR_NUMS)])
 
     threads = []
 
