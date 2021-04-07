@@ -5,7 +5,7 @@
 
 # modified from AlphaStar pseudo-code
 import traceback
-from time import time, sleep
+from time import time, sleep, strftime, localtime
 import threading
 
 import torch
@@ -31,6 +31,11 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+STEP_MUL = 8   # 1
+GAME_STEPS_PER_EPISODE = 1800    # 9000
+MAX_EPISODES = 5      # 100   
+MAIN_PLAYER_NUMS = 1
+
 
 class ActorLoop:
     """A single actor loop that generates trajectories.
@@ -41,7 +46,8 @@ class ActorLoop:
 
     def __init__(self, player, coordinator, max_time_for_training = 60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 2,
-                 max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, max_episodes=100):
+                 max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
+                 max_episodes=MAX_EPISODES):
 
         self.player = player
         self.player.add_actor(self)
@@ -75,14 +81,16 @@ class ActorLoop:
             """A run loop to have agents and an environment interact."""
             total_frames = 0
             total_episodes = 0
+            results = [0, 0, 0]
 
             start_time = time()
-            # use max_episodes to end the loop
+            print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_time)))
+
             while time() - start_time < self.max_time_for_training:
                 self.opponent, _ = self.player.get_match()
                 agents = [self.player, self.opponent]
 
-                with self.create_env(self.player, self.opponent, self.max_frames_per_episode, step_mul=1) as env:
+                with self.create_env(self.player, self.opponent) as env:
 
                     # set the obs and action spec
                     observation_spec = env.observation_spec()
@@ -96,6 +104,7 @@ class ActorLoop:
 
                     trajectory = []
                     start_time = time()  # in seconds.
+                    print("start_time before reset:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_time)))
 
                     # one opponent match (may include several games) defaultly lasts for no more than 2 hour
                     while time() - start_time < self.max_time_per_one_opponent:
@@ -105,6 +114,8 @@ class ActorLoop:
 
                         # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
                         total_episodes += 1
+                        print("total_episodes:", total_episodes)
+
                         timesteps = env.reset()
                         for a in agents:
                             a.reset()
@@ -121,6 +132,10 @@ class ActorLoop:
                         outcome = 0
 
                         # in one episode (game)
+                        # 
+                        start_episode_time = time()  # in seconds.
+                        print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
+
                         while not is_final:
                             total_frames += 1
                             episode_frames += 1
@@ -129,7 +144,7 @@ class ActorLoop:
                             player_step = self.player.agent.step_logits(home_obs, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory = player_step
 
-                            # print("player_memory:", player_memory)
+                            print("player_function_call:", player_function_call) if 0 else None
 
                             opponent_step = self.opponent.agent.step_logits(away_obs, opponent_memory)
                             opponent_function_call, opponent_action, opponent_logits, opponent_new_memory = opponent_step
@@ -175,7 +190,8 @@ class ActorLoop:
 
                             if is_final:
                                 outcome = reward
-                                print("outcome: ", outcome) if debug else None
+                                print("outcome: ", outcome) if 1 else None
+                                results[outcome + 1] += 1
 
                             if len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = U.stack_namedtuple(trajectory)
@@ -207,6 +223,8 @@ class ActorLoop:
                         # use max_frames_per_episode to end the episode
                         if self.max_episodes and total_episodes >= self.max_episodes:
                             print("Beyond the max_episodes, return!")
+                            print("results: ", results) if 1 else None
+                            print("win rate: ", results[2] / (1e-8 + sum(results))) if 1 else None
                             return
 
         except Exception as e:
@@ -217,8 +235,8 @@ class ActorLoop:
             self.is_running = False
 
     # create env function
-    def create_env(self, player, opponent, max_frames_per_episode, 
-                   step_mul=1, version=None, 
+    def create_env(self, player, opponent, game_steps_per_episode=GAME_STEPS_PER_EPISODE, 
+                   step_mul=STEP_MUL, version=None, 
                    map_name="Simple64", random_seed=1):
 
         player_aif = AgentInterfaceFormat(**AAIFP._asdict())
@@ -236,47 +254,9 @@ class ActorLoop:
                      players=[Agent(player.race, player.name),
                               Agent(opponent.race, opponent.name)],
                      step_mul=step_mul,
-                     game_steps_per_episode=max_frames_per_episode,
+                     game_steps_per_episode=game_steps_per_episode,
                      agent_interface_format=agent_interface_format,
                      version=version,
                      random_seed=random_seed)
 
         return env
-
-
-def test(on_server=False):
-    league = League(
-        initial_agents={
-            race: get_supervised_agent(race, model_type="sl")
-            for race in [Race.protoss]
-        },
-        main_players=1, 
-        main_exploiters=0,
-        league_exploiters=0)
-
-    coordinator = Coordinator(league)
-    learners = []
-    actors = []
-
-    for idx in range(league.get_learning_players_num()):
-        player = league.get_learning_player(idx)
-        learner = Learner(player)
-        learners.append(learner)
-        actors.extend([ActorLoop(player, coordinator) for _ in range(1)])
-
-    threads = []
-    for l in learners:
-        l.start()
-        threads.append(l.thread)
-        sleep(1)
-    for a in actors:
-        a.start()
-        threads.append(a.thread)
-        sleep(1)
-
-    try: 
-        # Wait for training to finish.
-        for t in threads:
-            t.join()
-    except Exception as e: 
-        print("Exception Handled in Main, Detials of the Exception:", e)
