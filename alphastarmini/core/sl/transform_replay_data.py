@@ -190,7 +190,7 @@ def test(on_server=False):
         max_replays = FLAGS.max_replays
         SAVE_TYPE = SaveType.python_pickle
     else:
-        REPLAY_PATH = os.environ.get("SC2PATH") + "/Replays/filtered_replays_1/"
+        REPLAY_PATH = "data/Replays/filtered_replays_1/"
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
         max_steps_of_replay = FLAGS.small_max_steps_of_replay
