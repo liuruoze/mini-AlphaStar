@@ -29,6 +29,7 @@ def load_latest_model(model_type, path):
         print("None models found!")
         return None
 
+    models.sort()    
     model_path = os.path.join(path, models[-1])
     print("load model from {}".format(model_path))
     model = torch.load(model_path)

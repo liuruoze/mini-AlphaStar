@@ -3,11 +3,11 @@
 
 ## Update
 
-This is the "v_0.8" version, and the updates are as follows:
+This is the "v_0.9" version, and the updates are as follows:
 
-* Add code for Levenshtein and Hamming distance;
-* Add the function for fighting against built-in AI computer;
-* Fix the SL training loss problem for select units;
+* Fix the eval problem in SL, add support that to use SL model to fine-tune RL training;
+* Fix the too slow speed problem of the SL training;
+* Fix the Rl training problem and prepared the code of testing against the built-in AI;
 
 ## Introduction
 

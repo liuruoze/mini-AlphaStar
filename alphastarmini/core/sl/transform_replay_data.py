@@ -55,8 +55,8 @@ flags.DEFINE_integer("minimap_resolution", AHP.minimap_size,
 flags.DEFINE_integer("max_game_steps", 0, "Total game steps to run.")
 flags.DEFINE_integer("max_episode_steps", 0, "Total game steps per episode.")
 
-flags.DEFINE_integer("max_replays", 1024, "Max replays to save.")
-flags.DEFINE_integer("max_steps_of_replay", int(22.4 * 60 * 30), "Max game steps of a replay.")
+flags.DEFINE_integer("max_replays", 100, "Max replays to save.")
+flags.DEFINE_integer("max_steps_of_replay", int(22.4 * 60 * 60), "Max game steps of a replay, max for 1 hour of game.")
 flags.DEFINE_integer("small_max_steps_of_replay", 256, "Max game steps of a replay when debug.")
 flags.DEFINE_float("no_op_threshold", 0.005, "The threshold to save no op operations.")  # 0.05 is about 1/4, so we choose 0.01
 
@@ -78,6 +78,9 @@ class SaveType(enum.IntEnum):
     torch_tensor = 0
     python_pickle = 1
     numpy_array = 2
+
+
+SAVE_TYPE = SaveType.python_pickle
 
 
 def check_info(replay_info):
@@ -183,19 +186,17 @@ def getFuncCall(o, feat, prev_obs):
 def test(on_server=False):
 
     if on_server:
-        REPLAY_PATH = "/home/liuruoze/mini-AlphaStar-local/data/filtered_replays_1/" 
+        REPLAY_PATH = "/home/liuruoze/mini-AlphaStar/data/filtered_replays_1/" 
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
         max_steps_of_replay = FLAGS.max_steps_of_replay
         max_replays = FLAGS.max_replays
-        SAVE_TYPE = SaveType.python_pickle
     else:
         REPLAY_PATH = "data/Replays/filtered_replays_1/"
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
         max_steps_of_replay = FLAGS.small_max_steps_of_replay
         max_replays = 5
-        SAVE_TYPE = SaveType.python_pickle
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)

@@ -15,6 +15,7 @@ import sys
 import time
 import traceback
 import argparse
+from datetime import datetime
 
 import numpy as np
 import torch
@@ -23,6 +24,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from torch.optim import Adam, RMSprop
 
+from tensorboardX import SummaryWriter
 
 from absl import flags
 from absl import app
@@ -59,12 +61,14 @@ NORM = args.norm
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
+print('BATCH_SIZE:', BATCH_SIZE)
 SEQ_LEN = AHP.sequence_length
+print('SEQ_LEN:', SEQ_LEN)
 NUM_EPOCHS = SLTHP.num_epochs
+NUM_ITERS = 100
 LEARNING_RATE = SLTHP.learning_rate
 WEIGHT_DECAY = SLTHP.weight_decay
 CLIP = SLTHP.clip
-
 FILE_SIZE = 100
 
 # set random seed
@@ -83,7 +87,11 @@ if not os.path.exists(MODEL_PATH):
 SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + time.strftime("%y-%m-%d_%H-%M-%S", time.localtime()))
 
 
-def train_for_val(replays, replay_data):
+def train_for_val(replays, replay_data, agent):
+    now = datetime.now()
+    summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+    writer = SummaryWriter(summary_path)
+
     train_replays = AllReplayDataset.get_training_for_val_data(replays)
     val_replays = AllReplayDataset.get_val_data(replays)
 
@@ -92,8 +100,6 @@ def train_for_val(replays, replay_data):
 
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
-
-    agent = Agent()
 
     if RESTORE:
         agent.model = load_latest_model(model_type=MODEL, path=MODEL_PATH)
@@ -115,9 +121,18 @@ def train_for_val(replays, replay_data):
 
         loss_sum = 0.0
         i = 0
-        for traj in train_loader:
-            print('traj.shape:', traj.shape)
+        last_traj = None
+
+        for j in range(NUM_ITERS):
+            traj = next(iter(train_loader))
+        # for traj in train_loader:
+
+            print('traj.shape:', traj.shape) if debug else None
+
             traj = traj.to(DEVICE).float()
+
+            if last_traj is not None:
+                print("traj == last_traj ?", torch.equal(traj, last_traj)) if debug else None
 
             # with torch.autograd.detect_anomaly():
             loss = agent.get_sl_loss_new(traj)
@@ -131,14 +146,18 @@ def train_for_val(replays, replay_data):
             optimizer.step()
             loss_sum += loss.item()
 
+            last_traj = traj.clone().detach()
             i += 1
 
         train_loss = loss_sum / (i + 1e-9)
         val_loss = eval(agent, val_loader)
 
         print("Train loss: {:.6f}.".format(train_loss))
+        writer.add_scalar('Train/Loss', train_loss, epoch)
         print("Val loss: {:.6f}.".format(val_loss))
+        writer.add_scalar('Val/Loss', val_loss, epoch)
 
+        print("beign to save model in " + SAVE_PATH)
         torch.save(agent.model, SAVE_PATH + "" + ".pkl")
 
 
@@ -162,7 +181,9 @@ def test(on_server):
     # get all the data
     # Note: The feature here is actually feature+label
 
-    replays = AllReplayDataset.get_trainable_data(replay_data_path=PATH, max_file_size=FILE_SIZE)
+    agent = Agent()
+
+    replays = AllReplayDataset.get_trainable_data(replay_data_path=PATH, agent=agent, max_file_size=FILE_SIZE)
 
     '''
     for replay in replays:
@@ -172,10 +193,10 @@ def test(on_server):
     '''
 
     if TYPE == 'val':
-        train_for_val(replays, None)  # select the best hyper-parameters
+        train_for_val(replays, None, agent)  # select the best hyper-parameters
     elif TYPE == 'test':
-        train_for_test(replays, None)  # for test the performance in real life
+        train_for_test(replays, None, agent)  # for test the performance in real life
     elif TYPE == 'deploy':
-        train_for_deploy(replays, None)  # only used for production
+        train_for_deploy(replays, None, agent)  # only used for production
     else:
-        train_for_val(replays, None)
+        train_for_val(replays, None, agent)

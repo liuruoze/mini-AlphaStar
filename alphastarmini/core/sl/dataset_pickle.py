@@ -47,7 +47,7 @@ def obs2feature(obs, agent):
 
 class OneReplayDataset(Dataset):
 
-    def __init__(self, traj_dict, seq_length=AHP.sequence_length):
+    def __init__(self, traj_dict, agent=None, seq_length=AHP.sequence_length):
         super().__init__()
 
         self.traj_dict = traj_dict
@@ -57,24 +57,43 @@ class OneReplayDataset(Dataset):
         # keys-objects-when-num-workers-0/43951/4
         self.keys = list(traj_dict.keys())
         self.seq_len = seq_length
-        self.agent = Agent()
+        self.agent = agent if agent is not None else Agent()
+
+        '''
+        self.feature_list = []
+        self.label_list = []
+        print("begin process keys")
+        for key in tqdm(self.keys):
+            obs = self.traj_dict[key]
+
+            feature, label = obs2feature(obs, self.agent)
+            self.feature_list.append(feature)
+            self.label_list.append(label)
+        print("end process keys")    
+        '''
 
     def __getitem__(self, index):
+
         key_list = self.keys[index:index + self.seq_len]
         feature_list = []
         label_list = []
+        obs_list = []
 
         for key in key_list:
             obs = self.traj_dict[key]
+
             feature, label = obs2feature(obs, self.agent)
             feature_list.append(feature)
             label_list.append(label)
 
+        #feature_list = self.feature_list[index:index + self.seq_len]
+        #label_list = self.label_list[index:index + self.seq_len]
+
         features = torch.cat(feature_list, dim=0)
-        print("features.shape:", features.shape) if debug else None
+        print("features.shape:", features.shape) if 0 else None
 
         labels = torch.cat(label_list, dim=0)
-        print("labels.shape:", labels.shape) if debug else None
+        print("labels.shape:", labels.shape) if 0 else None
 
         is_final = torch.zeros([features.shape[0], 1])
 
@@ -95,42 +114,47 @@ class AllReplayDataset(Dataset):
 
     def _get_random_trajectory(self, index):
         traj_loader = self.traj_loader_list[index]
-        trajs = [traj for traj in traj_loader]
 
-        return trajs[0]
+        # note: don't use "for traj in traj_loader" which is too slow
+        # we only need one item from traj_loader now
+        the_item = next(iter(traj_loader))
+
+        return the_item
 
     def __getitem__(self, index):
         replay = self._get_random_trajectory(index)
         # TODO: Extract Z
 
-        print('replay.shape:', replay.shape) if 1 else None
+        print('replay.shape:', replay.shape) if 0 else None
         replay = replay.squeeze(0)
-        print('replay.shape:', replay.shape) if 1 else None
+        print('replay.shape:', replay.shape) if 0 else None
+
         return replay
 
     def __len__(self):
         return len(self.traj_loader_list)
 
     @staticmethod
-    def get_trainable_data(replay_data_path, max_file_size=None):
+    def get_trainable_data(replay_data_path, agent=None, max_file_size=None):
         replay_files = os.listdir(replay_data_path)
         print('length of replay_files:', len(replay_files))
         replay_files.sort()
         traj_loader_list = []
-        for i, replay_file in enumerate(replay_files):
+        for i, replay_file in enumerate(tqdm(replay_files)):
             try:
                 if max_file_size is not None:
                     if i >= max_file_size:
                         break
 
                 replay_path = replay_data_path + replay_file
-                print('replay_path:', replay_path)
+                print('replay_path:', replay_path) if debug else None
 
                 with open(replay_path, 'rb') as handle:
                     traj_dict = pickle.load(handle)                  
-                    traj_dataset = OneReplayDataset(traj_dict=traj_dict)
+                    traj_dataset = OneReplayDataset(traj_dict=traj_dict, agent=agent)
                     traj_loader = DataLoader(traj_dataset, batch_size=1, shuffle=True)
                     traj_loader_list.append(traj_loader)
+
             except Exception as e:
                 traceback.print_exc()
         return traj_loader_list

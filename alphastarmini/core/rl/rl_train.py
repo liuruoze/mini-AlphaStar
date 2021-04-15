@@ -33,6 +33,7 @@ debug = False
 # model path
 MODEL_TYPE = "sl"
 MODEL_PATH = "./model/"
+ACTOR_NUMS = 2
 
 
 def test(on_server=False):
@@ -53,7 +54,7 @@ def test(on_server=False):
         player = league.get_learning_player(idx)
         learner = Learner(player, max_time_for_training=60 * 60 * 24)
         learners.append(learner)
-        actors.extend([ActorLoop(player, coordinator) for _ in range(1)])
+        actors.extend([ActorLoop(player, coordinator) for _ in range(ACTOR_NUMS)])
 
     threads = []
     for l in learners:
