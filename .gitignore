@@ -35,8 +35,5 @@ data/replay_data/*
 data/*.zip
 res/paper/
 model/*.pkl
-<<<<<<< HEAD
 *.SC2Replay
-=======
 data/experiment.txt
->>>>>>> gitee/main
