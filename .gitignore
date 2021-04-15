@@ -35,4 +35,5 @@ data/replay_data/*
 data/*.zip
 res/paper/
 model/*.pkl
+*.SC2Replay
 data/experiment.txt

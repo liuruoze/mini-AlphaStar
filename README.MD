@@ -68,6 +68,20 @@ If you find this repository useful, please cite our project:
 
 We will present a technical report to introduce the design and usage details of it in about one month. 
 
+The technical report is now on arxiv named as [An Introduction of mini-AlphaStar](https://arxiv.org/abs/2104.06890).
+
+If you find this report useful, please cite the report:
+```
+@misc{report_mini-AlphaStar,
+      title={An Introduction of mini-AlphaStar}, 
+      author={Ruo-Ze Liu and Wenhai Wang and Yanjie Shen and Zhiqi Li and Yang Yu and Tong Lu},
+      year={2021},
+      journal={CoRR},
+      eprint={2104.06890},
+      archivePrefix={arXiv},
+}
+```
+
 ## Paper
 
 We will give a paper which may be available in the future presenting the experiments and evaluations on using it. 

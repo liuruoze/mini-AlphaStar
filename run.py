@@ -50,7 +50,7 @@ if __name__ == '__main__':
     # baseline.test()
 
     # action.test()
-    # transform_replay_data.test(on_server=False)
+    transform_replay_data.test(on_server=False)
     # load_feature_label.test()
     # load_pickle.test()
 
@@ -58,7 +58,7 @@ if __name__ == '__main__':
 
     # rl_train.test(on_server=False)
 
-    against_computer.test(on_server=False)
+    # against_computer.test(on_server=False)
 
     # edit_distance.test()
     # 
