@@ -97,8 +97,14 @@ ScalarFeatureSize = namedtuple('ScalarFeatureSize', ['agent_statistics', 'home_r
 
 class ConstSize(object):
     Actions_Size = len(RAW_FUNCTIONS)
-    Upgrades_Size = len(Upgrades)
+
+    # note we use a number (320) for Upgrades_Size which is maxer than the maxiest upgrade_id
+    # please see sc2_typeenums.h
+    # Upgrades_Size = len(Upgrades)
+    Upgrades_Size = 320
+
     Effects_Size = len(Effects)
+
     Neutral_Units_Size = len(Neutral)
     Protoss_Units_Size = len(Protoss)
     Terran_Units_Size = len(Terran)

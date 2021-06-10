@@ -24,6 +24,15 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 
+def unpackbits_for_largenumber(x, num_bits):
+    if np.issubdtype(x.dtype, np.floating):
+        raise ValueError("numpy data type needs to be int-like")
+    xshape = list(x.shape)
+    x = x.reshape([-1, 1])
+    mask = 2**np.arange(num_bits, dtype=x.dtype).reshape([1, num_bits])
+    return (x & mask).astype(bool).astype(int).reshape(xshape + [num_bits])
+
+
 def calculate_unit_counts_bow(obs):
     unit_counts = obs["unit_counts"] 
     print('unit_counts:', unit_counts) if debug else None

@@ -238,7 +238,7 @@ class EntityEncoder(nn.Module):
 
             # A: x_position: Binary encoding of entity x-coordinate, in game units
             # B: optional Point pos = 6;
-            # C: TODO
+            # C: use np.unpackbits
             x = entity.x
             x_encoding = torch.tensor(np.unpackbits(np.array([x], np.uint8)), dtype=torch.float).reshape(1, -1)
             print('x_encoding:', x_encoding) if debug else None
@@ -246,7 +246,7 @@ class EntityEncoder(nn.Module):
 
             # A: y_position: Binary encoding of entity y-coordinate, in game units
             # B: optional Point pos = 6;
-            # C: TODO
+            # C: use np.unpackbits
             y = entity.y
             y_encoding = torch.tensor(np.unpackbits(np.array([y], np.uint8)), dtype=torch.float).reshape(1, -1)
             print('y_encoding:', y_encoding) if debug else None

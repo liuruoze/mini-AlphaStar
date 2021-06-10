@@ -64,7 +64,7 @@ class Agent(object):
         print("label_size:", label_size) if debug else None
 
         if self.hidden_state is not None:
-            #print('self.hidden_state:', self.hidden_state)
+            # print('self.hidden_state:', self.hidden_state)
             (h, c) = self.hidden_state
             # note, blow line is important, if we don't detach we should set retain_graph=True
             # and retain_graph=True may cause the gpu memory to explode 
@@ -194,7 +194,7 @@ class Agent(object):
 
         if action_gt.units is not None and action_pt.units is not None:
             units_loss = criterion(action_pt.units, action_gt.units)
-            #units_loss = 0
+            # units_loss = 0
             loss += units_loss
 
         if action_gt.target_unit is not None and action_pt.target_unit is not None:
@@ -270,21 +270,6 @@ class Agent(object):
         agent_statistics = torch.tensor(player_statistics, dtype=torch.float).reshape(1, -1)
         print('player_statistics:', agent_statistics) if debug else None
 
-        last_actions = obs["last_actions"]
-        print('last_actions:', last_actions) if debug else None
-
-        upgrades = obs["upgrades"]
-        print('upgrades:', upgrades) if debug else None
-
-        feature_effects = obs["feature_effects"]
-        print('feature_effects:', feature_effects) if debug else None
-
-        raw_effects = obs["raw_effects"]
-        print('raw_effects:', raw_effects) if debug else None
-
-        # available_actions = obs["available_actions"] 
-        # print('available_actions:', available_actions)
-
         home_race = torch.zeros(1, 5)
         if "home_race_requested" in obs:
             home_race_requested = obs["home_race_requested"].item()
@@ -313,17 +298,34 @@ class Agent(object):
             alerts = obs["alerts"]
             print('alerts:', alerts) if debug else None
 
-        if "game_loop" in obs:
-            game_loop = obs["game_loop"]
-            print('game_loop:', game_loop) if debug else None
+        # implement the upgrades
+        upgrades = torch.zeros(1, SFS.upgrades)
+        obs_upgrades = obs["upgrades"]
+        print('obs_upgrades:', obs_upgrades) if debug else None
+        for u in obs_upgrades:
+            assert u >= 0 
+            assert u < SFS.upgrades
+            upgrades[0, u] = 1
 
-        # TODO: implement the upgrades
-        upgrades = torch.randn(1, SFS.upgrades)
-        enemy_upgrades = torch.randn(1, SFS.upgrades)
-        time = torch.randn(1, SFS.time)
+        # question: how to know enemy's upgrades?
+        enemy_upgrades = torch.zeros(1, SFS.upgrades)
 
-        # TODO: implement the available_actions
-        available_actions = torch.randn(1, SFS.available_actions)
+        # time conver to gameloop
+        time = torch.zeros(1, SFS.time)
+        game_loop = obs["game_loop"]
+        print('game_loop:', game_loop) if debug else None
+
+        time_encoding = torch.tensor(L.unpackbits_for_largenumber(game_loop, num_bits=64), dtype = torch.float).reshape(1, -1)
+        print('time_encoding:', time_encoding) if debug else None 
+        # note, we use binary encoding here for time
+        time = time_encoding
+        #time[0, 0] = game_loop
+
+        # implement the available_actions
+        # note: if we use raw action, this key doesn't exist
+        # the_available_actions = obs["available_actions"] 
+        # print('the_available_actions:', the_available_actions) if 1 else None
+        available_actions = torch.zeros(1, SFS.available_actions)
 
         # implement the unit_counts_bow
         unit_counts_bow = L.calculate_unit_counts_bow(obs)
@@ -342,14 +344,41 @@ class Agent(object):
             print("beginning_build_order:", beginning_build_order) if debug else None
             print("sum(beginning_build_order):", torch.sum(beginning_build_order).item()) if 1 else None
 
-        mmr = torch.randn(1, SFS.mmr)
-        units_buildings = torch.randn(1, SFS.units_buildings)
-        effects = torch.randn(1, SFS.effects)
-        upgrade = torch.randn(1, SFS.upgrade)
+        mmr = torch.zeros(1, SFS.mmr)
+        units_buildings = torch.zeros(1, SFS.units_buildings)
 
-        last_delay = torch.randn(1, SFS.last_delay)
-        last_action_type = torch.randn(1, SFS.last_action_type)
-        last_repeat_queued = torch.randn(1, SFS.last_repeat_queued)
+        # implement the effects
+        effects = torch.zeros(1, SFS.effects)
+
+        # we now use feature_effects to represent it
+        feature_effects = obs["feature_effects"]
+        print('feature_effects:', feature_effects) if debug else None
+        for effect in feature_effects:
+            e = effect.effect_id
+            assert e >= 0 
+            assert e < SFS.effects
+            effects[0, e] = 1
+
+        # the raw effects are reserved for use
+        raw_effects = obs["raw_effects"]
+        print('raw_effects:', raw_effects) if debug else None
+
+        # implement the upgrade
+        upgrade = torch.zeros(1, SFS.upgrades)
+        for u in obs_upgrades:
+            assert u >= 0 
+            assert u < SFS.upgrades
+            upgrade[0, u] = 1
+
+        last_delay = torch.zeros(1, SFS.last_delay)
+
+        # implement the last action
+        # note: if we use raw action, this property is always empty
+        last_actions = obs["last_actions"]
+        print('last_actions:', last_actions) if debug else None
+        last_action_type = torch.zeros(1, SFS.last_action_type)
+
+        last_repeat_queued = torch.zeros(1, SFS.last_repeat_queued)
 
         scalar_list.append(agent_statistics)
         scalar_list.append(home_race)
@@ -372,7 +401,7 @@ class Agent(object):
 
         return scalar_list
 
-    def preprocess_state_entity(self, obs, return_tag_list=False):
+    def preprocess_state_entity(self, obs, return_tag_list = False):
         raw_units = obs["raw_units"]
         e_list = []
         tag_list = []
@@ -449,7 +478,7 @@ class Agent(object):
 
         # preprocess entity list
         entities_tensor = self.model.preprocess_entity(e_list)
-        batch_entities_tensor = torch.unsqueeze(entities_tensor, dim=0) 
+        batch_entities_tensor = torch.unsqueeze(entities_tensor, dim = 0) 
 
         if return_tag_list:
             return batch_entities_tensor, tag_list
@@ -470,17 +499,17 @@ class Agent(object):
         action = self.model.forward(state)
         return action
 
-    def action_logits_by_state(self, state, hidden_state=None, single_inference=False):
+    def action_logits_by_state(self, state, hidden_state = None, single_inference = False):
         batch_size = 1 if single_inference else None
         sequence_length = 1 if single_inference else None
 
-        action_logits, actions, new_state = self.model.forward(state, batch_size=batch_size,
-                                                               sequence_length=sequence_length,
-                                                               hidden_state=hidden_state, 
-                                                               return_logits=True)
+        action_logits, actions, new_state = self.model.forward(state, batch_size = batch_size,
+                                                               sequence_length = sequence_length,
+                                                               hidden_state = hidden_state, 
+                                                               return_logits = True)
         return action_logits, actions, new_state
 
-    def state_by_obs(self, obs, return_tag_list=False):
+    def state_by_obs(self, obs, return_tag_list = False):
         state, tag_list = self.preprocess_state_all(obs, return_tag_list)
 
         if tag_list and return_tag_list:
@@ -488,7 +517,7 @@ class Agent(object):
 
         return state, None
 
-    def func_call_to_action(self, func_call, obs=None):
+    def func_call_to_action(self, func_call, obs = None):
         # note: this is a pysc2 action, and the 
         # unit_tags and target_unit_tag are actually index in _raw_tags!
         # so they are different from the tags really used by a SC2-action!
@@ -499,7 +528,7 @@ class Agent(object):
         print('function value:', func.value) if debug else None
         print('arguments:', args) if debug else None
 
-        args_action = ArgsAction(use_tag=True)
+        args_action = ArgsAction(use_tag = True)
         args_action.action_type = func.value
 
         # use a non-smart method to calculate the args of the action
