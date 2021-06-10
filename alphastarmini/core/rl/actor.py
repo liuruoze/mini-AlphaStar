@@ -162,6 +162,10 @@ class ActorLoop:
 
                             timesteps = env.step(env_actions)
                             [home_next_obs, away_next_obs] = timesteps
+
+                            # print the observation of the agent
+                            # print("home_obs.observation:", home_obs.observation)
+
                             reward = home_next_obs.reward
                             print("reward: ", reward) if debug else None
                             is_final = home_next_obs.last()

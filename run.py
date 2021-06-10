@@ -55,10 +55,10 @@ if __name__ == '__main__':
 
     # sl_train_by_pickle.test(on_server=False)
 
-    # rl_train.test(on_server=False)
+    rl_train.test(on_server=False)
 
     # against_computer.test(on_server=False)
 
-    pseudo_reward.test()
+    # pseudo_reward.test()
 
     print('run over')

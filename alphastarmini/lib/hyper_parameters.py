@@ -103,7 +103,11 @@ class ConstSize(object):
     Protoss_Units_Size = len(Protoss)
     Terran_Units_Size = len(Terran)
     Zerg_Units_Size = len(Zerg)
-    All_Units_Size = len(Neutral) + len(Protoss) + len(Terran) + len(Zerg)
+
+    # note we use a number (1024) for unit_counts_bow which is maxer than the maxiest unit_type_id
+    # please see sc2_typeenums.h
+    # All_Units_Size = len(Neutral) + len(Protoss) + len(Terran) + len(Zerg)
+    All_Units_Size = 1024
 
 
 # for the arch model parameters
@@ -169,7 +173,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(48 / Mini_Sc
                                                      max_selected=int(32 / Mini_Scale),                                                    
                                                      max_entities=int(384 / Mini_Scale),
                                                      minimap_size=64,                                               
-                                                     embedding_size=1543,
+                                                     embedding_size=2308,
                                                      map_channels=18,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
@@ -252,14 +256,14 @@ Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
                                         upgrades=ConstSize.Upgrades_Size,
                                         enemy_upgrades=ConstSize.Upgrades_Size,
                                         time=64,
-                                        available_actions=ConstSize.Actions_Size,
-                                        unit_counts_bow=ConstSize.All_Units_Size,
+                                        available_actions=ConstSize.Actions_Size,                                      
+                                        unit_counts_bow=ConstSize.All_Units_Size, 
                                         mmr=7,
                                         units_buildings=ConstSize.All_Units_Size,
                                         effects=ConstSize.Effects_Size,
                                         upgrade=ConstSize.Upgrades_Size,
-                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order
-                                        * ConstSize.All_Units_Size,
+                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order *
+                                        ConstSize.All_Units_Size,
                                         last_delay=128,
                                         last_action_type=ConstSize.Actions_Size,
                                         last_repeat_queued=2)

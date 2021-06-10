@@ -249,17 +249,17 @@ class AlphaStarAgent(RandomAgent):
         batch_size = AHP.batch_size
         size = (seq_size, batch_size)
 
-        # we now only use zero baseline
-        #winloss_baseline = np.zeros(size)
         # shape [batch_size x seq_size x 1]
         winloss_baseline = winloss_baseline.reshape(AHP.batch_size, AHP.sequence_length)
         # shape [batch_size x seq_size]
         winloss_baseline = winloss_baseline.squeeze(-1)
         # shape [seq_size x batch_size]
         winloss_baseline = torch.transpose(winloss_baseline, 0, 1)
+
         print("winloss_baseline:", winloss_baseline) if debug else None
         print("winloss_baseline.shape:", winloss_baseline.shape) if debug else None
 
+        # we now only use zero baseline for the other four baselines
         build_order_baseline = np.zeros(size)
         built_units_baseline = np.zeros(size)
         upgrades_baseline = np.zeros(size)

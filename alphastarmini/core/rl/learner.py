@@ -66,13 +66,16 @@ class Learner:
 
         agent = self.player.agent
 
-        print("begin backward")
+        print("begin backward") if debug else None
+
         self.optimizer.zero_grad()
         loss = loss_function(agent, trajectories)
-        print("loss:", loss)
+        print("loss:", loss) if debug else None
+
         loss.backward()
         self.optimizer.step()
-        print("end backward")
+
+        print("end backward") if debug else None
 
         torch.save(agent.agent_nn.model, SAVE_PATH + "" + ".pkl")
 

@@ -257,11 +257,11 @@ class Agent(object):
         scalar_list = []
 
         player = obs["player"]
-        print('player:', player) if debug else None
+        print('player:', player) if 1 else None
 
         # The first is player_id, so we don't need it.
         player_statistics = player[1:]
-        print('player_statistics:', player_statistics) if debug else None
+        print('player_statistics:', player_statistics) if 1 else None
 
         # player_statistics = np.log(player_statistics + 1)
         # print('player_statistics:', player_statistics)
@@ -275,9 +275,6 @@ class Agent(object):
 
         upgrades = obs["upgrades"]
         print('upgrades:', upgrades) if debug else None
-
-        unit_counts = obs["unit_counts"] 
-        print('unit_counts:', unit_counts) if debug else None
 
         feature_effects = obs["feature_effects"]
         print('feature_effects:', feature_effects) if debug else None
@@ -325,9 +322,27 @@ class Agent(object):
         enemy_upgrades = torch.randn(1, SFS.upgrades)
         time = torch.randn(1, SFS.time)
 
-        # TODO: implement the unit_counts_bow
+        # TODO: implement the available_actions
         available_actions = torch.randn(1, SFS.available_actions)
-        unit_counts_bow = torch.randn(1, SFS.unit_counts_bow)
+
+        # Implement the unit_counts_bow
+        unit_counts = obs["unit_counts"] 
+        print('unit_counts:', unit_counts) if 1 else None
+
+        unit_counts_bow = torch.zeros(1, SFS.unit_counts_bow)    
+        for u_c in unit_counts:
+            unit_type = u_c[0]
+            unit_count = u_c[1]
+            assert unit_type >= 0
+            # the unit_type should not be more than the SFS.unit_counts_bow
+            assert unit_type < SFS.unit_counts_bow
+            # the unit_count can not be negetive number
+            assert unit_count >= 0
+            unit_counts_bow[0, unit_type] = unit_count
+
+        print('unit_counts_bow:', unit_counts_bow) if 1 else None
+        print('torch.sum(unit_counts_bow):', torch.sum(unit_counts_bow)) if 1 else None
+
         mmr = torch.randn(1, SFS.mmr)
         units_buildings = torch.randn(1, SFS.units_buildings)
         effects = torch.randn(1, SFS.effects)
