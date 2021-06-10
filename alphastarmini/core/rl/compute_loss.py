@@ -15,7 +15,9 @@ import torch.nn as nn
 
 from alphastarmini.core.rl.utils import Trajectory
 from alphastarmini.core.rl.action import ArgsActionLogits
+
 from alphastarmini.core.rl import utils as U
+from alphastarmini.core.rl import pseudo_reward as PR
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 
@@ -638,16 +640,32 @@ def vtrace_from_importance_weights(
                          pg_advantages=pg_advantages.detach())
 
 
-def td_lambda_loss(baselines, rewards, trajectories):
-    discounts = ~trajectories.is_final[:-1]
+def td_lambda_loss(baselines, rewards, trajectories):  
+    print("trajectories.is_final,", trajectories.is_final)
+    print("trajectories.is_final[:-1],", trajectories.is_final[:-1])
+    print("~trajectories.is_final[:-1],", ~np.array(trajectories.is_final[:-1]))
+
+    discounts = ~np.array(trajectories.is_final[:-1])
+    print("discounts:", discounts)
+    discounts = torch.tensor(discounts)
+    print("discounts:", discounts)
+
+    print("baselines:", baselines)
+    baselines = baselines
+    print("baselines:", baselines)
 
     # The baseline is then updated using TDLambda, with relative weighting 10.0 and lambda 0.8.
     returns = lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
     #returns = stop_gradient(returns)
+    print("returns:", returns)
     returns = returns.detach()
+    print("returns:", returns)
+
+    result = returns - baselines[:-1]
+    print("result:", result)
 
     # TODO: may change to pytorch version
-    return 0.5 * np.mean(np.square(returns - baselines[:-1]))
+    return 0.5 * torch.mean(torch.square(result))
 
 
 def policy_gradient_loss(logits, actions, advantages, mask):
@@ -906,7 +924,42 @@ def compute_pseudoreward(trajectories, reward_name):
 
     '''
 
-    return 0  
+    print("reward name:", reward_name)
+
+    leven_rewards = []
+    for i, traj in enumerate(trajectories):
+        home_obs_seq = traj.observation
+        bo_seq = traj.build_order
+        z_bo_seq = traj.z_build_order
+
+        r_traj = []
+        for j, home_obs in enumerate(home_obs_seq):
+            bo = bo_seq[j]
+            z_bo = z_bo_seq[j]
+            r = PR.reward_by_build_order(bo, z_bo)
+            r_traj.append(r)
+
+        leven_rewards.append(r_traj)
+
+    hamming_rewards = []
+    for i, traj in enumerate(trajectories):
+        home_obs_seq = traj.observation
+        ucb_seq = traj.unit_counts
+        z_ucb_seq = traj.z_unit_counts
+
+        r_traj = []
+        for j, home_obs in enumerate(home_obs_seq):
+            ucb = ucb_seq[j]
+            z_ucb = z_ucb_seq[j]
+            r = PR.reward_by_unit_counts(ucb, z_ucb)
+            r_traj.append(r)
+
+        hamming_rewards.append(r_traj)
+
+    print('leven_rewards:', leven_rewards)
+    print('hamming_rewards:', hamming_rewards)
+
+    return leven_rewards, hamming_rewards
 
 
 def get_baseline_hyperparameters():
@@ -952,42 +1005,10 @@ def loss_function(agent, trajectories):
     target_logits, baselines = agent.unroll(trajectories)
 
     the_action_type = target_logits.action_type
-    print("the_action_type:", the_action_type)
-    print("the_action_type.shape:", the_action_type.shape)
+    print("the_action_type:", the_action_type) if debug else None
+    print("the_action_type.shape:", the_action_type.shape) if debug else None
 
-    loss_actor_critic = 0.
-    # We use a number of actor-critic losses - one for the winloss baseline, which
-    # outputs the probability of victory, and one for each pseudo-reward
-    # associated with following the human strategy statistic z.
-    # See the paper methods and detailed_architecture.txt for more details.
-
-    BASELINE_COSTS_AND_REWARDS = get_baseline_hyperparameters()
-    if False:  # wait for furture fullfilled
-        for baseline, costs_and_rewards in zip(baselines, BASELINE_COSTS_AND_REWARDS):
-            # baseline is for caluculation in td_lambda and vtrace_pg
-            # costs_and_rewards are only weight for loss
-
-            # reward_name is for pseudoreward
-            # pg_cost is for vtrace_pg_loss
-            # baseline_cost is for lambda_loss
-            pg_cost, baseline_cost, reward_name = costs_and_rewards
-
-            rewards = compute_pseudoreward(trajectories, reward_name)
-
-            # The action_type argument, delay, and all other arguments are separately updated 
-            # using a separate ("split") VTrace Actor-Critic losses. The weighting of these 
-            # updates will be considered 1.0. action_type, delay, and other arguments are 
-            # also similarly separately updated using UPGO, in the same way as the VTrace 
-            # Actor-Critic loss, with relative weight 1.0. 
-            loss_actor_critic += (
-                baseline_cost * td_lambda_loss(baseline, rewards, trajectories))
-
-            loss_actor_critic += (
-                pg_cost * split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories))
-
-    # Note: upgo_loss has only one baseline which is just for winloss 
-    # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
-
+    # note, we change the structure of the trajectories
     # note, the size is all list
     # shape: [batch_size x dict_name x seq_size]
     trajectories = U.stack_namedtuple(trajectories) 
@@ -999,6 +1020,38 @@ def loss_function(agent, trajectories):
     # shape: [dict_name x seq_size x batch_size]
     print("trajectories.reward", trajectories.reward) if debug else None   
 
+    loss_actor_critic = 0.
+    # We use a number of actor-critic losses - one for the winloss baseline, which
+    # outputs the probability of victory, and one for each pseudo-reward
+    # associated with following the human strategy statistic z.
+    # See the paper methods and detailed_architecture.txt for more details.
+    BASELINE_COSTS_AND_REWARDS = get_baseline_hyperparameters()
+    if True:  # wait for furture fullfilled
+        for baseline, costs_and_rewards in zip(baselines, BASELINE_COSTS_AND_REWARDS):
+            # baseline is for caluculation in td_lambda and vtrace_pg
+            # costs_and_rewards are only weight for loss
+
+            # reward_name is for pseudoreward
+            # pg_cost is for vtrace_pg_loss
+            # baseline_cost is for lambda_loss
+            pg_cost, baseline_cost, reward_name = costs_and_rewards
+
+            rewards = 0  # TODO: compute_pseudoreward(trajectories, reward_name)
+
+            # The action_type argument, delay, and all other arguments are separately updated 
+            # using a separate ("split") VTrace Actor-Critic losses. The weighting of these 
+            # updates will be considered 1.0. action_type, delay, and other arguments are 
+            # also similarly separately updated using UPGO, in the same way as the VTrace 
+            # Actor-Critic loss, with relative weight 1.0. 
+
+            # TODO: remove the comments
+            loss_actor_critic += (baseline_cost * td_lambda_loss(baseline, rewards, trajectories))
+
+            # TODO: remove the comments
+            # loss_actor_critic += (pg_cost * split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories))
+
+    # Note: upgo_loss has only one baseline which is just for winloss 
+    # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
     UPGO_WEIGHT = 1.0
     loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines[0], trajectories)
 

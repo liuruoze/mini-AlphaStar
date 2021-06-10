@@ -178,6 +178,10 @@ class ActorLoop:
                             player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
                             print("player build order:", player_bo) if debug else None
 
+                            # calculate the unit counts of bag
+                            player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
+                            print("player unit count of bow:", player_ucb) if debug else None
+
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
                             # them here
                             traj_step = Trajectory(
@@ -192,6 +196,9 @@ class ActorLoop:
                                 is_final=is_final,                                          
                                 reward=reward,
                                 build_order=player_bo,
+                                z_build_order=player_bo,
+                                unit_counts=player_ucb,
+                                z_unit_counts=player_ucb,
                             )
                             trajectory.append(traj_step)
 

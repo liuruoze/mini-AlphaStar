@@ -28,7 +28,35 @@ debug = False
 
 def list2str(l):
     # note: the maximus accept number for chr() is 1114111, else raise a ValueError
-    return ''.join([chr(i) for i in l])
+    return ''.join([chr(int(i)) for i in l])
+
+
+def reward_by_build_order(bo, z_bo):
+    str1 = list2str(bo)
+    str2 = list2str(z_bo)
+
+    dist = Levenshtein.distance(str1, str2)
+
+    print('dist:', dist) if debug else None
+
+    # the cost is the squared distance between the 
+    # true built entity and the agent's entity
+    reward = - dist * dist 
+
+    print('reward:', reward) if debug else None
+
+    return reward
+
+
+def reward_by_unit_counts(ucb, z_ucb):
+    str1 = list2str(ucb)
+    str2 = list2str(z_ucb)
+
+    dist = Levenshtein.hamming(str1, str2)
+
+    reward = - dist
+
+    return reward
 
 
 def test():

@@ -36,7 +36,7 @@ def unpackbits_for_largenumber(x, num_bits):
 def calculate_unit_counts_bow(obs):
     unit_counts = obs["unit_counts"] 
     print('unit_counts:', unit_counts) if debug else None
-    unit_counts_bow = torch.zeros(1, SFS.unit_counts_bow)    
+    unit_counts_bow = torch.zeros(1, SFS.unit_counts_bow)
     for u_c in unit_counts:
         unit_type = u_c[0]
         unit_count = u_c[1]
