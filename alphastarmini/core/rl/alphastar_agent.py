@@ -203,8 +203,9 @@ class AlphaStarAgent(RandomAgent):
 
             # add the state
             home_obs_seq = traj.observation
+            bo_seq = traj.build_order
             for j, home_obs in enumerate(home_obs_seq):
-                state = self.agent_nn.preprocess_state_all(home_obs)
+                state = self.agent_nn.preprocess_state_all(home_obs, build_order=bo_seq[j])
                 state_traj.append(state)
 
             away_obs_seq = traj.opponent_observation

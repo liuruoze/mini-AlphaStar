@@ -210,9 +210,9 @@ class Agent(object):
     def init_hidden_state(self):
         return self.model.init_hidden_state()
 
-    def preprocess_state_all(self, obs):
+    def preprocess_state_all(self, obs, build_order=None):
         batch_entities_tensor = self.preprocess_state_entity(obs)
-        scalar_list = self.preprocess_state_scalar(obs)
+        scalar_list = self.preprocess_state_scalar(obs, build_order=build_order)
         map_data = self.preprocess_state_spatial(obs)
         state = MsState(entity_state=batch_entities_tensor, 
                         statistical_state=scalar_list, map_state=map_data)
@@ -253,15 +253,15 @@ class Agent(object):
 
         return scalar_list, opponenet_scalar_out
 
-    def preprocess_state_scalar(self, obs):
+    def preprocess_state_scalar(self, obs, build_order=None):
         scalar_list = []
 
         player = obs["player"]
-        print('player:', player) if 1 else None
+        print('player:', player) if debug else None
 
         # The first is player_id, so we don't need it.
         player_statistics = player[1:]
-        print('player_statistics:', player_statistics) if 1 else None
+        print('player_statistics:', player_statistics) if debug else None
 
         # player_statistics = np.log(player_statistics + 1)
         # print('player_statistics:', player_statistics)
@@ -325,32 +325,28 @@ class Agent(object):
         # TODO: implement the available_actions
         available_actions = torch.randn(1, SFS.available_actions)
 
-        # Implement the unit_counts_bow
-        unit_counts = obs["unit_counts"] 
-        print('unit_counts:', unit_counts) if 1 else None
+        # implement the unit_counts_bow
+        unit_counts_bow = L.calculate_unit_counts_bow(obs)
+        print('unit_counts_bow:', unit_counts_bow) if debug else None
+        print('torch.sum(unit_counts_bow):', torch.sum(unit_counts_bow)) if debug else None
 
-        unit_counts_bow = torch.zeros(1, SFS.unit_counts_bow)    
-        for u_c in unit_counts:
-            unit_type = u_c[0]
-            unit_count = u_c[1]
-            assert unit_type >= 0
-            # the unit_type should not be more than the SFS.unit_counts_bow
-            assert unit_type < SFS.unit_counts_bow
-            # the unit_count can not be negetive number
-            assert unit_count >= 0
-            unit_counts_bow[0, unit_type] = unit_count
+        beginning_build_order = torch.zeros(1, SCHP.count_beginning_build_order, int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
+        print('beginning_build_order.shape:', beginning_build_order.shape) if debug else None
 
-        print('unit_counts_bow:', unit_counts_bow) if 1 else None
-        print('torch.sum(unit_counts_bow):', torch.sum(unit_counts_bow)) if 1 else None
+        if build_order is not None:
+            # implement the beginning_build_order               
+            for i, bo in enumerate(build_order):
+                if i < 20:
+                    assert bo < SFS.unit_counts_bow
+                    beginning_build_order[0, i, bo] = 1
+            print("beginning_build_order:", beginning_build_order) if debug else None
+            print("sum(beginning_build_order):", torch.sum(beginning_build_order).item()) if 1 else None
 
         mmr = torch.randn(1, SFS.mmr)
         units_buildings = torch.randn(1, SFS.units_buildings)
         effects = torch.randn(1, SFS.effects)
         upgrade = torch.randn(1, SFS.upgrade)
 
-        # TODO: implement the beginning_build_order
-        beginning_build_order = torch.randn(1, SCHP.count_beginning_build_order, 
-                                            int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
         last_delay = torch.randn(1, SFS.last_delay)
         last_action_type = torch.randn(1, SFS.last_action_type)
         last_repeat_queued = torch.randn(1, SFS.last_repeat_queued)

@@ -29,6 +29,7 @@ TRAJECTORY_FIELDS = [
     'behavior_logits',  # namedtuple of logits of the behavior policy.
     'teacher_logits',  # namedtuple of logits of the supervised policy.
     'reward',  # Reward for the agent after taking the step.
+    'build_order',  # build_order
 ]
 
 Trajectory = collections.namedtuple('Trajectory', TRAJECTORY_FIELDS)

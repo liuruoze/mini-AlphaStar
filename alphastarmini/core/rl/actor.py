@@ -18,12 +18,13 @@ from alphastarmini.core.rl.utils import Trajectory, get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
 from alphastarmini.core.rl import utils as U
 
-from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
+from alphastarmini.lib import utils as L
 
 # below packages are for test
 from alphastarmini.core.ma.league import League
 from alphastarmini.core.ma.coordinator import Coordinator
 
+from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import Training_Races as TR
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
 
@@ -127,6 +128,9 @@ class ActorLoop:
                         opponent_memory = self.opponent.agent.initial_state()
                         teacher_memory = self.teacher.initial_state()
 
+                        # initial build order
+                        player_bo = []
+
                         episode_frames = 0
                         # default outcome is 0 (means draw)
                         outcome = 0
@@ -170,6 +174,10 @@ class ActorLoop:
                             print("reward: ", reward) if debug else None
                             is_final = home_next_obs.last()
 
+                            # calculate the build order
+                            player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
+                            print("player build order:", player_bo) if debug else None
+
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
                             # them here
                             traj_step = Trajectory(
@@ -183,6 +191,7 @@ class ActorLoop:
                                 teacher_logits=teacher_logits,      
                                 is_final=is_final,                                          
                                 reward=reward,
+                                build_order=player_bo,
                             )
                             trajectory.append(traj_step)
 

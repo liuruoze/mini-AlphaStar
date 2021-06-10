@@ -17,16 +17,59 @@ from pysc2.lib import actions
 
 from alphastarmini.lib import config as C
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
+from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
 __author__ = "Ruo-Ze Liu"
 
 debug = False
 
 
+def calculate_unit_counts_bow(obs):
+    unit_counts = obs["unit_counts"] 
+    print('unit_counts:', unit_counts) if debug else None
+    unit_counts_bow = torch.zeros(1, SFS.unit_counts_bow)    
+    for u_c in unit_counts:
+        unit_type = u_c[0]
+        unit_count = u_c[1]
+        assert unit_type >= 0
+        # the unit_type should not be more than the SFS.unit_counts_bow
+        assert unit_type < SFS.unit_counts_bow
+        # the unit_count can not be negetive number
+        assert unit_count >= 0
+        unit_counts_bow[0, unit_type] = unit_count
+    return unit_counts_bow
+
+
+def calculate_build_order(previous_bo, obs, next_obs):
+    # calculate the build order
+    ucb = calculate_unit_counts_bow(obs)
+    next_ucb = calculate_unit_counts_bow(next_obs)
+    diff = next_ucb - ucb
+
+    # the probe, drone, and SCV are not counted in build order
+    worker_type_list = [84, 104, 45] 
+    # the pylon, drone, and supplypot are not counted in build order
+    supply_type_list = [60, 106, 19] 
+    diff[0, worker_type_list] = 0
+    diff[0, supply_type_list] = 0
+
+    diff_count = torch.sum(diff).item()
+    print("diff between unit_counts_bow", diff_count) if debug else None
+    if diff_count == 1.0:
+        diff_numpy = diff.numpy()
+        index_list = np.where(diff_numpy >= 1.0)
+        print("index_list:", index_list) if debug else None
+        index = index_list[1][0]
+        if index not in worker_type_list and index not in supply_type_list:
+            previous_bo.append(index)
+
+    return previous_bo
+
+
 def load_latest_model(model_type, path):
     models = list(filter(lambda x: model_type in x, os.listdir(path)))
     if len(models) == 0:
-        print("None models found!")
+        print("No models are found!")
         return None
 
     models.sort()    

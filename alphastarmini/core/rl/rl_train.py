@@ -33,7 +33,7 @@ debug = False
 # model path
 MODEL_TYPE = "sl"
 MODEL_PATH = "./model/"
-ACTOR_NUMS = 2
+ACTOR_NUMS = 1
 
 
 def test(on_server=False):
