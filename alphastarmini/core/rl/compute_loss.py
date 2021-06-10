@@ -878,12 +878,33 @@ def compute_pseudoreward(trajectories, reward_name):
 
     # TODO: Calculate the Levenshtein distance,
 
+    ''' 
+    my notes: Actually, there are so many ambiguous descriptions in this place, e.g., what 
+    are the "two gateways away"? and why the units aren't built includes "auto turrets" (I think 
+    they are built by players). Moreover, is it the supply buildings that mean the building 
+    for the supplement, so, do they include "overlords" or "pylons"? The except case in the 
+    calculation of Levenshtein distance is also unclear.
+
+    '''
+
     # The built units reward is the Hamming distance between the entities built 
     # in some human replay and the entities the agent has built. After 8 minutes, 
     # the reward is multiplied by 0.5. After 16 minutes, the reward is multiplied 
     # by an additional 0.5. After 24 minutes, there are no more rewards.
 
     # TODO: Calculate the Hamming distance,
+
+    ''' 
+    my notes: First, it seems here don't use the build order, actually, it should be seen that 
+    it use the bag-of-words here. One question: is the reward be calculated in every step? Another 
+    question: if the reward is calculated in each step, does it means the agent accept a negative (I 
+    think the reward will be the negatived distance) reward every time until the agent builds the 
+    same unit counts as the human player (which is a very strong assumption, meaning that we want 
+    the agent do nearly the same as the human player). However, we can see that the restriction is 
+    smaller as the time passed (e.g, after 8 minutes, the reward is halved). However, is the choice 
+    of the "8" too experiential? I think here brings too much human knowledge here..
+
+    '''
 
     return 0  
 

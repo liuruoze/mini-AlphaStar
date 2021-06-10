@@ -23,8 +23,7 @@ from alphastarmini.core.rl import env_utils
 from alphastarmini.core.rl import actor
 from alphastarmini.core.rl import rl_train
 from alphastarmini.core.rl import against_computer
-
-from alphastarmini.lib import edit_distance
+from alphastarmini.core.rl import pseudo_reward
 
 if __name__ == '__main__':
     torch.multiprocessing.freeze_support()
@@ -50,7 +49,7 @@ if __name__ == '__main__':
     # baseline.test()
 
     # action.test()
-    transform_replay_data.test(on_server=False)
+    # transform_replay_data.test(on_server=False)
     # load_feature_label.test()
     # load_pickle.test()
 
@@ -60,8 +59,6 @@ if __name__ == '__main__':
 
     # against_computer.test(on_server=False)
 
-    # edit_distance.test()
-    # 
-    # 
+    pseudo_reward.test()
 
     print('run over')

@@ -3,9 +3,10 @@
 
 " Edit distance: module for calculating levenshtein distance and hamming distance "
 
-import Levenshtein
 import time
 import random
+
+import Levenshtein
 
 __author__ = "Ruo-Ze Liu"
 
@@ -37,7 +38,6 @@ def hammingDist(s1, s2):
 
 def test():
     levenshtein = levenshtein_recur
-    #levenshtein = Levenshtein.distance
 
     Start = 0
     Stop = 565
@@ -54,7 +54,7 @@ def test():
     print("distance between 'cat', 'cate'", levenshtein('cat', 'cate'))
     print("distance between 'cat', 'ca'", levenshtein('cat', 'ca'))
     print("distance between 'cat', 'cad'", levenshtein('cat', 'cad'))
-    
+
     begin = time.time()
     print("distance between list_1, list_2", Levenshtein.distance(list_1, list_2))
     end = time.time() 
