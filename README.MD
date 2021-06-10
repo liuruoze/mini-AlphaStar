@@ -48,7 +48,7 @@ Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/m
 
 ## Furture
 
-There are some parts that still need to be fulfilled, e.g., the calculation of z, the loss part of the vtrace, and some missing information of the env to be filled up.
+There are some parts that still need to be fulfilled, e.g., the calculation of z, and some missing information of the env to be filled up.
 
 ## Citing
 
