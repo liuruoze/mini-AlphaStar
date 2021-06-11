@@ -15,7 +15,7 @@ This is the "v_0.93" version, and the updates are as follows:
 
 We release the mini-AlphaStar project, which is a mini source version of the original AlphaStar program. AlphaStar is an intelligent AI proposed by DeepMind to play StarCraft II. StarCraft II is an RTS game developed by Blizzard.
 
-"v_0.X" means we think we have implemented above X * 10 percent code of it. 
+"v_0.X" means we think we have implemented above X % percent code of it. 
 
 "mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
 
