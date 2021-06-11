@@ -342,7 +342,7 @@ class Agent(object):
                     assert bo < SFS.unit_counts_bow
                     beginning_build_order[0, i, bo] = 1
             print("beginning_build_order:", beginning_build_order) if debug else None
-            print("sum(beginning_build_order):", torch.sum(beginning_build_order).item()) if 1 else None
+            print("sum(beginning_build_order):", torch.sum(beginning_build_order).item()) if debug else None
 
         mmr = torch.zeros(1, SFS.mmr)
         units_buildings = torch.zeros(1, SFS.units_buildings)

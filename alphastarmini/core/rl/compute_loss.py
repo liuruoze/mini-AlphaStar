@@ -641,30 +641,34 @@ def vtrace_from_importance_weights(
 
 
 def td_lambda_loss(baselines, rewards, trajectories):  
-    print("trajectories.is_final,", trajectories.is_final)
-    print("trajectories.is_final[:-1],", trajectories.is_final[:-1])
-    print("~trajectories.is_final[:-1],", ~np.array(trajectories.is_final[:-1]))
+    print("trajectories.is_final,", trajectories.is_final) if debug else None
+    print("trajectories.is_final[:-1],", trajectories.is_final[:-1]) if debug else None
+    print("~trajectories.is_final[:-1],", ~np.array(trajectories.is_final[:-1])) if debug else None
 
     discounts = ~np.array(trajectories.is_final[:-1])
-    print("discounts:", discounts)
+    print("discounts:", discounts) if debug else None
     discounts = torch.tensor(discounts)
-    print("discounts:", discounts)
+    print("discounts:", discounts) if debug else None
 
-    print("baselines:", baselines)
+    print("baselines:", baselines) if debug else None
     baselines = baselines
-    print("baselines:", baselines)
+    print("baselines:", baselines) if debug else None
+
+    print("rewards:", rewards) if debug else None
+    rewards = rewards[1:]
+    print("rewards:", rewards) if debug else None
 
     # The baseline is then updated using TDLambda, with relative weighting 10.0 and lambda 0.8.
     returns = lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
     #returns = stop_gradient(returns)
-    print("returns:", returns)
+    print("returns:", returns) if debug else None
     returns = returns.detach()
-    print("returns:", returns)
+    print("returns:", returns) if debug else None
 
     result = returns - baselines[:-1]
-    print("result:", result)
+    print("result:", result) if debug else None
 
-    # TODO: may change to pytorch version
+    # change to pytorch version
     return 0.5 * torch.mean(torch.square(result))
 
 
@@ -690,12 +694,12 @@ def policy_gradient_loss(logits, actions, advantages, mask):
 def compute_unclipped_logrho(behavior_logits, target_logits, actions):
     """Helper function for compute_importance_weights."""
     target_log_prob = log_prob(actions, target_logits, reduction="none")
-    print("target_log_prob:", target_log_prob)
-    print("target_log_prob.shape:", target_log_prob.shape)
+    print("target_log_prob:", target_log_prob) if debug else None
+    print("target_log_prob.shape:", target_log_prob.shape) if debug else None
 
     behavior_log_prob = log_prob(actions, behavior_logits, reduction="none")
-    print("behavior_log_prob:", behavior_log_prob)
-    print("behavior_log_prob.shape:", behavior_log_prob.shape)
+    print("behavior_log_prob:", behavior_log_prob) if debug else None
+    print("behavior_log_prob.shape:", behavior_log_prob.shape) if debug else None
 
     return target_log_prob - behavior_log_prob
 
@@ -703,10 +707,10 @@ def compute_unclipped_logrho(behavior_logits, target_logits, actions):
 def compute_importance_weights(behavior_logits, target_logits, actions):
     """Computes clipped importance weights."""
     logrho = compute_unclipped_logrho(behavior_logits, target_logits, actions)
-    print("logrho:", logrho)
-    print("logrho.shape:", logrho.shape)
+    print("logrho:", logrho) if debug else None
+    print("logrho.shape:", logrho.shape) if debug else None
 
-    # TODO: may change to pytorch version
+    # change to pytorch version
     return torch.clamp(torch.exp(logrho), max=1.)
 
 
@@ -714,12 +718,21 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
                    action_fields):
     """Computes v-trace policy gradient loss. Helper for split_vtrace_pg_loss."""
     # Remove last timestep from trajectories and baselines.
-    trajectories = Trajectory(*tuple(t[:-1] for t in trajectories))
+
+    trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
+    print("trajectories.reward", trajectories.reward) if 1 else None
+
     rewards = rewards[:-1]
+    print("rewards", rewards) if 1 else None
     values = baselines[:-1]
+    print("values", values) if 1 else None
 
     # Filter for only the relevant actions/logits/masks.
+
+    print("target_logits", target_logits) if 1 else None
+    #print("target_logits.shape", target_logits.shape) if 1 else None
     target_logits = filter_by(action_fields, target_logits)
+
     behavior_logits = filter_by(action_fields, trajectories.behavior_logits)
     actions = filter_by(action_fields, trajectories.actions)
     masks = filter_by(action_fields, trajectories.masks)
@@ -780,6 +793,7 @@ def upgo_returns(values, rewards, discounts, bootstrap):
     print("rewards", rewards) if debug else None
     print("discounts", discounts) if debug else None
 
+    # TODO: may change to pytorch version
     next_values = np.concatenate((values[1:], np.expand_dims(bootstrap, axis=0)), axis=0)
     print("next_values", next_values) if debug else None
     print("next_values.shape", next_values.shape) if debug else None
@@ -894,8 +908,6 @@ def compute_pseudoreward(trajectories, reward_name):
     # auto turrets or larva), worker units, and supply buildings are 
     # skipped in the build order. 
 
-    # TODO: Calculate the Levenshtein distance,
-
     ''' 
     my notes: Actually, there are so many ambiguous descriptions in this place, e.g., what 
     are the "two gateways away"? and why the units aren't built includes "auto turrets" (I think 
@@ -910,8 +922,6 @@ def compute_pseudoreward(trajectories, reward_name):
     # the reward is multiplied by 0.5. After 16 minutes, the reward is multiplied 
     # by an additional 0.5. After 24 minutes, there are no more rewards.
 
-    # TODO: Calculate the Hamming distance,
-
     ''' 
     my notes: First, it seems here don't use the build order, actually, it should be seen that 
     it use the bag-of-words here. One question: is the reward be calculated in every step? Another 
@@ -924,8 +934,10 @@ def compute_pseudoreward(trajectories, reward_name):
 
     '''
 
-    print("reward name:", reward_name)
+    print("reward name:", reward_name) if debug else None
 
+    '''
+    # if the trajectories is a list
     leven_rewards = []
     for i, traj in enumerate(trajectories):
         home_obs_seq = traj.observation
@@ -955,11 +967,45 @@ def compute_pseudoreward(trajectories, reward_name):
             r_traj.append(r)
 
         hamming_rewards.append(r_traj)
+    '''
 
-    print('leven_rewards:', leven_rewards)
-    print('hamming_rewards:', hamming_rewards)
+    print("trajectories.build_order", trajectories.build_order) if debug else None
+    print("trajectories.z_build_order", trajectories.z_build_order) if debug else None
+    print("trajectories.unit_counts", trajectories.unit_counts) if debug else None
+    print("trajectories.z_unit_counts", trajectories.z_unit_counts) if debug else None
 
-    return leven_rewards, hamming_rewards
+    weight_leven = 1.0
+    weight_hamming = 1.0
+
+    rewards_traj = []
+    for t1, t2, t3, t4 in zip(trajectories.build_order, trajectories.z_build_order,
+                              trajectories.unit_counts, trajectories.z_unit_counts):
+        # Calculate the Levenshtein distance,
+        leven_batch = []
+        for b1, b2 in zip(t1, t2):
+            r = PR.reward_by_build_order(b1, b2)
+            leven_batch.append(r)
+        print('leven_batch:', leven_batch) if debug else None
+
+        # Calculate the Hamming distance,
+        hamming_batch = []
+        for b1, b2 in zip(t3, t4):
+            r = PR.reward_by_unit_counts(b1, b2)
+            hamming_batch.append(r)
+        print('hamming_batch:', hamming_batch) if debug else None
+
+        reward_batch = []
+        for r1, r2 in zip(leven_batch, hamming_batch):
+            reward_batch.append(weight_leven * r1 + weight_hamming * r2)
+        print('reward_batch:', reward_batch) if debug else None
+
+        rewards_traj.append(reward_batch)
+
+    print('rewards_traj:', rewards_traj) if debug else None 
+    rewards_numpy = np.array(rewards_traj)
+    rewards_tensor = torch.tensor(rewards_numpy, dtype=torch.float32)
+
+    return rewards_tensor
 
 
 def get_baseline_hyperparameters():
@@ -1008,6 +1054,8 @@ def loss_function(agent, trajectories):
     print("the_action_type:", the_action_type) if debug else None
     print("the_action_type.shape:", the_action_type.shape) if debug else None
 
+    print("baselines.shape:", baselines.shape) if debug else None
+
     # note, we change the structure of the trajectories
     # note, the size is all list
     # shape: [batch_size x dict_name x seq_size]
@@ -1036,7 +1084,7 @@ def loss_function(agent, trajectories):
             # baseline_cost is for lambda_loss
             pg_cost, baseline_cost, reward_name = costs_and_rewards
 
-            rewards = 0  # TODO: compute_pseudoreward(trajectories, reward_name)
+            rewards = compute_pseudoreward(trajectories, reward_name)
 
             # The action_type argument, delay, and all other arguments are separately updated 
             # using a separate ("split") VTrace Actor-Critic losses. The weighting of these 
@@ -1044,10 +1092,9 @@ def loss_function(agent, trajectories):
             # also similarly separately updated using UPGO, in the same way as the VTrace 
             # Actor-Critic loss, with relative weight 1.0. 
 
-            # TODO: remove the comments
             loss_actor_critic += (baseline_cost * td_lambda_loss(baseline, rewards, trajectories))
 
-            # TODO: remove the comments
+            # TODO: add the split_vtrace_pg_loss
             # loss_actor_critic += (pg_cost * split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories))
 
     # Note: upgo_loss has only one baseline which is just for winloss 

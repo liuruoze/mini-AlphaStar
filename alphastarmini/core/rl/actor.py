@@ -196,9 +196,9 @@ class ActorLoop:
                                 is_final=is_final,                                          
                                 reward=reward,
                                 build_order=player_bo,
-                                z_build_order=player_bo,
+                                z_build_order=player_bo,  # change it to the sampled build order
                                 unit_counts=player_ucb,
-                                z_unit_counts=player_ucb,
+                                z_unit_counts=player_ucb,  # change it to the sampled unit counts
                             )
                             trajectory.append(traj_step)
 
