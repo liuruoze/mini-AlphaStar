@@ -3,11 +3,13 @@
 
 ## Update
 
-This is the "v_0.9" version, and the updates are as follows:
+This is the "v_0.93" version, and the updates are as follows:
 
-* Fix the eval problem in SL, add support that to use SL model to fine-tune RL training;
-* Fix the too slow speed problem of the SL training;
-* Fix the Rl training problem and prepared the code of testing against the built-in AI;
+* Add the implement the unit_counts_bow;
+* Add the implementation of the build_order;
+* Implement upgrade, effect, last and available action, plus time coding;
+* Add reward calculation for build order and unit counts
+* Add the calculation of td_lambda_loss based on the reward of the Levenstein and Hamming;
 
 ## Introduction
 
@@ -48,7 +50,7 @@ Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/m
 
 ## Furture
 
-There are some parts that still need to be fulfilled, e.g., the calculation of z, and some missing information of the env to be filled up.
+There are still some parts that need to be fulfilled, e.g., the calculation of z, to be filled up.
 
 ## Citing
 
