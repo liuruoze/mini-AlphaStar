@@ -91,8 +91,8 @@ class ArgsAction(object):
                 x = 0
             if y >= self.output_map_size:
                 y = 0
-            target_location_encoding[0, 0] = x
-            target_location_encoding[0, 1] = y
+            target_location_encoding[0, 0] = y  # note: the row index (0-index) is the y-axis
+            target_location_encoding[0, 1] = x  # note: the col index (1-index) is the x-axis
 
         return ArgsAction(action_type_encoding, delay_encoding, queue_encoding, select_units_encoding,
                           target_unit_encoding, target_location_encoding)

@@ -20,6 +20,7 @@ from alphastarmini.core.rl import utils as U
 from alphastarmini.core.rl import pseudo_reward as PR
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
+from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 
 __author__ = "Ruo-Ze Liu"
 
@@ -810,6 +811,33 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
         behavior_logits = behavior_logits.reshape(-1, behavior_logits.shape[-1])
         actions = actions.reshape(-1, actions.shape[-1])
 
+    if action_fields == 'target_location':
+        target_logits = target_logits.reshape(target_logits.shape[0], -1)
+        print("target_location: target_logits", target_logits) if 1 else None
+        print("target_location: target_logits.shape", target_logits.shape) if 1 else None
+
+        behavior_logits = behavior_logits.reshape(behavior_logits.shape[0], -1)
+        print("target_location: behavior_logits", behavior_logits) if 1 else None
+        print("target_location: behavior_logits.shape", behavior_logits.shape) if 1 else None
+
+        actions_2 = torch.zeros(behavior_logits.shape[0], 1, dtype=torch.int64)
+        print("actions_2.shape", actions_2.shape) if 1 else None
+
+        for i, pos in enumerate(actions):
+            # note: for pos, the first index is x, the seconde index is y
+            # however, for the matrix, the first index is y (row), and the second index is x (col)
+            x = pos[0]
+            assert x >= 0
+            assert x < SCHP.world_size
+            y = pos[1]
+            assert y >= 0
+            assert y < SCHP.world_size
+            index = SCHP.world_size * y + x
+            actions_2[i][0] = index
+
+        actions = actions_2
+        print("actions_2.shape", actions_2.shape) if 1 else None
+
     # Compute and return the v-trace policy gradient loss for the relevant subset of logits.
     clipped_rhos = compute_importance_weights(behavior_logits, target_logits, actions)
     print("clipped_rhos", clipped_rhos) if 1 else None
@@ -1189,7 +1217,7 @@ def loss_function(agent, trajectories):
             loss_actor_critic += (baseline_cost * td_lambda_loss(baseline, rewards, trajectories))
 
             # TODO: add the split_vtrace_pg_loss
-            # loss_actor_critic += (pg_cost * split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories))
+            loss_actor_critic += (pg_cost * split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories))
 
     # Note: upgo_loss has only one baseline which is just for winloss 
     # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
