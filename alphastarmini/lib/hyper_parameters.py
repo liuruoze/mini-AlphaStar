@@ -139,7 +139,11 @@ ArchHyperParameters = namedtuple('ArchHyperParameters', ['batch_size',
                                                          'context_size',
                                                          'location_head_max_map_channels',
                                                          'autoregressive_embedding_size',
-                                                         'baseline_input_size',
+                                                         'winloss_baseline_input_size',
+                                                         'build_order_baseline_input_size',
+                                                         'built_units_baseline_input_size',
+                                                         'upgrades_baseline_input_size',
+                                                         'effects_baseline_input_size',
                                                          'league_learner_num',
                                                          'actorloop_num'])
 
@@ -168,7 +172,13 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       context_size=512,
                                                       location_head_max_map_channels=128,
                                                       autoregressive_embedding_size=1024,
-                                                      baseline_input_size=1152,
+
+                                                      winloss_baseline_input_size=1152,
+                                                      build_order_baseline_input_size=1216,
+                                                      built_units_baseline_input_size=1152,
+                                                      upgrades_baseline_input_size=1152,
+                                                      effects_baseline_input_size=1152,
+
                                                       league_learner_num=12,
                                                       actorloop_num=16000)
 
@@ -197,7 +207,13 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(48 / Mini_Sc
                                                      context_size=128,
                                                      location_head_max_map_channels=32,
                                                      autoregressive_embedding_size=256,
-                                                     baseline_input_size=1152,
+
+                                                     winloss_baseline_input_size=1152,
+                                                     build_order_baseline_input_size=1216,
+                                                     built_units_baseline_input_size=1152,
+                                                     upgrades_baseline_input_size=1152,
+                                                     effects_baseline_input_size=1152,
+
                                                      league_learner_num=4,
                                                      actorloop_num=512)
 

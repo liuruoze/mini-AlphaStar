@@ -12,13 +12,13 @@ from alphastarmini.core.arch import delay_head
 from alphastarmini.core.arch import queue_head
 from alphastarmini.core.arch import location_head
 from alphastarmini.core.arch import agent
+from alphastarmini.core.arch import baseline
 
 from alphastarmini.core.sl import transform_replay_data
 from alphastarmini.core.sl import load_pickle
 from alphastarmini.core.sl import sl_train_by_pickle
 
 from alphastarmini.core.rl import action
-from alphastarmini.core.rl import baseline
 from alphastarmini.core.rl import env_utils
 from alphastarmini.core.rl import actor
 from alphastarmini.core.rl import rl_train

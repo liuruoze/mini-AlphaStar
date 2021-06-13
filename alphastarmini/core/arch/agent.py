@@ -228,18 +228,61 @@ class Agent(object):
 
         return state
 
-    def preprocess_baseline_state(self, home_obs, away_obs):
-        batch_size = 1
+    def get_scalar_list(self, obs, build_order=None):
         scalar_list = []
 
-        agent_statistics = torch.ones(batch_size, SFS.agent_statistics)
-        upgrades = torch.randn(batch_size, SFS.upgrades)
-        unit_counts_bow = torch.randn(batch_size, SFS.unit_counts_bow)
-        units_buildings = torch.randn(batch_size, SFS.units_buildings)
-        effects = torch.randn(batch_size, SFS.effects)
-        upgrade = torch.randn(batch_size, SFS.upgrade)
-        beginning_build_order = torch.randn(batch_size, SCHP.count_beginning_build_order, 
-                                            int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
+        # implement the agent_statistics
+        player = obs["player"]
+        player_statistics = player[1:]
+        agent_statistics = torch.tensor(player_statistics, dtype=torch.float).reshape(1, -1)
+        print('agent_statistics:', agent_statistics) if debug else None
+
+        # implement the upgrades
+        upgrades = torch.zeros(1, SFS.upgrades)
+        obs_upgrades = obs["upgrades"]
+        print('obs_upgrades:', obs_upgrades) if debug else None
+        for u in obs_upgrades:
+            assert u >= 0 
+            assert u < SFS.upgrades
+            upgrades[0, u] = 1
+
+        # implement the unit_counts_bow
+        unit_counts_bow = L.calculate_unit_counts_bow(obs)
+        print('unit_counts_bow:', unit_counts_bow) if debug else None
+        print('torch.sum(unit_counts_bow):', torch.sum(unit_counts_bow)) if debug else None
+
+        # TODO: implement the units_buildings
+        units_buildings = torch.randn(1, SFS.units_buildings)
+
+        # implement the effects
+        effects = torch.zeros(1, SFS.effects)
+        # we now use feature_effects to represent it
+        feature_effects = obs["feature_effects"]
+        print('feature_effects:', feature_effects) if debug else None
+        for effect in feature_effects:
+            e = effect.effect_id
+            assert e >= 0 
+            assert e < SFS.effects
+            effects[0, e] = 1
+        # the raw effects are reserved for use
+        raw_effects = obs["raw_effects"]
+        print('raw_effects:', raw_effects) if debug else None
+
+        # now we simplely make upgrade the same as upgrades
+        upgrade = upgrades
+
+        # implement the build order
+        # TODO: add the pos of buildings
+        beginning_build_order = torch.zeros(1, SCHP.count_beginning_build_order, int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
+        print('beginning_build_order.shape:', beginning_build_order.shape) if debug else None
+        if build_order is not None:
+            # implement the beginning_build_order               
+            for i, bo in enumerate(build_order):
+                if i < 20:
+                    assert bo < SFS.unit_counts_bow
+                    beginning_build_order[0, i, bo] = 1
+            print("beginning_build_order:", beginning_build_order) if debug else None
+            print("sum(beginning_build_order):", torch.sum(beginning_build_order).item()) if debug else None
 
         scalar_list.append(agent_statistics)
         scalar_list.append(upgrades)
@@ -249,9 +292,15 @@ class Agent(object):
         scalar_list.append(upgrade)
         scalar_list.append(beginning_build_order)
 
-        opponenet_scalar_out = scalar_list
+        return scalar_list
 
-        return scalar_list, opponenet_scalar_out
+    def preprocess_baseline_state(self, home_obs, away_obs, build_order=None):
+        batch_size = 1
+
+        agent_scalar_list = self.get_scalar_list(home_obs, build_order)    
+        opponenet_scalar_out = self.get_scalar_list(away_obs)  
+
+        return agent_scalar_list, opponenet_scalar_out
 
     def preprocess_state_scalar(self, obs, build_order=None):
         scalar_list = []
@@ -332,9 +381,9 @@ class Agent(object):
         print('unit_counts_bow:', unit_counts_bow) if debug else None
         print('torch.sum(unit_counts_bow):', torch.sum(unit_counts_bow)) if debug else None
 
+        # implement the build order
         beginning_build_order = torch.zeros(1, SCHP.count_beginning_build_order, int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
         print('beginning_build_order.shape:', beginning_build_order.shape) if debug else None
-
         if build_order is not None:
             # implement the beginning_build_order               
             for i, bo in enumerate(build_order):
@@ -349,7 +398,6 @@ class Agent(object):
 
         # implement the effects
         effects = torch.zeros(1, SFS.effects)
-
         # we now use feature_effects to represent it
         feature_effects = obs["feature_effects"]
         print('feature_effects:', feature_effects) if debug else None
@@ -358,7 +406,6 @@ class Agent(object):
             assert e >= 0 
             assert e < SFS.effects
             effects[0, e] = 1
-
         # the raw effects are reserved for use
         raw_effects = obs["raw_effects"]
         print('raw_effects:', raw_effects) if debug else None
@@ -644,12 +691,12 @@ class Agent(object):
         return func_call
 
     def unroll_traj(self, state_all, initial_state, baseline_state=None, baseline_opponent_state=None):
-        baseline_value, action_logits, _, _ = self.model.forward(state_all, batch_size=None, sequence_length=None, 
-                                                                 hidden_state=initial_state, return_logits=True,
-                                                                 baseline_state=baseline_state, 
-                                                                 baseline_opponent_state=baseline_opponent_state,
-                                                                 return_baseline=True)
-        return baseline_value, action_logits
+        baseline_value_list, action_logits, _, _ = self.model.forward(state_all, batch_size=None, sequence_length=None, 
+                                                                      hidden_state=initial_state, return_logits=True,
+                                                                      baseline_state=baseline_state, 
+                                                                      baseline_opponent_state=baseline_opponent_state,
+                                                                      return_baseline=True)
+        return baseline_value_list, action_logits
 
     def get_weights(self):
         return self.model.state_dict()

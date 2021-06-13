@@ -31,7 +31,7 @@ class Baseline(nn.Module):
 
     def __init__(self, baseline_type='winloss',
                  n_statistics=10, 
-                 baseline_input=AHP.baseline_input_size,
+                 baseline_input=AHP.winloss_baseline_input_size,
                  n_upgrades=SFS.upgrades, 
                  n_units_buildings=SFS.unit_counts_bow, 
                  n_effects=SFS.effects, n_upgrade=SFS.upgrade,
@@ -42,6 +42,14 @@ class Baseline(nn.Module):
                  original_256=AHP.original_256):
         super().__init__()
         self.baseline_type = baseline_type
+        if baseline_type == 'build_order':
+            baseline_input = AHP.build_order_baseline_input_size
+        elif baseline_type == 'built_units':
+            baseline_input = AHP.built_units_baseline_input_size
+        elif baseline_type == 'upgrades':
+            baseline_input = AHP.upgrades_baseline_input_size
+        elif baseline_type == 'effects':
+            baseline_input = AHP.effects_baseline_input_size
 
         self.statistics_fc = nn.Linear(n_statistics, original_64)  # with relu
         self.upgrades_fc = nn.Linear(n_upgrades, original_128)  # with relu
@@ -136,6 +144,9 @@ class Baseline(nn.Module):
         embedded_scalar_list.append(x)
 
         embedded_scalar = torch.cat(embedded_scalar_list, dim=1)
+
+        print("self.baseline_type:", self.baseline_type) if 1 else None
+        print("embedded_scalar.shape:", embedded_scalar.shape) if 1 else None
 
         return embedded_scalar
 

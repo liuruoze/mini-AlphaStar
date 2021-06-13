@@ -18,8 +18,8 @@ from alphastarmini.core.arch.queue_head import QueueHead
 from alphastarmini.core.arch.selected_units_head import SelectedUnitsHead
 from alphastarmini.core.arch.target_unit_head import TargetUnitHead
 from alphastarmini.core.arch.location_head import LocationHead
+from alphastarmini.core.arch.baseline import Baseline
 
-from alphastarmini.core.rl.baseline import Baseline
 from alphastarmini.core.rl.action import ArgsAction, ArgsActionLogits
 from alphastarmini.core.rl.state import MsState
 
@@ -53,7 +53,16 @@ class ArchModel(nn.Module):
         self.selected_units_head = SelectedUnitsHead()
         self.target_unit_head = TargetUnitHead()
         self.location_head = LocationHead()
-        self.baseline = Baseline()
+
+        # init all baselines
+        self.init_baselines()
+
+    def init_baselines(self):
+        self.winloss_baseline = Baseline(baseline_type='winloss')
+        self.build_order_baseline = Baseline(baseline_type='build_order')
+        self.built_units_baseline = Baseline(baseline_type='built_units')
+        self.upgrades_baseline = Baseline(baseline_type='upgrades')
+        self.effects_baseline = Baseline(baseline_type='effects')
 
     def count_parameters(self):  
         # https://discuss.pytorch.org/t/how-do-i-check-the-number-of-parameters-of-a-model/4325/7
@@ -107,9 +116,16 @@ class ArchModel(nn.Module):
         if return_logits:
 
             if return_baseline:
-                baseline_value = self.baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+                winloss_baseline_value = self.winloss_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+                build_order_baseline_value = self.build_order_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+                built_units_baseline_value = self.built_units_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+                upgrades_baseline_value = self.upgrades_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+                effects_baseline_value = self.effects_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
 
-                return baseline_value, action_logits, action, hidden_state
+                baseline_value_list = [winloss_baseline_value, build_order_baseline_value, built_units_baseline_value,
+                                       upgrades_baseline_value, effects_baseline_value]
+
+                return baseline_value_list, action_logits, action, hidden_state
 
             return action_logits, action, hidden_state
 
