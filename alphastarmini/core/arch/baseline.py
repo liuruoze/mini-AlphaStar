@@ -145,8 +145,8 @@ class Baseline(nn.Module):
 
         embedded_scalar = torch.cat(embedded_scalar_list, dim=1)
 
-        print("self.baseline_type:", self.baseline_type) if 1 else None
-        print("embedded_scalar.shape:", embedded_scalar.shape) if 1 else None
+        print("self.baseline_type:", self.baseline_type) if debug else None
+        print("embedded_scalar.shape:", embedded_scalar.shape) if debug else None
 
         return embedded_scalar
 

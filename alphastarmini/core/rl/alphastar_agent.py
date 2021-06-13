@@ -242,8 +242,8 @@ class AlphaStarAgent(RandomAgent):
                                                                  baseline_state=baseline_state_all, 
                                                                  baseline_opponent_state=baseline_state_op_all)
         winloss_baseline = baseline_list[0]
-        print("winloss_baseline:", winloss_baseline) if 1 else None
-        print("winloss_baseline.shape:", winloss_baseline.shape) if 1 else None
+        print("winloss_baseline:", winloss_baseline) if debug else None
+        print("winloss_baseline.shape:", winloss_baseline.shape) if debug else None
 
         # calculate the baselines
         # note that shape is [T, B]
@@ -258,16 +258,14 @@ class AlphaStarAgent(RandomAgent):
         # shape [seq_size x batch_size]
         winloss_baseline = torch.transpose(winloss_baseline, 0, 1)
 
-        print("winloss_baseline:", winloss_baseline) if 1 else None
-        print("winloss_baseline.shape:", winloss_baseline.shape) if 1 else None
-
-        #print("stop", len(stop))
+        print("winloss_baseline:", winloss_baseline) if debug else None
+        print("winloss_baseline.shape:", winloss_baseline.shape) if debug else None
 
         # we now only use zero baseline for the other four baselines
-        build_order_baseline = baseline_list[1]  # np.zeros(size)
-        built_units_baseline = baseline_list[2]  # np.zeros(size)
-        upgrades_baseline = baseline_list[3]  # np.zeros(size)
-        effects_baseline = baseline_list[4]  # np.zeros(size)
+        build_order_baseline = baseline_list[1].reshape(winloss_baseline.shape)  # np.zeros(size)
+        built_units_baseline = baseline_list[2].reshape(winloss_baseline.shape)  # np.zeros(size)
+        upgrades_baseline = baseline_list[3].reshape(winloss_baseline.shape)  # np.zeros(size)
+        effects_baseline = baseline_list[4].reshape(winloss_baseline.shape)  # np.zeros(size)
 
         baselines = [winloss_baseline, build_order_baseline, built_units_baseline, upgrades_baseline, effects_baseline]
 
