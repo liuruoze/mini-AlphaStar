@@ -3,13 +3,14 @@
 
 ## Update
 
-This is the "v_0.93" version, and the updates are as follows:
+This is the "v_0.96" version, and the updates are as follows:
 
-* Add the implement the unit_counts_bow;
-* Add the implementation of the build_order;
-* Implement upgrade, effect, last and available action, plus time coding;
-* Add reward calculation for build order and unit counts
-* Add the calculation of td_lambda_loss based on the reward of the Levenstein and Hamming;
+* Fix the clipped_rhos calculation problem for v-trace policy gradient loss;
+* Fix the filter_by function for the other 5 arguments in the vtrace_pg_loss;
+* Implement the vtrace_advantages method for the all 6 arguments of actions;
+* Complete the implementation of split_vtrace_pg_loss for all arguments;
+* Replenish the right process flow for baselinse of build_order, built_units, upgrades, effects;
+* Fix the 5 other arguments loss calculation in the UPGO;
 
 ## Introduction
 
@@ -50,7 +51,7 @@ Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/m
 
 ## Furture
 
-There are still some parts that need to be fulfilled, e.g., the calculation of z, to be filled up.
+There are still very little parts that need to be fulfilled.
 
 ## Citing
 
@@ -68,9 +69,9 @@ If you find this repository useful, please cite our project:
 
 ## Report
 
-We will present a technical report to introduce the design and usage details of it in about one month. 
-
 The technical report is now on arxiv named as [An Introduction of mini-AlphaStar](https://arxiv.org/abs/2104.06890).
+
+We will give two to three updates for the report, to make it more complete and clear. 
 
 If you find this report useful, please cite the report:
 ```

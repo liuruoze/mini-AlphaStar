@@ -1003,8 +1003,7 @@ def split_upgo_loss(target_logits, baselines, trajectories):
     # action_type, delay, and other arguments are also similarly separately 
     # updated using UPGO, in the same way as the VTrace Actor-Critic loss, 
     # with relative weight 1.0.
-    # TODO: make upgo also contains all the arguments
-
+    # We make upgo also contains all the arguments
     loss = sum_upgo_loss(target_logits, values, trajectories, returns)
 
     return loss
