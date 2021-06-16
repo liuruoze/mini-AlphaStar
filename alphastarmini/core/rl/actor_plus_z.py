@@ -264,7 +264,8 @@ class ActorLoopPlusZ:
                                 print("player unit count of bow:", sum(player_ucb)) if debug else None
 
                                 # start replay_reward
-                                controller.step()
+                                # note the controller should step the same steps as with the rl actor (keep the time as the same)
+                                controller.step(STEP_MUL)
 
                                 replay_next_o = controller.observe()
                                 replay_next_obs = feat.transform_obs(replay_next_o)
