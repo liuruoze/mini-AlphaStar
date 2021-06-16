@@ -23,6 +23,7 @@ from tqdm import tqdm
 from pysc2.lib import point
 from pysc2.lib import features as F
 from pysc2.lib import actions as A
+from pysc2.lib import units as Unit
 from pysc2 import run_configs
 
 from s2clientprotocol import sc2api_pb2 as sc_pb
@@ -60,8 +61,8 @@ flags.DEFINE_integer("max_steps_of_replay", int(22.4 * 60 * 60), "Max game steps
 flags.DEFINE_integer("small_max_steps_of_replay", 256, "Max game steps of a replay when debug.")
 flags.DEFINE_float("no_op_threshold", 0.005, "The threshold to save no op operations.")  # 0.05 is about 1/4, so we choose 0.01
 
-flags.DEFINE_bool("disable_fog", False, "Disable fog of war.")
-flags.DEFINE_integer("observed_player", 1, "Which player to observe.")
+flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
+flags.DEFINE_integer("observed_player", 1, "Which player to observe. For 2 player game, this can be 1 or 2.")
 
 flags.DEFINE_string("replay_version", "3.16.1", "the replays released by blizzard are all 3.16.1 version")
 
@@ -129,7 +130,7 @@ def getFeatureAndLabel(obs, func_call, agent):
 
     print("begin a:") if debug else None
     action = agent.func_call_to_action(func_call, obs=obs)
-    #tag_list = agent.get_tag_list(obs)
+    # tag_list = agent.get_tag_list(obs)
     a = action.toLogits(tag_list)
     label = Label.action2label(a)
     print("label:", label) if debug else None
@@ -177,9 +178,64 @@ def getObsAndFunc(obs, func_call, agent):
     return step_dict
 
 
-def getFuncCall(o, feat, prev_obs):
-    func_call = feat.reverse_raw_action(o.actions[0], prev_obs)
-    print('expert func_call: ', func_call) if debug else None
+def getFuncCall(o, feat, prev_obs, use_raw=True):
+    func_call = None
+
+    if use_raw:
+        if prev_obs is None:
+            raise ValueError("use raw function call must input prev_obs")
+
+        raw_func_call = feat.reverse_raw_action(o.actions[0], prev_obs)
+
+        if raw_func_call.function.value == 0:
+            # no op
+            pass
+        elif raw_func_call.function.value == 168:
+            # camera move
+            pass
+        elif raw_func_call.function.value == 1:
+            # smart screen
+            pass        
+        else:
+            print('expert raw func_call: ', raw_func_call) if debug else None
+            action = o.actions[0]
+
+            raw_tags = prev_obs["raw_units"][:, 29]  # 29 is FeatureUnit.tag
+            raw_unit_type = prev_obs["raw_units"][:, 0]  # 0 is FeatureUnit.unit_type
+
+            #print('raw_tags:', raw_tags)
+            #print('len(raw_tags):', len(raw_tags))
+
+            def find_tag_position(original_tag):
+                for i, tag in enumerate(raw_tags):
+                    if tag == original_tag:
+                        return i
+                #logging.warning("Not found tag! %s", original_tag)
+                return -1
+
+            if action.HasField("action_raw"):
+                raw_act = action.action_raw
+                if raw_act.HasField("unit_command"):
+                    uc = raw_act.unit_command
+                    ability_id = uc.ability_id
+                    queue_command = uc.queue_command
+                    unit_tags = (find_tag_position(t) for t in uc.unit_tags)
+                    unit_tags = [t for t in unit_tags if t != -1]
+                    unit_index = unit_tags[0]
+                    print('unit_index:', unit_index) if debug else None
+                    print('unit_tag:', raw_tags[unit_index]) if debug else None
+                    unit_type_id = raw_unit_type[unit_index]
+                    unit_type_name = Unit.Protoss(unit_type_id)
+                    print('Protoss unit_type:', unit_type_name) if debug else None
+
+        func_call = raw_func_call
+    else:
+
+        feat_func_call = feat.reverse_action(o.actions[0])
+        print('expert feature func_call: ', feat_func_call) if 1 else None
+
+        func_call = feat_func_call
+
     return func_call
 
 
@@ -195,8 +251,8 @@ def test(on_server=False):
         REPLAY_PATH = "data/Replays/filtered_replays_1/"
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = FLAGS.small_max_steps_of_replay
-        max_replays = 5
+        max_steps_of_replay = 60 * 60 * 22.4
+        max_replays = 1
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)
@@ -207,11 +263,37 @@ def test(on_server=False):
     screen_resolution = point.Point(FLAGS.screen_resolution, FLAGS.screen_resolution)
     minimap_resolution = point.Point(FLAGS.minimap_resolution, FLAGS.minimap_resolution)
     camera_width = 24
-    random_seed = 42
+
+    # By default raw actions select, act and revert the selection. This is useful
+    # if you're playing simultaneously with the agent so it doesn't steal your
+    # selection. This inflates APM (due to deselect) and makes the actions hard
+    # to follow in a replay. Setting this to true will cause raw actions to do
+    # select, act, but not revert the selection.
+    raw_affects_selection = False
+
+    # Changes the coordinates in raw.proto to be relative to the playable area.
+    # The map_size and playable_area will be the diagonal of the real playable area.
+    raw_crop_to_playable_area = False
 
     interface = sc_pb.InterfaceOptions(
-        raw=True, score=True,
-        feature_layer=sc_pb.SpatialCameraSetup(width=camera_width))
+        raw=True, 
+        score=True,
+        # Omit to disable.
+        feature_layer=sc_pb.SpatialCameraSetup(width=camera_width),  
+        # Omit to disable.
+        render=None,  
+        # By default cloaked units are completely hidden. This shows some details.
+        show_cloaked=False, 
+        # By default burrowed units are completely hidden. This shows some details for those that produce a shadow.
+        show_burrowed_shadows=False,       
+        # Return placeholder units (buildings to be constructed), both for raw and feature layers.
+        show_placeholders=False, 
+        # see below
+        raw_affects_selection=raw_affects_selection,
+        # see below
+        raw_crop_to_playable_area=raw_crop_to_playable_area
+    )
+
     screen_resolution.assign_to(interface.feature_layer.resolution)
     minimap_resolution.assign_to(interface.feature_layer.minimap_resolution)
 
@@ -231,8 +313,11 @@ def test(on_server=False):
                 start_replay = sc_pb.RequestStartReplay(
                     replay_data=replay_data,
                     options=interface,
-                    disable_fog=FLAGS.disable_fog,
-                    observed_player_id=FLAGS.observed_player)
+                    disable_fog=False,  # FLAGS.disable_fog
+                    observed_player_id=2,  # FLAGS.observed_player
+                    map_data=None,
+                    realtime=False
+                )
 
                 print(" Replay info ".center(60, "-")) if debug else None
                 print(replay_info) if debug else None

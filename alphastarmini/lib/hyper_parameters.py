@@ -113,6 +113,8 @@ class ConstSize(object):
     # note we use a number (1024) for unit_counts_bow which is maxer than the maxiest unit_type_id
     # please see sc2_typeenums.h
     # All_Units_Size = len(Neutral) + len(Protoss) + len(Terran) + len(Zerg)
+    # note that there are a few units which have unit type id > 1024 but < 2048, please see pysc2.lib.units
+    # for now we make that unit types to be 0.
     All_Units_Size = 1024
 
 

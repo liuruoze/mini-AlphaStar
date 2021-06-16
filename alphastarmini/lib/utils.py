@@ -41,10 +41,16 @@ def calculate_unit_counts_bow(obs):
         unit_type = u_c[0]
         unit_count = u_c[1]
         assert unit_type >= 0
-        # the unit_type should not be more than the SFS.unit_counts_bow
-        assert unit_type < SFS.unit_counts_bow
         # the unit_count can not be negetive number
         assert unit_count >= 0
+
+        # the unit_type should not be more than the SFS.unit_counts_bow
+        # if it is, make it to be 0 now. (0 means nothing now)
+        # the most impact one is ShieldBattery = 1910
+        # TODO： find a better way to do it
+        if unit_type >= SFS.unit_counts_bow:
+            unit_type = 0
+
         unit_counts_bow[0, unit_type] = unit_count
     return unit_counts_bow
 

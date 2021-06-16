@@ -14,9 +14,10 @@ from alphastarmini.core.arch import location_head
 from alphastarmini.core.arch import agent
 from alphastarmini.core.arch import baseline
 
-from alphastarmini.core.sl import transform_replay_data
+
 from alphastarmini.core.sl import load_pickle
 from alphastarmini.core.sl import sl_train_by_pickle
+
 
 from alphastarmini.core.rl import action
 from alphastarmini.core.rl import env_utils
@@ -26,7 +27,9 @@ from alphastarmini.core.rl import against_computer
 from alphastarmini.core.rl import pseudo_reward
 
 if __name__ == '__main__':
+    # if we don't add this line, it may cause running time error while in Windows
     torch.multiprocessing.freeze_support()
+
     print("run init")
 
     '''
@@ -49,16 +52,22 @@ if __name__ == '__main__':
     # baseline.test()
 
     # action.test()
+
+    # from alphastarmini.core.sl import transform_replay_data
     # transform_replay_data.test(on_server=False)
+    # 
     # load_feature_label.test()
     # load_pickle.test()
 
     # sl_train_by_pickle.test(on_server=False)
 
-    rl_train.test(on_server=False)
+    # rl_train.test(on_server=False)
 
     # against_computer.test(on_server=False)
 
     # pseudo_reward.test()
+
+    from alphastarmini.core.sl import analyze_replay_statistic
+    analyze_replay_statistic.test(on_server=False)
 
     print('run over')

@@ -11,6 +11,7 @@ import torch
 
 from pysc2.lib import actions
 from pysc2.env import sc2_env
+from pysc2.env import environment as E
 
 from alphastarmini.core.arch.agent import Agent
 from alphastarmini.core.rl.state import MsState
@@ -153,12 +154,15 @@ class AlphaStarAgent(RandomAgent):
         return action, action_logits, hidden_state
 
     def step(self, obs):
+        # note here obs is actually timestep 
         rand_func_call = super(AlphaStarAgent, self).step(obs)
-
         print('name:', self.name) if 1 else None
 
-        observation = obs.observation
-        action, _, self.memory_state = self.step_nn(observation, self.memory_state)
+        # note someimes obs is timestep 
+        if isinstance(obs, E.TimeStep):
+            obs = obs.observation
+
+        action, _, self.memory_state = self.step_nn(obs, self.memory_state)
 
         if actions is not None:
             # we use single_inference here
@@ -170,11 +174,14 @@ class AlphaStarAgent(RandomAgent):
             # only return random action
             return rand_func_call
 
-    def step_logits(self, obs, last_state):
+    def step_logits(self, obs, last_state):       
         print('name:', self.name) if 1 else None
 
-        observation = obs.observation
-        action, action_logits, new_state = self.step_nn(observation=observation, last_state=last_state)
+        # note someimes obs is timestep 
+        if isinstance(obs, E.TimeStep):
+            obs = obs.observation
+
+        action, action_logits, new_state = self.step_nn(observation=obs, last_state=last_state)
 
         func_call = self.agent_nn.action_to_func_call(action, self.action_spec)
         return func_call, action, action_logits, new_state
