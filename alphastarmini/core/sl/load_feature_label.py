@@ -80,15 +80,6 @@ def test():
 
                 traj.append([state, action_gt, isfinal])
 
-            '''TODO: change to batch version
-                states = Feature.feature2state(features)
-                print("states:", states)
-                action_gts = Label.label2action(labels)
-                print("action_gts:", action_gts)
-                action_prdicts = agent.action_by_state(states)
-                print("action_prdicts:", action_prdicts)
-            '''
-
         except Exception as e:
             traceback.print_exc()    
 

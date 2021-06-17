@@ -304,11 +304,7 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
         raise NotImplementedError
 
     elems = [sequence, decay]
-    # TODO: change it 
-    elems = [torch.tensor(s, dtype=torch.float32) for s in elems]
 
-    # TODO: change it
-    initial_value = torch.tensor(initial_value, dtype=torch.float32)
     print("initial_value", initial_value) if debug else None
     print("initial_value.shape", initial_value) if debug else None
 
@@ -625,11 +621,12 @@ def vtrace_from_importance_weights(
         pg_advantages: A float32 tensor of shape `[T, B]`. Can be used as the
           advantage in the calculation of policy gradients.
     """
-    rhos = torch.tensor(rhos, dtype=torch.float32)
-    discounts = torch.tensor(discounts, dtype=torch.float32)
-    rewards = torch.tensor(rewards, dtype=torch.float32)
-    values = torch.tensor(values, dtype=torch.float32)
-    bootstrap_value = torch.tensor(bootstrap_value, dtype=torch.float32)
+
+    #rhos = torch.tensor(rhos, dtype=torch.float32)
+    #discounts = torch.tensor(discounts, dtype=torch.float32)
+    #rewards = torch.tensor(rewards, dtype=torch.float32)
+    #values = torch.tensor(values, dtype=torch.float32)
+    #bootstrap_value = torch.tensor(bootstrap_value, dtype=torch.float32)
 
     if clip_rho_threshold is not None:
         clip_rho_threshold = torch.tensor(clip_rho_threshold,
@@ -870,8 +867,11 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     print("clipped_rhos.shape", clipped_rhos.shape) if debug else None
 
     discounts = ~np.array(trajectories.is_final)
+    discounts = torch.tensor(discounts, dtype=torch.float32)
+
     # we implement the vtrace_advantages
     # vtrace_advantages(clipped_rhos, rewards, discounts, values, bootstrap_value):
+
     weighted_advantage = vtrace_advantages(clipped_rhos, rewards,
                                            discounts, values,
                                            baselines[-1])
@@ -934,7 +934,6 @@ def split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories):
 
     # note: here we use queue, units, target_unit and target_location to replace the single arguments
     # loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'arguments')
-    # TODO: may change back to all arguments
     loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'queue')
     loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'units')
     loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_unit')
@@ -957,8 +956,9 @@ def upgo_returns(values, rewards, discounts, bootstrap):
     print("rewards", rewards) if debug else None
     print("discounts", discounts) if debug else None
 
-    # TODO: may change to pytorch version
-    next_values = np.concatenate((values[1:], np.expand_dims(bootstrap, axis=0)), axis=0)
+    # we change it to pytorch version
+    # next_values = np.concatenate((values[1:], np.expand_dims(bootstrap, axis=0)), axis=0)
+    next_values = torch.cat([values[1:], bootstrap.unsqueeze(0)], dim=0)
     print("next_values", next_values) if debug else None
     print("next_values.shape", next_values.shape) if debug else None
 
@@ -968,8 +968,13 @@ def upgo_returns(values, rewards, discounts, bootstrap):
     print("lambdas", lambdas) if debug else None
     print("lambdas.shape", lambdas.shape) if debug else None
 
+    # change the bool tensor to float tensor
+    lambdas = lambdas.float()
+
     # Shift lambdas left one slot, such that V_t matches indices with lambda_tp1.
-    lambdas = np.concatenate((lambdas[1:], np.ones_like(lambdas[-1:])), axis=0)
+    # lambdas = np.concatenate((lambdas[1:], np.ones_like(lambdas[-1:])), axis=0)
+    lambdas = torch.cat([lambdas[1:], torch.ones_like(lambdas[-1:])], dim=0)
+
     print("lambdas", lambdas) if debug else None
     print("lambdas.shape", lambdas.shape) if debug else None
 
@@ -991,9 +996,13 @@ def split_upgo_loss(target_logits, baselines, trajectories):
     print("values", values) if debug else None
     print("values.shape", values.shape) if debug else None
 
-    # TODO: change to pytorch version
-    returns = upgo_returns(values.detach().numpy(), np.array(trajectories.reward), ~np.array(trajectories.is_final), 
-                           baselines[-1].detach().numpy())
+    # we change it to pytorch version
+    # returns = upgo_returns(values.detach().numpy(), np.array(trajectories.reward), ~np.array(trajectories.is_final), 
+    # baselines[-1].detach().numpy())
+    reward_tensor = torch.tensor(np.array(trajectories.reward))
+    discounts = torch.tensor(~np.array(trajectories.is_final), dtype=torch.float32)
+
+    returns = upgo_returns(values, reward_tensor, discounts, baselines[-1])
 
     # shape: list of [seq_size x batch_size]
     print("returns", returns) if debug else None
@@ -1027,7 +1036,6 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
     print("action_fields", action_fields) if debug else None
 
     # Filter for only the relevant actions/logits/masks.
-
     target_logits = filter_by(action_fields, target_logits)
 
     # shape: [batch_seq_size x action_size]
@@ -1113,57 +1121,6 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
     print("result.shape", result.shape) if debug else None
 
     return result
-
-
-def backup_upgo_loss_for_action_type():
-    # reserved for using
-    loss = 0.
-
-    # shape: [batch_seq_size x action_size]
-    split_target_logits = target_logits.action_type
-    # shape: [batch_size x seq_size x action_size]
-    split_target_logits = split_target_logits.reshape(AHP.batch_size, AHP.sequence_length, -1)
-    # shape: [seq_size x batch_size x action_size]
-    split_target_logits = torch.transpose(split_target_logits, 0, 1)
-    # shape: [new_seq_size x batch_size x action_size]
-    split_target_logits = split_target_logits[:-1, :, :]
-    # shape: [seq_batch_size x action_size]
-    split_target_logits = split_target_logits.reshape(-1, split_target_logits.shape[-1])
-    print("split_target_logits", split_target_logits) if debug else None   
-    print("split_target_logits.shape", split_target_logits.shape) if debug else None   
-
-    # shape: list of [seq_size x batch_size]
-    behavior_lists = cut_trajectories.behavior_logits
-    # behavior_lists = list(zip(*behavior_lists))
-
-    behavior_logits = torch.cat([b.action_type for a in behavior_lists for b in a], dim=0)
-    # shape: [seq_batch_size x action_size]
-    print("behavior_logits", behavior_logits) if debug else None   
-    print("behavior_logits.shape", behavior_logits.shape) if debug else None   
-
-    # shape: list of [seq_size x batch_size]
-    actions_lists = cut_trajectories.action
-    # actions_lists = list(zip(*actions_lists))
-
-    actions = torch.cat([b.action_type for a in actions_lists for b in a], dim=0)
-    # shape: [seq_batch_size x 1]
-    print("actions", actions) if debug else None
-    print("actions.shape", actions.shape) if debug else None    
-
-    importance_weights = compute_importance_weights(behavior_logits, split_target_logits, actions)
-    # shape: [seq_batch_size x 1]
-    print("importance_weights:", importance_weights) if debug else None
-    print("importance_weights.shape:", importance_weights.shape) if debug else None
-
-    weighted_advantage = (returns.reshape(-1) - values.reshape(-1)) * importance_weights
-    # shape: [seq_batch_size x 1]
-    print("weighted_advantage:", weighted_advantage) if debug else None   
-    print("weighted_advantage.shape:", weighted_advantage.shape) if debug else None   
-
-    # TODO: use real mask
-    loss += policy_gradient_loss(split_target_logits, actions, weighted_advantage, 1).sum()
-
-    return loss
 
 
 def compute_pseudoreward(trajectories, reward_name):
@@ -1394,6 +1351,7 @@ def loss_function(agent, trajectories):
     # and ACTION_TYPE_KL_COST = 1e-1
     KL_COST = 2e-3
     ACTION_TYPE_KL_COST = 1e-1
+    # TODO: change to use the teacher logits
     loss_he = human_policy_kl_loss(target_logits.action_type, target_logits.action_type.clone().detach(), ACTION_TYPE_KL_COST)
 
     # Entropy Loss:
@@ -1405,7 +1363,12 @@ def loss_function(agent, trajectories):
     # because the values to compute it (behavior_logits) are lost, so we should forward it,
     # if we don't do so, it may cause runtime error! (like the inplace version problem)
     # loss_ent = ENT_WEIGHT * entropy_loss(trajectories.behavior_logits, trajectories.masks)
-    loss_ent = ENT_WEIGHT * entropy_loss(target_logits, None)
+
+    print("target_logits", target_logits) if debug else None   
+    print("trajectories.behavior_logits", trajectories.behavior_logits) if debug else None
+    print("trajectories.masks", trajectories.masks) if debug else None
+
+    loss_ent = ENT_WEIGHT * entropy_loss(target_logits, trajectories.masks)
 
     #print("stop", len(stop))
 

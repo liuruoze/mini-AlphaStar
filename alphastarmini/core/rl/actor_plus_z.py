@@ -138,6 +138,7 @@ class ActorLoopPlusZ:
                         for a in agents:
                             a.reset()
 
+                        # TODO: check the condition that the replay is over but the game is not
                         with run_config.start(full_screen=False) as controller:
                             # here we must use the with ... as ... statement, or it will cause an error
                             #controller = run_config.start(full_screen=False)
