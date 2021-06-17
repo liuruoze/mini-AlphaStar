@@ -135,7 +135,10 @@ class AlphaStarAgent(RandomAgent):
 
     def get_weights(self):
         #assert self.weights == self.agent_nn.get_weights()
-        return self.agent_nn.get_weights()
+        if self.agent_nn is not None:
+            return self.agent_nn.get_weights()
+        else:
+            return None
 
     def get_parameters(self):
         return self.agent_nn.model.parameters()

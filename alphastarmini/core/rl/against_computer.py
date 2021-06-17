@@ -123,8 +123,6 @@ class ActorLoopVersusComputer:
                     while time() - start_time < self.max_time_per_one_opponent:
 
                         # Note: the pysc2 environment don't return z
-                        # TODO: check it
-
                         # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
                         total_episodes += 1
                         print("total_episodes:", total_episodes)

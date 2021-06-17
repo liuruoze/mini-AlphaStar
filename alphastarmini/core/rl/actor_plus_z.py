@@ -117,8 +117,11 @@ class ActorLoopPlusZ:
                     for agent, obs_spec, act_spec in zip(agents, observation_spec, action_spec):
                         agent.setup(obs_spec, act_spec)
 
+                    self.teacher.setup(self.player.agent.obs_spec, self.player.agent.action_spec)
+
                     print('player:', self.player) if debug else None
                     print('opponent:', self.opponent) if debug else None
+                    print('teacher:', self.teacher) if 1 else None
 
                     trajectory = []
                     start_time = time()  # in seconds.
@@ -128,7 +131,6 @@ class ActorLoopPlusZ:
                     while time() - start_time < self.max_time_per_one_opponent:
 
                         # Note: the pysc2 environment don't return z
-                        # TODO: check it
 
                         # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
                         total_episodes += 1
@@ -138,7 +140,7 @@ class ActorLoopPlusZ:
                         for a in agents:
                             a.reset()
 
-                        # TODO: check the condition that the replay is over but the game is not
+                        # check the condition that the replay is over but the game is not
                         with run_config.start(full_screen=False) as controller:
                             # here we must use the with ... as ... statement, or it will cause an error
                             #controller = run_config.start(full_screen=False)
@@ -229,16 +231,17 @@ class ActorLoopPlusZ:
                                 # run_loop: actions = [agent.step(timestep) for agent, timestep in zip(agents, timesteps)]
                                 player_step = self.player.agent.step_logits(home_obs, player_memory)
                                 player_function_call, player_action, player_logits, player_new_memory = player_step
-
-                                print("player_function_call:", player_function_call) if 0 else None
+                                print("player_function_call:", player_function_call) if debug else None
 
                                 opponent_step = self.opponent.agent.step_logits(away_obs, opponent_memory)
                                 opponent_function_call, opponent_action, opponent_logits, opponent_new_memory = opponent_step
 
                                 # Q: how to do it ?
                                 # teacher_logits = self.teacher(home_obs, player_action, teacher_memory)
-                                # TODO: add the right implemention of teacher_logits
-                                teacher_logits = player_logits
+                                # may change implemention of teacher_logits
+                                teacher_step = self.teacher.step_logits(home_obs, teacher_memory)
+                                teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
+                                print("teacher_function_call:", player_function_call) if debug else None
 
                                 env_actions = [player_function_call, opponent_function_call]
 
@@ -302,6 +305,8 @@ class ActorLoopPlusZ:
 
                                 player_memory = tuple(h.detach() for h in player_new_memory)
                                 opponent_memory = tuple(h.detach() for h in opponent_new_memory)
+
+                                teacher_memory = tuple(h.detach() for h in teacher_new_memory)
 
                                 home_obs = home_next_obs
                                 away_obs = away_next_obs

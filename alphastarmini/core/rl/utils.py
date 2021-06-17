@@ -39,12 +39,14 @@ Trajectory = collections.namedtuple('Trajectory', TRAJECTORY_FIELDS)
 
 
 def get_supervised_agent(race, path="./model/", model_type="sl", restore=True):
-    agent = AlphaStarAgent(name='supervised', race=race, initial_weights=None)
+    as_agent = AlphaStarAgent(name='supervised', race=race, initial_weights=None)
 
     if restore:
-        agent.model = load_latest_model(model_type=model_type, path=path)
+        sl_model = load_latest_model(model_type=model_type, path=path)
+        if sl_model is not None:
+            as_agent.agent_nn.model = sl_model
 
-    return agent
+    return as_agent
 
 
 def namedtuple_one_list(trajectory_list):

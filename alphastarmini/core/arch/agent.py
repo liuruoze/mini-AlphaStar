@@ -42,6 +42,12 @@ class Agent(object):
         if weights is not None:
             self.set_weights(weights)
 
+    def init_hidden_state(self):
+        if self.model is not None:
+            return self.model.init_hidden_state()
+        else:
+            return None
+
     def to(self, DEVICE):
         self.model.to(DEVICE)
 
@@ -206,9 +212,6 @@ class Agent(object):
             loss += target_location_loss
 
         return loss
-
-    def init_hidden_state(self):
-        return self.model.init_hidden_state()
 
     def preprocess_state_all(self, obs, build_order=None):
         batch_entities_tensor = self.preprocess_state_entity(obs)
@@ -699,7 +702,10 @@ class Agent(object):
         return baseline_value_list, action_logits
 
     def get_weights(self):
-        return self.model.state_dict()
+        if self.model is not None:
+            return self.model.state_dict()
+        else:
+            return None
 
     def set_weights(self, weights):
         self.model.load_state_dict(weights)

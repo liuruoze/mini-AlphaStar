@@ -1413,8 +1413,14 @@ def loss_function(agent, trajectories):
     # and ACTION_TYPE_KL_COST = 1e-1
     KL_COST = 2e-3
     ACTION_TYPE_KL_COST = 1e-1
-    # TODO: change to use the teacher logits
-    loss_he = human_policy_kl_loss(target_logits.action_type, target_logits.action_type.clone().detach(), ACTION_TYPE_KL_COST)
+    # We change to use the teacher logits
+    print("trajectories.teacher_logits", trajectories.teacher_logits) if debug else None
+    teacher_logits_action_type = filter_by_for_lists("action_type", trajectories.teacher_logits)
+
+    print("target_logits.action_type.shape", target_logits.action_type.shape) if debug else None
+    print("teacher_logits_action_type.shape", teacher_logits_action_type.shape) if debug else None
+
+    loss_he = human_policy_kl_loss(target_logits.action_type, teacher_logits_action_type, ACTION_TYPE_KL_COST)
 
     # Entropy Loss:
     # There is an entropy loss with weight 1e-4 on all action arguments, 
