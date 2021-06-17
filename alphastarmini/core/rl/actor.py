@@ -42,7 +42,7 @@ class ActorLoop:
     """A single actor loop that generates trajectories.
 
     We don't use batched inference here, but it was used in practice.
-    TODO: implement the batched version
+    Note: this code should check the teacher implemention
     """
 
     def __init__(self, player, coordinator, max_time_for_training = 60 * 60 * 24,
@@ -111,7 +111,6 @@ class ActorLoop:
                     while time() - start_time < self.max_time_per_one_opponent:
 
                         # Note: the pysc2 environment don't return z
-                        # TODO: check it
 
                         # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
                         total_episodes += 1
@@ -155,7 +154,7 @@ class ActorLoop:
 
                             # Q: how to do it ?
                             # teacher_logits = self.teacher(home_obs, player_action, teacher_memory)
-                            # TODO: add the right implemention of teacher_logits
+                            # We should add the right implemention of teacher_logits, see actor_plus_z.py
                             teacher_logits = player_logits
 
                             env_actions = [player_function_call, opponent_function_call]

@@ -52,7 +52,6 @@ class ActorLoopVersusComputer:
     """A single actor loop that generates trajectories by playing with built-in AI (computer).
 
     We don't use batched inference here, but it was used in practice.
-    TODO: implement the batched version
     """
 
     def __init__(self, player, coordinator, max_time_for_training = 60 * 60 * 24,

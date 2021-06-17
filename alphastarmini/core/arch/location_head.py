@@ -184,7 +184,6 @@ class LocationHead(nn.Module):
 
         # x shape (-1, 128, 16, 16)
         # AlphaStar: and using the elements of `map_skip` in order of last ResBlock skip to first.
-        # TODO: question?
         x = x + map_skip
 
         # AlphaStar: Afterwards, it is upsampled 2x by each of a series of transposed 2D convolutions 
