@@ -709,21 +709,42 @@ def vtrace_from_importance_weights(
     values_t_plus_1 = torch.cat(
         [values[1:], bootstrap_value.unsqueeze(0)], axis=0)
 
+    print("rhos:", rhos) if debug else None
+    print("rhos.shape:", rhos.shape) if debug else None
+
+    print("rewards:", rewards) if debug else None
+    print("rewards.shape:", rewards.shape) if debug else None
+
+    print("bootstrap_value:", bootstrap_value) if debug else None
+    print("bootstrap_value.shape:", bootstrap_value.shape) if debug else None
+
     deltas = clipped_rhos * (rewards + discounts * values_t_plus_1 - values)
 
     print("deltas:", deltas) if debug else None
     print("deltas.shape:", deltas.shape) if debug else None
 
     # Note that all sequences are reversed, computation starts from the back.
+    '''
+    Note this code is wrong, we should use zip to concat
     sequences = (
         torch.flip(discounts, dims=[0]),
         torch.flip(cs, dims=[0]),
         torch.flip(deltas, dims=[0]),
     )
-    # V-trace vs are calculated through a scan from the back to the beginning
+    '''
+
+    flip_discounts = torch.flip(discounts, dims=[0])
+    flip_cs = torch.flip(cs, dims=[0])
+    flip_deltas = torch.flip(deltas, dims=[0])
+
+    sequences = [item for item in zip(flip_discounts, flip_cs, flip_deltas)]
+
+    # V-trace vs are calculated through a 
+    # scan from the back to the beginning
     # of the given trajectory.
 
     def scanfunc(acc, sequence_item):
+        print("sequence_item", sequence_item) if debug else None
         discount_t, c_t, delta_t = sequence_item
         return delta_t + discount_t * c_t * acc
 
@@ -968,7 +989,9 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     print("result", result) if debug else None
     print("result.shape", result.shape) if debug else None
 
-    return result
+    # note: in mAS, we should make the result not beyond 0
+    # return result
+    return 0.5 * torch.mean(torch.square(result))
 
 
 def split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories):
@@ -1384,6 +1407,7 @@ def loss_function(agent, trajectories):
             # baseline_cost is for lambda_loss
             pg_cost, baseline_cost, reward_name = costs_and_rewards
 
+            print("reward_name:", reward_name) if debug else None
             rewards = compute_pseudoreward(trajectories, reward_name)
 
             # The action_type argument, delay, and all other arguments are separately updated 
@@ -1392,10 +1416,14 @@ def loss_function(agent, trajectories):
             # also similarly separately updated using UPGO, in the same way as the VTrace 
             # Actor-Critic loss, with relative weight 1.0. 
 
-            loss_actor_critic += (baseline_cost * td_lambda_loss(baseline, rewards, trajectories))
+            lambda_loss = td_lambda_loss(baseline, rewards, trajectories)
+            print("lambda_loss:", lambda_loss) if debug else None
+            loss_actor_critic += (baseline_cost * lambda_loss)
 
             # we add the split_vtrace_pg_loss
-            loss_actor_critic += (pg_cost * split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories))
+            pg_loss = split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories)
+            print("pg_loss:", pg_loss) if debug else None
+            loss_actor_critic += (pg_cost * pg_loss)
 
     # Note: upgo_loss has only one baseline which is just for winloss 
     # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
@@ -1440,4 +1468,12 @@ def loss_function(agent, trajectories):
 
     #print("stop", len(stop))
 
-    return loss_actor_critic + loss_upgo + loss_he + loss_ent
+    loss_all = loss_actor_critic + loss_upgo + loss_he + loss_ent
+
+    print("loss_actor_critic:", loss_actor_critic) if debug else None
+    print("loss_upgo:", loss_upgo) if debug else None
+    print("loss_he:", loss_he) if debug else None
+    print("loss_ent:", loss_ent) if debug else None
+    print("loss_all:", loss_all) if debug else None
+
+    return loss_all

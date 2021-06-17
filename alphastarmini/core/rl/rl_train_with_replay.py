@@ -50,11 +50,16 @@ def test(on_server=False):
     learners = []
     actors = []
 
+    if on_server:
+        REPLAY_PATH = "/home/liuruoze/data4/mini-AlphaStar/data/filtered_replays_1/"
+    else:
+        REPLAY_PATH = "data/Replays/filtered_replays_1/"
+
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
         learner = Learner(player, max_time_for_training=60 * 60 * 24)
         learners.append(learner)
-        actors.extend([ActorLoopPlusZ(player, coordinator) for _ in range(ACTOR_NUMS)])
+        actors.extend([ActorLoopPlusZ(player, coordinator, replay_path=REPLAY_PATH) for _ in range(ACTOR_NUMS)])
 
     threads = []
     for l in learners:

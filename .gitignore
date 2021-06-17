@@ -37,3 +37,4 @@ res/paper/
 model/*.pkl
 *.SC2Replay
 data/experiment.txt
+tmp/*
