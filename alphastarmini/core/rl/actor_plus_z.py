@@ -360,7 +360,8 @@ class ActorLoopPlusZ:
     # create env function
     def create_env(self, player, opponent, game_steps_per_episode=GAME_STEPS_PER_EPISODE, 
                    step_mul=STEP_MUL, version=None, 
-                   map_name="Simple64", random_seed=1):
+                   # the map should be the same as in the expert replay
+                   map_name="AbyssalReef", random_seed=1):
 
         player_aif = AgentInterfaceFormat(**AAIFP._asdict())
         opponent_aif = AgentInterfaceFormat(**AAIFP._asdict())

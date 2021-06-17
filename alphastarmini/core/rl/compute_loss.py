@@ -177,21 +177,43 @@ def mergeArgsActionLogits(list_args_action_logits):
     return ArgsActionLogits(*b)
 
 
-def entropy(policy_logits):
+def entropy(policy_logits, masks):
+    # policy_logits shape: [seq_batch_size, channel_size]
+    # masks shape: [seq_batch_size, 1]
+
     softmax = nn.Softmax(dim=-1)
     logsoftmax = nn.LogSoftmax(dim=-1)
 
     policy = softmax(policy_logits)
     log_policy = logsoftmax(policy_logits)
 
-    ent = torch.sum(-policy * log_policy, axis=-1)  # Aggregate over actions.
+    ent = torch.sum(-policy * log_policy * masks, axis=-1)  # Aggregate over actions.
     # Normalize by actions available.
-    normalized_entropy = ent / torch.log(policy_logits.shape[-1])
+    normalized_entropy = ent / torch.log(torch.tensor(policy_logits.shape[-1], dtype=torch.float32))
 
     return normalized_entropy
 
 
-def entropy_loss(policy_logits, masks):
+def entropy_loss(policy_logits):
+    """Computes the entropy loss for a set of logits.
+
+    Args:
+      policy_logits: namedtuple of the logits for each policy argument.
+        Each shape is [..., N_i].
+    Returns:
+      Per-example entropy loss, as an array of shape policy_logits.shape[:-1].
+    """
+
+    softmax = nn.Softmax(dim=-1)
+    logsoftmax = nn.LogSoftmax(dim=-1)
+
+    policy = softmax(policy_logits.action_type)
+    log_policy = logsoftmax(policy_logits.action_type)
+
+    return torch.mean(torch.sum(-policy * log_policy, axis=-1))
+
+
+def entropy_loss_for_all_arguments(policy_logits, masks):
     """Computes the entropy loss for a set of logits.
 
     Args:
@@ -202,16 +224,56 @@ def entropy_loss(policy_logits, masks):
       Per-example entropy loss, as an array of shape policy_logits.shape[:-1].
     """
 
-    # TODO: how do masks make effect?
-    softmax = nn.Softmax(dim=-1)
-    logsoftmax = nn.LogSoftmax(dim=-1)
+    index_list = ['action_type', 'delay', 'queue', 'units', 'target_unit', 'target_location']
+    masks = torch.tensor(masks)
 
-    policy = softmax(policy_logits.action_type)
-    log_policy = logsoftmax(policy_logits.action_type)
+    entropy_list = []
+    for x in index_list:     
+        logits = getattr(policy_logits, x) 
 
-    # return np.mean(compute_over_actions(entropy, policy_logits, masks))
+        print("x name:", x) if debug else None
+        print("logits.shape:", logits.shape) if debug else None
 
-    return torch.mean(torch.sum(-policy * log_policy, axis=-1))
+        if x == "target_unit":
+            # remove the axis 2
+            logits = logits.squeeze(dim=1)
+
+        print("logits.shape:", logits.shape) if debug else None
+
+        logits = logits.reshape(AHP.batch_size, AHP.sequence_length, *tuple(logits.shape[1:]))
+        print("logits.shape:", logits.shape) if debug else None
+        logits = logits.transpose(0, 1)
+        print("logits.shape:", logits.shape) if debug else None
+
+        # shape to be [seq_batch_size, channel_size]
+        logits = logits.reshape(AHP.sequence_length * AHP.batch_size, *tuple(logits.shape[2:]))
+        print("logits.shape:", logits.shape) if debug else None
+
+        if x == "units":
+            logits = logits.reshape(AHP.sequence_length * AHP.batch_size * AHP.max_selected, AHP.max_entities)
+        if x == "target_location":
+            logits = logits.reshape(AHP.sequence_length * AHP.batch_size, SCHP.world_size * SCHP.world_size)
+        print("logits.shape:", logits.shape) if debug else None
+
+        i = index_list.index(x)
+
+        # shape to be [seq_size, batch_size, 1]
+        mask = masks[:, :, i]
+
+        # shape to be [seq_batch_size, 1]
+        mask = mask.reshape(-1, 1)
+        if x == "units":
+            mask = [mask] * AHP.max_selected
+            mask = torch.cat(mask, dim=0)
+        print("mask.shape:", mask.shape) if debug else None
+
+        entropy_item = entropy(logits, mask)
+
+        print("entropy_item:", entropy_item) if debug else None
+
+        entropy_list.append(entropy_item)
+
+    return torch.mean(torch.cat(entropy_list, axis=0))
 
 
 def kl(student_logits, teacher_logits, mask):
@@ -1368,7 +1430,7 @@ def loss_function(agent, trajectories):
     print("trajectories.behavior_logits", trajectories.behavior_logits) if debug else None
     print("trajectories.masks", trajectories.masks) if debug else None
 
-    loss_ent = ENT_WEIGHT * entropy_loss(target_logits, trajectories.masks)
+    loss_ent = ENT_WEIGHT * entropy_loss_for_all_arguments(target_logits, trajectories.masks)
 
     #print("stop", len(stop))
 
