@@ -49,17 +49,14 @@ if __name__ == '__main__':
 
     # action.test()
 
-    # from alphastarmini.core.sl import transform_replay_data
+    #from alphastarmini.core.sl import transform_replay_data
     # transform_replay_data.test(on_server=False)
-    # 
-    # load_feature_label.test()
-    # load_pickle.test()
 
-    # from alphastarmini.core.sl import sl_train_by_pickle
-    # sl_train_by_pickle.test(on_server=False)
+    from alphastarmini.core.sl import sl_train_by_pickle
+    sl_train_by_pickle.test(on_server=False)
 
-    from alphastarmini.core.rl import rl_train_with_replay
-    rl_train_with_replay.test(on_server=False)
+    # from alphastarmini.core.rl import rl_train_with_replay
+    # rl_train_with_replay.test(on_server=False)
 
     # from alphastarmini.core.rl import rl_train_wo_replay
     # rl_train_wo_replay.test(on_server=False)

@@ -140,6 +140,9 @@ class Agent(object):
         print('loss:', loss)            
         return loss
 
+    def get_sl_loss_2nd(self, traj_batch):
+        pass
+
     def get_sl_loss_new(self, traj_batch):
         # criterion = nn.CrossEntropyLoss()
         # due to CrossEntropyLoss only accepts loss with lables.shape = [N]

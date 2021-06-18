@@ -65,10 +65,11 @@ print('BATCH_SIZE:', BATCH_SIZE)
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN)
 NUM_EPOCHS = SLTHP.num_epochs
-NUM_ITERS = 100
 LEARNING_RATE = SLTHP.learning_rate
 WEIGHT_DECAY = SLTHP.weight_decay
 CLIP = SLTHP.clip
+
+NUM_ITERS = 100
 FILE_SIZE = 100
 
 # set random seed

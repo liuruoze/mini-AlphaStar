@@ -160,7 +160,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       map_channels=18,
                                                       scalar_encoder_fc1_input=1504,
                                                       scalar_encoder_fc2_input=544,
-                                                      scalar_feature_size=7327,
+                                                      scalar_feature_size=7327,  # Deprecated
                                                       entity_embedding_size=256,
                                                       lstm_hidden_dim=384,
                                                       lstm_layers=3,
@@ -195,7 +195,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(48 / Mini_Sc
                                                      map_channels=18,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
-                                                     scalar_feature_size=7327,
+                                                     scalar_feature_size=7327,  # Deprecated
                                                      entity_embedding_size=64,
                                                      lstm_hidden_dim=128,
                                                      lstm_layers=1,

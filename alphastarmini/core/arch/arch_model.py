@@ -255,7 +255,7 @@ def test():
     with torch.autograd.set_detect_anomaly(True):
         hidden_state = None
 
-        for _ in range(10):
+        for _ in range(3):
 
             # important, if not set, below error will raise:
             # Trying to backward through the graph a second time, but the buffers have already 
@@ -273,11 +273,13 @@ def test():
             print("action_logits.action_type.shape:", action_logits.action_type.shape) if 1 else None
 
             print("baseline_value:", baseline_value) if debug else None
-            print("baseline_value.shape:", baseline_value.shape) if 1 else None
+            #print("baseline_value.shape:", baseline_value.shape) if 1 else None
 
             print("new_hidden_state.shape:", new_hidden_state[0].shape) if 1 else None
 
-            loss = action_logits.action_type.sum() + baseline_value.sum()
+            loss_base = sum([base.sum() for base in baseline_value])
+
+            loss = action_logits.action_type.sum() + loss_base
             print("loss:", loss) if debug else None
 
             loss.backward()

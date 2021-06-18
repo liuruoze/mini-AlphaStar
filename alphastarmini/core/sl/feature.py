@@ -65,7 +65,14 @@ class Feature(object):
 
     @staticmethod    
     def getSize():
-        feature_1_size = AHP.scalar_feature_size
+
+        # note: do not use AHP.scalar_feature_size
+        #feature_1_size = AHP.scalar_feature_size
+        size_all = 0
+        for i in ScalarFeature:          
+            size_all += SFS[i]
+        feature_1_size = size_all
+
         feature_2_size = AHP.max_entities * AHP.embedding_size
         feature_3_size = AHP.map_channels * AHP.minimap_size * AHP.minimap_size 
         return feature_1_size + feature_2_size + feature_3_size
@@ -77,7 +84,15 @@ class Feature(object):
         outoput: MsState
         '''
         batch_size = feature.shape[0]
-        feature_1_size = AHP.scalar_feature_size
+
+        # note: do not use AHP.scalar_feature_size
+        #feature_1_size = AHP.scalar_feature_size
+
+        size_all = 0
+        for i in ScalarFeature:          
+            size_all += SFS[i]
+        feature_1_size = size_all
+
         feature_2_size = AHP.max_entities * AHP.embedding_size
         feature_3_size = AHP.map_channels * AHP.minimap_size * AHP.minimap_size
 
@@ -89,14 +104,17 @@ class Feature(object):
         feature_1 = feature[:, :feature_1_size]      
         scalar_list = []
         last_index = 0
-        for i in ScalarFeature:
-            #i = e.value
+
+        for i in ScalarFeature:          
             scalar_feature = feature_1[:, last_index:last_index + SFS[i]]
             print('added scalar_feature.shape:', scalar_feature.shape) if debug else None
             scalar_list.append(scalar_feature)
             last_index += SFS[i]
 
         bbo_index = ScalarFeature.beginning_build_order
+
+        print('batch_size:', batch_size)
+        print('scalar_list[bbo_index].shape:', scalar_list[bbo_index].shape)
         scalar_list[bbo_index] = scalar_list[bbo_index].reshape(batch_size, 
                                                                 SCHP.count_beginning_build_order, 
                                                                 int(SFS[bbo_index] / SCHP.count_beginning_build_order))

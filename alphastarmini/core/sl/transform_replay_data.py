@@ -139,7 +139,48 @@ def getFeatureAndLabel(obs, func_call, agent):
     return feature, label
 
 
-def getObsAndFunc(obs, func_call, agent):
+def getObsAndFunc(obs, func_call, agent, z):
+    # add z
+    [bo, bu] = z
+
+    # for build order has nothing, we make it be a list has only one item:
+    # if len(bo) == 0:
+    #    bo = [0]
+
+    bo = np.array(bo)
+    bu = np.array(bu)
+
+    print("bo", bo) if debug else None
+    print("bu", bu) if debug else None
+
+    # Extract build order and build units vectors from replay
+    # bo = replay.get_BO(replay.home_player)
+    # bu = replay.get_BU(replay.home_player)
+
+    BO_PROBABILITY = 0.8
+    BU_PROBABILITY = 0.5
+
+    # Sample Boolean variables bool_BO and bool_BU
+    # bool_bo = np.float(np.random.rand(*bo.shape) < BO_PROBABILITY)
+    # bool_bu = np.float(np.random.rand(*bu.shape) < BU_PROBABILITY)
+
+    bool_bo = np.random.rand(*bo.shape) < BO_PROBABILITY
+    bool_bu = np.random.rand(*bu.shape) < BU_PROBABILITY
+
+    bool_bo = bool_bo.astype('float32')
+    bool_bu = bool_bu.astype('float32')
+
+    print("bool_bo", bool_bo) if debug else None
+    print("bool_bu", bool_bu) if debug else None
+
+    # Generate masked build order and build units
+    masked_bo = bool_bo * bo
+    masked_bu = bool_bu * bu
+
+    print("masked_bo", masked_bo) if debug else None
+    print("masked_bu", masked_bu) if debug else None
+    print("sum(masked_bu)", sum(masked_bu)) if debug else None
+
     last_actions = obs["last_actions"]
     upgrades = obs["upgrades"]
     unit_counts = obs["unit_counts"] 
@@ -172,6 +213,11 @@ def getObsAndFunc(obs, func_call, agent):
                  'alerts': alerts,
                  'pathable': pathable,
                  'buildable': buildable,
+
+                 'game_loop': obs["game_loop"],
+
+                 'masked_bo': masked_bo, 
+                 'masked_bu': masked_bu,
 
                  'func_call': func_call}
 
@@ -251,8 +297,8 @@ def test(on_server=False):
         REPLAY_PATH = "data/Replays/filtered_replays_1/"
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 60 * 60 * 22.4
-        max_replays = 1
+        max_steps_of_replay = 20 * 22.4  # 60 * 60 * 22.4
+        max_replays = 1  # 1
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)
@@ -314,7 +360,7 @@ def test(on_server=False):
                     replay_data=replay_data,
                     options=interface,
                     disable_fog=False,  # FLAGS.disable_fog
-                    observed_player_id=2,  # FLAGS.observed_player
+                    observed_player_id=random.randint(1, 2),  # 1 or 2, wo random select it. FLAGS.observed_player
                     map_data=None,
                     realtime=False
                 )
@@ -360,10 +406,25 @@ def test(on_server=False):
                 noop_count = 0
                 feature_list, label_list = [], []
                 step_dict = {}
+
+                # initial build order
+                player_bo = []
+                player_ucb = []
+
                 while True:
                     o = controller.observe()
                     try:
                         obs = feat.transform_obs(o)
+
+                        if prev_obs is not None:
+                            # calculate the build order
+                            player_bo = U.calculate_build_order(player_bo, prev_obs, obs)
+                            print("player build order:", player_bo) if 1 else None
+
+                            # calculate the unit counts of bag
+                            player_ucb = U.calculate_unit_counts_bow(prev_obs).reshape(-1).numpy().tolist()
+                            print("player unit count of bow:", sum(player_ucb)) if 1 else None
+
                         try:
                             func_call = None
                             no_op = False
@@ -384,6 +445,7 @@ def test(on_server=False):
 
                             if func_call is not None:
                                 save_steps += 1
+                                z = [player_bo, player_ucb]
 
                                 if SAVE_TYPE == SaveType.torch_tensor:
                                     feature, label = getFeatureAndLabel(obs, func_call, agent)
@@ -391,7 +453,7 @@ def test(on_server=False):
                                     label_list.append(label)
 
                                 elif SAVE_TYPE == SaveType.python_pickle:
-                                    the_dict = getObsAndFunc(obs, func_call, agent)
+                                    the_dict = getObsAndFunc(obs, func_call, agent, z)
                                     step_dict[i] = the_dict
 
                                 elif SAVE_TYPE == SaveType.numpy_array:
