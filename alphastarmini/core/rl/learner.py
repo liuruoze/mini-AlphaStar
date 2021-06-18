@@ -13,7 +13,7 @@ import itertools
 import torch
 from torch.optim import Adam, RMSprop
 
-from alphastarmini.core.rl.compute_loss import loss_function
+from alphastarmini.core.rl.rl_loss import loss_function
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import RL_Training_Hyper_Parameters as THP
