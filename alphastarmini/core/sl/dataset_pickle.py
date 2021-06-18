@@ -123,8 +123,6 @@ class AllReplayDataset(Dataset):
 
     def __getitem__(self, index):
         replay = self._get_random_trajectory(index)
-        # TODO: Extract Z
-
         print('replay.shape:', replay.shape) if 0 else None
         replay = replay.squeeze(0)
         print('replay.shape:', replay.shape) if 0 else None

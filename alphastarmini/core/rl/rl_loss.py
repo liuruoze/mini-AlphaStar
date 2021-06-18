@@ -990,8 +990,10 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     print("result.shape", result.shape) if debug else None
 
     # note: in mAS, we should make the result not beyond 0
-    # return result
-    return 0.5 * torch.mean(torch.square(result))
+    # return 0.5 * torch.mean(torch.square(result))
+
+    # note: we change back to use only result 
+    return result
 
 
 def split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories):

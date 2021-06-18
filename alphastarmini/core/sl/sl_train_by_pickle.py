@@ -70,7 +70,7 @@ LEARNING_RATE = SLTHP.learning_rate
 WEIGHT_DECAY = SLTHP.weight_decay
 CLIP = SLTHP.clip
 
-NUM_ITERS = 10  # 100
+NUM_ITERS = 50  # 100
 FILE_SIZE = 100
 
 # set random seed

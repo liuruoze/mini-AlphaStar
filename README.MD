@@ -3,14 +3,14 @@
 
 ## Update
 
-This is the "v_0.96" version, and the updates are as follows:
+This is the "v_0.99" version, and the updates are as follows:
 
-* Fix the clipped_rhos calculation problem for v-trace policy gradient loss;
-* Fix the filter_by function for the other 5 arguments in the vtrace_pg_loss;
-* Implement the vtrace_advantages method for the all 6 arguments of actions;
-* Complete the implementation of split_vtrace_pg_loss for all arguments;
-* Replenish the right process flow for baselinse of build_order, built_units, upgrades, effects;
-* Fix the 5 other arguments loss calculation in the UPGO;
+* Add the code for analyzing the statistics of replays;
+* Implement the RL training with the z reward (from the experts' statistics in replays);
+* Replenish the entropy_loss_for_all_arguments;
+* True implementation of teacher_logits in human_policy_kl_loss and test all the above RL training on server;
+* Decouple the sl_loss with the agent, and pass the test of SL training on the server;
+* Fix some warnings due to PyTorch 1.5, and fill up many TODOs;
 
 ## Introduction
 
@@ -51,7 +51,7 @@ Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/m
 
 ## Furture
 
-There are still very little parts that need to be fulfilled.
+There are still some todos (very few) that need to be filled up and improved.
 
 ## Citing
 

@@ -291,14 +291,14 @@ def test(on_server=False):
         REPLAY_PATH = "/home/liuruoze/data4/mini-AlphaStar/data/filtered_replays_1/" 
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 20 * 22.4  # FLAGS.max_steps_of_replay
-        max_replays = 3  # FLAGS.max_replays
+        max_steps_of_replay = FLAGS.max_steps_of_replay
+        max_replays = FLAGS.max_replays
     else:
         REPLAY_PATH = "data/Replays/filtered_replays_1/"
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 10 * 22.4  # 60 * 60 * 22.4
-        max_replays = 3  # 1
+        max_steps_of_replay = 120 * 22.4  # 60 * 60 * 22.4
+        max_replays = 5  # 1
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)
