@@ -34,6 +34,7 @@ from alphastarmini.core.arch.agent import Agent
 
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
+from alphastarmini.core.sl import sl_loss as Loss
 from alphastarmini.core.sl.dataset_pickle import OneReplayDataset, AllReplayDataset
 
 from alphastarmini.lib.utils import load_latest_model
@@ -69,7 +70,7 @@ LEARNING_RATE = SLTHP.learning_rate
 WEIGHT_DECAY = SLTHP.weight_decay
 CLIP = SLTHP.clip
 
-NUM_ITERS = 100
+NUM_ITERS = 10  # 100
 FILE_SIZE = 100
 
 # set random seed
@@ -126,7 +127,6 @@ def train_for_val(replays, replay_data, agent):
 
         for j in range(NUM_ITERS):
             traj = next(iter(train_loader))
-        # for traj in train_loader:
 
             print('traj.shape:', traj.shape) if debug else None
 
@@ -136,7 +136,7 @@ def train_for_val(replays, replay_data, agent):
                 print("traj == last_traj ?", torch.equal(traj, last_traj)) if debug else None
 
             # with torch.autograd.detect_anomaly():
-            loss = agent.get_sl_loss_new(traj)
+            loss = Loss.get_sl_loss(traj, agent.model)
             optimizer.zero_grad()
             loss.backward()  # note, we don't need retain_graph=True if we set hidden_state.detach()
 
@@ -170,7 +170,7 @@ def eval(agent, val_loader):
     for traj in val_loader:
         traj = traj.to(DEVICE).float()
 
-        loss = agent.get_sl_loss_new(traj)
+        loss = Loss.get_sl_loss(traj, agent.model)
         loss_sum += loss.item()
         i += 1
 

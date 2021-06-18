@@ -288,17 +288,17 @@ def getFuncCall(o, feat, prev_obs, use_raw=True):
 def test(on_server=False):
 
     if on_server:
-        REPLAY_PATH = "/home/liuruoze/mini-AlphaStar/data/filtered_replays_1/" 
+        REPLAY_PATH = "/home/liuruoze/data4/mini-AlphaStar/data/filtered_replays_1/" 
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = FLAGS.max_steps_of_replay
-        max_replays = FLAGS.max_replays
+        max_steps_of_replay = 20 * 22.4  # FLAGS.max_steps_of_replay
+        max_replays = 3  # FLAGS.max_replays
     else:
         REPLAY_PATH = "data/Replays/filtered_replays_1/"
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 20 * 22.4  # 60 * 60 * 22.4
-        max_replays = 1  # 1
+        max_steps_of_replay = 10 * 22.4  # 60 * 60 * 22.4
+        max_replays = 3  # 1
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)
@@ -419,11 +419,11 @@ def test(on_server=False):
                         if prev_obs is not None:
                             # calculate the build order
                             player_bo = U.calculate_build_order(player_bo, prev_obs, obs)
-                            print("player build order:", player_bo) if 1 else None
+                            print("player build order:", player_bo) if debug else None
 
                             # calculate the unit counts of bag
                             player_ucb = U.calculate_unit_counts_bow(prev_obs).reshape(-1).numpy().tolist()
-                            print("player unit count of bow:", sum(player_ucb)) if 1 else None
+                            print("player unit count of bow:", sum(player_ucb)) if debug else None
 
                         try:
                             func_call = None
