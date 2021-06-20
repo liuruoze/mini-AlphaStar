@@ -82,12 +82,17 @@ def get_classify_loss(action_pt, action_gt, criterion):
 
         units_size = action_gt.units.shape[-1]
 
-        units_loss = criterion(action_pt.units.reshape(-1, units_size), action_gt.units.reshape(-1, units_size))
+        units_loss = criterion(action_pt.units, action_gt.units)
         # units_loss = 0
         loss += units_loss
 
     target_unit_loss = torch.tensor([0])    
     if action_gt.target_unit is not None and action_pt.target_unit is not None:
+        print('action_gt.target_unit.shape:', action_gt.target_unit.shape) if debug else None
+        print('action_pt.target_unit.shape:', action_pt.target_unit.shape) if debug else None
+
+        units_size = action_gt.target_unit.shape[-1]
+
         target_unit_loss = criterion(action_pt.target_unit, action_gt.target_unit)
         loss += target_unit_loss
 

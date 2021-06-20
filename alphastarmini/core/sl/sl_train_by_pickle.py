@@ -209,7 +209,8 @@ def test(on_server):
 
     agent = Agent()
 
-    replays = AllReplayDataset.get_trainable_data(replay_data_path=PATH, agent=agent, max_file_size=FILE_SIZE)
+    replays = AllReplayDataset.get_trainable_data(replay_data_path=PATH, agent=agent, 
+                                                  max_file_size=FILE_SIZE, shuffle=True)
 
     '''
     for replay in replays:

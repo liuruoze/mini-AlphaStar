@@ -7,6 +7,7 @@ import os
 import time
 import traceback
 import pickle
+import random
 
 from tqdm import tqdm
 
@@ -59,19 +60,6 @@ class OneReplayDataset(Dataset):
         self.seq_len = seq_length
         self.agent = agent if agent is not None else Agent()
 
-        '''
-        self.feature_list = []
-        self.label_list = []
-        print("begin process keys")
-        for key in tqdm(self.keys):
-            obs = self.traj_dict[key]
-
-            feature, label = obs2feature(obs, self.agent)
-            self.feature_list.append(feature)
-            self.label_list.append(label)
-        print("end process keys")    
-        '''
-
     def __getitem__(self, index):
 
         key_list = self.keys[index:index + self.seq_len]
@@ -85,9 +73,6 @@ class OneReplayDataset(Dataset):
             feature, label = obs2feature(obs, self.agent)
             feature_list.append(feature)
             label_list.append(label)
-
-        #feature_list = self.feature_list[index:index + self.seq_len]
-        #label_list = self.label_list[index:index + self.seq_len]
 
         features = torch.cat(feature_list, dim=0)
         print("features.shape:", features.shape) if 0 else None
@@ -133,10 +118,14 @@ class AllReplayDataset(Dataset):
         return len(self.traj_loader_list)
 
     @staticmethod
-    def get_trainable_data(replay_data_path, agent=None, max_file_size=None):
+    def get_trainable_data(replay_data_path, agent=None, max_file_size=None, shuffle=False):
         replay_files = os.listdir(replay_data_path)
         print('length of replay_files:', len(replay_files))
+
         replay_files.sort()
+        if shuffle:
+            random.shuffle(replay_files)
+
         traj_loader_list = []
         for i, replay_file in enumerate(tqdm(replay_files)):
             try:

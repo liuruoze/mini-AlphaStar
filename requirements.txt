@@ -7,3 +7,4 @@ tqdm==4.51.0
 dataclasses==0.6
 python-Levenshtein-wheels==0.13.2
 tensorboardX==2.2
+tensorboard==2.5.0
