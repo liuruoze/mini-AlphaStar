@@ -113,8 +113,8 @@ class Feature(object):
 
         bbo_index = ScalarFeature.beginning_build_order
 
-        print('batch_size:', batch_size)
-        print('scalar_list[bbo_index].shape:', scalar_list[bbo_index].shape)
+        print('batch_size:', batch_size) if debug else None
+        print('scalar_list[bbo_index].shape:', scalar_list[bbo_index].shape) if debug else None
         scalar_list[bbo_index] = scalar_list[bbo_index].reshape(batch_size, 
                                                                 SCHP.count_beginning_build_order, 
                                                                 int(SFS[bbo_index] / SCHP.count_beginning_build_order))

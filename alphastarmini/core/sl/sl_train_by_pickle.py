@@ -62,15 +62,16 @@ NORM = args.norm
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
-print('BATCH_SIZE:', BATCH_SIZE)
+print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
-print('SEQ_LEN:', SEQ_LEN)
-NUM_EPOCHS = SLTHP.num_epochs
-LEARNING_RATE = SLTHP.learning_rate
-WEIGHT_DECAY = SLTHP.weight_decay
-CLIP = SLTHP.clip
+print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_ITERS = 50  # 100
+NUM_EPOCHS = 100  # SLTHP.num_epochs
+LEARNING_RATE = 1e-3  # SLTHP.learning_rate
+WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
+CLIP = 0.5  # SLTHP.clip
+
+NUM_ITERS = 100  # 100
 FILE_SIZE = 100
 
 # set random seed
@@ -118,6 +119,7 @@ def train_for_val(replays, replay_data, agent):
     optimizer = Adam(agent.model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
     train_loss = 0
+    batch_iter = 0
     for epoch in range(NUM_EPOCHS):
         agent.model.train()
 
@@ -136,7 +138,7 @@ def train_for_val(replays, replay_data, agent):
                 print("traj == last_traj ?", torch.equal(traj, last_traj)) if debug else None
 
             # with torch.autograd.detect_anomaly():
-            loss = Loss.get_sl_loss(traj, agent.model)
+            loss, loss_list = Loss.get_sl_loss(traj, agent.model)
             optimizer.zero_grad()
             loss.backward()  # note, we don't need retain_graph=True if we set hidden_state.detach()
 
@@ -147,8 +149,31 @@ def train_for_val(replays, replay_data, agent):
             optimizer.step()
             loss_sum += loss.item()
 
+            print("One batch loss: {:.6f}.".format(loss.item()))
+            writer.add_scalar('OneBatch/Loss', loss.item(), batch_iter)
+
+            if True:
+                print("One batch action_type_loss loss: {:.6f}.".format(loss_list[0].item()))
+                writer.add_scalar('OneBatch/action_type_loss', loss_list[0].item(), batch_iter)
+
+                print("One batch delay_loss loss: {:.6f}.".format(loss_list[1].item()))
+                writer.add_scalar('OneBatch/delay_loss', loss_list[1].item(), batch_iter)
+
+                print("One batch queue_loss loss: {:.6f}.".format(loss_list[2].item()))
+                writer.add_scalar('OneBatch/queue_loss', loss_list[2].item(), batch_iter)
+
+                print("One batch units_loss loss: {:.6f}.".format(loss_list[3].item()))
+                writer.add_scalar('OneBatch/units_loss', loss_list[3].item(), batch_iter)
+
+                print("One batch target_unit_loss loss: {:.6f}.".format(loss_list[4].item()))
+                writer.add_scalar('OneBatch/target_unit_loss', loss_list[4].item(), batch_iter)
+
+                print("One batch target_location_loss loss: {:.6f}.".format(loss_list[5].item()))
+                writer.add_scalar('OneBatch/target_location_loss', loss_list[5].item(), batch_iter)
+
             last_traj = traj.clone().detach()
             i += 1
+            batch_iter += 1
 
         train_loss = loss_sum / (i + 1e-9)
         val_loss = eval(agent, val_loader)
@@ -170,7 +195,7 @@ def eval(agent, val_loader):
     for traj in val_loader:
         traj = traj.to(DEVICE).float()
 
-        loss = Loss.get_sl_loss(traj, agent.model)
+        loss, _ = Loss.get_sl_loss(traj, agent.model)
         loss_sum += loss.item()
         i += 1
 

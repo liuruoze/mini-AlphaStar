@@ -22,6 +22,8 @@ from alphastarmini.core.rl import actor
 from alphastarmini.core.rl import against_computer
 from alphastarmini.core.rl import pseudo_reward
 
+import param as P
+
 if __name__ == '__main__':
     # if we don't add this line, it may cause running time error while in Windows
     torch.multiprocessing.freeze_support()
@@ -35,7 +37,7 @@ if __name__ == '__main__':
     # sl_train_by_pickle.test(on_server=False)
 
     from alphastarmini.core.rl import rl_train_with_replay
-    rl_train_with_replay.test(on_server=False)
+    rl_train_with_replay.test(on_server=P.on_server, replay_path=P.replay_path)
 
     # from alphastarmini.core.rl import rl_train_wo_replay
     # rl_train_wo_replay.test(on_server=False)
