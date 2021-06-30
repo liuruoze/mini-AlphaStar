@@ -39,3 +39,5 @@ model/*.pkl
 data/experiment.txt
 tmp/*
 log/*
+archive/*
+doc/*
