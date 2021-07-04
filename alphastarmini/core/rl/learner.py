@@ -68,6 +68,10 @@ class Learner:
 
         print("begin backward") if debug else None
 
+        # a error: cudnn RNN backward can only be called in training mode
+        agent.agent_nn.model.train()
+        #torch.backends.cudnn.enabled = False
+
         self.optimizer.zero_grad()
         loss = loss_function(agent, trajectories)
         print("loss:", loss) if debug else None

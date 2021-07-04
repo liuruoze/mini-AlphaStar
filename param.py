@@ -3,7 +3,7 @@
 
 '''whether is running on server, on server meaning use GPU with larger memoary'''
 on_server = False
-#on_server = False
+#on_server = True
 
 '''The replay path'''
 replay_path = "data/Replays/filtered_replays_1/"

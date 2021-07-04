@@ -20,7 +20,7 @@ We release the mini-AlphaStar project, which is a mini source version of the ori
 
 "mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
 
-The readme for the Chinese version is at [here](README_CHS.MD).
+The readme for the Chinese version is at [here](doc/README_CHS.MD).
 
 ## Contents
 

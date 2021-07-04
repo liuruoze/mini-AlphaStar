@@ -40,4 +40,4 @@ data/experiment.txt
 tmp/*
 log/*
 archive/*
-doc/*
+doc/*.png

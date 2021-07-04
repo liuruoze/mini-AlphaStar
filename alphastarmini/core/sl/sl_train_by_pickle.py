@@ -72,7 +72,7 @@ WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
 CLIP = 0.5  # SLTHP.clip
 
 NUM_ITERS = 100  # 100
-FILE_SIZE = 100
+FILE_SIZE = 100  # 100
 
 # set random seed
 torch.manual_seed(SLTHP.seed)
@@ -109,9 +109,10 @@ def train_for_val(replays, replay_data, agent):
 
     print('torch.cuda.device_count():', torch.cuda.device_count())
     if torch.cuda.device_count() > 1:
-        print("Let's use", torch.cuda.device_count(), "GPUs!")
+        pass
+        # print("Let's use", torch.cuda.device_count(), "GPUs!")
         # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-        agent.model = nn.DataParallel(agent.model)
+        # agent.model = nn.DataParallel(agent.model)
 
     agent.model.to(DEVICE)
     # agent.model.cuda()

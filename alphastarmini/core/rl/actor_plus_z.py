@@ -42,9 +42,13 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 STEP_MUL = 8   # 1
-GAME_STEPS_PER_EPISODE = 1800    # 9000
-MAX_EPISODES = 5      # 100   
-MAIN_PLAYER_NUMS = 1
+GAME_STEPS_PER_EPISODE = 18000    # 9000
+MAX_EPISODES = 1000      # 100   
+
+# gpu setting
+ON_GPU = torch.cuda.is_available()
+DEVICE = torch.device("cuda:0" if ON_GPU else "cpu")
+torch.backends.cudnn.enabled = False
 
 
 class ActorLoopPlusZ:
@@ -62,8 +66,12 @@ class ActorLoopPlusZ:
 
         self.player = player
         self.player.add_actor(self)
+        if ON_GPU:
+            self.player.agent.agent_nn.to(DEVICE)
 
         self.teacher = get_supervised_agent(player.race, model_type="sl")
+        if ON_GPU:
+            self.teacher.agent_nn.to(DEVICE)
 
         # below code is not used because we only can create the env when we know the opponnet information (e.g., race)
         # AlphaStar: self.environment = SC2Environment()
@@ -313,6 +321,7 @@ class ActorLoopPlusZ:
 
                                 # for replay reward
                                 replay_obs = replay_next_obs
+                                replay_o = replay_next_o
 
                                 if is_final:
                                     outcome = reward
@@ -342,6 +351,11 @@ class ActorLoopPlusZ:
                                 # use max_frames_per_episode to end the episode
                                 if self.max_frames_per_episode and episode_frames >= self.max_frames_per_episode:
                                     print("Beyond the max_frames_per_episode, break!")
+                                    break
+
+                                # end of replay
+                                if replay_o.player_result:  
+                                    print(o.player_result)
                                     break
 
                             self.coordinator.send_outcome(self.player, self.opponent, outcome)

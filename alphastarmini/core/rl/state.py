@@ -53,12 +53,11 @@ class MsState(object):
         self.entity_state = self.entity_state.to(device).float()
         print('self.entity_state.device:', self.entity_state.device) if debug else None
 
-        # for s in self.statistical_state:
-        #    s.to(device)
-
         self.statistical_state = [s.to(device).float() for s in self.statistical_state]
 
-        self.map_state = self.map_state.to(device).float() 
+        self.map_state = self.map_state.to(device).float()
+
+        # note there is nothing retun!
 
     @property
     def shape(self):

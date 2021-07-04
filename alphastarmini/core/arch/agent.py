@@ -48,6 +48,10 @@ class Agent(object):
         else:
             return None
 
+    def device(self):
+        device = next(self.model.parameters()).device
+        return device
+
     def to(self, DEVICE):
         self.model.to(DEVICE)
 

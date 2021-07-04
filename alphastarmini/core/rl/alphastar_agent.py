@@ -151,6 +151,13 @@ class AlphaStarAgent(RandomAgent):
     def step_nn(self, observation, last_state):
         """Performs inference on the observation, given hidden state last_state."""
         state = self.agent_nn.preprocess_state_all(observation)
+        device = self.agent_nn.device()
+
+        print("step_nn device:", device) if debug else None
+        print("state:", state) if debug else None
+        state.to(device)
+        print("state:", state) if debug else None
+
         action_logits, action, hidden_state = self.agent_nn.action_logits_by_state(state, single_inference=True,
                                                                                    hidden_state=last_state)
 
@@ -238,6 +245,9 @@ class AlphaStarAgent(RandomAgent):
 
         state_all = MsState(entity_state=entity_state_all, statistical_state=statistical_state_all, map_state=map_state_all)
 
+        device = self.agent_nn.device()
+        print("unroll device:", device)
+
         print("initial_memory.shape:", initial_memory_list[0][0].shape)
         # note the bacth size is in the second dim of hidden state
         initial_memory_state = [torch.cat(l, dim=1) for l in zip(*initial_memory_list)]
@@ -245,6 +255,12 @@ class AlphaStarAgent(RandomAgent):
         baseline_state_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_traj)]
         print("baseline_state_all.shape:", baseline_state_all[0].shape)
         baseline_state_op_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_op_traj)]
+
+        # change to device
+        state_all.to(device)  # note: MsStata.to(device) in place operation
+        initial_memory_state = [l.to(device) for l in initial_memory_state]
+        baseline_state_all = [l.to(device) for l in baseline_state_all]
+        baseline_state_op_all = [l.to(device) for l in baseline_state_op_all]
 
         # shape [batch_seq_size, embedding_size]
         baseline_list, policy_logits = self.agent_nn.unroll_traj(state_all=state_all, 

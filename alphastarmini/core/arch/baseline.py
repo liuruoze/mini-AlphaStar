@@ -78,6 +78,8 @@ class Baseline(nn.Module):
         # and layer normalization, passed through a ReLU, then passed through 
         # a linear with 1 hidden unit.
 
+        device = next(self.parameters()).device
+
         embedded_scalar_list = []
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
         the_log_statistics = torch.log(agent_statistics + 1)
@@ -88,12 +90,12 @@ class Baseline(nn.Module):
 
             if torch.isnan(the_log_statistics).any():
                 print('Find NAN the_log_statistics !', the_log_statistics)
-                the_log_statistics = torch.ones_like(agent_statistics)
+                the_log_statistics = torch.ones_like(agent_statistics, device=device)
         x = F.relu(self.statistics_fc(the_log_statistics))
         embedded_scalar_list.append(x)
 
         # TODO: `cumulative_score`, as a 1D tensor of values, is processed like `agent_statistics`.
-        cumulative_score = torch.ones(agent_statistics.shape[0], SFS.agent_statistics)
+        cumulative_score = torch.ones(agent_statistics.shape[0], SFS.agent_statistics, device=device)
         score_log_statistics = torch.log(cumulative_score + 1)
         x = F.relu(self.statistics_fc(score_log_statistics))
         embedded_scalar_list.append(x)

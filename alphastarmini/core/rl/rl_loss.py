@@ -71,6 +71,9 @@ Mask = collections.namedtuple('Mask', ACTION_FIELDS)
 # baseline are also all zeros
 
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
 def log_prob(actions, logits, reduction="none"):
     """Returns the log probability of taking an action given the logits."""
     # Equivalent to tf.sparse_softmax_cross_entropy_with_logits.
@@ -145,7 +148,7 @@ def filter_by_for_masks(action_fields, target_mask):
     index_list = ['action_type', 'delay', 'queue', 'units', 'target_unit', 'target_location']
     index = index_list.index(action_fields)
 
-    mask = torch.tensor(target_mask)
+    mask = torch.tensor(target_mask, device=device)
     mask = mask[:, :, index]
 
     return mask
@@ -189,7 +192,7 @@ def entropy(policy_logits, masks):
 
     ent = torch.sum(-policy * log_policy * masks, axis=-1)  # Aggregate over actions.
     # Normalize by actions available.
-    normalized_entropy = ent / torch.log(torch.tensor(policy_logits.shape[-1], dtype=torch.float32))
+    normalized_entropy = ent / torch.log(torch.tensor(policy_logits.shape[-1], dtype=torch.float32, device=device))
 
     return normalized_entropy
 
@@ -225,7 +228,7 @@ def entropy_loss_for_all_arguments(policy_logits, masks):
     """
 
     index_list = ['action_type', 'delay', 'queue', 'units', 'target_unit', 'target_location']
-    masks = torch.tensor(masks)
+    masks = torch.tensor(masks, device=device)
 
     entropy_list = []
     for x in index_list:     
@@ -692,10 +695,10 @@ def vtrace_from_importance_weights(
 
     if clip_rho_threshold is not None:
         clip_rho_threshold = torch.tensor(clip_rho_threshold,
-                                          dtype=torch.float32)
+                                          dtype=torch.float32, device=device)
     if clip_pg_rho_threshold is not None:
         clip_pg_rho_threshold = torch.tensor(clip_pg_rho_threshold,
-                                             dtype=torch.float32)
+                                             dtype=torch.float32, device=device)
 
     # Make sure tensor ranks are consistent.
     # 
@@ -748,7 +751,7 @@ def vtrace_from_importance_weights(
         discount_t, c_t, delta_t = sequence_item
         return delta_t + discount_t * c_t * acc
 
-    initial_values = torch.zeros_like(bootstrap_value)
+    initial_values = torch.zeros_like(bootstrap_value, device=device)
 
     # our implemented scan function for pytorch
     def scan(foo, x, initial_value):
@@ -806,7 +809,7 @@ def vtrace_from_importance_weights(
 
 def td_lambda_loss(baselines, rewards, trajectories): 
     discounts = ~np.array(trajectories.is_final[:-1])
-    discounts = torch.tensor(discounts)
+    discounts = torch.tensor(discounts, device=device)
 
     baselines = baselines
     rewards = rewards[1:]
@@ -919,7 +922,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
         target_logits = target_logits.reshape(target_logits.shape[0], -1)
         behavior_logits = behavior_logits.reshape(behavior_logits.shape[0], -1)
 
-        actions_2 = torch.zeros(behavior_logits.shape[0], 1, dtype=torch.int64)
+        actions_2 = torch.zeros(behavior_logits.shape[0], 1, dtype=torch.int64, device=device)
         print("actions_2.shape", actions_2.shape) if debug else None
 
         for i, pos in enumerate(actions):
@@ -950,7 +953,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     print("clipped_rhos.shape", clipped_rhos.shape) if debug else None
 
     discounts = ~np.array(trajectories.is_final)
-    discounts = torch.tensor(discounts, dtype=torch.float32)
+    discounts = torch.tensor(discounts, dtype=torch.float32, device=device)
 
     # we implement the vtrace_advantages
     # vtrace_advantages(clipped_rhos, rewards, discounts, values, bootstrap_value):
@@ -1060,7 +1063,7 @@ def upgo_returns(values, rewards, discounts, bootstrap):
 
     # Shift lambdas left one slot, such that V_t matches indices with lambda_tp1.
     # lambdas = np.concatenate((lambdas[1:], np.ones_like(lambdas[-1:])), axis=0)
-    lambdas = torch.cat([lambdas[1:], torch.ones_like(lambdas[-1:])], dim=0)
+    lambdas = torch.cat([lambdas[1:], torch.ones_like(lambdas[-1:], device=device)], dim=0)
 
     print("lambdas", lambdas) if debug else None
     print("lambdas.shape", lambdas.shape) if debug else None
@@ -1086,8 +1089,8 @@ def split_upgo_loss(target_logits, baselines, trajectories):
     # we change it to pytorch version
     # returns = upgo_returns(values.detach().numpy(), np.array(trajectories.reward), ~np.array(trajectories.is_final), 
     # baselines[-1].detach().numpy())
-    reward_tensor = torch.tensor(np.array(trajectories.reward))
-    discounts = torch.tensor(~np.array(trajectories.is_final), dtype=torch.float32)
+    reward_tensor = torch.tensor(np.array(trajectories.reward), device=device)
+    discounts = torch.tensor(~np.array(trajectories.is_final), dtype=torch.float32, device=device)
 
     returns = upgo_returns(values, reward_tensor, discounts, baselines[-1])
 
@@ -1154,7 +1157,7 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
         target_logits = target_logits.reshape(target_logits.shape[0], -1)
         behavior_logits = behavior_logits.reshape(behavior_logits.shape[0], -1)
 
-        actions_2 = torch.zeros(behavior_logits.shape[0], 1, dtype=torch.int64)
+        actions_2 = torch.zeros(behavior_logits.shape[0], 1, dtype=torch.int64, device=device)
 
         for i, pos in enumerate(actions):
             # note: for pos, the first index is x, the seconde index is y
@@ -1328,7 +1331,7 @@ def compute_pseudoreward(trajectories, reward_name):
 
     print('rewards_traj:', rewards_traj) if debug else None 
     rewards_numpy = np.array(rewards_traj)
-    rewards_tensor = torch.tensor(rewards_numpy, dtype=torch.float32)
+    rewards_tensor = torch.tensor(rewards_numpy, dtype=torch.float32, device=device)
 
     return rewards_tensor
 
@@ -1472,10 +1475,10 @@ def loss_function(agent, trajectories):
 
     loss_all = loss_actor_critic + loss_upgo + loss_he + loss_ent
 
-    print("loss_actor_critic:", loss_actor_critic) if debug else None
-    print("loss_upgo:", loss_upgo) if debug else None
-    print("loss_he:", loss_he) if debug else None
-    print("loss_ent:", loss_ent) if debug else None
-    print("loss_all:", loss_all) if debug else None
+    print("loss_actor_critic:", loss_actor_critic) if 1 else None
+    print("loss_upgo:", loss_upgo) if 1 else None
+    print("loss_he:", loss_he) if 1 else None
+    print("loss_ent:", loss_ent) if 1 else None
+    print("loss_all:", loss_all) if 1 else None
 
     return loss_all
