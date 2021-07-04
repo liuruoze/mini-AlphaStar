@@ -291,6 +291,9 @@ class ActorLoopPlusZ:
                                 print("replay unit count of bow:", sum(replay_ucb)) if debug else None            
                                 # end replay_reward
 
+                                game_loop = home_obs.observation.game_loop[0]
+                                print("game_loop", game_loop)
+
                                 # note, original AlphaStar pseudo-code has some mistakes, we modified 
                                 # them here
                                 traj_step = Trajectory(
@@ -308,6 +311,7 @@ class ActorLoopPlusZ:
                                     z_build_order=replay_bo,  # we change it to the sampled build order
                                     unit_counts=player_ucb,
                                     z_unit_counts=replay_ucb,  # we change it to the sampled unit counts
+                                    game_loop=game_loop,
                                 )
                                 trajectory.append(traj_step)
 
@@ -355,7 +359,7 @@ class ActorLoopPlusZ:
 
                                 # end of replay
                                 if replay_o.player_result:  
-                                    print(o.player_result)
+                                    print(replay_o.player_result)
                                     break
 
                             self.coordinator.send_outcome(self.player, self.opponent, outcome)

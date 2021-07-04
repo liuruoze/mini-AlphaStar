@@ -1301,24 +1301,26 @@ def compute_pseudoreward(trajectories, reward_name):
     print("trajectories.z_build_order", trajectories.z_build_order) if debug else None
     print("trajectories.unit_counts", trajectories.unit_counts) if debug else None
     print("trajectories.z_unit_counts", trajectories.z_unit_counts) if debug else None
+    print("trajectories.game_loop", trajectories.game_loop) if debug else None
 
     weight_leven = 1.0
     weight_hamming = 1.0
 
     rewards_traj = []
-    for t1, t2, t3, t4 in zip(trajectories.build_order, trajectories.z_build_order,
-                              trajectories.unit_counts, trajectories.z_unit_counts):
+    for t1, t2, t3, t4, t5 in zip(trajectories.build_order, trajectories.z_build_order,
+                                  trajectories.unit_counts, trajectories.z_unit_counts,
+                                  trajectories.game_loop):
         # Calculate the Levenshtein distance,
         leven_batch = []
-        for b1, b2 in zip(t1, t2):
-            r = PR.reward_by_build_order(b1, b2)
+        for b1, b2, b5 in zip(t1, t2, t5):
+            r = PR.reward_by_build_order(b1, b2, b5)
             leven_batch.append(r)
         print('leven_batch:', leven_batch) if debug else None
 
         # Calculate the Hamming distance,
         hamming_batch = []
-        for b1, b2 in zip(t3, t4):
-            r = PR.reward_by_unit_counts(b1, b2)
+        for b1, b2, b5 in zip(t3, t4, t5):
+            r = PR.reward_by_unit_counts(b1, b2, b5)
             hamming_batch.append(r)
         print('hamming_batch:', hamming_batch) if debug else None
 
