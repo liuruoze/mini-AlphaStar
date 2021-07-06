@@ -3,20 +3,16 @@
 
 ## Update
 
-This is the "v_0.99" version, and the updates are as follows:
+This is the "v_1.00" version, and the updates are as follows:
 
-* Add the code for analyzing the statistics of replays;
-* Implement the RL training with the z reward (from the experts' statistics in replays);
-* Replenish the entropy_loss_for_all_arguments;
-* True implementation of teacher_logits in human_policy_kl_loss and test all the above RL training on server;
-* Decouple the sl_loss with the agent, and pass the test of SL training on the server;
-* Fix some warnings due to PyTorch 1.5, and fill up many TODOs;
+* Make some improvements for SL training；
+* Fix some bug in SL training；
+* Fix a RL training bug due to the cudnn of GPU and regroup the directory;
+* Add time decay scale for unit count reward (hamming distance);
 
 ## Introduction
 
 We release the mini-AlphaStar project, which is a mini source version of the original AlphaStar program. AlphaStar is an intelligent AI proposed by DeepMind to play StarCraft II. StarCraft II is an RTS game developed by Blizzard.
-
-"v_0.X" means we think we have implemented above X % percent code of it. 
 
 "mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
 
