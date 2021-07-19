@@ -249,7 +249,7 @@ class ActorLoopPlusZ:
                                 # may change implemention of teacher_logits
                                 teacher_step = self.teacher.step_logits(home_obs, teacher_memory)
                                 teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
-                                print("teacher_function_call:", player_function_call) if debug else None
+                                print("teacher_function_call:", teacher_function_call) if debug else None
 
                                 env_actions = [player_function_call, opponent_function_call]
 

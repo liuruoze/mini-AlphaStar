@@ -30,6 +30,9 @@ if __name__ == '__main__':
 
     print("run init")
 
+    #from alphastarmini.core.sl import test_alphastar_replay
+    # test_alphastar_replay.test(on_server=False)
+
     #from alphastarmini.core.sl import transform_replay_data
     # transform_replay_data.test(on_server=False)
 

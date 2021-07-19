@@ -1297,6 +1297,11 @@ def compute_pseudoreward(trajectories, reward_name):
         hamming_rewards.append(r_traj)
     '''
 
+    # add to use reward_name to judge to use the win loss reward
+    if reward_name == 'winloss_baseline':
+        rewards_tensor = torch.tensor(trajectories.reward, dtype=torch.float32, device=device)
+        return rewards_tensor
+
     print("trajectories.build_order", trajectories.build_order) if debug else None
     print("trajectories.z_build_order", trajectories.z_build_order) if debug else None
     print("trajectories.unit_counts", trajectories.unit_counts) if debug else None
@@ -1305,6 +1310,12 @@ def compute_pseudoreward(trajectories, reward_name):
 
     weight_leven = 1.0
     weight_hamming = 1.0
+
+    # in order to distinguish between build_order and built_units 
+    if reward_name == 'build_order_baseline':
+        weight_hamming = 0.0
+    if reward_name == 'built_units_baseline':
+        weight_leven = 0.0    
 
     rewards_traj = []
     for t1, t2, t3, t4, t5 in zip(trajectories.build_order, trajectories.z_build_order,
@@ -1414,7 +1425,7 @@ def loss_function(agent, trajectories):
             # baseline_cost is for lambda_loss
             pg_cost, baseline_cost, reward_name = costs_and_rewards
 
-            print("reward_name:", reward_name) if debug else None
+            print("reward_name:", reward_name) if 1 else None
             rewards = compute_pseudoreward(trajectories, reward_name)
 
             # The action_type argument, delay, and all other arguments are separately updated 
@@ -1424,12 +1435,12 @@ def loss_function(agent, trajectories):
             # Actor-Critic loss, with relative weight 1.0. 
 
             lambda_loss = td_lambda_loss(baseline, rewards, trajectories)
-            print("lambda_loss:", lambda_loss) if debug else None
+            print("lambda_loss:", lambda_loss) if 1 else None
             loss_actor_critic += (baseline_cost * lambda_loss)
 
             # we add the split_vtrace_pg_loss
             pg_loss = split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories)
-            print("pg_loss:", pg_loss) if debug else None
+            print("pg_loss:", pg_loss) if 1 else None
             loss_actor_critic += (pg_cost * pg_loss)
 
     # Note: upgo_loss has only one baseline which is just for winloss 
@@ -1474,6 +1485,9 @@ def loss_function(agent, trajectories):
     loss_ent = ENT_WEIGHT * entropy_loss_for_all_arguments(target_logits, trajectories.masks)
 
     #print("stop", len(stop))
+
+    # not used
+    #loss_actor_critic = torch.clamp(loss_actor_critic, min=0.)
 
     loss_all = loss_actor_critic + loss_upgo + loss_he + loss_ent
 
