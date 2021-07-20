@@ -40,7 +40,13 @@ def reward_by_build_order(bo, z_bo, gl=0):
 
     # the cost is the squared distance between the 
     # true built entity and the agent's entity
-    reward = - dist * dist 
+    reward = dist * dist 
+
+    # rescaled to be within [0, 0.8] with the maximum of 0.8 when it is more than two gateways away.
+    # Question: how to do it ?
+    reward = min(reward, 50) / 50.0 * 0.8
+
+    reward = -reward
     print('reward:', reward) if debug else None
 
     scale = time_decay_scale(game_loop=gl)

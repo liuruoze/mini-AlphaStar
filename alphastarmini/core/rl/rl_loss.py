@@ -79,10 +79,17 @@ def log_prob(actions, logits, reduction="none"):
     # Equivalent to tf.sparse_softmax_cross_entropy_with_logits.
 
     loss = torch.nn.CrossEntropyLoss(reduction=reduction)
+    # note CrossEntropyLoss is $ - log(e^(x_i) / \sum_j{e^{x_j}}) $
+    # such for log_prob is actually -CrossEntropyLoss
 
     # logits: shape [BATCH_SIZE, CLASS_SIZE]
     # actions: shape [BATCH_SIZE]
-    return loss(logits, torch.squeeze(actions, dim=-1))
+    loss_result = loss(logits, torch.squeeze(actions, dim=-1))
+
+    # change to right log_prob
+    the_log_prob = - loss_result
+
+    return the_log_prob
 
 
 def is_sampled(z):
@@ -701,7 +708,6 @@ def vtrace_from_importance_weights(
                                              dtype=torch.float32, device=device)
 
     # Make sure tensor ranks are consistent.
-    # 
     if clip_rho_threshold is not None:
         clipped_rhos = torch.clamp(rhos, max=clip_rho_threshold)
     else:
@@ -846,15 +852,29 @@ def policy_gradient_loss(logits, actions, advantages, mask):
     results = mask * advantages * action_log_prob
     print("results:", results) if debug else None
     print("results.shape:", results.shape) if debug else None
-    return results
+
+    # note, we should do policy ascent on the results
+    # which means if we use policy descent, we should add a "-" sign for results
+    loss = -results
+
+    return loss
 
 
 def compute_unclipped_logrho(behavior_logits, target_logits, actions):
     """Helper function for compute_importance_weights."""
+    print("actions:", actions) if debug else None
+    print("target_logits:", target_logits) if debug else None
     target_log_prob = log_prob(actions, target_logits, reduction="none")
-    behavior_log_prob = log_prob(actions, behavior_logits, reduction="none")
+    print("target_log_prob:", target_log_prob) if debug else None
 
-    return target_log_prob - behavior_log_prob
+    print("actions:", actions) if debug else None
+    print("behavior_logits:", behavior_logits) if debug else None
+    behavior_log_prob = log_prob(actions, behavior_logits, reduction="none")
+    print("behavior_log_prob:", behavior_log_prob) if debug else None
+
+    subtract = target_log_prob - behavior_log_prob
+    print("subtract:", subtract) if debug else None
+    return subtract
 
 
 def compute_importance_weights(behavior_logits, target_logits, actions):
@@ -863,21 +883,29 @@ def compute_importance_weights(behavior_logits, target_logits, actions):
     print("logrho:", logrho) if debug else None
     print("logrho.shape:", logrho.shape) if debug else None
 
+    rho = torch.exp(logrho)
+    print("rho:", rho) if debug else None
+
     # change to pytorch version
-    return torch.clamp(torch.exp(logrho), max=1.)
+    clip_rho = torch.clamp(rho, max=1.)
+    print("clip_rho:", clip_rho) if debug else None
+    return clip_rho   
 
 
 def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
                    action_fields):
     """Computes v-trace policy gradient loss. Helper for split_vtrace_pg_loss."""
     # Remove last timestep from trajectories and baselines.
+    # 
     print("action_fields", action_fields) if debug else None
 
     trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
     print("trajectories.reward", trajectories.reward) if debug else None
 
     rewards = rewards[:-1]
+    print("rewards", rewards) if debug else None
     values = baselines[:-1]
+    print("values", values) if debug else None
 
     # Filter for only the relevant actions/logits/masks.
 
@@ -897,8 +925,6 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     split_target_logits = split_target_logits[:-1]
     # shape: [seq_batch_size x action_size]
     split_target_logits = split_target_logits.reshape(-1, *action_size)
-    print("split_target_logits", split_target_logits) if debug else None   
-    print("split_target_logits.shape", split_target_logits.shape) if debug else None 
 
     target_logits = split_target_logits
     print("target_logits", target_logits) if debug else None
@@ -951,6 +977,8 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     clipped_rhos = clipped_rhos.reshape(rewards.shape)
     print("clipped_rhos", clipped_rhos) if debug else None
     print("clipped_rhos.shape", clipped_rhos.shape) if debug else None
+
+    #print('stop', stop)
 
     discounts = ~np.array(trajectories.is_final)
     discounts = torch.tensor(discounts, dtype=torch.float32, device=device)
@@ -1020,14 +1048,17 @@ def split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories):
 
     loss = 0.
     loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'action_type')
-    loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'delay')
 
-    # note: here we use queue, units, target_unit and target_location to replace the single arguments
-    # loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'arguments')
-    loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'queue')
-    loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'units')
-    loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_unit')
-    loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_location')
+    if True:
+        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'delay')
+
+        # note: here we use queue, units, target_unit and target_location to replace the single arguments
+        # loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'arguments')
+
+        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'queue')
+        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'units')
+        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_unit')
+        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_location')
 
     return loss.sum()
 
@@ -1308,14 +1339,36 @@ def compute_pseudoreward(trajectories, reward_name):
     print("trajectories.z_unit_counts", trajectories.z_unit_counts) if debug else None
     print("trajectories.game_loop", trajectories.game_loop) if debug else None
 
-    weight_leven = 1.0
-    weight_hamming = 1.0
+    # mAS: note we use scale to make the reward of leven and hamming not to much
+    scale_leven = 0.05
+    scale_hamming = 0.05
+
+    weight_leven = 1.0 * scale_leven
+    weight_hamming = 1.0 * scale_hamming
 
     # in order to distinguish between build_order and built_units 
     if reward_name == 'build_order_baseline':
         weight_hamming = 0.0
     if reward_name == 'built_units_baseline':
         weight_leven = 0.0    
+
+    # AlphaStar: The built units reward is the Hamming distance between the effects in some human replay 
+    # and the effects the agent has created. After 8 minutes, the reward is multiplied by 0.5. 
+    # After 16 minutes, the reward is multiplied by an additional 0.5. After 24 minutes, there are no more rewards.
+    if reward_name == 'effects_baseline':
+        # now we don't separate the effects from the unit, 
+        # so we ignore this reward now
+        weight_hamming = 0.0
+        weight_leven = 0.0
+
+    # AlphaStar: The built units reward is the Hamming distance between the upgrades in some human replay and the upgrades 
+    # the agent has researched. After 8 minutes, the reward is multiplied by 0.5. After 16 minutes, the reward is 
+    # multiplied by an additional 0.5. After 24 minutes, there are no more rewards.
+    if reward_name == 'upgrades_baseline':
+        # now we don't separate the upgrades from the unit, 
+        # so we ignore this reward now
+        weight_hamming = 0.0
+        weight_leven = 0.0
 
     rewards_traj = []
     for t1, t2, t3, t4, t5 in zip(trajectories.build_order, trajectories.z_build_order,
@@ -1387,6 +1440,7 @@ def loss_function(agent, trajectories):
 
     # QUESTIOM: The trajectories already have behavior_logits, why is the need
     # to calculate the target_logits?
+    # Answer: To calculate the importance ration = target_logits / behavior_logits
     # trajectories shape: list of trajectory
     # target_logits: ArgsActionLogits
     target_logits, baselines = agent.unroll(trajectories)
@@ -1415,11 +1469,13 @@ def loss_function(agent, trajectories):
     # associated with following the human strategy statistic z.
     # See the paper methods and detailed_architecture.txt for more details.
     BASELINE_COSTS_AND_REWARDS = get_baseline_hyperparameters()
-    if True:  # wait for furture fullfilled
-        for baseline, costs_and_rewards in zip(baselines, BASELINE_COSTS_AND_REWARDS):
-            # baseline is for caluculation in td_lambda and vtrace_pg
-            # costs_and_rewards are only weight for loss
 
+    reward_index = 1
+    for baseline, costs_and_rewards in zip(baselines, BASELINE_COSTS_AND_REWARDS):
+        # baseline is for caluculation in td_lambda and vtrace_pg
+        # costs_and_rewards are only weight for loss
+
+        if reward_index != 0:
             # reward_name is for pseudoreward
             # pg_cost is for vtrace_pg_loss
             # baseline_cost is for lambda_loss
@@ -1442,6 +1498,8 @@ def loss_function(agent, trajectories):
             pg_loss = split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories)
             print("pg_loss:", pg_loss) if 1 else None
             loss_actor_critic += (pg_cost * pg_loss)
+
+        reward_index += 1
 
     # Note: upgo_loss has only one baseline which is just for winloss 
     # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
@@ -1482,12 +1540,11 @@ def loss_function(agent, trajectories):
     print("trajectories.behavior_logits", trajectories.behavior_logits) if debug else None
     print("trajectories.masks", trajectories.masks) if debug else None
 
-    loss_ent = ENT_WEIGHT * entropy_loss_for_all_arguments(target_logits, trajectories.masks)
+    # note: we want to maximize the entropy
+    # so we gradient descent the -entropy
+    loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, trajectories.masks))
 
     #print("stop", len(stop))
-
-    # not used
-    #loss_actor_critic = torch.clamp(loss_actor_critic, min=0.)
 
     loss_all = loss_actor_critic + loss_upgo + loss_he + loss_ent
 

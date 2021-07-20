@@ -249,7 +249,7 @@ SL_Training_Hyper_Parameters = SLTrainingHyperParameters(num_epochs=100,
 RLTrainingHyperParameters = namedtuple('RLTrainingHyperParameters', ['learning_rate', 'beta1', 'beta2', 'epsilon',
                                                                      'weight_decay', 'clip', 'seed'])
 
-RL_Training_Hyper_Parameters = RLTrainingHyperParameters(learning_rate=3e-5,
+RL_Training_Hyper_Parameters = RLTrainingHyperParameters(learning_rate=1e-5,  # AlphaStar: 3e-5
                                                          beta1=0, 
                                                          beta2=0.99, 
                                                          epsilon=1e-5,
@@ -288,8 +288,8 @@ Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
                                         units_buildings=ConstSize.All_Units_Size,
                                         effects=ConstSize.Effects_Size,
                                         upgrade=ConstSize.Upgrades_Size,
-                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order *
-                                        ConstSize.All_Units_Size,
+                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order
+                                        * ConstSize.All_Units_Size,
                                         last_delay=128,
                                         last_action_type=ConstSize.Actions_Size,
                                         last_repeat_queued=2)
