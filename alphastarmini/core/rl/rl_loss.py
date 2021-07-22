@@ -86,6 +86,9 @@ def log_prob(actions, logits, reduction="none"):
     # actions: shape [BATCH_SIZE]
     loss_result = loss(logits, torch.squeeze(actions, dim=-1))
 
+    # Original AlphaStar pseudocode is wrong
+    # AlphaStar: return loss_result
+
     # change to right log_prob
     the_log_prob = - loss_result
 
@@ -1524,6 +1527,7 @@ def loss_function(agent, trajectories):
     print("target_logits.action_type.shape", target_logits.action_type.shape) if debug else None
     print("teacher_logits_action_type.shape", teacher_logits_action_type.shape) if debug else None
 
+    # TODO: for all arguments
     loss_he = human_policy_kl_loss(target_logits.action_type, teacher_logits_action_type, ACTION_TYPE_KL_COST)
 
     # Entropy Loss:
@@ -1542,6 +1546,8 @@ def loss_function(agent, trajectories):
 
     # note: we want to maximize the entropy
     # so we gradient descent the -entropy
+    # Original AlphaStar pseudocode is wrong
+    # AlphaStar: loss_ent = entropy_loss(trajectories.behavior_logits, trajectories.masks)
     loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, trajectories.masks))
 
     #print("stop", len(stop))

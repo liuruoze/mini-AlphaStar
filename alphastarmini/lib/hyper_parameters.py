@@ -193,7 +193,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(96 / Mini_Sc
                                                      max_selected=int(32 / Mini_Scale),                                                    
                                                      max_entities=int(384 / Mini_Scale),
                                                      minimap_size=64,                                               
-                                                     embedding_size=2308,
+                                                     embedding_size=2310,
                                                      map_channels=18,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,

@@ -59,7 +59,7 @@ class EntityEncoder(nn.Module):
         self.max_cargo_space_used = 9
         self.max_cargo_space_maximum = 9
 
-        self.max_display_type = 4
+        self.max_display_type = 5  # AlphaStar: 4. RuntimeError: index 4 is out of bounds for dimension 1 with size 4
         self.max_cloakState = 5
 
         self.max_is_powered = 2
@@ -74,7 +74,7 @@ class EntityEncoder(nn.Module):
         self.max_mined_minerals = 1800
         self.max_mined_vespene = 2500
 
-        self.max_assigned_harvesters = 24
+        self.max_assigned_harvesters = 25  # AlphaStar: 24. RuntimeError: index 24 is out of bounds for dimension 1 with size 24
         self.max_ideal_harvesters = 17
 
         self.max_weapon_cooldown = 32
