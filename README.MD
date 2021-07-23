@@ -3,12 +3,12 @@
 
 ## Update
 
-This is the "v_1.00" version, and the updates are as follows:
+This is the "v_1.01" version, and the updates are as follows:
 
-* Make some improvements for SL training；
-* Fix some bug in SL training；
-* Fix a RL training bug due to the cudnn of GPU and regroup the directory;
-* Add time decay scale for unit count reward (hamming distance);
+* Change to using the win-loss reward in winloss_baseline (the thing AlphaStar should do);
+* Refine pseudo reward, scale Leven reward, right log prob ( which should be negative CrossEntropy);
+* Fix some problems due to wrong original codes of AlphaStar;
+* Add analysis of move camera count in the AlphaStar replay;
 
 ## Introduction
 
