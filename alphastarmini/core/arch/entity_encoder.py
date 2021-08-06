@@ -99,7 +99,7 @@ class EntityEncoder(nn.Module):
                                        n_layers=3, n_head=2, d_k=original_128, 
                                        d_v=original_128, dropout=0.1)
         self.conv1 = nn.Conv1d(original_256, original_256, kernel_size=1, stride=1,
-                               padding=0, bias=False)
+                               padding=0, bias=True)
         self.fc1 = nn.Linear(original_256, original_256)
 
     # The fields of each entity in `entity_list` are first preprocessed and concatenated so that \

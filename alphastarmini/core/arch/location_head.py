@@ -110,28 +110,28 @@ class LocationHead(nn.Module):
         mmc = max_map_channels
 
         self.ds_1 = nn.Conv2d(mmc + 4, mmc, kernel_size=1, stride=1,
-                              padding=0, bias=False)
+                              padding=0, bias=True)
 
         self.film_net = FiLM(n_resblock=4, conv_hidden=mmc, gate_size=autoregressive_embedding_size)
 
         self.us_1 = nn.ConvTranspose2d(mmc, int(mmc / 2), kernel_size=4, stride=2,
-                                       padding=1, bias=False)
+                                       padding=1, bias=True)
         self.us_2 = nn.ConvTranspose2d(int(mmc / 2), int(mmc / 4), 
                                        kernel_size=4, stride=2,
-                                       padding=1, bias=False)
+                                       padding=1, bias=True)
         self.us_3 = nn.ConvTranspose2d(int(mmc / 4), int(mmc / 8), 
                                        kernel_size=4, stride=2,
-                                       padding=1, bias=False)
+                                       padding=1, bias=True)
         self.us_4 = nn.ConvTranspose2d(int(mmc / 8), int(mmc / 16), 
                                        kernel_size=4, stride=2,
-                                       padding=1, bias=False)
+                                       padding=1, bias=True)
         self.us_4_original = nn.ConvTranspose2d(int(mmc / 8), 1, 
                                                 kernel_size=4, stride=2,
-                                                padding=1, bias=False)        
+                                                padding=1, bias=True)        
 
         # note: in mAS, we add a upsampling layer to transfer from 8x8 to 256x256
         self.us_5 = nn.ConvTranspose2d(int(mmc / 16), 1, kernel_size=4, stride=2,
-                                       padding=1, bias=False)
+                                       padding=1, bias=True)
 
         self.output_map_size = output_map_size
 

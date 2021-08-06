@@ -39,14 +39,14 @@ class SpatialEncoder(nn.Module):
         super().__init__()
         self.inplanes = AHP.map_channels
         self.project = nn.Conv2d(self.inplanes, original_32, kernel_size=1, stride=1,
-                                 padding=0, bias=False)
+                                 padding=0, bias=True)
         # ds means downsampling
         self.ds_1 = nn.Conv2d(original_32, original_64, kernel_size=4, stride=2,
-                              padding=1, bias=False)
+                              padding=1, bias=True)
         self.ds_2 = nn.Conv2d(original_64, original_128, kernel_size=4, stride=2,
-                              padding=1, bias=False)
+                              padding=1, bias=True)
         self.ds_3 = nn.Conv2d(original_128, original_128, kernel_size=4, stride=2,
-                              padding=1, bias=False)
+                              padding=1, bias=True)
         self.resblock_stack = nn.ModuleList([
             ResBlock(inplanes=original_128, planes=original_128, stride=1, downsample=None)
             for _ in range(n_resblocks)])

@@ -43,7 +43,7 @@ class TargetUnitHead(nn.Module):
 
         self.conv_1 = nn.Conv1d(in_channels=embedding_size, 
                                 out_channels=original_32, kernel_size=1, stride=1,
-                                padding=0, bias=False)
+                                padding=0, bias=True)
         self.fc_1 = nn.Linear(autoregressive_embedding_size, original_256)
         self.fc_2 = nn.Linear(original_256, original_32)
 
