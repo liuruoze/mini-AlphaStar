@@ -41,3 +41,4 @@ tmp/*
 log/*
 archive/*
 doc/*.png
+cameras.txt

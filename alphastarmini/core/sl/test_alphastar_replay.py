@@ -169,7 +169,7 @@ def getFuncCall(o, feat, prev_obs, use_raw=True):
     return func_call
 
 
-def run_alphastar_replay(player_id=1, on_server=False):
+def run_alphastar_replay(on_server=False, race_name='Protoss'):
     if on_server:
         REPLAY_PATH = "/home/liuruoze/mini-AlphaStar/data/filtered_replays_1/" 
         COPY_PATH = None
@@ -177,16 +177,16 @@ def run_alphastar_replay(player_id=1, on_server=False):
         max_steps_of_replay = FLAGS.max_steps_of_replay
         max_replays = FLAGS.max_replays
     else:
-        REPLAY_PATH = "data/Replays/replays_paper_ready/Final/Protoss/"
+        REPLAY_PATH = "data/Replays/replays_paper_ready/Final/" + race_name + "/"
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
         max_steps_of_replay = FLAGS.max_steps_of_replay
-        max_replays = 1
+        max_replays = 100
 
     run_config = run_configs.get(version=FLAGS.replay_version)
-    #print('REPLAY_PATH:', REPLAY_PATH)
+    print('REPLAY_PATH:', REPLAY_PATH)
     replay_files = os.listdir(REPLAY_PATH)
-    replay_files.sort(reverse=True)
+    replay_files.sort(reverse=False)
 
     screen_resolution = point.Point(FLAGS.screen_resolution, FLAGS.screen_resolution)
     minimap_resolution = point.Point(FLAGS.minimap_resolution, FLAGS.minimap_resolution)
@@ -230,135 +230,165 @@ def run_alphastar_replay(player_id=1, on_server=False):
     replay_length_list = []
     noop_length_list = []
 
-    with run_config.start(full_screen=False) as controller:
+    with open("cameras.txt", "w") as f:
+        pass
 
-        for replay_file in replay_files:
-            try:
-                replay_path = REPLAY_PATH + replay_file
-                print('replay_path:', replay_path)
-                replay_data = run_config.replay_data(replay_path)
-                replay_info = controller.replay_info(replay_data)
+    for idx in range(2):
+        player_id = idx + 1
+        with run_config.start(full_screen=False) as controller:
 
-                start_replay = sc_pb.RequestStartReplay(
-                    replay_data=replay_data,
-                    options=interface,
-                    disable_fog=False,  # FLAGS.disable_fog
-                    observed_player_id=player_id,
-                    map_data=None,
-                    realtime=False
-                )
+            for replay_file in replay_files:
+                try:
+                    replay_path = REPLAY_PATH + replay_file
+                    print('replay_path:', replay_path)
+                    replay_data = run_config.replay_data(replay_path)
+                    replay_info = controller.replay_info(replay_data)
+                    print('replay_info:', replay_info)
+                    base = os.path.basename(replay_path)
+                    replay_name = os.path.splitext(base)[0]
 
-                #print(" Replay info ".center(60, "-")) if debug else None
-                print(replay_info.player_info) if debug else None
-                #print("-" * 60) if debug else None
-                controller.start_replay(start_replay)
-                # The below several arguments are default set to False, so we shall enable them.
+                    print('replay_name:', replay_name)
 
-                # use_feature_units: Whether to include feature_unit observations.
+                    start_replay = sc_pb.RequestStartReplay(
+                        replay_data=replay_data,
+                        options=interface,
+                        disable_fog=False,  # FLAGS.disable_fog
+                        observed_player_id=player_id,
+                        map_data=None,
+                        realtime=False
+                    )
 
-                # use_raw_units: Whether to include raw unit data in observations. This
-                # differs from feature_units because it includes units outside the
-                # screen and hidden units, and because unit positions are given in
-                # terms of world units instead of screen units.
+                    #print(" Replay info ".center(60, "-")) if debug else None
+                    #print(replay_info.player_info) if debug else None
+                    info = replay_info.player_info
+                    player_name = info[player_id - 1].player_info.player_name
 
-                # use_raw_actions: [bool] Whether to use raw actions as the interface.
-                # Same as specifying action_space=ActionSpace.RAW.
+                    print('player_name:', player_name)
+                    if 0 and player_name == "AlphaStar":
+                        print('Find AlphaStar!')
+                        print('AlphaStar ID is', player_id)
 
-                # use_unit_counts: Whether to include unit_counts observation. Disabled by
-                # default since it gives information outside the visible area. 
+                    #print('stop', stop)
+                    #print("-" * 60) if debug else None
+                    controller.start_replay(start_replay)
+                    # The below several arguments are default set to False, so we shall enable them.
 
-                '''
-                show_cloaked: Whether to show limited information for cloaked units.
-                show_burrowed_shadows: Whether to show limited information for burrowed
-                      units that leave a shadow on the ground (ie widow mines and moving
-                      roaches and infestors).
-                show_placeholders: Whether to show buildings that are queued for
-                      construction.
-                '''
+                    # use_feature_units: Whether to include feature_unit observations.
 
-                feat = F.features_from_game_info(game_info=controller.game_info(), 
-                                                 use_feature_units=True, use_raw_units=True,
-                                                 use_unit_counts=True, use_raw_actions=True,
-                                                 show_cloaked=True, show_burrowed_shadows=True, 
-                                                 show_placeholders=True) 
-                #print("feat obs spec:", feat.observation_spec()) if debug else None
-                #print("feat action spec:", feat.action_spec()) if debug else None
-                prev_obs = None
-                i = 0
-                save_steps = 0
-                noop_count = 0
-                camera_count = 0
-                all_op_count = 0
+                    # use_raw_units: Whether to include raw unit data in observations. This
+                    # differs from feature_units because it includes units outside the
+                    # screen and hidden units, and because unit positions are given in
+                    # terms of world units instead of screen units.
 
-                feature_list, label_list = [], []
-                step_dict = {}
+                    # use_raw_actions: [bool] Whether to use raw actions as the interface.
+                    # Same as specifying action_space=ActionSpace.RAW.
 
-                # set the obs and action spec
-                obs_spec = feat.observation_spec()
-                act_spec = feat.action_spec()
+                    # use_unit_counts: Whether to include unit_counts observation. Disabled by
+                    # default since it gives information outside the visible area. 
 
-                while True:
-                    o = controller.observe()
-                    try:
-                        obs = feat.transform_obs(o)
+                    '''
+                    show_cloaked: Whether to show limited information for cloaked units.
+                    show_burrowed_shadows: Whether to show limited information for burrowed
+                          units that leave a shadow on the ground (ie widow mines and moving
+                          roaches and infestors).
+                    show_placeholders: Whether to show buildings that are queued for
+                          construction.
+                    '''
 
+                    feat = F.features_from_game_info(game_info=controller.game_info(), 
+                                                     use_feature_units=True, use_raw_units=True,
+                                                     use_unit_counts=True, use_raw_actions=True,
+                                                     show_cloaked=True, show_burrowed_shadows=True, 
+                                                     show_placeholders=True) 
+                    #print("feat obs spec:", feat.observation_spec()) if debug else None
+                    #print("feat action spec:", feat.action_spec()) if debug else None
+                    prev_obs = None
+                    i = 0
+                    save_steps = 0
+                    noop_count = 0
+                    camera_count = 0
+                    all_op_count = 0
+
+                    feature_list, label_list = [], []
+                    step_dict = {}
+
+                    # set the obs and action spec
+                    obs_spec = feat.observation_spec()
+                    act_spec = feat.action_spec()
+
+                    while True:
+                        o = controller.observe()
                         try:
-                            func_call = None
-                            no_op = False
+                            obs = feat.transform_obs(o)
 
-                            if o.actions and prev_obs:
-                                func_call = getFuncCall(o, feat, prev_obs)
+                            try:
+                                func_call = None
+                                no_op = False
 
-                                if func_call.function.value == 168:
-                                    camera_count += 1
+                                if o.actions and prev_obs:
+                                    func_call = getFuncCall(o, feat, prev_obs)
 
-                                if func_call.function.value == 0:
+                                    if func_call.function.value == 168:
+                                        camera_count += 1
+
+                                    if func_call.function.value == 0:
+                                        no_op = True
+                                        func_call = None
+                                else:
                                     no_op = True
-                                    func_call = None
-                            else:
-                                no_op = True
 
-                            if no_op:
-                                pass
-                            else:
-                                all_op_count += 1
+                                if no_op:
+                                    pass
+                                else:
+                                    all_op_count += 1
 
-                        except Exception as e:
-                            traceback.print_exc()
+                            except Exception as e:
+                                traceback.print_exc()
 
-                        if i >= max_steps_of_replay:  # test the first n frames
-                            print("max frames test, break out!")
-                            break
+                            if i >= max_steps_of_replay:  # test the first n frames
+                                print("max frames test, break out!")
+                                break
 
-                        if o.player_result:  # end of game
-                            print(o.player_result)
-                            break
+                            if o.player_result:  # end of game
+                                # print(o.player_result)
 
-                    except Exception as inst:
-                        traceback.print_exc() 
+                                break
 
-                    controller.step()
-                    prev_obs = obs
-                    i += 1
+                        except Exception as inst:
+                            traceback.print_exc() 
 
-                print("player_id", player_id, "camera_count", camera_count, "all_op_count", all_op_count, 
-                      "no_camera_op_rate", 1.0 - camera_count / (all_op_count + 1e-9))
+                        controller.step()
+                        prev_obs = obs
+                        i += 1
 
-                j += 1
-                replay_length_list.append(save_steps)
-                noop_length_list.append(noop_count)
-                # We only test the first one replay   
+                    # print("player_id", player_id, "player_name", player_name,
+                    #      "camera_count", camera_count, "all_op_count", all_op_count, 
+                    #      "no_camera_op_rate", 1.0 - camera_count / (all_op_count + 1e-9))
 
-            except Exception as inst:
-                traceback.print_exc() 
+                    print("player_id", player_id, "player_name", player_name,
+                          ",", camera_count, all_op_count, 
+                          1.0 - camera_count / (all_op_count + 1e-9))
+                    print(" ")
 
-            if j >= max_replays:  # test the first n frames
-                print("max replays test, break out!")
-                break
+                    with open("cameras.txt", "a") as f:                    
+                        print(replay_name, "id", player_id, "name", player_name,
+                              ",", camera_count, ",", all_op_count, 
+                              ",", 1.0 - camera_count / (all_op_count + 1e-9), file=f)
+                    j += 1
+                    replay_length_list.append(save_steps)
+                    noop_length_list.append(noop_count)
+                    # We only test the first one replay   
+
+                except Exception as inst:
+                    traceback.print_exc() 
+
+                if j >= max_replays:  # test the first n frames
+                    print("max replays test, break out!")
+                    break
 
     print("end")
 
 
 def test(on_server=False):
-    run_alphastar_replay(player_id=1, on_server=on_server)
-    run_alphastar_replay(player_id=2, on_server=on_server)
+    run_alphastar_replay(on_server=on_server, race_name='Protoss')
+    #run_alphastar_replay(player_id=2, on_server=on_server)

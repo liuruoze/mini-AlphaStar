@@ -84,6 +84,7 @@ class SelectedUnitsHead(nn.Module):
         # and passes it through a linear of size 256 and a ReLU. This will be referred to in this head as `func_embed`.
         # QUESTION: one unit type or serveral unit types?
         # ANSWER: serveral unit types, each for one-hot
+        # This is some places which introduce much human knowledge
         unit_types_one_hot = L.action_can_apply_to_entity_types_mask(action_type)
 
         print("unit_types_one_hot.device:", unit_types_one_hot.device) if debug else None
@@ -226,7 +227,8 @@ class SelectedUnitsHead(nn.Module):
             print("out.shape:", out.shape) if debug else None
 
             # AlphaStar: reduced by the mean across the entities,
-            # TODO: Wenhai: should be key mean
+            # Wenhai: should be key mean
+            # TODO: change to the key mean
             mean = torch.mean(entity_one_hot, dim=-1, keepdim=True)
             # mean shape: [batch_size x 1]
             out = out - mean
@@ -256,6 +258,7 @@ class SelectedUnitsHead(nn.Module):
         # autoregressive_embedding: [batch_size x autoregressive_embedding_size]
 
         # AlphaStar: If `action_type` does not involve selecting units, this head is ignored.
+        # TODO: fix the ignored
         select_unit_mask = L.action_involve_selecting_units_mask(action_type)
         # select_unit_mask: [batch_size x 1]
         print("select_unit_mask:", select_unit_mask) if debug else None

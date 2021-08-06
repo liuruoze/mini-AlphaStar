@@ -70,9 +70,10 @@ class SpatialEncoder(nn.Module):
         # with channel size 64, 128, and 128 respectively. 
         # The kernel size for those 3 downsampling convolutions is 4, and the stride is 2.
         # note: in mAS, we replace 128x128 to 64x64, and the result 16x16 also to 8x8
-        x = self.ds_1(x)
-        x = self.ds_2(x)
-        x = self.ds_3(x)
+        # note: here we should add a relu after each conv2d
+        x = F.relu(self.ds_1(x))
+        x = F.relu(self.ds_2(x))
+        x = F.relu(self.ds_3(x))
 
         # 4 ResBlocks with 128 channels and kernel size 3 and applied to the downsampled map, 
         # with the skip connections placed into `map_skip`.
