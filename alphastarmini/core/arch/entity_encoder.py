@@ -15,9 +15,6 @@ from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import MiniStar_Arch_Hyper_Parameters as MAHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 
-from pysc2.lib.units import get_unit_type
-from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
-
 __author__ = "Ruo-Ze Liu"
 
 debug = False
@@ -119,19 +116,15 @@ class EntityEncoder(nn.Module):
             # B: s2clientprotocol description
             # C: my notes
 
-            # A: unit_type: One-hot with maximum 256 (including unknown unit-type)
+            # A: unit_type: One-hot with maximum self.max_unit_type (including unknown unit-type)
             # B: optional uint32 unit_type = 4;
-            # C: with maximum 259
+            # C: with maximum self.max_unit_type
             unit_type = entity.unit_type
             print('unit_type:', unit_type) if debug else None
             print('self.max_unit_type:', self.max_unit_type) if debug else None
 
-            unit_tpye_name, race = get_unit_tpye_name_and_race(unit_type)
-            print('unit_tpye_name, race:', unit_tpye_name, race) if debug else None   
-
-            unit_type_index = get_index(unit_tpye_name, race)
+            unit_type_index = L.unit_tpye_to_unit_type_index(unit_type)
             print('unit_type_index:', unit_type_index) if debug else None
-
             assert unit_type_index >= 0 and unit_type_index <= self.max_unit_type
 
             unit_type_encoding = L.to_one_hot(torch.tensor([unit_type_index]), self.max_unit_type).reshape(1, -1)
@@ -650,31 +643,6 @@ class Entity(object):
 
     def __str__(self):
         return 'unit_type: ' + str(self.unit_type) + ', alliance: ' + str(self.alliance) + ', health: ' + str(self.health)
-
-
-def get_unit_tpye_name_and_race(unit_id):
-    for race in (Neutral, Protoss, Terran, Zerg):
-        try:
-            return race(unit_id), race
-        except ValueError:
-            pass  # Wrong race.
-
-
-def get_index(find_e, race):
-    begin_index = 0
-    if race == Neutral:
-        begin_index = 0
-    elif race == Protoss:
-        begin_index = len(Neutral)
-    elif race == Terran:
-        begin_index = len(Neutral) + len(Protoss)
-    elif race == Zerg:
-        begin_index = len(Neutral) + len(Protoss) + len(Terran)
-
-    for i, e in enumerate(list(race)):
-        if e == find_e:
-            return i + begin_index
-    return -1
 
 
 def test():

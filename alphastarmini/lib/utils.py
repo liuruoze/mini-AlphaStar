@@ -19,9 +19,49 @@ from alphastarmini.lib import config as C
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
+from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+
+
+def unit_tpye_to_unit_type_index(unit_type):
+    ''' 
+    transform unique unit type in SC2 to unit index in one hot represent in mAS.
+    '''
+    unit_tpye_name, race = get_unit_tpye_name_and_race(unit_type)
+    print('unit_tpye_name, race:', unit_tpye_name, race) if debug else None   
+
+    unit_type_index = get_unit_tpye_index(unit_tpye_name, race)
+    print('unit_type_index:', unit_type_index) if debug else None
+
+    return unit_type_index
+
+
+def get_unit_tpye_name_and_race(unit_type):
+    for race in (Neutral, Protoss, Terran, Zerg):
+        try:
+            return race(unit_type), race
+        except ValueError:
+            pass  # Wrong race.
+
+
+def get_unit_tpye_index(unit_type_name, race):
+    begin_index = 0
+    if race == Neutral:
+        begin_index = 0
+    elif race == Protoss:
+        begin_index = len(Neutral)
+    elif race == Terran:
+        begin_index = len(Neutral) + len(Protoss)
+    elif race == Zerg:
+        begin_index = len(Neutral) + len(Protoss) + len(Terran)
+
+    for i, e in enumerate(list(race)):
+        if e == unit_type_name:
+            return i + begin_index
+    return -1
 
 
 def unpackbits_for_largenumber(x, num_bits):
