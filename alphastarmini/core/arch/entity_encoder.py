@@ -102,9 +102,11 @@ class EntityEncoder(nn.Module):
                                padding=0, bias=True)
         self.fc1 = nn.Linear(original_256, original_256)
 
+        # how many real entities we have
+        self.real_entities_size = 0
+
     # The fields of each entity in `entity_list` are first preprocessed and concatenated so that \
     # there is a single 1D tensor for each entity. Fields are preprocessed as follows:
-
     def preprocess(self, entity_list):
         #all_entities_tensor = torch.zeros(self.max_entities, embedding_size)
         entity_tensor_list = []
@@ -538,6 +540,9 @@ class EntityEncoder(nn.Module):
             index = index + 1
 
         all_entities_tensor = torch.cat(entity_tensor_list, dim=0)
+        # count how many real entities we have
+        self.real_entities_size = all_entities_tensor.shape[0]
+        print('self.real_entities_size:', self.real_entities_size) if debug else None
 
         # We use a bias of -1e9 for any of the 512 entries that doesn't refer to an entity.
         if all_entities_tensor.shape[0] < self.max_entities:
@@ -566,10 +571,14 @@ class EntityEncoder(nn.Module):
         entity_embeddings = F.relu(self.conv1(F.relu(out).transpose(1, 2))).transpose(1, 2)
         print('entity_embeddings.shape:', entity_embeddings.shape) if debug else None
 
+        # masked by the missing entries
+        print('out.shape:', out.shape) if debug else None
+        out = out[:, :self.real_entities_size, :]
+        print('out.shape:', out.shape) if debug else None
+
         # note, dim=1 means the mean is across all entities in one timestep
         # The mean of the transformer output across across the units  
         # is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`
-        # TODO: (masked by the missing entries)
         embedded_entity = F.relu(self.fc1(torch.mean(out, dim=1, keepdim=False)))
         print('embedded_entity.shape:', embedded_entity.shape) if debug else None
 
