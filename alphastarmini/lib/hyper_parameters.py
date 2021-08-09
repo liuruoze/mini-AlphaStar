@@ -112,12 +112,8 @@ class ConstSize(object):
     Terran_Units_Size = len(Terran)
     Zerg_Units_Size = len(Zerg)
 
-    # note we use a number (1024) for unit_counts_bow which is maxer than the maxiest unit_type_id
-    # please see sc2_typeenums.h
-    # All_Units_Size = len(Neutral) + len(Protoss) + len(Terran) + len(Zerg)
-    # note that there are a few units which have unit type id > 1024 but < 2048, please see pysc2.lib.units
-    # for now we make that unit types to be 0.
-    All_Units_Size = 1024
+    # we change back to use size of all unit_type_index
+    All_Units_Size = len(Neutral) + len(Protoss) + len(Terran) + len(Zerg)
 
 
 # for the arch model parameters
@@ -193,7 +189,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(96 / Mini_Sc
                                                      max_selected=int(32 / Mini_Scale),                                                    
                                                      max_entities=int(384 / Mini_Scale),
                                                      minimap_size=64,                                               
-                                                     embedding_size=2310,
+                                                     embedding_size=1545,
                                                      map_channels=18,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
@@ -288,8 +284,8 @@ Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
                                         units_buildings=ConstSize.All_Units_Size,
                                         effects=ConstSize.Effects_Size,
                                         upgrade=ConstSize.Upgrades_Size,
-                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order
-                                        * ConstSize.All_Units_Size,
+                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order *
+                                        ConstSize.All_Units_Size,
                                         last_delay=128,
                                         last_action_type=ConstSize.Actions_Size,
                                         last_repeat_queued=2)
