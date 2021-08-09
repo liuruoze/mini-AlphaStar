@@ -86,12 +86,13 @@ def calculate_unit_counts_bow(obs):
 
         # the unit_type should not be more than the SFS.unit_counts_bow
         # if it is, make it to be 0 now. (0 means nothing now)
-        # the most impact one is ShieldBattery = 1910
-        # TODO： find a better way to do it
-        if unit_type >= SFS.unit_counts_bow:
-            unit_type = 0
+        # the most impact one is ShieldBattery = 1910        
+        # find a better way to do it: transform it to unit_type_index!
+        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
+        if unit_type_index >= SFS.unit_counts_bow:
+            unit_type_index = 0
 
-        unit_counts_bow[0, unit_type] = unit_count
+        unit_counts_bow[0, unit_type_index] = unit_count
     return unit_counts_bow
 
 
