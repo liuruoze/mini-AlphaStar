@@ -84,7 +84,11 @@ class ArchModel(nn.Module):
                 baseline_state=None, baseline_opponent_state=None, return_baseline=False):
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
         entity_embeddings, embedded_entity = self.entity_encoder(state.entity_state)   
-        map_skip, embedded_spatial = self.spatial_encoder(state.map_state)
+
+        pos_index = SCHP.max_unit_type + AHP.entity_x_y_index  # 13 + 1 + 5 + 5
+        entity_x_y = state.entity_state[:, :, pos_index: pos_index + 8 * 2]
+
+        map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings, entity_x_y)
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
 
         print("entity_embeddings.shape:", entity_embeddings.shape) if debug else None

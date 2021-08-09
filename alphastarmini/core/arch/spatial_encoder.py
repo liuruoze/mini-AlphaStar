@@ -57,11 +57,61 @@ class SpatialEncoder(nn.Module):
         else:
             self.fc = nn.Linear(16 * 16 * original_128, original_256)  # position-wise
 
+        self.conv1 = nn.Conv1d(original_256, original_32, kernel_size=1, stride=1,
+                               padding=0, bias=False)
+
+        self.map_width = AHP.minimap_size
+
     def preprocess(self, obs, entity_embeddings):
         map_data = get_map_data(obs)
         return map_data
 
-    def forward(self, x):
+    def scatter(self, entity_embeddings, entity_x_y):
+        # `entity_embeddings` are embedded through a size 32 1D convolution, followed by a ReLU,
+        print("entity_embeddings.shape:", entity_embeddings.shape) if debug else None
+        reduced_entity_embeddings = F.relu(self.conv1(entity_embeddings.transpose(1, 2))).transpose(1, 2)
+        print("reduced_entity_embeddings.shape:", reduced_entity_embeddings.shape) if debug else None
+        # then scattered into a map layer so that the size 32 vector at a specific 
+        # location corresponds to the units placed there.
+
+        def bits2value(bits):
+            # change from the bits to dec values.
+            l = len(bits)
+            v = 0
+            g = 1
+            for i in range(l - 1, -1, -1):               
+                v += bits[i] * g
+                g *= 2
+            return v
+
+        # shape [batch_size x entity_size x embedding_size]
+        batch_size = reduced_entity_embeddings.shape[0]
+        entity_size = reduced_entity_embeddings.shape[1]
+        scatter_map = torch.zeros(batch_size, AHP.original_32, self.map_width, self.map_width)
+        print("scatter_map.shape:", scatter_map.shape) if debug else None
+        for i in range(batch_size):
+            for j in range(entity_size):
+                # can not be masked entity
+                if entity_x_y[i, j, 0] != -1e9:
+                    x = entity_x_y[i, j, :8]
+                    y = entity_x_y[i, j, 8:]
+                    x = bits2value(x)
+                    y = bits2value(y)
+                    print('x', x) if debug else None
+                    print('y', y) if debug else None
+                    # note, we reduce 128 to 64, so the x and y should also be
+                    # 128 is half of 256, 64 is half of 128, so we divide by 4
+                    x = int(x / 4)
+                    y = int(y / 4)
+                    scatter_map[i, :, y, x] += reduced_entity_embeddings[i, j, :]
+
+        #print("scatter_map:", scatter_map[0, :, 23, 19]) if 1 else None
+        return scatter_map   
+
+    def forward(self, x, entity_embeddings, entity_x_y):
+        scatter_map = self.scatter(entity_embeddings, entity_x_y)
+
+        x = torch.cat([scatter_map, x], dim=1)
         # After preprocessing, the planes are concatenated, projected to 32 channels 
         # by a 2D convolution with kernel size 1, passed through a ReLU
         x = F.relu(self.project(x))

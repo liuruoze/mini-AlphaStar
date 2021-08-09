@@ -145,6 +145,30 @@ class EntityEncoder(nn.Module):
             print('alliance_encoding:', alliance_encoding) if debug else None
             field_encoding_list.append(alliance_encoding)
 
+            # A: display_type: One-hot with maximum 5
+            # B: note: in s2clientprotocol raw.proto, display type only has 4 values, type of enum DisplayType,
+            # C: we keep in consistent with s2clientprotocol
+            display_type_encoding = L.to_one_hot(torch.tensor([entity.display_type]), self.max_display_type).reshape(1, -1)
+            print('display_type_encoding:', display_type_encoding) if debug else None
+            field_encoding_list.append(display_type_encoding)
+
+            # A: x_position: Binary encoding of entity x-coordinate, in game units
+            # B: optional Point pos = 6;
+            # C: use np.unpackbits
+            x = entity.x
+            x_encoding = torch.tensor(np.unpackbits(np.array([x], np.uint8)), dtype=torch.float).reshape(1, -1)
+            print('x_encoding:', x_encoding) if debug else None
+            field_encoding_list.append(x_encoding)
+
+            # A: y_position: Binary encoding of entity y-coordinate, in game units
+            # B: optional Point pos = 6;
+            # C: use np.unpackbits
+            # change sequence due to easy processing of entity_x_y_index
+            y = entity.y
+            y_encoding = torch.tensor(np.unpackbits(np.array([y], np.uint8)), dtype=torch.float).reshape(1, -1)
+            print('y_encoding:', y_encoding) if debug else None
+            field_encoding_list.append(y_encoding)
+
             # A: current_health: One-hot of sqrt(min(current_health, 1500)) with maximum sqrt(1500), rounding down
             # B: optional float health = 14;
             # C: None
@@ -223,29 +247,6 @@ class EntityEncoder(nn.Module):
             current_energy_ratio_encoding = torch.tensor([current_energy_ratio], dtype=torch.float).reshape(1, -1)
             print('current_energy_ratio_encoding:', current_energy_ratio_encoding) if debug else None
             field_encoding_list.append(current_energy_ratio_encoding)
-
-            # A: display_type: One-hot with maximum 5
-            # B: note: in s2clientprotocol raw.proto, display type only has 4 values, type of enum DisplayType,
-            # C: we keep in consistent with s2clientprotocol
-            display_type_encoding = L.to_one_hot(torch.tensor([entity.display_type]), self.max_display_type).reshape(1, -1)
-            print('display_type_encoding:', display_type_encoding) if debug else None
-            field_encoding_list.append(display_type_encoding)
-
-            # A: x_position: Binary encoding of entity x-coordinate, in game units
-            # B: optional Point pos = 6;
-            # C: use np.unpackbits
-            x = entity.x
-            x_encoding = torch.tensor(np.unpackbits(np.array([x], np.uint8)), dtype=torch.float).reshape(1, -1)
-            print('x_encoding:', x_encoding) if debug else None
-            field_encoding_list.append(x_encoding)
-
-            # A: y_position: Binary encoding of entity y-coordinate, in game units
-            # B: optional Point pos = 6;
-            # C: use np.unpackbits
-            y = entity.y
-            y_encoding = torch.tensor(np.unpackbits(np.array([y], np.uint8)), dtype=torch.float).reshape(1, -1)
-            print('y_encoding:', y_encoding) if debug else None
-            field_encoding_list.append(y_encoding)
 
             # A: is_cloaked: One-hot with maximum 5
             # B: note: in s2clientprotocol raw.proto, this is called clock, type of enum CloakState,

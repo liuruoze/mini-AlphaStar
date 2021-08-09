@@ -122,7 +122,8 @@ ArchHyperParameters = namedtuple('ArchHyperParameters', ['batch_size',
                                                          'max_entities', 
                                                          'max_selected',
                                                          'minimap_size', 'embedding_size', 
-                                                         'map_channels', 
+                                                         'map_channels',
+                                                         'entity_x_y_index', 
                                                          'scalar_encoder_fc1_input', 
                                                          'scalar_encoder_fc2_input',
                                                          'scalar_feature_size',
@@ -156,6 +157,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       minimap_size=128,                                                
                                                       embedding_size=3585,
                                                       map_channels=18,
+                                                      entity_x_y_index=24,
                                                       scalar_encoder_fc1_input=1504,
                                                       scalar_encoder_fc2_input=544,
                                                       scalar_feature_size=7327,  # Deprecated
@@ -172,13 +174,11 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       context_size=512,
                                                       location_head_max_map_channels=128,
                                                       autoregressive_embedding_size=1024,
-
                                                       winloss_baseline_input_size=1152,
                                                       build_order_baseline_input_size=1216,
                                                       built_units_baseline_input_size=1152,
                                                       upgrades_baseline_input_size=1152,
                                                       effects_baseline_input_size=1152,
-
                                                       league_learner_num=12,
                                                       actorloop_num=16000)
 
@@ -190,7 +190,8 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(96 / Mini_Sc
                                                      max_entities=int(384 / Mini_Scale),
                                                      minimap_size=64,                                               
                                                      embedding_size=1545,
-                                                     map_channels=18,
+                                                     map_channels =18 + 16,
+                                                     entity_x_y_index=24,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
                                                      scalar_feature_size=7327,  # Deprecated
@@ -207,13 +208,11 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(96 / Mini_Sc
                                                      context_size=128,
                                                      location_head_max_map_channels=32,
                                                      autoregressive_embedding_size=256,
-
                                                      winloss_baseline_input_size=1152,
                                                      build_order_baseline_input_size=1216,
                                                      built_units_baseline_input_size=1152,
                                                      upgrades_baseline_input_size=1152,
                                                      effects_baseline_input_size=1152,
-
                                                      league_learner_num=4,
                                                      actorloop_num=512)
 
