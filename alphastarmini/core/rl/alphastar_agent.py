@@ -248,12 +248,12 @@ class AlphaStarAgent(RandomAgent):
         device = self.agent_nn.device()
         print("unroll device:", device)
 
-        print("initial_memory.shape:", initial_memory_list[0][0].shape)
+        print("initial_memory.shape:", initial_memory_list[0][0].shape) if debug else None
         # note the bacth size is in the second dim of hidden state
         initial_memory_state = [torch.cat(l, dim=1) for l in zip(*initial_memory_list)]
 
         baseline_state_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_traj)]
-        print("baseline_state_all.shape:", baseline_state_all[0].shape)
+        print("baseline_state_all.shape:", baseline_state_all[0].shape) if debug else None
         baseline_state_op_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_op_traj)]
 
         # change to device

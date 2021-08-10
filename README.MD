@@ -3,12 +3,15 @@
 
 ## Update
 
-This is the "v_1.01" version, and the updates are as follows:
+This is the "v_1.02" version, and the updates are as follows:
 
-* Change to using the win-loss reward in winloss_baseline (the thing AlphaStar should do);
-* Refine pseudo reward, scale Leven reward, right log prob ( which should be negative CrossEntropy);
-* Fix some problems due to wrong original codes of AlphaStar;
-* Add analysis of move camera count in the AlphaStar replay;
+* Add relu after each downsampling conv2d in spatial encoder;
+* Change the bias of most conv and convtranspose from False to True (if not has a bn after or in 3rd lib);
+* Add "masked by the missing entries" in entity_encoder;
+* Formalized a lib function to be used: unit_tpye_to_unit_type_index;
+* Fix a TODO in calculate_unit_counts_bow() by unit_tpye_to_unit_type_index();
+* Change back to use All_Units_Size equals to all unit_type_index;
+* Add scatter entities map in spatial_encoder;
 
 ## Introduction
 
