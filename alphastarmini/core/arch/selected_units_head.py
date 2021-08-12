@@ -146,7 +146,10 @@ class SelectedUnitsHead(nn.Module):
             print("z_1.shape:", z_1.shape) if debug else None
 
             # AlphaStar: and passes the combination through a ReLU and a linear of size 32.
-            z_2 = F.relu(self.fc_2(z_1))
+            # note: original writing is wrong, z_2 = F.relu(self.fc_2(z_1))
+            # change to below line:
+            z_2 = self.fc_2(F.relu(z_1))
+
             # z_2 shape: [batch_size x 32]
             print("z_2:", z_2) if debug else None
             print("z_2.shape:", z_2.shape) if debug else None
