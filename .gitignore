@@ -42,3 +42,4 @@ log/*
 archive/*
 doc/*.png
 cameras.txt
+cameras.csv

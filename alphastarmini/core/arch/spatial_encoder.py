@@ -87,8 +87,11 @@ class SpatialEncoder(nn.Module):
         # shape [batch_size x entity_size x embedding_size]
         batch_size = reduced_entity_embeddings.shape[0]
         entity_size = reduced_entity_embeddings.shape[1]
-        scatter_map = torch.zeros(batch_size, AHP.original_32, self.map_width, self.map_width)
+
+        device = next(self.parameters()).device
+        scatter_map = torch.zeros(batch_size, AHP.original_32, self.map_width, self.map_width, device=device)
         print("scatter_map.shape:", scatter_map.shape) if debug else None
+
         for i in range(batch_size):
             for j in range(entity_size):
                 # can not be masked entity

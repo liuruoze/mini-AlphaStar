@@ -65,7 +65,10 @@ flags.DEFINE_float("no_op_threshold", 0.005, "The threshold to save no op operat
 flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
 flags.DEFINE_integer("observed_player", 2, "Which player to observe. For 2 player game, this can be 1 or 2.")
 
-flags.DEFINE_string("replay_version", "4.10.0", "the replays released by alphaStar is 4.10.0")
+# note: the replay version for AlphaStar's different agent is not the same
+# AlphaStar Final Protoss is "4.10.0",
+# AlphaStar Final Terran is "4.9.3",
+flags.DEFINE_string("replay_version", "4.9.3", "the replays released by alphaStar is 4.10.0")  
 
 flags.DEFINE_bool("save_data", False, "replays_save data or not")
 flags.DEFINE_string("save_path", "./data/replay_data/", "path to replays_save replay data")
@@ -226,18 +229,22 @@ def run_alphastar_replay(on_server=False, race_name='Protoss'):
     minimap_resolution.assign_to(interface.feature_layer.minimap_resolution)
 
     agent = Agent()
-    j = 0
     replay_length_list = []
     noop_length_list = []
 
     with open("cameras.txt", "w") as f:
         pass
 
-    for idx in range(2):
-        player_id = idx + 1
-        with run_config.start(full_screen=False) as controller:
-
+    with run_config.start(full_screen=False) as controller:
+        for idx in range(2):
+            j = 0
             for replay_file in replay_files:
+
+                j += 1        
+                if j > max_replays:  # test the first n frames
+                    print("max replays test, break out!")
+                    break
+
                 try:
                     replay_path = REPLAY_PATH + replay_file
                     print('replay_path:', replay_path)
@@ -246,8 +253,33 @@ def run_alphastar_replay(on_server=False, race_name='Protoss'):
                     print('replay_info:', replay_info)
                     base = os.path.basename(replay_path)
                     replay_name = os.path.splitext(base)[0]
-
                     print('replay_name:', replay_name)
+
+                    info = replay_info.player_info
+                    as_id = -1
+                    hp_id = -1
+                    for x in range(2):
+                        player_name = info[x].player_info.player_name
+                        print('player_name:', player_name)
+                        the_id = x + 1
+                        if player_name == "AlphaStar":
+                            print('Find AlphaStar!')
+                            print('AlphaStar ID is', the_id)
+                            as_id = the_id
+                        else:
+                            hp_id = the_id
+
+                    print("as_id", as_id)
+                    print("hp_id", hp_id)
+
+                    if idx == 0:
+                        player_id = as_id
+                        player_name = info[player_id - 1].player_info.player_name
+                        assert player_name == "AlphaStar"
+                        player_name = "AS"
+                    else:
+                        player_id = hp_id
+                        player_name = "HP"
 
                     start_replay = sc_pb.RequestStartReplay(
                         replay_data=replay_data,
@@ -257,16 +289,6 @@ def run_alphastar_replay(on_server=False, race_name='Protoss'):
                         map_data=None,
                         realtime=False
                     )
-
-                    #print(" Replay info ".center(60, "-")) if debug else None
-                    #print(replay_info.player_info) if debug else None
-                    info = replay_info.player_info
-                    player_name = info[player_id - 1].player_info.player_name
-
-                    print('player_name:', player_name)
-                    if 0 and player_name == "AlphaStar":
-                        print('Find AlphaStar!')
-                        print('AlphaStar ID is', player_id)
 
                     #print('stop', stop)
                     #print("-" * 60) if debug else None
@@ -371,10 +393,9 @@ def run_alphastar_replay(on_server=False, race_name='Protoss'):
                     print(" ")
 
                     with open("cameras.txt", "a") as f:                    
-                        print(replay_name, "id", player_id, "name", player_name,
+                        print(replay_name, ",", player_id, ",", player_name,
                               ",", camera_count, ",", all_op_count, 
                               ",", 1.0 - camera_count / (all_op_count + 1e-9), file=f)
-                    j += 1
                     replay_length_list.append(save_steps)
                     noop_length_list.append(noop_count)
                     # We only test the first one replay   
@@ -382,13 +403,10 @@ def run_alphastar_replay(on_server=False, race_name='Protoss'):
                 except Exception as inst:
                     traceback.print_exc() 
 
-                if j >= max_replays:  # test the first n frames
-                    print("max replays test, break out!")
-                    break
-
     print("end")
 
 
 def test(on_server=False):
-    run_alphastar_replay(on_server=on_server, race_name='Protoss')
+    # protoss version is 4.10.0
+    run_alphastar_replay(on_server=on_server, race_name='Terran')
     #run_alphastar_replay(player_id=2, on_server=on_server)

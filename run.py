@@ -36,8 +36,8 @@ if __name__ == '__main__':
 
     print("run init")
 
-    #from alphastarmini.core.sl import test_alphastar_replay
-    # test_alphastar_replay.test(on_server=False)
+    from alphastarmini.core.sl import test_alphastar_replay
+    test_alphastar_replay.test(on_server=False)
 
     #from alphastarmini.core.sl import transform_replay_data
     # transform_replay_data.test(on_server=False)
@@ -45,8 +45,8 @@ if __name__ == '__main__':
     #from alphastarmini.core.sl import sl_train_by_pickle
     # sl_train_by_pickle.test(on_server=P.on_server)
 
-    from alphastarmini.core.rl import rl_train_with_replay
-    rl_train_with_replay.test(on_server=P.on_server, replay_path=P.replay_path)
+    #from alphastarmini.core.rl import rl_train_with_replay
+    #rl_train_with_replay.test(on_server=P.on_server, replay_path=P.replay_path)
 
     # from alphastarmini.core.rl import rl_train_wo_replay
     # rl_train_wo_replay.test(on_server=False)
