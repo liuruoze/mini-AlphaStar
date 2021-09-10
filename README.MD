@@ -77,33 +77,11 @@ The technical report is now on arxiv named as [An Introduction of mini-AlphaStar
 
 We will give two to three updates for the report, to make it more complete and clear. 
 
-If you find this report useful, please cite the report:
-```
-@misc{liu2021reportmAS,
-      title={An Introduction of mini-AlphaStar}, 
-      author={Ruo-Ze Liu and Wenhai Wang and Yanjie Shen and Zhiqi Li and Yang Yu and Tong Lu},
-      year={2021},
-      journal={CoRR},
-      eprint={2104.06890},
-      archivePrefix={arXiv},
-}
-```
 
 ## Thinking
 
-We recommend the readers to refer to our paper to find some rethinking of AlphaStar by this [Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452).
+We recommend the readers to refer to our paper to find some rethinking of AlphaStar in [Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452).
 
-If you find this rethinking useful, please cite the article:
-```
-@misc{liu2021rethinkingAS,
-      title={Rethinking of AlphaStar}, 
-      author={Ruo-Ze Liu},
-      year={2021},
-      eprint={2108.03452},
-      archivePrefix={arXiv},
-      primaryClass={cs.AI}
-}
-```
 
 ## Paper
 
