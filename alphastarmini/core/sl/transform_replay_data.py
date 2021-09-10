@@ -36,6 +36,8 @@ from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 
 from alphastarmini.lib import utils as U
 
+import param as P
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False
@@ -288,7 +290,7 @@ def getFuncCall(o, feat, prev_obs, use_raw=True):
 def test(on_server=False):
 
     if on_server:
-        REPLAY_PATH = "/home/liuruoze/data4/mini-AlphaStar/data/filtered_replays_1/" 
+        REPLAY_PATH = P.replay_path  # "/home/liuruoze/data4/mini-AlphaStar/data/filtered_replays_1/" 
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
         max_steps_of_replay = FLAGS.max_steps_of_replay
