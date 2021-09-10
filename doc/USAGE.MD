@@ -1,6 +1,6 @@
 ＃Usage
 
-## Can't find map
+## Problem of "Can't find map"
 
 If you are doing supervised learning, when opening replay and encounter the following errors:
 
