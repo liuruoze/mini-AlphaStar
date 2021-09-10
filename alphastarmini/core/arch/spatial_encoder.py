@@ -37,8 +37,8 @@ class SpatialEncoder(nn.Module):
                  original_256=AHP.original_256,
                  original_512=AHP.original_512):
         super().__init__()
-        self.inplanes = AHP.map_channels
-        self.project = nn.Conv2d(self.inplanes, original_32, kernel_size=1, stride=1,
+        self.project_inplanes = AHP.map_channels + AHP.scatter_channels
+        self.project = nn.Conv2d(self.project_inplanes, original_32, kernel_size=1, stride=1,
                                  padding=0, bias=True)
         # ds means downsampling
         self.ds_1 = nn.Conv2d(original_32, original_64, kernel_size=4, stride=2,

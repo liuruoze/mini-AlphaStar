@@ -68,6 +68,7 @@ flags.DEFINE_integer("observed_player", 2, "Which player to observe. For 2 playe
 # note: the replay version for AlphaStar's different agent is not the same
 # AlphaStar Final Protoss is "4.10.0",
 # AlphaStar Final Terran is "4.9.3",
+# AlphaStar Final Zerg is also "4.9.3",
 flags.DEFINE_string("replay_version", "4.9.3", "the replays released by alphaStar is 4.10.0")  
 
 flags.DEFINE_bool("save_data", False, "replays_save data or not")
@@ -184,7 +185,7 @@ def run_alphastar_replay(on_server=False, race_name='Protoss'):
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
         max_steps_of_replay = FLAGS.max_steps_of_replay
-        max_replays = 100
+        max_replays = 10
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)
@@ -408,5 +409,5 @@ def run_alphastar_replay(on_server=False, race_name='Protoss'):
 
 def test(on_server=False):
     # protoss version is 4.10.0
-    run_alphastar_replay(on_server=on_server, race_name='Terran')
+    run_alphastar_replay(on_server=on_server, race_name='Zerg')
     #run_alphastar_replay(player_id=2, on_server=on_server)

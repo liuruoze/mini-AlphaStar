@@ -57,6 +57,10 @@ class Feature(object):
         feature_2 = batch_entities_tensor.reshape(batch_size, AHP.max_entities * AHP.embedding_size)
         print("feature_2.shape:", feature_2.shape) if debug else None
 
+        print('map_data.shape', map_data.shape) if debug else None
+        print('AHP.map_channels', AHP.map_channels) if debug else None
+        print('AHP.minimap_size', AHP.minimap_size) if debug else None
+
         feature_3 = map_data.reshape(batch_size, AHP.map_channels * AHP.minimap_size * AHP.minimap_size)
         print("feature_3.shape:", feature_3.shape) if debug else None
 
