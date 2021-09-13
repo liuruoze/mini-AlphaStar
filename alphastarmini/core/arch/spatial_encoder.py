@@ -37,7 +37,7 @@ class SpatialEncoder(nn.Module):
                  original_256=AHP.original_256,
                  original_512=AHP.original_512):
         super().__init__()
-        self.project_inplanes = AHP.map_channels + AHP.scatter_channels
+        self.project_inplanes = AHP.map_channels  # + AHP.scatter_channels
         self.project = nn.Conv2d(self.project_inplanes, original_32, kernel_size=1, stride=1,
                                  padding=0, bias=True)
         # ds means downsampling
@@ -112,9 +112,10 @@ class SpatialEncoder(nn.Module):
         return scatter_map   
 
     def forward(self, x, entity_embeddings, entity_x_y):
-        scatter_map = self.scatter(entity_embeddings, entity_x_y)
+        # now we don't use it
+        # scatter_map = self.scatter(entity_embeddings, entity_x_y)
+        # x = torch.cat([scatter_map, x], dim=1)
 
-        x = torch.cat([scatter_map, x], dim=1)
         # After preprocessing, the planes are concatenated, projected to 32 channels 
         # by a 2D convolution with kernel size 1, passed through a ReLU
         x = F.relu(self.project(x))

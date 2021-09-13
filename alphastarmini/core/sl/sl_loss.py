@@ -47,6 +47,8 @@ def get_sl_loss(traj_batch, model):
     device = next(model.parameters()).device
     print("model.device:", device) if debug else None
 
+    # TODO: test time
+
     state.to(device)
     action_gt.to(device)
 
