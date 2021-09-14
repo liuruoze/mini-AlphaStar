@@ -70,6 +70,12 @@ pip install -r requirements.txt
 
 ## Usage
 
+After all requirements are done, run the below python file to run the program:
+```
+python run.py
+```
+to start the program (you may use comments and uncomments to select the training process you want).
+
 If you find some problems or questions, try to find here [USAGE](doc/USAGE.MD).
 
 ## Results
