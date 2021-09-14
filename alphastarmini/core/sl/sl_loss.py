@@ -45,9 +45,7 @@ def get_sl_loss(traj_batch, model):
     print('action_gt:', action_gt) if debug else None
 
     device = next(model.parameters()).device
-    print("model.device:", device) if debug else None
-
-    # TODO: test time
+    print("model.device:", device) if 1 else None
 
     state.to(device)
     action_gt.to(device)
@@ -60,7 +58,7 @@ def get_sl_loss(traj_batch, model):
     print('action_pt:', action_pt) if debug else None
 
     loss = get_classify_loss(action_pt, action_gt, criterion)
-    print('loss:', loss) if debug else None
+    print('loss:', loss) if 1 else None
 
     return loss
 
@@ -77,6 +75,9 @@ def get_classify_loss(action_pt, action_gt, criterion):
     queue_loss = criterion(action_pt.queue, action_gt.queue)
     loss += queue_loss
 
+    def findNaN(x):
+        return torch.isnan(x).any()
+
     units_loss = torch.tensor([0])
     if action_gt.units is not None and action_pt.units is not None:
         print('action_gt.units.shape:', action_gt.units.shape) if debug else None
@@ -84,9 +85,13 @@ def get_classify_loss(action_pt, action_gt, criterion):
 
         units_size = action_gt.units.shape[-1]
 
-        units_loss = criterion(action_pt.units, action_gt.units)
-        # units_loss = 0
-        loss += units_loss
+        print("findNaN(action_gt.units)", findNaN(action_gt.units)) if debug else None
+        print("findNaN(action_pt.units)", findNaN(action_pt.units)) if debug else None
+
+        if not findNaN(action_gt.units) and not findNaN(action_pt.units):
+            units_loss = criterion(action_pt.units, action_gt.units)
+            # units_loss = 0
+            loss += units_loss
 
     target_unit_loss = torch.tensor([0])    
     if action_gt.target_unit is not None and action_pt.target_unit is not None:
@@ -95,8 +100,12 @@ def get_classify_loss(action_pt, action_gt, criterion):
 
         units_size = action_gt.target_unit.shape[-1]
 
-        target_unit_loss = criterion(action_pt.target_unit, action_gt.target_unit)
-        loss += target_unit_loss
+        print("findNaN(action_gt.target_unit)", findNaN(action_gt.target_unit)) if debug else None
+        print("findNaN(action_pt.target_unit)", findNaN(action_pt.target_unit)) if debug else None
+
+        if not findNaN(action_gt.target_unit) and not findNaN(action_pt.target_unit):
+            target_unit_loss = criterion(action_pt.target_unit, action_gt.target_unit)
+            loss += target_unit_loss
 
     target_location_loss = torch.tensor([0])      
     if action_gt.target_location is not None and action_pt.target_location is not None:
@@ -105,8 +114,12 @@ def get_classify_loss(action_pt, action_gt, criterion):
 
         batch_size = action_gt.target_location.shape[0]
 
-        target_location_loss = criterion(action_pt.target_location.reshape(batch_size, -1), action_gt.target_location.reshape(batch_size, -1))
-        loss += target_location_loss
+        print("findNaN(action_gt.target_location)", findNaN(action_gt.target_location)) if debug else None
+        print("findNaN(action_pt.target_location)", findNaN(action_pt.target_location)) if debug else None
+
+        if not findNaN(action_gt.target_location) and not findNaN(action_pt.target_location):
+            target_location_loss = criterion(action_pt.target_location.reshape(batch_size, -1), action_gt.target_location.reshape(batch_size, -1))
+            loss += target_location_loss
 
     # test, only return action_type_loss
     # return loss
