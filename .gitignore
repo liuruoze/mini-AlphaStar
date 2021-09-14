@@ -42,3 +42,4 @@ log/*
 archive/*
 cameras.txt
 cameras.csv
+/scripts/download_replay/third/download/*
