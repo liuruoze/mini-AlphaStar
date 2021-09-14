@@ -3,19 +3,18 @@
 
 ## Update
 
-This is the "v_1.02" version, and the updates are as follows:
+This is the "v_1.03" version, and the updates are as follows:
 
-* Add relu after each downsampling conv2d in spatial encoder;
-* Change the bias of most conv and convtranspose from False to True (if not has a bn after or in 3rd lib);
-* Add "masked by the missing entries" in entity_encoder;
-* Formalized a lib function to be used: unit_tpye_to_unit_type_index;
-* Fix a TODO in calculate_unit_counts_bow() by unit_tpye_to_unit_type_index();
-* Change back to use All_Units_Size equals to all unit_type_index;
-* Add scatter entities map in spatial_encoder;
+* Add guides for "how run RL?" in USAGE.MD;
+* Fix some bugs and a bug in SL training;
+* Add USAGE.MD;
+* Fix a bug by split the map_channels and scatter_channels;
+* Fix the right version to see replays of AlphaStar Final Terran;
+* Change from z_2 = F.relu(self.fc_2(z_1)) to z_2 = self.fc_2(F.relu(z_1)) in selected_units_head;
 
 ## Introduction
 
-We release the mini-AlphaStar project, which is a mini source version of the original AlphaStar program. AlphaStar is an intelligent AI proposed by DeepMind to play StarCraft II. StarCraft II is an RTS game developed by Blizzard.
+We release the mini-AlphaStar (mAS) project, which is a mini source version of the original AlphaStar program. AlphaStar is an intelligent AI proposed by DeepMind to play StarCraft II. StarCraft II is an RTS game developed by Blizzard.
 
 "mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
 
@@ -48,14 +47,23 @@ Location | URL
 Github | [https://github.com/liuruoze/mini-AlphaStar](https://github.com/liuruoze/mini-AlphaStar)
 Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/mini-AlphaStar)
 
+## History
+
+This is the introduction of previous versions of mAS here [HISTORY](doc/HISTORY.MD).
+
 ## Furture
 
 There are still some todos (very few) that need to be filled up and improved.
 
 ## Usage
 
-If you find some problems or questions, try to find here [USAGE](doc/USAGE.MD):
+If you find some problems or questions, try to find here [USAGE](doc/USAGE.MD).
 
+## Results
+
+Here are some illustration figures of SL training process below:
+
+![SL training process](doc/SL_traing.png)
 
 ## Citing
 
