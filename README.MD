@@ -20,6 +20,15 @@ We release the mini-AlphaStar (mAS) project, which is a mini source version of t
 
 The readme for the Chinese version is at [here](doc/README_CHS.MD).
 
+## Location
+
+The codes are in these places:
+
+Location | URL
+------------ | -------------
+Github | [https://github.com/liuruoze/mini-AlphaStar](https://github.com/liuruoze/mini-AlphaStar)
+Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/mini-AlphaStar)
+
 ## Contents
 
 The below table shows the corresponding packages in the project.
@@ -59,23 +68,6 @@ Then you can install other python packages by pip, e.g., the command in the belo
 pip install -r requirements.txt
 ```
 
-## Location
-
-The codes are in these places:
-
-Location | URL
------------- | -------------
-Github | [https://github.com/liuruoze/mini-AlphaStar](https://github.com/liuruoze/mini-AlphaStar)
-Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/mini-AlphaStar)
-
-## History
-
-This is the introduction of previous versions of mAS here [HISTORY](doc/HISTORY.MD).
-
-## Furture
-
-There are still some todos (very few) that need to be filled up and improved.
-
 ## Usage
 
 If you find some problems or questions, try to find here [USAGE](doc/USAGE.MD).
@@ -85,6 +77,16 @@ If you find some problems or questions, try to find here [USAGE](doc/USAGE.MD).
 Here are some illustration figures of SL training process below:
 
 ![SL training process](doc/SL_traing.png)
+
+
+## History
+
+This is the introduction of previous versions of mAS here [HISTORY](doc/HISTORY.MD).
+
+## Furture
+
+There are still some todos (very few) that need to be filled up and improved.
+
 
 ## Citing
 
@@ -107,7 +109,7 @@ The technical report is now on arxiv named as [An Introduction of mini-AlphaStar
 We will give two to three updates for the report, to make it more complete and clear. 
 
 
-## Thinking
+## Reference
 
 We recommend the readers to refer to our paper to find some rethinking of AlphaStar in [Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452).
 
