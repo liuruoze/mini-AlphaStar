@@ -36,7 +36,28 @@ res | other useful resources
 
 ## Requirements
 
-Pytorch >= 1.5, others please see requirements.txt.
+PyTorch >= 1.5, others please see requirements.txt.
+
+You can use some commands in [scripts](scripts/Setup_cmd.MD) to install PyTorch by conda (this will automatically install CUDA and cudnn, which is convenient),
+e.g., like:
+```
+conda create -n torch_1_5 python=3.7 pytorch=1.5 -c pytorch
+```
+to install PyTorch 1.5 (with accompanied CUDA and cudnn).
+
+After install PyTorch, use the following command to active the conda environment:
+```
+source activate torch_1_5 
+```
+Note, in Windows, this command may be:
+```
+conda activate torch_1_5 
+```
+
+Then you can install other python packages by pip, e.g., the command in the below line:
+```
+pip install -r requirements.txt
+```
 
 ## Location
 

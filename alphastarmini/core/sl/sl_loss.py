@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 "Library for SL losses."
+import traceback
 
 import numpy as np
 
@@ -54,10 +55,17 @@ def get_sl_loss(traj_batch, model):
         action_pt, _, _ = model.forward(state, batch_size=batch_size, sequence_length=sequence_length, return_logits=True)
         return action_pt
 
-    action_pt = unroll(state, batch_size=batch_size, sequence_length=seq_len)
-    print('action_pt:', action_pt) if debug else None
+    try:
+        action_pt = unroll(state, batch_size=batch_size, sequence_length=seq_len)
+        print('action_pt:', action_pt) if debug else None
 
-    loss = get_classify_loss(action_pt, action_gt, criterion)
+        loss = get_classify_loss(action_pt, action_gt, criterion)    
+
+    except Exception as e:
+        print(traceback.format_exc())
+
+        loss = torch.tensor([0])
+
     print('loss:', loss) if 1 else None
 
     return loss
