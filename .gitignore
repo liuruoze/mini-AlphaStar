@@ -40,6 +40,5 @@ data/experiment.txt
 tmp/*
 log/*
 archive/*
-doc/*.png
 cameras.txt
 cameras.csv
