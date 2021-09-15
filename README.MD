@@ -78,6 +78,13 @@ to start the program (you may use comments and uncomments to select the training
 
 If you find some problems or questions, try to find here [USAGE](doc/USAGE.MD).
 
+
+## Replays
+
+To get a guide to download SC2 replays, please see [REPLAY](doc/REPLAY.MD).
+
+For Chinese users who are not convenient to use Battle.net (outside China) to download, try to use this [Guide](https://zhuanlan.zhihu.com/p/410523216).
+
 ## Results
 
 Here are some illustration figures of SL training process below:
