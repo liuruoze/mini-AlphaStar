@@ -26,7 +26,7 @@ The codes are stored in two places.
 Location | Usage
 ------------ | -------------
 [Github](https://github.com/liuruoze/mini-AlphaStar) | for global users
-[Gitee](https://gitee.com/liuruoze/mini-AlphaStar) | for users who can't access Github easily in China
+[Gitee](https://gitee.com/liuruoze/mini-AlphaStar) | for users who are not fast to access Github easily in China
 
 ## Contents
 
@@ -78,7 +78,7 @@ python run.py
 ```
 to start the program (you may use comments and uncomments to select the training process you want).
 
-The[USAGE Guide](doc/USAGE.MD) may provide some answers to problems and questions.
+The [USAGE Guide](doc/USAGE.MD) may provide some answers to problems and questions.
 
 
 ## Replays
