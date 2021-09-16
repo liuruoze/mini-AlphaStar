@@ -154,7 +154,7 @@ AlphaStar_Input_Scale = 64  # default is 1 on server
 AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / AlphaStar_Input_Scale),
                                                       sequence_length =int(64 / AlphaStar_Input_Scale),
                                                       max_selected =int(64 / AlphaStar_Input_Scale),
-                                                      max_entities =int(512 / AlphaStar_Input_Scale),
+                                                      max_entities =int(512),
                                                       minimap_size=128,                                                
                                                       embedding_size=3585,
                                                       map_channels=18,
@@ -186,10 +186,10 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
 
 # mini-alphastar hyper parameters
 Mini_Scale = P.Mini_Scale  # default is: 16 on laptop and 4 on server
-MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(96 / Mini_Scale),
-                                                     sequence_length=int(64 / Mini_Scale),
-                                                     max_selected=int(32 / Mini_Scale),                                                    
-                                                     max_entities=int(384 / Mini_Scale),
+MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 / Mini_Scale),
+                                                     sequence_length=int(32 / Mini_Scale),
+                                                     max_selected=int(16 / Mini_Scale),                                                    
+                                                     max_entities=int(512),
                                                      minimap_size=64,                                               
                                                      embedding_size=1545,
                                                      map_channels=18,

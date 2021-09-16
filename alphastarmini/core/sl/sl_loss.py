@@ -14,7 +14,7 @@ from alphastarmini.core.sl.label import Label
 
 __author__ = "Ruo-Ze Liu"
 
-debug = False
+debug = True
 
 
 def get_sl_loss(traj_batch, model):
