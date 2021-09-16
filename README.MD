@@ -6,7 +6,7 @@ We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar 
 
 "mini-scale" means that we make the original AS's hyperparameters adjustable so that mAS can run on a small scale.
 
-[Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
+The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
 ## Update
 
@@ -47,7 +47,7 @@ PyTorch >= 1.5, others please see requirements.txt.
 
 ## Install
 
-[Scripts](scripts/Setup_cmd.MD) gives some commands to install PyTorch by conda (this will automatically install CUDA and cudnn, which is convenient).
+The [SCRIPT Guide](scripts/Setup_cmd.MD) gives some commands to install PyTorch by conda (this will automatically install CUDA and cudnn, which is convenient).
 
 E.g., like:
 ```
@@ -78,16 +78,16 @@ python run.py
 ```
 to start the program (you may use comments and uncomments to select the training process you want).
 
-[USAGE](doc/USAGE.MD) may provide some answers to problems and questions.
+The[USAGE Guide](doc/USAGE.MD) may provide some answers to problems and questions.
 
 
 ## Replays
 
 In supervised learning, you need to first download many SC2 replays.
 
-[REPLAY](doc/REPLAY.MD) shows a guide to download these SC2 replays.
+The [REPLAY Guide](doc/REPLAY.MD) shows a guide to download these SC2 replays.
 
-[Guide on Zhihu](https://zhuanlan.zhihu.com/p/410523216) provides Chinese users who are not convenient to use Battle.net (outside China) a guide to download replays.
+The [ZHIHU Guide](https://zhuanlan.zhihu.com/p/410523216) provides Chinese users who are not convenient to use Battle.net (outside China) a guide to download replays.
 
 ## Results
 
@@ -99,7 +99,7 @@ We can see the losses (one main loss and six argument losses of which the main l
 
 ## History
 
-[HISTORY](doc/HISTORY.MD) is the history introduction of the previous versions of mAS.
+The [HISTORY](doc/HISTORY.MD) is the history introduction of the previous versions of mAS.
 
 
 ## Citing
@@ -118,12 +118,12 @@ If you find our repository useful, please cite this project:
 
 ## Report
 
-[An Introduction of mini-AlphaStar](https://arxiv.org/abs/2104.06890) is a technical report that introduces mAS.
+The [An Introduction of mini-AlphaStar](https://arxiv.org/abs/2104.06890) is a technical report that introduces mAS.
 
 
 ## Rethinking
 
-[Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452) gives some rethinking of AlphaStar.
+The [Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452) gives some rethinking of AlphaStar.
 
 
 ## Paper
