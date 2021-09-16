@@ -6,7 +6,7 @@ We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar 
 
 "mini-scale" means that we make the original AS's hyperparameters adjustable so that mAS can run on a small scale.
 
-[Chinese](doc/README_CHS.MD) shows a simple readme for the Chinese version.
+[Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
 ## Update
 
@@ -21,12 +21,12 @@ This is the "v_1.03" version, and the updates are as follows:
 
 ## Location
 
-The codes are stored in two places: Github for global users and Gitee for some users who are not fast to access Github easily in China.
+The codes are stored in two places. 
 
-Location | URL
+Location | Usage
 ------------ | -------------
-Github | [https://github.com/liuruoze/mini-AlphaStar](https://github.com/liuruoze/mini-AlphaStar)
-Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/mini-AlphaStar)
+[Github](https://github.com/liuruoze/mini-AlphaStar) | for global users
+[Gitee](https://gitee.com/liuruoze/mini-AlphaStar) | for users who can't access Github easily in China
 
 ## Contents
 
@@ -40,7 +40,6 @@ alphastarmini.core.rl | reinforcement learning
 alphastarmini.core.ma | multi-agent league traning
 alphastarmini.lib | lib functions
 alphastarmini.third | third party functions
-res | other useful resources
 
 ## Requirements
 
