@@ -237,8 +237,12 @@ class LocationHead(nn.Module):
         for i, idx in enumerate(location_id):
             target_location_y = idx // self.output_map_size
             target_location_x = idx - self.output_map_size * target_location_y
+
             print("target_location_y, target_location_x", target_location_y, target_location_x) if debug else None
-            location_out[i] = [target_location_y.item(), target_location_x.item()]
+            # note! sc2 and pysc2 all accept the position as [x, y], so x be the first, y be the last!
+            # this is not right : location_out[i] = [target_location_y.item(), target_location_x.item()]
+            # below is right! so the location point map to the point in the matrix!
+            location_out[i] = [target_location_x.item(), target_location_y.item()]
 
         # AlphaStar: If `action_type` does not involve targetting location, this head is ignored.
         target_location_mask = L.action_involve_targeting_location_mask(action_type)
