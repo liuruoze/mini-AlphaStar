@@ -1,5 +1,12 @@
 # mini-AlphaStar
 
+## Introduction
+
+We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2).
+
+"mini-scale" means that we make the original AS's hyperparameters adjustable so that mAS can run on a small scale.
+
+[Chinese](doc/README_CHS.MD) shows a simple readme for the Chinese version.
 
 ## Update
 
@@ -12,17 +19,9 @@ This is the "v_1.03" version, and the updates are as follows:
 * Fix the right version to see replays of AlphaStar Final Terran;
 * Change from z_2 = F.relu(self.fc_2(z_1)) to z_2 = self.fc_2(F.relu(z_1)) in selected_units_head;
 
-## Introduction
-
-We release the mini-AlphaStar (mAS) project, which is a mini source version of the original AlphaStar program. AlphaStar is an intelligent AI proposed by DeepMind to play StarCraft II. StarCraft II is an RTS game developed by Blizzard.
-
-"mini" means that we make the original AlphaStar hyperparameter adjustable so that it can run on a small scale.
-
-The readme for the Chinese version is at [here](doc/README_CHS.MD).
-
 ## Location
 
-The codes are in these places:
+The codes are stored in two places: Github for global users and Gitee for some users who are not fast to access Github easily in China.
 
 Location | URL
 ------------ | -------------
@@ -31,11 +30,11 @@ Gitee | [https://gitee.com/liuruoze/mini-AlphaStar](https://gitee.com/liuruoze/m
 
 ## Contents
 
-The below table shows the corresponding packages in the project.
+The table below shows the corresponding packages in the project.
 
 Packages | Content
 ------------ | -------------
-alphastarmini.core.arch | the alphaStar architecture
+alphastarmini.core.arch | deep neural architecture
 alphastarmini.core.sl | surpervised learning
 alphastarmini.core.rl | reinforcement learning
 alphastarmini.core.ma | multi-agent league traning
@@ -47,8 +46,11 @@ res | other useful resources
 
 PyTorch >= 1.5, others please see requirements.txt.
 
-You can use some commands in [scripts](scripts/Setup_cmd.MD) to install PyTorch by conda (this will automatically install CUDA and cudnn, which is convenient),
-e.g., like:
+## Install
+
+[Scripts](scripts/Setup_cmd.MD) gives some commands to install PyTorch by conda (this will automatically install CUDA and cudnn, which is convenient).
+
+E.g., like:
 ```
 conda create -n torch_1_5 python=3.7 pytorch=1.5 -c pytorch
 ```
@@ -58,7 +60,8 @@ After install PyTorch, use the following command to active the conda environment
 ```
 source activate torch_1_5 
 ```
-Note, in Windows, this command may be:
+
+In Windows, this command may be:
 ```
 conda activate torch_1_5 
 ```
@@ -76,14 +79,16 @@ python run.py
 ```
 to start the program (you may use comments and uncomments to select the training process you want).
 
-If you find some problems or questions, try to find here [USAGE](doc/USAGE.MD).
+[USAGE](doc/USAGE.MD) may provide some answers to problems and questions.
 
 
 ## Replays
 
-To get a guide to download SC2 replays, please see [REPLAY](doc/REPLAY.MD).
+In supervised learning, you need to first download many SC2 replays.
 
-For Chinese users who are not convenient to use Battle.net (outside China) to download, try to use this [Guide](https://zhuanlan.zhihu.com/p/410523216).
+[REPLAY](doc/REPLAY.MD) shows a guide to download these SC2 replays.
+
+[Guide on Zhihu](https://zhuanlan.zhihu.com/p/410523216) provides Chinese users who are not convenient to use Battle.net (outside China) a guide to download replays.
 
 ## Results
 
@@ -91,19 +96,16 @@ Here are some illustration figures of SL training process below:
 
 ![SL training process](doc/SL_traing.png)
 
+We can see the losses (one main loss and six argument losses of which the main loss consists) fall down quickly.
 
 ## History
 
-This is the introduction of previous versions of mAS here [HISTORY](doc/HISTORY.MD).
-
-## Furture
-
-There are still some todos (very few) that need to be filled up and improved.
+[HISTORY](doc/HISTORY.MD) is the history introduction of the previous versions of mAS.
 
 
 ## Citing
 
-If you find this repository useful, please cite our project:
+If you find our repository useful, please cite this project:
 ```
 @misc{liu2021mAS,
   author = {Ruo{-}Ze Liu and Wenhai Wang and Yang Yu and Tong Lu},
@@ -117,16 +119,14 @@ If you find this repository useful, please cite our project:
 
 ## Report
 
-The technical report is now on arxiv named as [An Introduction of mini-AlphaStar](https://arxiv.org/abs/2104.06890).
-
-We will give two to three updates for the report, to make it more complete and clear. 
+[An Introduction of mini-AlphaStar](https://arxiv.org/abs/2104.06890) is a technical report that introduces mAS.
 
 
-## Reference
+## Rethinking
 
-We recommend the readers to refer to our paper to find some rethinking of AlphaStar in [Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452).
+[Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452) gives some rethinking of AlphaStar.
 
 
 ## Paper
 
-We will give a paper which may be available in the future presenting the experiments and evaluations on using it. 
+We will give a paper that may be available in the future presenting the experiments and evaluations on using mAS. 
