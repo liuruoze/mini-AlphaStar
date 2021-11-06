@@ -4,7 +4,7 @@
 
 We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2).
 
-"mini-scale" means that we make the original AS's hyperparameters adjustable so that mAS can run on a small scale.
+"mini-scale" means that we make the original AS's hyper-parameters adjustable so that mAS can be training and running on a small scale (e.g., in a single common commercial machine).
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 

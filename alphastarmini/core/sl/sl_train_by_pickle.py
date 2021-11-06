@@ -135,44 +135,48 @@ def train_for_val(replays, replay_data, agent):
 
             traj = traj.to(DEVICE).float()
 
-            if last_traj is not None:
-                print("traj == last_traj ?", torch.equal(traj, last_traj)) if debug else None
+            # if last_traj is not None:
+            #     print("traj == last_traj ?", torch.equal(traj, last_traj)) if debug else None
 
             # with torch.autograd.detect_anomaly():
-            loss, loss_list = Loss.get_sl_loss(traj, agent.model)
-            optimizer.zero_grad()
-            loss.backward()  # note, we don't need retain_graph=True if we set hidden_state.detach()
+            try:
+                loss, loss_list = Loss.get_sl_loss(traj, agent.model)
+                optimizer.zero_grad()
+                loss.backward()  # note, we don't need retain_graph=True if we set hidden_state.detach()
 
-            # add a grad clip
-            parameters = [p for p in agent.model.parameters() if p is not None and p.requires_grad]
-            torch.nn.utils.clip_grad_norm_(parameters, CLIP)
+                # add a grad clip
+                # parameters = [p for p in agent.model.parameters() if p is not None and p.requires_grad]
+                # torch.nn.utils.clip_grad_norm_(parameters, CLIP)
 
-            optimizer.step()
-            loss_sum += loss.item()
+                optimizer.step()
+                loss_sum += loss.item()
 
-            print("One batch loss: {:.6f}.".format(loss.item()))
-            writer.add_scalar('OneBatch/Loss', loss.item(), batch_iter)
+                print("One batch loss: {:.6f}.".format(loss.item()))
+                writer.add_scalar('OneBatch/Loss', loss.item(), batch_iter)
 
-            if True:
-                print("One batch action_type_loss loss: {:.6f}.".format(loss_list[0].item()))
-                writer.add_scalar('OneBatch/action_type_loss', loss_list[0].item(), batch_iter)
+                if True:
+                    print("One batch action_type_loss loss: {:.6f}.".format(loss_list[0].item()))
+                    writer.add_scalar('OneBatch/action_type_loss', loss_list[0].item(), batch_iter)
 
-                print("One batch delay_loss loss: {:.6f}.".format(loss_list[1].item()))
-                writer.add_scalar('OneBatch/delay_loss', loss_list[1].item(), batch_iter)
+                    print("One batch delay_loss loss: {:.6f}.".format(loss_list[1].item()))
+                    writer.add_scalar('OneBatch/delay_loss', loss_list[1].item(), batch_iter)
 
-                print("One batch queue_loss loss: {:.6f}.".format(loss_list[2].item()))
-                writer.add_scalar('OneBatch/queue_loss', loss_list[2].item(), batch_iter)
+                    print("One batch queue_loss loss: {:.6f}.".format(loss_list[2].item()))
+                    writer.add_scalar('OneBatch/queue_loss', loss_list[2].item(), batch_iter)
 
-                print("One batch units_loss loss: {:.6f}.".format(loss_list[3].item()))
-                writer.add_scalar('OneBatch/units_loss', loss_list[3].item(), batch_iter)
+                    print("One batch units_loss loss: {:.6f}.".format(loss_list[3].item()))
+                    writer.add_scalar('OneBatch/units_loss', loss_list[3].item(), batch_iter)
 
-                print("One batch target_unit_loss loss: {:.6f}.".format(loss_list[4].item()))
-                writer.add_scalar('OneBatch/target_unit_loss', loss_list[4].item(), batch_iter)
+                    print("One batch target_unit_loss loss: {:.6f}.".format(loss_list[4].item()))
+                    writer.add_scalar('OneBatch/target_unit_loss', loss_list[4].item(), batch_iter)
 
-                print("One batch target_location_loss loss: {:.6f}.".format(loss_list[5].item()))
-                writer.add_scalar('OneBatch/target_location_loss', loss_list[5].item(), batch_iter)
+                    print("One batch target_location_loss loss: {:.6f}.".format(loss_list[5].item()))
+                    writer.add_scalar('OneBatch/target_location_loss', loss_list[5].item(), batch_iter)
 
-            last_traj = traj.clone().detach()
+            #last_traj = traj.clone().detach()
+            except Exception as e:               
+                print(traceback.format_exc())
+
             i += 1
             batch_iter += 1
 

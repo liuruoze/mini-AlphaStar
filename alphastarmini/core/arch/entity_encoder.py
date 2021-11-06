@@ -559,7 +559,10 @@ class EntityEncoder(nn.Module):
         # x is batch_entities_tensor (dim = 3). Shape: batch_size x entities_size x embeding_size
         # change: x is batch_seq_entities_tensor (dim = 4). Shape: batch_size x seq_size x entities_size x embeding_size
         print('x.shape:', x.shape) if debug else None
+
+        # may found nan here: can use this to do torch.nan_to_num
         out = self.transformer(x)
+
         print('out.shape:', out.shape) if debug else None
 
         entity_embeddings = F.relu(self.conv1(F.relu(out).transpose(1, 2))).transpose(1, 2)
