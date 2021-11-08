@@ -98,6 +98,8 @@ ScalarFeatureSize = namedtuple('ScalarFeatureSize', ['agent_statistics', 'home_r
 
 
 class ConstSize(object):
+    # note, AlphaStar uses the raw function not the feature-layer (like human-level) action
+    # so we use max action size = length of raw functions
     Actions_Size = len(RAW_FUNCTIONS)
 
     # note we use a number (320) for Upgrades_Size which is maxer than the maxiest upgrade_id
@@ -228,11 +230,12 @@ elif THE_PROJECT_TYPE == ProjectType.AlphaStar:
     Arch_Hyper_Parameters = AlphaStar_Arch_Hyper_Parameters
 else:
     Arch_Hyper_Parameters = MiniStar_Arch_Hyper_Parameters
+
 # 3100.8 ten-thousand (about 31 million, for AS) 
 # 152.9 ten-thousand (about 1.52 million, for mAS) 
 # 3100.8 / 152.9 = 20.27
 # Thus, the compression ratio of mini-AlphaStar is 20.27
-
+# 
 # for the sl training parameters, like learning rate
 SLTrainingHyperParameters = namedtuple('SLTrainingHyperParameters', ['num_epochs', 'learning_rate',
                                                                      'weight_decay', 'clip', 'seed'])

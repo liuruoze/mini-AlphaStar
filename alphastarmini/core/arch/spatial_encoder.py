@@ -112,7 +112,8 @@ class SpatialEncoder(nn.Module):
         return scatter_map   
 
     def forward(self, x, entity_embeddings, entity_x_y):
-        # now we don't use it
+        # 
+        # scatter_map may cause a NaN bug in SL training, now we don't use it
         # scatter_map = self.scatter(entity_embeddings, entity_x_y)
         # x = torch.cat([scatter_map, x], dim=1)
 

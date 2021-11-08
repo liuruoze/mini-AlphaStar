@@ -71,7 +71,7 @@ LEARNING_RATE = 1e-3  # SLTHP.learning_rate
 WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
 CLIP = 0.5  # SLTHP.clip
 
-NUM_ITERS = 100  # 100
+NUM_ITERS = 5  # 100
 FILE_SIZE = 100  # 100
 
 # set random seed
@@ -145,8 +145,8 @@ def train_for_val(replays, replay_data, agent):
                 loss.backward()  # note, we don't need retain_graph=True if we set hidden_state.detach()
 
                 # add a grad clip
-                # parameters = [p for p in agent.model.parameters() if p is not None and p.requires_grad]
-                # torch.nn.utils.clip_grad_norm_(parameters, CLIP)
+                parameters = [p for p in agent.model.parameters() if p is not None and p.requires_grad]
+                torch.nn.utils.clip_grad_norm_(parameters, CLIP)
 
                 optimizer.step()
                 loss_sum += loss.item()
@@ -181,12 +181,14 @@ def train_for_val(replays, replay_data, agent):
             batch_iter += 1
 
         train_loss = loss_sum / (i + 1e-9)
-        val_loss = eval(agent, val_loader)
+        val_loss, val_acc = eval(agent, val_loader)
 
         print("Train loss: {:.6f}.".format(train_loss))
         writer.add_scalar('Train/Loss', train_loss, epoch)
         print("Val loss: {:.6f}.".format(val_loss))
         writer.add_scalar('Val/Loss', val_loss, epoch)
+        print("Val acc: {:.6f}.".format(val_acc))
+        writer.add_scalar('Val/Acc', val_acc, epoch)
 
         print("beign to save model in " + SAVE_PATH)
         torch.save(agent.model, SAVE_PATH + "" + ".pkl")
@@ -197,15 +199,25 @@ def eval(agent, val_loader):
 
     loss_sum = 0.0
     i = 0
+
+    all_acc_num_action_type = 0.
+    all_all_num = 0.
+
     for traj in val_loader:
         traj = traj.to(DEVICE).float()
 
-        loss, _ = Loss.get_sl_loss(traj, agent.model)
+        loss, _, acc_num_action_type, eval_num = Loss.get_sl_loss(traj, agent.model, use_eval=True)
         loss_sum += loss.item()
+
+        all_acc_num_action_type += acc_num_action_type
+        all_all_num += eval_num
         i += 1
 
     val_loss = loss_sum / (i + 1e-9)
-    return val_loss
+
+    acc = all_acc_num_action_type / (all_all_num + 1e-9)
+
+    return val_loss, acc
 
 
 def test(on_server):
