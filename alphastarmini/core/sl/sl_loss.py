@@ -76,7 +76,7 @@ def get_sl_loss(traj_batch, model, use_eval=False):
         loss, loss_list = get_classify_loss(action_gt, action_logits_pred, criterion, device)    
 
         # if use_eval:
-        acc_num_action_type, all_num = get_accuracy(action_gt.action_type, action_pred.action_type, device)
+        acc_num_list = get_accuracy(action_gt.action_type, action_pred.action_type, device)
 
     except Exception as e:
         print(traceback.format_exc())
@@ -84,10 +84,10 @@ def get_sl_loss(traj_batch, model, use_eval=False):
         loss = torch.tensor([0.])
         loss_list = []
 
-    if use_eval:
-        return loss, loss_list, acc_num_action_type, all_num
+    # if use_eval:
+    #     return loss, loss_list, acc_num_action_type, all_num
 
-    return loss, loss_list
+    return loss, loss_list, acc_num_list
 
 
 def get_accuracy(ground_truth, predict, device):
@@ -100,14 +100,43 @@ def get_accuracy(ground_truth, predict, device):
     predict_new = predict.reshape(-1)
     print('predict_new', predict_new)
 
-    acc_num_action_type = torch.sum(predict_new == ground_truth_new)
+    # calculate how many move_camera? the id is 168 in raw_action
+    MOVE_CAMERA_ID = 168
+    #camera_num_action_type = torch.sum(MOVE_CAMERA_ID == ground_truth_new)
+    move_camera_index = (ground_truth_new == MOVE_CAMERA_ID).nonzero(as_tuple=True)[0]
+    non_camera_index = (ground_truth_new != MOVE_CAMERA_ID).nonzero(as_tuple=True)[0]
+
+    print('move_camera_index', move_camera_index)    
+    print('non_camera_index', non_camera_index)   
+
+    print('for any type action')
+    right_num, all_num = get_right_and_all_num(ground_truth_new, predict_new)
+
+    print('for move_camera action')
+    camera_ground_truth_new = ground_truth_new[move_camera_index]
+    camera_predict_new = predict_new[move_camera_index]
+    camera_right_num, camera_all_num = get_right_and_all_num(camera_ground_truth_new, camera_predict_new)
+
+    print('for non-camera action')
+    non_camera_ground_truth_new = ground_truth_new[non_camera_index]
+    non_camera_predict_new = predict_new[non_camera_index]
+    non_camera_right_num, non_camera_all_num = get_right_and_all_num(non_camera_ground_truth_new, non_camera_predict_new)
+
+    return [right_num, all_num, camera_right_num, camera_all_num, non_camera_right_num, non_camera_all_num]
+
+
+def get_right_and_all_num(gt, pred):
+    acc_num_action_type = torch.sum(pred == gt)
     print('acc_num_action_type', acc_num_action_type)
 
     right_num = acc_num_action_type.item()
     print('right_num', right_num)
 
-    all_num = ground_truth_new.shape[0]
+    all_num = gt.shape[0]
     print('all_num', all_num)
+
+    accuracy = right_num / (all_num + 1e-9)
+    print('accuracy', accuracy)
 
     return right_num, all_num
 
@@ -119,10 +148,10 @@ def get_classify_loss(action_gt, action_pred, criterion, device):
     action_ground_truth = action_gt.action_type
     ground_truth_raw_action_id = torch.nonzero(action_ground_truth, as_tuple=True)[-1]
     mask_list = []
-    print('ground_truth_raw_action_id', ground_truth_raw_action_id)
+    print('ground_truth_raw_action_id', ground_truth_raw_action_id) 
     for raw_action_id in ground_truth_raw_action_id:
         mask_list.append(get_mask_by_raw_action_id(raw_action_id.item()))
-    print('mask_list', mask_list)
+    print('mask_list', mask_list) if 0 else None
     mask_tensor = torch.tensor(mask_list)
     print('mask_tensor:', mask_tensor) if 0 else None
     mask_tensor = mask_tensor.to(device)

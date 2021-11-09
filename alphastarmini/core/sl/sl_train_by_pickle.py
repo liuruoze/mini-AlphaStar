@@ -71,7 +71,7 @@ LEARNING_RATE = 1e-3  # SLTHP.learning_rate
 WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
 CLIP = 0.5  # SLTHP.clip
 
-NUM_ITERS = 5  # 100
+NUM_ITERS = 100  # 100
 FILE_SIZE = 100  # 100
 
 # set random seed
@@ -140,9 +140,13 @@ def train_for_val(replays, replay_data, agent):
 
             # with torch.autograd.detect_anomaly():
             try:
-                loss, loss_list = Loss.get_sl_loss(traj, agent.model)
+                loss, loss_list, acc_num_list = Loss.get_sl_loss(traj, agent.model)
                 optimizer.zero_grad()
                 loss.backward()  # note, we don't need retain_graph=True if we set hidden_state.detach()
+
+                action_accuracy = acc_num_list[0] / (acc_num_list[1] + 1e-9)
+                move_camera_accuracy = acc_num_list[2] / (acc_num_list[3] + 1e-9)
+                non_camera_accuracy = acc_num_list[4] / (acc_num_list[5] + 1e-9)
 
                 # add a grad clip
                 parameters = [p for p in agent.model.parameters() if p is not None and p.requires_grad]
@@ -173,6 +177,15 @@ def train_for_val(replays, replay_data, agent):
                     print("One batch target_location_loss loss: {:.6f}.".format(loss_list[5].item()))
                     writer.add_scalar('OneBatch/target_location_loss', loss_list[5].item(), batch_iter)
 
+                    print("One batch action_accuracy: {:.6f}.".format(action_accuracy))
+                    writer.add_scalar('OneBatch/action_accuracy', action_accuracy, batch_iter)
+
+                    print("One batch move_camera_accuracy: {:.6f}.".format(move_camera_accuracy))
+                    writer.add_scalar('OneBatch/move_camera_accuracy', move_camera_accuracy, batch_iter)
+
+                    print("One batch non_camera_accuracy: {:.6f}.".format(non_camera_accuracy))
+                    writer.add_scalar('OneBatch/non_camera_accuracy', non_camera_accuracy, batch_iter)
+
             #last_traj = traj.clone().detach()
             except Exception as e:               
                 print(traceback.format_exc())
@@ -187,8 +200,14 @@ def train_for_val(replays, replay_data, agent):
         writer.add_scalar('Train/Loss', train_loss, epoch)
         print("Val loss: {:.6f}.".format(val_loss))
         writer.add_scalar('Val/Loss', val_loss, epoch)
-        print("Val acc: {:.6f}.".format(val_acc))
-        writer.add_scalar('Val/Acc', val_acc, epoch)
+
+        # for accuracy of actions in val
+        print("Val action acc: {:.6f}.".format(val_acc[0]))
+        writer.add_scalar('Val/action Acc', val_acc[0], epoch)
+        print("Val move_camera acc: {:.6f}.".format(val_acc[1]))
+        writer.add_scalar('Val/move_camera Acc', val_acc[1], epoch)
+        print("Val non_camera acc: {:.6f}.".format(val_acc[2]))
+        writer.add_scalar('Val/non_camera Acc', val_acc[2], epoch)
 
         print("beign to save model in " + SAVE_PATH)
         torch.save(agent.model, SAVE_PATH + "" + ".pkl")
@@ -200,24 +219,39 @@ def eval(agent, val_loader):
     loss_sum = 0.0
     i = 0
 
-    all_acc_num_action_type = 0.
-    all_all_num = 0.
+    action_acc_num = 0.
+    action_all_num = 0.
+
+    move_camera_action_acc_num = 0.
+    move_camera_action_all_num = 0.
+
+    non_camera_action_acc_num = 0.
+    non_camera_action_all_num = 0.
 
     for traj in val_loader:
         traj = traj.to(DEVICE).float()
 
-        loss, _, acc_num_action_type, eval_num = Loss.get_sl_loss(traj, agent.model, use_eval=True)
+        loss, _, acc_num_list = Loss.get_sl_loss(traj, agent.model, use_eval=True)
         loss_sum += loss.item()
 
-        all_acc_num_action_type += acc_num_action_type
-        all_all_num += eval_num
+        action_acc_num += acc_num_list[0]
+        action_all_num += acc_num_list[1]
+
+        move_camera_action_acc_num += acc_num_list[2]
+        move_camera_action_all_num += acc_num_list[3]
+
+        non_camera_action_acc_num += acc_num_list[4]
+        non_camera_action_all_num += acc_num_list[5]
+
         i += 1
 
     val_loss = loss_sum / (i + 1e-9)
 
-    acc = all_acc_num_action_type / (all_all_num + 1e-9)
+    action_accuracy = action_acc_num / (action_all_num + 1e-9)
+    move_camera_accuracy = move_camera_action_acc_num / (move_camera_action_all_num + 1e-9)
+    non_camera_accuracy = non_camera_action_acc_num / (non_camera_action_all_num + 1e-9)
 
-    return val_loss, acc
+    return val_loss, [action_accuracy, move_camera_accuracy, non_camera_accuracy]
 
 
 def test(on_server):
