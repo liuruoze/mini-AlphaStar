@@ -24,7 +24,7 @@ from alphastarmini.core.rl import pseudo_reward
 
 if __name__ == '__main__':
     # if we don't add this line, it may cause running time error while in Windows
-    torch.multiprocessing.freeze_support()
+    # torch.multiprocessing.freeze_support()
 
     print("test init")
 

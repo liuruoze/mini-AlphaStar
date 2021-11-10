@@ -13,6 +13,8 @@ from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
+from alphastarmini.lib import utils as L
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False

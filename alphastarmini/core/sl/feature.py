@@ -54,6 +54,11 @@ class Feature(object):
         feature_1 = torch.cat(scalar_list, dim=1)
         print("feature_1.shape:", feature_1.shape) if debug else None
 
+        print('batch_entities_tensor.shape', batch_entities_tensor.shape) if debug else None
+        print('batch_size', batch_size) if debug else None
+        print('AHP.max_entities', AHP.max_entities) if debug else None
+        print('AHP.embedding_size', AHP.embedding_size) if debug else None
+
         feature_2 = batch_entities_tensor.reshape(batch_size, AHP.max_entities * AHP.embedding_size)
         print("feature_2.shape:", feature_2.shape) if debug else None
 

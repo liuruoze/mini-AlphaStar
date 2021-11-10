@@ -25,7 +25,7 @@ debug = False
 
 class EntityEncoder(nn.Module):
     # below is value form max value of one-hot encoding in alphastar
-    max_entities = 4  # AHP.max_entities
+    max_entities = AHP.max_entities
     max_unit_type = SCHP.max_unit_type  # default is 256
     max_alliance = 5
 
