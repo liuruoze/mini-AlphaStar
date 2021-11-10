@@ -105,7 +105,7 @@ def main_worker(gpu, ngpus_per_node, args):
     print('The number of parameters of model is', num_params)
 
     print('==> Preparing data..')
-    replays = AllReplayDataset.get_trainable_data(replay_data_path=PATH, agent=agent, 
+    replays = AllReplayDataset.get_trainable_data(replay_data_path=PATH,
                                                   max_file_size=10, shuffle=False)
 
     train_replays = AllReplayDataset.get_training_for_val_data(replays)

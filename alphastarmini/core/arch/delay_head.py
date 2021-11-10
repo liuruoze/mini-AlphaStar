@@ -78,7 +78,7 @@ class DelayHead(nn.Module):
         # AlphaStar: Similar to `action_type`, `delay` is projected to a 1D tensor of size 1024 through 
         # AlphaStar: a 2-layer (each with size 256) linear network with ReLUs, and added to `autoregressive_embedding`
         # similar to action_type here, change it to one_hot version
-        delay_one_hot = L.one_hot_embedding(delay, self.max_delay)
+        delay_one_hot = L.tensor_one_hot(delay, self.max_delay)
         # to make the dim of delay_one_hot as delay
         delay_one_hot = delay_one_hot.squeeze(-2)
         print("delay_one_hot:", delay_one_hot) if debug else None

@@ -1017,7 +1017,7 @@ class EntityEncoder(nn.Module):
         tmp_y = (tmp_x > self.bias_value + 1e3)
         real_number_tensor = torch.sum(tmp_y, dim=1, keepdim=False)
         # this means for each batch, there are how many real enetities
-        print('real_number_tensor:', real_number_tensor) if 1 else None
+        print('real_number_tensor:', real_number_tensor) if debug else None
 
         x = self.embedd(x)
 
@@ -1047,7 +1047,7 @@ class EntityEncoder(nn.Module):
             mean_entity = mean_entity / (real_number)
             tensor_list.append(mean_entity.reshape(1, -1))
         tensor_mean = torch.cat(tensor_list, dim=0)
-        print('tensor_mean:', tensor_mean) if 1 else None
+        print('tensor_mean:', tensor_mean) if debug else None
 
         # print('out.shape:', out.shape) if debug else None
         # out = out[:, :self.real_entities_size, :]
@@ -1057,7 +1057,7 @@ class EntityEncoder(nn.Module):
         # The mean of the transformer output across across the units  
         # is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`
         embedded_entity = F.relu(self.fc1(tensor_mean))
-        print('embedded_entity.shape:', embedded_entity.shape) if 1 else None
+        print('embedded_entity.shape:', embedded_entity.shape) if debug else None
 
         return entity_embeddings, embedded_entity
 
@@ -1129,29 +1129,7 @@ class Entity(object):
         return 'unit_type: ' + str(self.unit_type) + ', alliance: ' + str(self.alliance) + ', health: ' + str(self.health)
 
 
-def test(debug=True):
-    print(torch.tensor(np.unpackbits(np.array([25], np.uint8))))
-    batch_size = 10
-
-    e_list = []
-    e1 = Entity(115, [0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0], 0, 100, 60, 50, 4, 8, 95, 0.2, 0.0, 0.0, 140, 60, 100,
-                1, 123, 218, 3, True, False, True, True, False, 0, 0, 0, 0, 0, 0, 3.0, [2, 3], 2, 1, 0, True, False)
-    e2 = Entity(1908, [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0], 2, 1500, 0, 200, 0, 4, 15, 0.5, 0.8, 0.5, 1500, 0, 250,
-                2, 69, 7, 3, True, False, False, True, False, 0, 0, 0, 0, 10, 16, 0.0, [1], 1, 1, 0, False, False)
-    e_list.append(e1)
-    e_list.append(e2)
-
-    encoder = EntityEncoder()
-
-    # test use preproces in numpy array
-    entities_tensor = EntityEncoder.preprocess_in_numpy(e_list)
-
-    # test use preproces in torch tensor
-    # entities_tensor = EntityEncoder.preprocess_in_tensor(e_list)
-
-    # test use default
-    # entities = EntityEncoder.preprocess(e_list)
-
+def benchmark(e_list):
     # benchmark test
     benchmark_start = time.time()
 
@@ -1175,6 +1153,30 @@ def test(debug=True):
     print('entities_tensor:', entities_tensor) if debug else None
     print('entities_tensor.shape:', entities_tensor.shape) if debug else None
     # entities_tensor (dim = 2): entities_size x embeding_size
+
+
+def test(debug=False):
+    print(torch.tensor(np.unpackbits(np.array([25], np.uint8))))
+    batch_size = 10
+
+    e_list = []
+    e1 = Entity(115, [0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0], 0, 100, 60, 50, 4, 8, 95, 0.2, 0.0, 0.0, 140, 60, 100,
+                1, 123, 218, 3, True, False, True, True, False, 0, 0, 0, 0, 0, 0, 3.0, [2, 3], 2, 1, 0, True, False)
+    e2 = Entity(1908, [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0], 2, 1500, 0, 200, 0, 4, 15, 0.5, 0.8, 0.5, 1500, 0, 250,
+                2, 69, 7, 3, True, False, False, True, False, 0, 0, 0, 0, 10, 16, 0.0, [1], 1, 1, 0, False, False)
+    e_list.append(e1)
+    e_list.append(e2)
+
+    encoder = EntityEncoder()
+
+    # test use preproces in numpy array
+    entities_tensor = EntityEncoder.preprocess_in_numpy(e_list)
+
+    # test use preproces in torch tensor
+    # entities_tensor = EntityEncoder.preprocess_in_tensor(e_list)
+
+    # test use default
+    # entities = EntityEncoder.preprocess(e_list)
 
     entities_tensor = entities_tensor.unsqueeze(0)
 

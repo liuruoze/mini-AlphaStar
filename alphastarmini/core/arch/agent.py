@@ -12,7 +12,7 @@ import torch.nn.functional as F
 from pysc2.lib import actions as A
 
 from alphastarmini.core.arch.arch_model import ArchModel
-from alphastarmini.core.arch.entity_encoder import Entity
+from alphastarmini.core.arch.entity_encoder import EntityEncoder, Entity
 
 from alphastarmini.core.rl.action import ArgsAction
 from alphastarmini.core.rl.state import MsState
@@ -67,19 +67,21 @@ class Agent(object):
 
         return action_output
 
+    @staticmethod
     def preprocess_state_all(self, obs, build_order=None):
-        batch_entities_tensor = self.preprocess_state_entity(obs)
-        scalar_list = self.preprocess_state_scalar(obs, build_order=build_order)
-        map_data = self.preprocess_state_spatial(obs)
+        batch_entities_tensor = Agent.preprocess_state_entity(obs)
+        scalar_list = Agent.preprocess_state_scalar(obs, build_order=build_order)
+        map_data = Agent.preprocess_state_spatial(obs)
         state = MsState(entity_state=batch_entities_tensor, 
                         statistical_state=scalar_list, map_state=map_data)
 
         return state
 
-    def get_state_and_action_from_pickle(self, obs):
-        batch_entities_tensor = self.preprocess_state_entity(obs)
-        scalar_list = self.preprocess_state_scalar(obs)
-        map_data = self.preprocess_state_spatial(obs)
+    @staticmethod
+    def get_state_and_action_from_pickle(obs):
+        batch_entities_tensor = Agent.preprocess_state_entity(obs)
+        scalar_list = Agent.preprocess_state_scalar(obs)
+        map_data = Agent.preprocess_state_spatial(obs)
         state = MsState(entity_state=batch_entities_tensor, 
                         statistical_state=scalar_list, map_state=map_data)
 
@@ -159,153 +161,14 @@ class Agent(object):
 
         return agent_scalar_list, opponenet_scalar_out
 
-    def preprocess_state_scalar(self, obs, build_order=None):
-        scalar_list = []
-
-        player = obs["player"]
-        print('player:', player) if debug else None
-
-        # The first is player_id, so we don't need it.
-        player_statistics = player[1:]
-        print('player_statistics:', player_statistics) if debug else None
-
-        # player_statistics = np.log(player_statistics + 1)
-        # print('player_statistics:', player_statistics)
-
-        # agent_statistics = torch.ones(1, 10)
-        agent_statistics = torch.tensor(player_statistics, dtype=torch.float).reshape(1, -1)
-        print('player_statistics:', agent_statistics) if debug else None
-
-        home_race = torch.zeros(1, 5)
-        if "home_race_requested" in obs:
-            home_race_requested = obs["home_race_requested"].item()
-            print('home_race_requested:', home_race_requested) if debug else None
-        else:
-            home_race_requested = 0
-        assert home_race_requested >= 0 and home_race_requested <= 4
-        home_race[0, home_race_requested] = 1
-        print('home_race:', home_race) if debug else None
-
-        away_race = torch.zeros(1, 5)
-        if "away_race_requested" in obs:
-            away_race_requested = obs["away_race_requested"].item()
-            print('away_race_requested:', away_race_requested) if debug else None
-        else:
-            away_race_requested = 0
-        assert away_race_requested >= 0 and away_race_requested <= 4
-        away_race[0, away_race_requested] = 1
-        print('away_race:', away_race) if debug else None
-
-        if "action_result" in obs:
-            action_result = obs["action_result"]
-            print('action_result:', action_result) if debug else None
-
-        if "alerts" in obs:
-            alerts = obs["alerts"]
-            print('alerts:', alerts) if debug else None
-
-        # implement the upgrades
-        upgrades = torch.zeros(1, SFS.upgrades)
-        obs_upgrades = obs["upgrades"]
-        print('obs_upgrades:', obs_upgrades) if debug else None
-        for u in obs_upgrades:
-            assert u >= 0 
-            assert u < SFS.upgrades
-            upgrades[0, u] = 1
-
-        # question: how to know enemy's upgrades?
-        enemy_upgrades = torch.zeros(1, SFS.upgrades)
-
-        # time conver to gameloop
-        time = torch.zeros(1, SFS.time)
-        game_loop = obs["game_loop"]
-        print('game_loop:', game_loop) if debug else None
-
-        time_encoding = torch.tensor(L.unpackbits_for_largenumber(game_loop, num_bits=64), dtype = torch.float).reshape(1, -1)
-        print('time_encoding:', time_encoding) if debug else None 
-        # note, we use binary encoding here for time
-        time = time_encoding
-        #time[0, 0] = game_loop
-
-        # implement the available_actions
-        # note: if we use raw action, this key doesn't exist
-        # the_available_actions = obs["available_actions"] 
-        # print('the_available_actions:', the_available_actions) if 1 else None
-        available_actions = torch.zeros(1, SFS.available_actions)
-
-        # implement the unit_counts_bow
-        unit_counts_bow = L.calculate_unit_counts_bow(obs)
-        print('unit_counts_bow:', unit_counts_bow) if debug else None
-        print('torch.sum(unit_counts_bow):', torch.sum(unit_counts_bow)) if debug else None
-
-        # implement the build order
-        beginning_build_order = torch.zeros(1, SCHP.count_beginning_build_order, int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
-        print('beginning_build_order.shape:', beginning_build_order.shape) if debug else None
-        if build_order is not None:
-            # implement the beginning_build_order               
-            for i, bo in enumerate(build_order):
-                if i < 20:
-                    assert bo < SFS.unit_counts_bow
-                    beginning_build_order[0, i, bo] = 1
-            print("beginning_build_order:", beginning_build_order) if debug else None
-            print("sum(beginning_build_order):", torch.sum(beginning_build_order).item()) if debug else None
-
-        mmr = torch.zeros(1, SFS.mmr)
-        units_buildings = torch.zeros(1, SFS.units_buildings)
-
-        # implement the effects
-        effects = torch.zeros(1, SFS.effects)
-        # we now use feature_effects to represent it
-        feature_effects = obs["feature_effects"]
-        print('feature_effects:', feature_effects) if debug else None
-        for effect in feature_effects:
-            e = effect.effect_id
-            assert e >= 0 
-            assert e < SFS.effects
-            effects[0, e] = 1
-        # the raw effects are reserved for use
-        raw_effects = obs["raw_effects"]
-        print('raw_effects:', raw_effects) if debug else None
-
-        # implement the upgrade
-        upgrade = torch.zeros(1, SFS.upgrades)
-        for u in obs_upgrades:
-            assert u >= 0 
-            assert u < SFS.upgrades
-            upgrade[0, u] = 1
-
-        last_delay = torch.zeros(1, SFS.last_delay)
-
-        # implement the last action
-        # note: if we use raw action, this property is always empty
-        last_actions = obs["last_actions"]
-        print('last_actions:', last_actions) if debug else None
-        last_action_type = torch.zeros(1, SFS.last_action_type)
-
-        last_repeat_queued = torch.zeros(1, SFS.last_repeat_queued)
-
-        scalar_list.append(agent_statistics)
-        scalar_list.append(home_race)
-        scalar_list.append(away_race)
-        scalar_list.append(upgrades)
-        scalar_list.append(enemy_upgrades)
-        scalar_list.append(time)
-
-        scalar_list.append(available_actions)
-        scalar_list.append(unit_counts_bow)
-        scalar_list.append(mmr)
-        scalar_list.append(units_buildings)
-        scalar_list.append(effects)
-        scalar_list.append(upgrade)
-
-        scalar_list.append(beginning_build_order)
-        scalar_list.append(last_delay)
-        scalar_list.append(last_action_type)
-        scalar_list.append(last_repeat_queued)
+    @staticmethod
+    def preprocess_state_scalar(obs, build_order=None):
+        scalar_list = ArchModel.preprocess_scalar(obs, build_order=build_order)
 
         return scalar_list
 
-    def preprocess_state_entity(self, obs, return_tag_list = False):
+    @staticmethod
+    def preprocess_state_entity(obs, return_tag_list = False):
         raw_units = obs["raw_units"]
         e_list = []
         tag_list = []
@@ -381,7 +244,7 @@ class Agent(object):
                 break
 
         # preprocess entity list
-        entities_tensor = self.model.preprocess_entity(e_list)
+        entities_tensor = ArchModel.preprocess_entity(e_list)
         batch_entities_tensor = torch.unsqueeze(entities_tensor, dim = 0) 
 
         if return_tag_list:
@@ -389,8 +252,9 @@ class Agent(object):
 
         return batch_entities_tensor
 
-    def preprocess_state_spatial(self, obs):
-        map_data = self.model.preprocess_spatial(obs)
+    @staticmethod
+    def preprocess_state_spatial(obs):
+        map_data = ArchModel.preprocess_spatial(obs)
 
         return map_data
 
@@ -421,7 +285,8 @@ class Agent(object):
 
         return state, None
 
-    def func_call_to_action(self, func_call, obs = None):
+    @staticmethod
+    def func_call_to_action(func_call, obs = None):
         # note: this is a pysc2 action, and the 
         # unit_tags and target_unit_tag are actually index in _raw_tags!
         # so they are different from the tags really used by a SC2-action!
@@ -466,7 +331,8 @@ class Agent(object):
         print('args_action:', args_action) if debug else None
         return args_action
 
-    def action_to_func_call(self, action, action_spec, use_random_args = False):
+    @staticmethod
+    def action_to_func_call(action, action_spec, use_random_args = False):
         # assert the action is single
         print('action:', action) if debug else None
         print('action.get_shape():', action.get_shape()) if debug else None
@@ -623,7 +489,7 @@ def test():
     e_list.append(e2)
 
     # preprocess entity list
-    entities_tensor = agent.model.preprocess_entity(e_list)
+    entities_tensor = ArchModel.preprocess_entity(e_list)
     print('entities_tensor.shape:', entities_tensor.shape) if debug else None
     batch_entities_tensor = torch.unsqueeze(entities_tensor, dim=0)
     batch_entities_list = []
@@ -647,14 +513,14 @@ def test():
 
     state = MsState(entity_state=batch_entities_tensor, statistical_state=scalar_list, map_state=map_data)
 
-    print("Multi-source state:", state) if 1 else None
+    print("Multi-source state:", state) if debug else None
 
     action = agent.action_by_state(state)
-    print("action is:", action) if 1 else None
+    print("action is:", action) if debug else None
 
     action_logits, actions, hidden_state = agent.action_logits_by_state(state)
-    print("action_logits is:", action_logits) if 1 else None
-    print("actions is:", actions) if 1 else None
+    print("action_logits is:", action_logits) if debug else None
+    print("actions is:", actions) if debug else None
 
     if debug:
         print("This is a test!")

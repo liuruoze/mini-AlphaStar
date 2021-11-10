@@ -26,15 +26,15 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 
-def obs2feature(obs, agent):
-    s = agent.get_state_and_action_from_pickle(obs)
+def obs2feature(obs):
+    s = Agent.get_state_and_action_from_pickle(obs)
     feature = Feature.state2feature(s)
     print("feature:", feature) if debug else None
     print("feature.shape:", feature.shape) if debug else None
 
     print("begin a:") if debug else None
     func_call = obs['func_call']
-    action = agent.func_call_to_action(func_call).toTenser()
+    action = Agent.func_call_to_action(func_call).toTenser()
     #tag_list = agent.get_tag_list(obs)
     print('action.get_shape:', action.get_shape()) if debug else None
 
@@ -48,7 +48,7 @@ def obs2feature(obs, agent):
 
 class OneReplayDataset(Dataset):
 
-    def __init__(self, traj_dict, agent=None, seq_length=AHP.sequence_length):
+    def __init__(self, traj_dict, seq_length=AHP.sequence_length):
         super().__init__()
 
         self.traj_dict = traj_dict
@@ -58,7 +58,6 @@ class OneReplayDataset(Dataset):
         # keys-objects-when-num-workers-0/43951/4
         self.keys = list(traj_dict.keys())
         self.seq_len = seq_length
-        self.agent = agent if agent is not None else Agent()
 
     def __getitem__(self, index):
 
@@ -70,7 +69,7 @@ class OneReplayDataset(Dataset):
         for key in key_list:
             obs = self.traj_dict[key]
 
-            feature, label = obs2feature(obs, self.agent)
+            feature, label = obs2feature(obs)
             feature_list.append(feature)
             label_list.append(label)
 
@@ -118,7 +117,7 @@ class AllReplayDataset(Dataset):
         return len(self.traj_loader_list)
 
     @staticmethod
-    def get_trainable_data(replay_data_path, agent=None, max_file_size=None, shuffle=False):
+    def get_trainable_data(replay_data_path, max_file_size=None, shuffle=False):
         replay_files = os.listdir(replay_data_path)
         print('length of replay_files:', len(replay_files))
 
@@ -138,7 +137,7 @@ class AllReplayDataset(Dataset):
 
                 with open(replay_path, 'rb') as handle:
                     traj_dict = pickle.load(handle)                  
-                    traj_dataset = OneReplayDataset(traj_dict=traj_dict, agent=agent)
+                    traj_dataset = OneReplayDataset(traj_dict=traj_dict)
                     traj_loader = DataLoader(traj_dataset, batch_size=1, shuffle=True)
                     traj_loader_list.append(traj_loader)
 

@@ -68,14 +68,17 @@ class ArchModel(nn.Module):
         # https://discuss.pytorch.org/t/how-do-i-check-the-number-of-parameters-of-a-model/4325/7
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
-    def preprocess_entity(self, e_list):
-        return self.entity_encoder.preprocess(e_list)
+    @staticmethod
+    def preprocess_entity(e_list):
+        return EntityEncoder.preprocess(e_list)
 
-    def preprocess_spatial(self, obs):
-        return self.spatial_encoder.preprocess(obs, None)
+    @staticmethod    
+    def preprocess_scalar(obs, build_order=None):
+        return ScalarEncoder.preprocess(obs, build_order=build_order)
 
-    def preprocess_scalar(self, obs):
-        return self.scalar_encoder.preprocess(obs, None)
+    @staticmethod    
+    def preprocess_spatial(obs):
+        return SpatialEncoder.preprocess(obs)
 
     def init_hidden_state(self):
         return self.core.init_hidden_state()
@@ -88,7 +91,9 @@ class ArchModel(nn.Module):
         pos_index = SCHP.max_unit_type + AHP.entity_x_y_index  # 13 + 1 + 5 + 5
         entity_x_y = state.entity_state[:, :, pos_index: pos_index + 8 * 2]
 
-        map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings, entity_x_y)
+        #map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings, entity_x_y)
+        map_skip, embedded_spatial = self.spatial_encoder(state.map_state)
+
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
 
         print("entity_embeddings.shape:", entity_embeddings.shape) if debug else None
@@ -192,7 +197,7 @@ def test():
     e_list.append(e2)
 
     # preprocess entity list
-    entities_tensor = arch_model.preprocess_entity(e_list)
+    entities_tensor = ArchModel.preprocess_entity(e_list)
     print('entities_tensor.shape:', entities_tensor.shape) if debug else None
     batch_entities_tensor = torch.unsqueeze(entities_tensor, dim=0)
     batch_entities_list = []

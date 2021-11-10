@@ -68,7 +68,7 @@ class QueueHead(nn.Module):
         queue = torch.multinomial(queue_probs, 1)
 
         # similar to action_type here, change it to one_hot version
-        queue_one_hot = L.one_hot_embedding(queue, self.max_queue)
+        queue_one_hot = L.tensor_one_hot(queue, self.max_queue)
         # to make the dim of queue_one_hot as queue
         queue_one_hot = queue_one_hot.squeeze(-2)
 

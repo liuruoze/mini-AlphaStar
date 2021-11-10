@@ -62,8 +62,9 @@ class SpatialEncoder(nn.Module):
 
         self.map_width = AHP.minimap_size
 
-    def preprocess(self, obs, entity_embeddings):
-        map_data = get_map_data(obs)
+    @classmethod
+    def preprocess(cls, obs):
+        map_data = cls.get_map_data(obs)
         return map_data
 
     def scatter(self, entity_embeddings, entity_x_y):
@@ -111,11 +112,12 @@ class SpatialEncoder(nn.Module):
         #print("scatter_map:", scatter_map[0, :, 23, 19]) if 1 else None
         return scatter_map   
 
-    def forward(self, x, entity_embeddings, entity_x_y):
+    def forward(self, x, entity_embeddings=None, entity_x_y=None):
         # 
         # scatter_map may cause a NaN bug in SL training, now we don't use it
-        # scatter_map = self.scatter(entity_embeddings, entity_x_y)
-        # x = torch.cat([scatter_map, x], dim=1)
+        if entity_embeddings is not None and entity_x_y is not None:
+            scatter_map = self.scatter(entity_embeddings, entity_x_y)
+            x = torch.cat([scatter_map, x], dim=1)
 
         # After preprocessing, the planes are concatenated, projected to 32 channels 
         # by a 2D convolution with kernel size 1, passed through a ReLU
@@ -150,65 +152,65 @@ class SpatialEncoder(nn.Module):
 
         return map_skip, embedded_spatial
 
+    @classmethod
+    def get_map_data(cls, obs, map_width=AHP.minimap_size, verbose=False):
+        '''
+        TODO: camera: One-hot with maximum 2 of whether a location is within the camera, this refers to mimimap
+        TODO: scattered_entities: 32 float values from entity embeddings
+        default map_width is 128
+        '''
+        if "feature_minimap" in obs:
+            feature_minimap = obs["feature_minimap"]
+        else:
+            feature_minimap = obs
 
-def get_map_data(obs, map_width=AHP.minimap_size, verbose=False):
-    '''
-    TODO: camera: One-hot with maximum 2 of whether a location is within the camera, this refers to mimimap
-    TODO: scattered_entities: 32 float values from entity embeddings
-    default map_width is 128
-    '''
-    if "feature_minimap" in obs:
-        feature_minimap = obs["feature_minimap"]
-    else:
-        feature_minimap = obs
+        save_type = np.float32
 
-    save_type = np.float32
+        # A: height_map: Float of (height_map / 255.0)
+        height_map = np.expand_dims(feature_minimap["height_map"].reshape(-1, map_width, map_width) / 255.0, -1).astype(save_type)
+        print('height_map:', height_map) if verbose else None
+        print('height_map.shape:', height_map.shape) if verbose else None
 
-    # A: height_map: Float of (height_map / 255.0)
-    height_map = np.expand_dims(feature_minimap["height_map"].reshape(-1, map_width, map_width) / 255.0, -1).astype(save_type)
-    print('height_map:', height_map) if verbose else None
-    print('height_map.shape:', height_map.shape) if verbose else None
+        # A: visibility: One-hot with maximum 4
+        visibility = L.np_one_hot(feature_minimap["visibility_map"].reshape(-1, map_width, map_width), 4).astype(save_type)
+        print('visibility:', visibility) if verbose else None
+        print('visibility.shape:', visibility.shape) if verbose else None
 
-    # A: visibility: One-hot with maximum 4
-    visibility = L.np_one_hot(feature_minimap["visibility_map"].reshape(-1, map_width, map_width), 4).astype(save_type)
-    print('visibility:', visibility) if verbose else None
-    print('visibility.shape:', visibility.shape) if verbose else None
+        # A: creep: One-hot with maximum 2
+        creep = L.np_one_hot(feature_minimap["creep"].reshape(-1, map_width, map_width), 2).astype(save_type)
+        print('creep:', creep) if verbose else None
 
-    # A: creep: One-hot with maximum 2
-    creep = L.np_one_hot(feature_minimap["creep"].reshape(-1, map_width, map_width), 2).astype(save_type)
-    print('creep:', creep) if verbose else None
+        # A: entity_owners: One-hot with maximum 5
+        entity_owners = L.np_one_hot(feature_minimap["player_relative"].reshape(-1, map_width, map_width), 5).astype(save_type)
+        print('entity_owners:', entity_owners) if verbose else None
 
-    # A: entity_owners: One-hot with maximum 5
-    entity_owners = L.np_one_hot(feature_minimap["player_relative"].reshape(-1, map_width, map_width), 5).astype(save_type)
-    print('entity_owners:', entity_owners) if verbose else None
+        # the bottom 3 maps are missed in pysc1.2 and pysc2.0
+        # however, the 3 maps can be found on s2clientprotocol/spatial.proto
+        # actually, the 3 maps can be found on pysc3.0
 
-    # the bottom 3 maps are missed in pysc1.2 and pysc2.0
-    # however, the 3 maps can be found on s2clientprotocol/spatial.proto
-    # actually, the 3 maps can be found on pysc3.0
+        # A: alerts: One-hot with maximum 2
+        alerts = L.np_one_hot(feature_minimap["alerts"].reshape(-1, map_width, map_width), 2).astype(save_type)
+        print('alerts:', alerts) if verbose else None
 
-    # A: alerts: One-hot with maximum 2
-    alerts = L.np_one_hot(feature_minimap["alerts"].reshape(-1, map_width, map_width), 2).astype(save_type)
-    print('alerts:', alerts) if verbose else None
+        # A: pathable: One-hot with maximum 2
+        pathable = L.np_one_hot(feature_minimap["pathable"].reshape(-1, map_width, map_width), 2).astype(save_type)
+        print('pathable:', pathable) if verbose else None
 
-    # A: pathable: One-hot with maximum 2
-    pathable = L.np_one_hot(feature_minimap["pathable"].reshape(-1, map_width, map_width), 2).astype(save_type)
-    print('pathable:', pathable) if verbose else None
+        # A: buildable: One-hot with maximum 2
+        buildable = L.np_one_hot(feature_minimap["buildable"].reshape(-1, map_width, map_width), 2).astype(save_type)
+        print('buildable:', buildable) if verbose else None
 
-    # A: buildable: One-hot with maximum 2
-    buildable = L.np_one_hot(feature_minimap["buildable"].reshape(-1, map_width, map_width), 2).astype(save_type)
-    print('buildable:', buildable) if verbose else None
+        out_channels = 1 + 4 + 2 + 5 + 2 + 2 + 2
 
-    out_channels = 1 + 4 + 2 + 5 + 2 + 2 + 2
+        map_data = np.concatenate([height_map, visibility, creep, entity_owners, 
+                                   alerts, pathable, buildable], axis=3)
+        map_data = np.transpose(map_data, [0, 3, 1, 2])
+        print('map_data.shape:', map_data.shape) if verbose else None
 
-    map_data = np.concatenate([height_map, visibility, creep, entity_owners, 
-                               alerts, pathable, buildable], axis=3)
-    map_data = np.transpose(map_data, [0, 3, 1, 2])
-    print('map_data.shape:', map_data.shape) if verbose else None
+        map_data = torch.tensor(map_data)
+        print('torch map_data.shape:', map_data.shape) if verbose else None
 
-    map_data = torch.tensor(map_data)
-    print('torch map_data.shape:', map_data.shape) if verbose else None
-
-    return map_data
+        return map_data
 
 
 class ResBlock(nn.Module):

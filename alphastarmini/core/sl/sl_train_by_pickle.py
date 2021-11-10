@@ -260,7 +260,7 @@ def test(on_server):
 
     agent = Agent()
 
-    replays = AllReplayDataset.get_trainable_data(replay_data_path=PATH, agent=agent, 
+    replays = AllReplayDataset.get_trainable_data(replay_data_path=PATH,
                                                   max_file_size=FILE_SIZE, shuffle=True)
 
     '''

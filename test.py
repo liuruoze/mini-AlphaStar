@@ -29,9 +29,6 @@ if __name__ == '__main__':
     print("test init")
 
     entity_encoder.test()
-
-    stop()
-
     scalar_encoder.test()
     spatial_encoder.test()
 
@@ -47,6 +44,6 @@ if __name__ == '__main__':
     baseline.test()
 
     arch_model.test()
-    # agent.test()
+    agent.test()
 
     print('test over')
