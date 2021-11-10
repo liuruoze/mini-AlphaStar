@@ -21,7 +21,7 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 
-def get_sl_loss(traj_batch, model, use_eval=False):
+def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     # criterion = nn.CrossEntropyLoss()
     # due to CrossEntropyLoss only accepts loss with lables.shape = [N]
     # we define a loss accept soft_target, which label.shape = [N, C]
@@ -42,7 +42,7 @@ def get_sl_loss(traj_batch, model, use_eval=False):
     feature_size = Feature.getSize()
     label_size = Label.getSize()
 
-    print('traj_batch.shape:', traj_batch.shape) if 1 else None
+    print('traj_batch.shape:', traj_batch.shape) if debug else None
     batch_size = traj_batch.shape[0]
     seq_len = traj_batch.shape[1]
 
@@ -51,19 +51,19 @@ def get_sl_loss(traj_batch, model, use_eval=False):
     is_final = traj_batch[:, :, -1:]
 
     state = Feature.feature2state(feature)
-    print('state:', state) if 1 else None
+    print('state:', state) if debug else None
 
     action_gt = Label.label2action(label)
-    print('action_gt:', action_gt) if 1 else None
+    print('action_gt:', action_gt) if debug else None
 
     device = next(model.parameters()).device
-    print("model.device:", device) if 1 else None
+    print("model.device:", device) if debug else None
 
     state.to(device)
-    print('state:', state) if 0 else None
+    print('state:', state) if debug else None
 
     action_gt.to(device)
-    print('action_gt:', action_gt) if 0 else None
+    print('action_gt:', action_gt) if debug else None
 
     def unroll(state, batch_size=None, sequence_length=None):
         action_logits_pred, action_pred, _ = model.forward(state, batch_size=batch_size, sequence_length=sequence_length, return_logits=True)
@@ -71,9 +71,9 @@ def get_sl_loss(traj_batch, model, use_eval=False):
 
     try:
         action_logits_pred, action_pred = unroll(state, batch_size=batch_size, sequence_length=seq_len)
-        print('action_logits_pred:', action_logits_pred) if 1 else None
+        print('action_logits_pred:', action_logits_pred) if debug else None
 
-        loss, loss_list = get_classify_loss(action_gt, action_logits_pred, criterion, device)    
+        loss, loss_list = get_classify_loss(action_gt, action_logits_pred, criterion, device, use_mask=use_mask)    
 
         # if use_eval:
         acc_num_list = get_accuracy(action_gt.action_type, action_pred.action_type, device)
@@ -96,10 +96,10 @@ def get_accuracy(ground_truth, predict, device):
 
     ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
     ground_truth_new = ground_truth_new.to(device)
-    print('ground_truth', ground_truth_new)
+    print('ground_truth', ground_truth_new) if debug else None
 
     predict_new = predict.reshape(-1)
-    print('predict_new', predict_new)
+    print('predict_new', predict_new) if debug else None
 
     # calculate how many move_camera? the id is 168 in raw_action
     MOVE_CAMERA_ID = 168
@@ -107,18 +107,18 @@ def get_accuracy(ground_truth, predict, device):
     move_camera_index = (ground_truth_new == MOVE_CAMERA_ID).nonzero(as_tuple=True)[0]
     non_camera_index = (ground_truth_new != MOVE_CAMERA_ID).nonzero(as_tuple=True)[0]
 
-    print('move_camera_index', move_camera_index)    
-    print('non_camera_index', non_camera_index)   
+    print('move_camera_index', move_camera_index) if debug else None    
+    print('non_camera_index', non_camera_index) if debug else None  
 
-    print('for any type action')
+    print('for any type action') if debug else None
     right_num, all_num = get_right_and_all_num(ground_truth_new, predict_new)
 
-    print('for move_camera action')
+    print('for move_camera action') if debug else None
     camera_ground_truth_new = ground_truth_new[move_camera_index]
     camera_predict_new = predict_new[move_camera_index]
     camera_right_num, camera_all_num = get_right_and_all_num(camera_ground_truth_new, camera_predict_new)
 
-    print('for non-camera action')
+    print('for non-camera action') if debug else None
     non_camera_ground_truth_new = ground_truth_new[non_camera_index]
     non_camera_predict_new = predict_new[non_camera_index]
     non_camera_right_num, non_camera_all_num = get_right_and_all_num(non_camera_ground_truth_new, non_camera_predict_new)
@@ -128,35 +128,35 @@ def get_accuracy(ground_truth, predict, device):
 
 def get_right_and_all_num(gt, pred):
     acc_num_action_type = torch.sum(pred == gt)
-    print('acc_num_action_type', acc_num_action_type)
+    print('acc_num_action_type', acc_num_action_type) if debug else None
 
     right_num = acc_num_action_type.item()
-    print('right_num', right_num)
+    print('right_num', right_num) if debug else None
 
     all_num = gt.shape[0]
-    print('all_num', all_num)
+    print('all_num', all_num) if debug else None
 
     accuracy = right_num / (all_num + 1e-9)
-    print('accuracy', accuracy)
+    print('accuracy', accuracy) if debug else None
 
     return right_num, all_num
 
 
-def get_classify_loss(action_gt, action_pred, criterion, device):
+def get_classify_loss(action_gt, action_pred, criterion, device, use_mask=True):
     loss = 0
 
     # belwo is for test
     action_ground_truth = action_gt.action_type
     ground_truth_raw_action_id = torch.nonzero(action_ground_truth, as_tuple=True)[-1]
-    mask_list = []
-    print('ground_truth_raw_action_id', ground_truth_raw_action_id) 
+    mask_list = [] 
+    print('ground_truth_raw_action_id', ground_truth_raw_action_id) if debug else None
     for raw_action_id in ground_truth_raw_action_id:
         mask_list.append(get_mask_by_raw_action_id(raw_action_id.item()))
-    print('mask_list', mask_list) if 0 else None
+    print('mask_list', mask_list) if debug else None
     mask_tensor = torch.tensor(mask_list)
-    print('mask_tensor:', mask_tensor) if 0 else None
+    print('mask_tensor:', mask_tensor) if debug else None
     mask_tensor = mask_tensor.to(device)
-    print('mask_tensor:', mask_tensor) if 0 else None
+    print('mask_tensor:', mask_tensor) if debug else None
 
     action_type_loss = criterion(action_gt.action_type, action_pred.action_type)
     loss += action_type_loss
@@ -168,11 +168,12 @@ def get_classify_loss(action_gt, action_pred, criterion, device):
     queue_loss = criterion(action_gt.queue, action_pred.queue)
     queue_loss_mask = criterion(action_gt.queue, action_pred.queue, mask=mask_tensor[:, 2].reshape(-1))
 
-    print('queue_loss', queue_loss)
-    print('queue_loss_mask', queue_loss_mask)
+    print('queue_loss', queue_loss) if debug else None
+    print('queue_loss_mask', queue_loss_mask) if debug else None
 
-    queue_loss = queue_loss_mask
-    loss += queue_loss_mask
+    if use_mask:
+        queue_loss = queue_loss_mask
+    loss += queue_loss
 
     def findNaN(x):
         return torch.isnan(x).any()
@@ -193,12 +194,13 @@ def get_classify_loss(action_gt, action_pred, criterion, device):
 
             units_loss_split_mask = criterion(action_gt.units.reshape(-1, units_size), action_pred.units.reshape(-1, units_size), mask=units_mask)
 
-            print('units_loss', units_loss)
-            print('units_loss_split', units_loss_split)
-            print('units_loss_split_mask', units_loss_split_mask)
+            print('units_loss', units_loss) if debug else None
+            print('units_loss_split', units_loss_split) if debug else None
+            print('units_loss_split_mask', units_loss_split_mask) if debug else None
 
-            units_loss = units_loss_split_mask
-            loss += units_loss_split_mask
+            if use_mask:
+                units_loss = units_loss_split_mask
+            loss += units_loss
 
     target_unit_loss = torch.tensor([0])    
     if action_pred.target_unit is not None and action_gt.target_unit is not None:
@@ -210,11 +212,12 @@ def get_classify_loss(action_gt, action_pred, criterion, device):
             # target unit only has 1 unit, so we don't need to split it
             target_unit_loss_mask = criterion(action_gt.target_unit, action_pred.target_unit, mask=mask_tensor[:, 4].reshape(-1))
 
-            print('target_unit_loss', target_unit_loss)
-            print('target_unit_loss_mask', target_unit_loss_mask)
+            print('target_unit_loss', target_unit_loss) if debug else None
+            print('target_unit_loss_mask', target_unit_loss_mask) if debug else None
 
-            target_unit_loss = target_unit_loss_mask
-            loss += target_unit_loss_mask
+            if use_mask:
+                target_unit_loss = target_unit_loss_mask
+            loss += target_unit_loss
 
     target_location_loss = torch.tensor([0])
     if action_pred.target_location is not None and action_gt.target_location is not None:
@@ -226,11 +229,12 @@ def get_classify_loss(action_gt, action_pred, criterion, device):
             target_location_loss_mask = criterion(action_gt.target_location.reshape(batch_size, -1), action_pred.target_location.reshape(batch_size, -1), 
                                                   mask=mask_tensor[:, 5].reshape(-1))            
 
-            print('target_location_loss', target_location_loss)
-            print('target_location_loss_mask', target_location_loss_mask)
+            print('target_location_loss', target_location_loss) if debug else None
+            print('target_location_loss_mask', target_location_loss_mask) if debug else None
 
-            target_location_loss = target_location_loss_mask
-            loss += target_location_loss_mask
+            if use_mask:
+                target_location_loss = target_location_loss_mask
+            loss += target_location_loss
 
     # test, only return action_type_loss
     # return loss

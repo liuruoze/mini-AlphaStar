@@ -95,11 +95,11 @@ def train_for_val(replays, replay_data, agent):
         agent.model = load_latest_model(model_type=MODEL, path=MODEL_PATH)
 
     print('torch.cuda.device_count():', torch.cuda.device_count())
-    if torch.cuda.device_count() > 1:
-        used_gpu_nums = 2  # torch.cuda.device_count()
-        print("Let's use", used_gpu_nums, "GPUs!")
-        # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
-        agent.model = nn.DataParallel(agent.model, device_ids=[0, 1])
+    # if torch.cuda.device_count() > 1:
+    #     used_gpu_nums = 2  # torch.cuda.device_count()
+    #     print("Let's use", used_gpu_nums, "GPUs!")
+    #     # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+    #     agent.model = nn.DataParallel(agent.model, device_ids=[0, 1])
 
     agent.model.to(DEVICE)
     # agent.model.cuda()
@@ -114,7 +114,10 @@ def train_for_val(replays, replay_data, agent):
     train_set = AllReplayDataset(train_replays)
     val_set = AllReplayDataset(val_replays)
 
+    print('len(train_set)', len(train_set))
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True)
+    print('len(train_loader)', len(train_loader))
+
     val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False)
 
     optimizer = Adam(agent.model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
