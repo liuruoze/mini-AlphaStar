@@ -90,6 +90,79 @@ class OneReplayDataset(Dataset):
         return len(self.keys) - self.seq_len
 
 
+class FullDataset(Dataset):
+
+    def __init__(self, replay_data_path, max_file_size=None, shuffle=False, seq_length=AHP.sequence_length):
+        super().__init__()
+
+        self.seq_len = seq_length
+
+        replay_files = os.listdir(replay_data_path)
+        print('length of replay_files:', len(replay_files))
+
+        replay_files.sort()
+        if shuffle:
+            random.shuffle(replay_files)
+
+        # self.feature_list = []
+        # self.label_list = []
+        self.obs_list = []
+
+        for i, replay_file in enumerate(tqdm(replay_files)):
+            try:
+                if max_file_size is not None:
+                    if i >= max_file_size:
+                        break
+
+                replay_path = replay_data_path + replay_file
+                print('replay_path:', replay_path) if 1 else None
+
+                with open(replay_path, 'rb') as handle:
+                    traj_dict = pickle.load(handle)                  
+                    #key_list = list(traj_dict.keys())
+
+                    #print('len(key_list):', len(key_list)) if 1 else None
+                    for key, value in traj_dict.items():
+                        print('key', key)
+                        # feature, label = obs2feature(value)
+                        # self.feature_list.append(feature)
+                        # self.label_list.append(label)
+                        self.obs_list.append(value)
+
+            except Exception as e:
+                traceback.print_exc()
+
+    def __getitem__(self, index):
+
+        obs = self.obs_list[index:index + self.seq_len]
+        feature_list = []
+        label_list = []
+        for value in obs:
+            feature, label = obs2feature(value)
+            feature_list.append(feature)
+            label_list.append(label)
+
+        # feature_list = self.feature_list[index:index + self.seq_len]
+        # label_list = self.label_list[index:index + self.seq_len]
+
+        features = torch.cat(feature_list, dim=0)
+        print("features.shape:", features.shape) if 1 else None
+
+        labels = torch.cat(label_list, dim=0)
+        print("labels.shape:", labels.shape) if 1 else None
+
+        # TODO: consider is_final
+        is_final = torch.zeros([features.shape[0], 1])
+
+        one_traj = torch.cat([features, labels, is_final], dim=1)
+        print("one_traj.shape:", one_traj.shape) if 1 else None
+
+        return one_traj
+
+    def __len__(self):
+        return len(self.obs_list) - self.seq_len
+
+
 class AllReplayDataset(Dataset):
 
     def __init__(self, traj_loader_list=None):
