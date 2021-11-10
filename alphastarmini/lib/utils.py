@@ -200,13 +200,18 @@ def show_numpy_image(numpy_image):
 
 def np_one_hot(targets, nb_classes):
     """This is for numpy array
-
+    https://stackoverflow.com/questions/38592324/one-hot-encoding-using-numpy
     """
+
+    print('nb_classes', nb_classes) if debug else None
+    print('targets', targets) if debug else None
+
     res = np.eye(nb_classes)[np.array(targets).reshape(-1)]
+
     return res.reshape(list(targets.shape) + [nb_classes])
 
 
-def one_hot_embedding(labels, num_classes):
+def tensor_one_hot(labels, num_classes):
     """Embedding labels to one-hot form.
 
     Args:
@@ -230,18 +235,18 @@ def one_hot_embedding(labels, num_classes):
 
 def to_one_hot(y, n_dims=None):
     """ Take integer y (tensor or variable) with n dims and convert it to 1-hot representation with n+1 dims. """
-    print('y', y)
+    print('y', y) if debug else None
     cuda_check = y.is_cuda
-    print('cuda_check', cuda_check)
+    print('cuda_check', cuda_check) if debug else None
 
     if cuda_check:
         get_cuda_device = y.get_device()
-        print('get_cuda_device', get_cuda_device)
+        print('get_cuda_device', get_cuda_device) if debug else None
 
     y_tensor = y.data if isinstance(y, Variable) else y
-    print('y_tensor', y_tensor)
+    print('y_tensor', y_tensor) if debug else None
     y_tensor = y_tensor.type(torch.LongTensor).view(-1, 1)
-    print('y_tensor', y_tensor)
+    print('y_tensor', y_tensor) if debug else None
 
     n_dims = n_dims if n_dims is not None else int(torch.max(y_tensor)) + 1
     y_one_hot = torch.zeros(y_tensor.size()[0], n_dims).scatter_(1, y_tensor, 1)
@@ -450,6 +455,17 @@ def action_involve_targeting_location_mask(action_types):
         mask[i] = action_involve_targeting_location(action_type_index)
 
     return mask
+
+
+def dec2bin(x, bits):
+    # mask = 2 ** torch.arange(bits).to(x.device, x.dtype)
+    mask = 2 ** torch.arange(bits - 1, -1, -1).to(x.device, x.dtype)
+    return x.unsqueeze(-1).bitwise_and(mask).ne(0).float()
+
+
+def bin2dec(b, bits):
+    mask = 2 ** torch.arange(bits - 1, -1, -1).to(b.device, b.dtype)
+    return torch.sum(mask * b, -1)
 
 
 def test():

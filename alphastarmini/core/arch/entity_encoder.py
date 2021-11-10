@@ -3,6 +3,9 @@
 
 " Entity Encoder."
 
+import time
+import datetime
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -20,18 +23,55 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 
-def dec2bin(x, bits):
-    # mask = 2 ** torch.arange(bits).to(x.device, x.dtype)
-    mask = 2 ** torch.arange(bits - 1, -1, -1).to(x.device, x.dtype)
-    return x.unsqueeze(-1).bitwise_and(mask).ne(0).float()
-
-
-def bin2dec(b, bits):
-    mask = 2 ** torch.arange(bits - 1, -1, -1).to(b.device, b.dtype)
-    return torch.sum(mask * b, -1)
-
-
 class EntityEncoder(nn.Module):
+    # below is value form max value of one-hot encoding in alphastar
+    max_entities = 4  # AHP.max_entities
+    max_unit_type = SCHP.max_unit_type  # default is 256
+    max_alliance = 5
+
+    max_health = 1500
+    max_shield = 1000
+    max_energy = 200
+
+    max_cargo_space_used = 9
+    max_cargo_space_maximum = 9
+
+    max_display_type = 5  # AlphaStar: 4. RuntimeError: index 4 is out of bounds for dimension 1 with size 4
+    max_cloakState = 5
+
+    max_is_powered = 2
+    max_is_hallucination = 2
+    max_is_active = 2
+    max_is_on_screen = 2
+    max_is_in_cargo = 2
+
+    max_current_minerals = 19
+    max_current_vespene = 26
+
+    max_mined_minerals = 1800
+    max_mined_vespene = 2500
+
+    max_assigned_harvesters = 25  # AlphaStar: 24. RuntimeError: index 24 is out of bounds for dimension 1 with size 24
+    max_ideal_harvesters = 17
+
+    max_weapon_cooldown = 32
+    max_order_queue_length = 9
+
+    max_order_progress = 10
+
+    max_order_ids = SCHP.max_order_ids
+    max_buffer_ids = SCHP.max_buffer_ids
+    max_add_on_type = SCHP.max_add_on_type
+
+    max_weapon_upgrades = 4
+    max_armor_upgrades = 4
+    max_shield_upgrades = 4
+
+    max_was_selected = 2
+    max_was_targeted = 2
+
+    bias_value = -1e9
+
     '''
     Inputs: entity_list
     Outputs:
@@ -43,52 +83,6 @@ class EntityEncoder(nn.Module):
                  original_1024=AHP.original_1024,
                  original_128=AHP.original_128):
         super().__init__()
-
-        # below is value form max value of one-hot encoding in alphastar
-        self.max_entities = AHP.max_entities
-        self.max_unit_type = SCHP.max_unit_type  # default is 256
-        self.max_alliance = 5
-
-        self.max_health = 1500
-        self.max_shield = 1000
-        self.max_energy = 200
-
-        self.max_cargo_space_used = 9
-        self.max_cargo_space_maximum = 9
-
-        self.max_display_type = 5  # AlphaStar: 4. RuntimeError: index 4 is out of bounds for dimension 1 with size 4
-        self.max_cloakState = 5
-
-        self.max_is_powered = 2
-        self.max_is_hallucination = 2
-        self.max_is_active = 2
-        self.max_is_on_screen = 2
-        self.max_is_in_cargo = 2
-
-        self.max_current_minerals = 19
-        self.max_current_vespene = 26
-
-        self.max_mined_minerals = 1800
-        self.max_mined_vespene = 2500
-
-        self.max_assigned_harvesters = 25  # AlphaStar: 24. RuntimeError: index 24 is out of bounds for dimension 1 with size 24
-        self.max_ideal_harvesters = 17
-
-        self.max_weapon_cooldown = 32
-        self.max_order_queue_length = 9
-
-        self.max_order_progress = 10
-
-        self.max_order_ids = SCHP.max_order_ids
-        self.max_buffer_ids = SCHP.max_buffer_ids
-        self.max_add_on_type = SCHP.max_add_on_type
-
-        self.max_weapon_upgrades = 4
-        self.max_armor_upgrades = 4
-        self.max_shield_upgrades = 4
-
-        self.max_was_selected = 2
-        self.max_was_targeted = 2
 
         self.dropout = nn.Dropout(dropout)
         self.embedd = nn.Linear(AHP.embedding_size, original_256)
@@ -102,9 +96,14 @@ class EntityEncoder(nn.Module):
         # how many real entities we have
         self.real_entities_size = 0
 
+    @classmethod
+    def preprocess(cls, entity_list):
+        return cls.preprocess_in_numpy(entity_list)
+
     # The fields of each entity in `entity_list` are first preprocessed and concatenated so that \
     # there is a single 1D tensor for each entity. Fields are preprocessed as follows:
-    def preprocess(self, entity_list):
+    @classmethod
+    def preprocess_in_tensor(cls, entity_list):
         #all_entities_tensor = torch.zeros(self.max_entities, embedding_size)
         entity_tensor_list = []
         index = 0
@@ -116,18 +115,18 @@ class EntityEncoder(nn.Module):
             # B: s2clientprotocol description
             # C: my notes
 
-            # A: unit_type: One-hot with maximum self.max_unit_type (including unknown unit-type)
+            # A: unit_type: One-hot with maximum cls.max_unit_type (including unknown unit-type)
             # B: optional uint32 unit_type = 4;
-            # C: with maximum self.max_unit_type
+            # C: with maximum cls.max_unit_type
             unit_type = entity.unit_type
             print('unit_type:', unit_type) if debug else None
-            print('self.max_unit_type:', self.max_unit_type) if debug else None
+            print('cls.max_unit_type:', cls.max_unit_type) if debug else None
 
             unit_type_index = L.unit_tpye_to_unit_type_index(unit_type)
             print('unit_type_index:', unit_type_index) if debug else None
-            assert unit_type_index >= 0 and unit_type_index <= self.max_unit_type
+            assert unit_type_index >= 0 and unit_type_index <= cls.max_unit_type
 
-            unit_type_encoding = L.to_one_hot(torch.tensor([unit_type_index]), self.max_unit_type).reshape(1, -1)
+            unit_type_encoding = L.tensor_one_hot(torch.tensor([unit_type_index]), cls.max_unit_type).reshape(1, -1)
             print('unit_type_encoding:', unit_type_encoding) if debug else None
             field_encoding_list.append(unit_type_encoding)
 
@@ -141,14 +140,14 @@ class EntityEncoder(nn.Module):
             # A: alliance: One-hot with maximum 5 (including unknown alliance)
             # B: optional Alliance alliance = 2; not max is 4, not 5
             # C: use A
-            alliance_encoding = L.one_hot_embedding(torch.tensor([entity.alliance]), self.max_alliance).reshape(1, -1)
+            alliance_encoding = L.tensor_one_hot(torch.tensor([entity.alliance]), cls.max_alliance).reshape(1, -1)
             print('alliance_encoding:', alliance_encoding) if debug else None
             field_encoding_list.append(alliance_encoding)
 
             # A: display_type: One-hot with maximum 5
             # B: note: in s2clientprotocol raw.proto, display type only has 4 values, type of enum DisplayType,
             # C: we keep in consistent with s2clientprotocol
-            display_type_encoding = L.to_one_hot(torch.tensor([entity.display_type]), self.max_display_type).reshape(1, -1)
+            display_type_encoding = L.tensor_one_hot(torch.tensor([entity.display_type]), cls.max_display_type).reshape(1, -1)
             print('display_type_encoding:', display_type_encoding) if debug else None
             field_encoding_list.append(display_type_encoding)
 
@@ -173,9 +172,9 @@ class EntityEncoder(nn.Module):
             # B: optional float health = 14;
             # C: None
             print('entity.health:', entity.health) if debug else None
-            current_health = int(min(entity.health, self.max_health) ** 0.5)
+            current_health = int(min(entity.health, cls.max_health) ** 0.5)
             print('current_health:', current_health) if debug else None
-            current_health_encoding = L.to_one_hot(torch.tensor([current_health]), int(self.max_health ** 0.5) + 1).reshape(1, -1)
+            current_health_encoding = L.tensor_one_hot(torch.tensor([current_health]), int(cls.max_health ** 0.5) + 1).reshape(1, -1)
             print('current_health_encoding.shape:', current_health_encoding.shape) if debug else None
             field_encoding_list.append(current_health_encoding)
 
@@ -183,9 +182,9 @@ class EntityEncoder(nn.Module):
             # B: optional float shield = 16;
             # C: None
             print('entity.shield:', entity.shield) if debug else None
-            current_shield = int(min(entity.shield, self.max_shield) ** 0.5)
+            current_shield = int(min(entity.shield, cls.max_shield) ** 0.5)
             print('current_shield:', current_shield) if debug else None
-            current_shield_encoding = L.to_one_hot(torch.tensor([current_shield]), int(self.max_shield ** 0.5) + 1).reshape(1, -1)
+            current_shield_encoding = L.tensor_one_hot(torch.tensor([current_shield]), int(cls.max_shield ** 0.5) + 1).reshape(1, -1)
             print('current_shield_encoding.shape:', current_shield_encoding.shape) if debug else None
             field_encoding_list.append(current_shield_encoding)
 
@@ -193,9 +192,9 @@ class EntityEncoder(nn.Module):
             # B: optional float energy = 17;
             # C: None
             print('entity.energy:', entity.energy) if debug else None
-            current_energy = int(min(entity.energy, self.max_energy) ** 0.5)
+            current_energy = int(min(entity.energy, cls.max_energy) ** 0.5)
             print('current_energy:', current_energy) if debug else None
-            current_energy_encoding = L.to_one_hot(torch.tensor([current_energy]), int(self.max_energy ** 0.5) + 1).reshape(1, -1)
+            current_energy_encoding = L.tensor_one_hot(torch.tensor([current_energy]), int(cls.max_energy ** 0.5) + 1).reshape(1, -1)
             print('current_energy_encoding.shape:', current_energy_encoding.shape) if debug else None
             field_encoding_list.append(current_energy_encoding)
 
@@ -204,7 +203,7 @@ class EntityEncoder(nn.Module):
             # C: None
             cargo_space_used = entity.cargo_space_taken
             assert cargo_space_used >= 0 and cargo_space_used <= 8
-            cargo_space_used_encoding = L.to_one_hot(torch.tensor([cargo_space_used]), self.max_cargo_space_used).reshape(1, -1)
+            cargo_space_used_encoding = L.tensor_one_hot(torch.tensor([cargo_space_used]), cls.max_cargo_space_used).reshape(1, -1)
             print('cargo_space_used_encoding:', cargo_space_used_encoding) if debug else None
             field_encoding_list.append(cargo_space_used_encoding)
 
@@ -213,7 +212,7 @@ class EntityEncoder(nn.Module):
             # C: None
             cargo_space_maximum = entity.cargo_space_max
             assert cargo_space_maximum >= 0 and cargo_space_maximum <= 8
-            cargo_space_maximum_encoding = L.to_one_hot(torch.tensor([cargo_space_maximum]), self.max_cargo_space_maximum).reshape(1, -1)
+            cargo_space_maximum_encoding = L.tensor_one_hot(torch.tensor([cargo_space_maximum]), cls.max_cargo_space_maximum).reshape(1, -1)
             print('cargo_space_maximum_encoding:', cargo_space_maximum_encoding) if debug else None
             field_encoding_list.append(cargo_space_maximum_encoding)
 
@@ -252,7 +251,7 @@ class EntityEncoder(nn.Module):
             # B: note: in s2clientprotocol raw.proto, this is called clock, type of enum CloakState,
             # C: we keep in consistent with s2clientprotocol
             #clock_value = entity.cloak.value
-            cloakState_encoding = L.to_one_hot(torch.tensor([entity.is_cloaked]), self.max_cloakState).reshape(1, -1)
+            cloakState_encoding = L.tensor_one_hot(torch.tensor([entity.is_cloaked]), cls.max_cloakState).reshape(1, -1)
             print('cloakState_encoding:', cloakState_encoding) if debug else None
             field_encoding_list.append(cloakState_encoding)
 
@@ -260,7 +259,7 @@ class EntityEncoder(nn.Module):
             # B: note: in s2clientprotocol raw.proto, this is type of bool
             # C: we convert it from bool to int
             is_powered_value = int(entity.is_powered)
-            is_powered_encoding = L.to_one_hot(torch.tensor([is_powered_value]), self.max_is_powered).reshape(1, -1)
+            is_powered_encoding = L.tensor_one_hot(torch.tensor([is_powered_value]), cls.max_is_powered).reshape(1, -1)
             print('is_powered_encoding:', is_powered_encoding) if debug else None
             field_encoding_list.append(is_powered_encoding)
 
@@ -268,7 +267,7 @@ class EntityEncoder(nn.Module):
             # B: note: in s2clientprotocol raw.proto, this is type of bool
             # C: we convert it from bool to int
             is_hallucination_value = int(entity.is_hallucination)
-            is_hallucination_encoding = L.to_one_hot(torch.tensor([is_hallucination_value]), self.max_is_hallucination).reshape(1, -1)
+            is_hallucination_encoding = L.tensor_one_hot(torch.tensor([is_hallucination_value]), cls.max_is_hallucination).reshape(1, -1)
             print('is_hallucination_encoding:', is_hallucination_encoding) if debug else None
             field_encoding_list.append(is_hallucination_encoding)
 
@@ -276,7 +275,7 @@ class EntityEncoder(nn.Module):
             # B: note: in s2clientprotocol raw.proto, this is type of bool
             # C: we convert it from bool to int
             is_active_value = int(entity.is_active)
-            is_active_encoding = L.to_one_hot(torch.tensor([is_active_value]), self.max_is_active).reshape(1, -1)
+            is_active_encoding = L.tensor_one_hot(torch.tensor([is_active_value]), cls.max_is_active).reshape(1, -1)
             print('is_active_encoding:', is_active_encoding) if debug else None
             field_encoding_list.append(is_active_encoding)
 
@@ -284,7 +283,7 @@ class EntityEncoder(nn.Module):
             # B: note: in s2clientprotocol raw.proto, this is type of bool
             # C: we convert it from bool to int
             is_on_screen_value = int(entity.is_on_screen)
-            is_on_screen_encoding = L.to_one_hot(torch.tensor([is_on_screen_value]), self.max_is_on_screen).reshape(1, -1)
+            is_on_screen_encoding = L.tensor_one_hot(torch.tensor([is_on_screen_value]), cls.max_is_on_screen).reshape(1, -1)
             print('is_on_screen_encoding:', is_on_screen_encoding) if debug else None
             field_encoding_list.append(is_on_screen_encoding)
 
@@ -292,7 +291,7 @@ class EntityEncoder(nn.Module):
             # B: note: in s2clientprotocol raw.proto, there is no is_in_cargo
             # C: wait to be resolved by other ways
             is_in_cargo_value = int(entity.is_in_cargo)
-            is_in_cargo_encoding = L.to_one_hot(torch.tensor([is_in_cargo_value]), self.max_is_in_cargo).reshape(1, -1)
+            is_in_cargo_encoding = L.tensor_one_hot(torch.tensor([is_in_cargo_value]), cls.max_is_in_cargo).reshape(1, -1)
             print('is_in_cargo_encoding:', is_in_cargo_encoding) if debug else None
             field_encoding_list.append(is_in_cargo_encoding)
 
@@ -302,7 +301,7 @@ class EntityEncoder(nn.Module):
             print('entity.current_minerals:', entity.current_minerals) if debug else None
             current_minerals = int(entity.current_minerals / 100)
             print('current_minerals:', current_minerals) if debug else None
-            current_minerals_encoding = L.to_one_hot(torch.tensor([current_minerals]), self.max_current_minerals).reshape(1, -1)
+            current_minerals_encoding = L.tensor_one_hot(torch.tensor([current_minerals]), cls.max_current_minerals).reshape(1, -1)
             print('current_minerals_encoding.shape:', current_minerals_encoding.shape) if debug else None
             field_encoding_list.append(current_minerals_encoding)
 
@@ -312,7 +311,7 @@ class EntityEncoder(nn.Module):
             print('entity.current_vespene:', entity.current_vespene) if debug else None
             current_vespene = int(entity.current_vespene / 100)
             print('current_vespene:', current_vespene) if debug else None
-            current_vespene_encoding = L.to_one_hot(torch.tensor([current_vespene]), self.max_current_vespene).reshape(1, -1)
+            current_vespene_encoding = L.tensor_one_hot(torch.tensor([current_vespene]), cls.max_current_vespene).reshape(1, -1)
             print('current_vespene_encoding.shape:', current_vespene_encoding.shape) if debug else None
             field_encoding_list.append(current_vespene_encoding)
 
@@ -320,9 +319,9 @@ class EntityEncoder(nn.Module):
             # B: not found
             # C: wait to be resolved by other ways
             print('entity.mined_minerals:', entity.mined_minerals) if debug else None
-            mined_minerals = int(min(entity.mined_minerals, self.max_mined_minerals) ** 0.5)
+            mined_minerals = int(min(entity.mined_minerals, cls.max_mined_minerals) ** 0.5)
             print('mined_minerals:', mined_minerals) if debug else None
-            mined_minerals_encoding = L.to_one_hot(torch.tensor([mined_minerals]), int(self.max_mined_minerals ** 0.5) + 1).reshape(1, -1)
+            mined_minerals_encoding = L.tensor_one_hot(torch.tensor([mined_minerals]), int(cls.max_mined_minerals ** 0.5) + 1).reshape(1, -1)
             print('mined_minerals_encoding.shape:', mined_minerals_encoding.shape) if debug else None
             field_encoding_list.append(mined_minerals_encoding)
 
@@ -330,23 +329,23 @@ class EntityEncoder(nn.Module):
             # B: not found
             # C: wait to be resolved by other ways
             print('entity.mined_vespene:', entity.mined_vespene) if debug else None
-            mined_vespene = int(min(entity.mined_vespene, self.max_mined_vespene) ** 0.5)
+            mined_vespene = int(min(entity.mined_vespene, cls.max_mined_vespene) ** 0.5)
             print('mined_vespene:', mined_vespene) if debug else None
-            mined_vespene_encoding = L.to_one_hot(torch.tensor([mined_vespene]), int(self.max_mined_vespene ** 0.5) + 1).reshape(1, -1)
+            mined_vespene_encoding = L.tensor_one_hot(torch.tensor([mined_vespene]), int(cls.max_mined_vespene ** 0.5) + 1).reshape(1, -1)
             print('mined_vespene_encoding.shape:', mined_vespene_encoding.shape) if debug else None
             field_encoding_list.append(mined_vespene_encoding)
 
             # A: assigned_harvesters: One-hot with maximum 24
             # B: optional int32 assigned_harvesters = 28;
             # C: None
-            assigned_harvesters_encoding = L.to_one_hot(torch.tensor([entity.assigned_harvesters]), self.max_assigned_harvesters).reshape(1, -1)
+            assigned_harvesters_encoding = L.tensor_one_hot(torch.tensor([entity.assigned_harvesters]), cls.max_assigned_harvesters).reshape(1, -1)
             print('assigned_harvesters_encoding:', assigned_harvesters_encoding) if debug else None
             field_encoding_list.append(assigned_harvesters_encoding)
 
             # A: ideal_harvesters: One-hot with maximum 17
             # B: optional int32 ideal_harvesters = 29;
             # C: None
-            ideal_harvesters_encoding = L.to_one_hot(torch.tensor([entity.ideal_harvesters]), self.max_ideal_harvesters).reshape(1, -1)
+            ideal_harvesters_encoding = L.tensor_one_hot(torch.tensor([entity.ideal_harvesters]), cls.max_ideal_harvesters).reshape(1, -1)
             print('ideal_harvesters_encoding:', ideal_harvesters_encoding) if debug else None
             field_encoding_list.append(ideal_harvesters_encoding)
 
@@ -354,7 +353,7 @@ class EntityEncoder(nn.Module):
             # B: optional float weapon_cooldown = 30;
             # C: None
             weapon_cooldown = int(entity.weapon_cooldown)
-            weapon_cooldown_encoding = L.to_one_hot(torch.tensor([weapon_cooldown]), self.max_weapon_cooldown).reshape(1, -1)
+            weapon_cooldown_encoding = L.tensor_one_hot(torch.tensor([weapon_cooldown]), cls.max_weapon_cooldown).reshape(1, -1)
             print('weapon_cooldown_encoding:', weapon_cooldown_encoding) if debug else None
             field_encoding_list.append(weapon_cooldown_encoding)
 
@@ -362,7 +361,7 @@ class EntityEncoder(nn.Module):
             # B: repeated UnitOrder orders = 22; Not populated for enemies;
             # C: equal to FeatureUnit.order_length
             order_queue_length = entity.order_length
-            order_queue_length_encoding = L.to_one_hot(torch.tensor([order_queue_length]), self.max_order_queue_length).reshape(1, -1)
+            order_queue_length_encoding = L.tensor_one_hot(torch.tensor([order_queue_length]), cls.max_order_queue_length).reshape(1, -1)
             print('order_queue_length_encoding:', order_queue_length_encoding) if debug else None
             field_encoding_list.append(order_queue_length_encoding)
 
@@ -380,7 +379,7 @@ class EntityEncoder(nn.Module):
             '''
             # C: actually this is across all ability_ids in orders, lack: a vector for all ability_ids
             order_1 = entity.order_id_1
-            order_1_encoding = L.to_one_hot(torch.tensor([order_1]), self.max_order_ids).reshape(1, -1)
+            order_1_encoding = L.tensor_one_hot(torch.tensor([order_1]), cls.max_order_ids).reshape(1, -1)
             print('order_1_encoding:', order_1_encoding) if debug else None
             field_encoding_list.append(order_1_encoding)
 
@@ -389,7 +388,7 @@ class EntityEncoder(nn.Module):
             # C: in mAS, we ingore it
             if AHP != MAHP:
                 order_2 = entity.order_id_2
-                order_2_encoding = L.to_one_hot(torch.tensor([order_2]), self.max_order_ids).reshape(1, -1)
+                order_2_encoding = L.tensor_one_hot(torch.tensor([order_2]), cls.max_order_ids).reshape(1, -1)
                 print('order_2_encoding:', order_2_encoding) if debug else None
                 field_encoding_list.append(order_2_encoding)
 
@@ -398,7 +397,7 @@ class EntityEncoder(nn.Module):
             # C: in mAS, we ingore it
             if AHP != MAHP:
                 order_3 = entity.order_id_3
-                order_3_encoding = L.to_one_hot(torch.tensor([order_3]), self.max_order_ids).reshape(1, -1)
+                order_3_encoding = L.tensor_one_hot(torch.tensor([order_3]), cls.max_order_ids).reshape(1, -1)
                 print('order_3_encoding:', order_3_encoding) if debug else None
                 field_encoding_list.append(order_3_encoding)
 
@@ -407,7 +406,7 @@ class EntityEncoder(nn.Module):
             # C: in mAS, we ingore it
             if AHP != MAHP:
                 order_4 = entity.order_id_4
-                order_4_encoding = L.to_one_hot(torch.tensor([order_4]), self.max_order_ids).reshape(1, -1)
+                order_4_encoding = L.tensor_one_hot(torch.tensor([order_4]), cls.max_order_ids).reshape(1, -1)
                 print('order_4_encoding:', order_4_encoding) if debug else None
                 field_encoding_list.append(order_4_encoding)
 
@@ -415,13 +414,13 @@ class EntityEncoder(nn.Module):
             # B: None
             # C: in mAS, we ingore buff_id_2
             buff_id_1 = entity.buff_id_1
-            buff_id_1_encoding = L.to_one_hot(torch.tensor([buff_id_1]), self.max_buffer_ids).reshape(1, -1)
+            buff_id_1_encoding = L.tensor_one_hot(torch.tensor([buff_id_1]), cls.max_buffer_ids).reshape(1, -1)
             print('buff_id_1_encoding:', buff_id_1_encoding) if debug else None
             field_encoding_list.append(buff_id_1_encoding)            
 
             if AHP != MAHP:
                 buff_id_2 = entity.buff_id_2
-                buff_id_2_encoding = L.to_one_hot(torch.tensor([buff_id_2]), self.max_buffer_ids).reshape(1, -1)
+                buff_id_2_encoding = L.tensor_one_hot(torch.tensor([buff_id_2]), cls.max_buffer_ids).reshape(1, -1)
                 print('buff_id_2_encoding:', buff_id_2_encoding) if debug else None
                 field_encoding_list.append(buff_id_2_encoding)
 
@@ -433,7 +432,7 @@ class EntityEncoder(nn.Module):
             # in mAS, we ingore it
             if AHP != MAHP:
                 addon_unit_type = entity.addon_unit_type
-                addon_unit_type_encoding = L.to_one_hot(torch.tensor([addon_unit_type]), self.max_add_on_type).reshape(1, -1)
+                addon_unit_type_encoding = L.tensor_one_hot(torch.tensor([addon_unit_type]), cls.max_add_on_type).reshape(1, -1)
                 print('addon_unit_type_encoding:', addon_unit_type_encoding) if debug else None
                 field_encoding_list.append(addon_unit_type_encoding)
 
@@ -448,12 +447,12 @@ class EntityEncoder(nn.Module):
             '''
 
             order_progress_1_encoding = torch.zeros(1, 1, dtype=torch.float)
-            order_progress_1_encoding_2 = torch.zeros(1, self.max_order_progress, dtype=torch.float)
+            order_progress_1_encoding_2 = torch.zeros(1, cls.max_order_progress, dtype=torch.float)
             order_progress_1 = entity.order_progress_1
             if order_progress_1 is not None:
                 order_progress_1_encoding = torch.tensor([order_progress_1 / 100.], dtype=torch.float).reshape(1, -1)
-                order_progress_1_encoding_2 = L.to_one_hot(torch.tensor([order_progress_1 / 10]),
-                                                           self.max_order_progress).reshape(1, -1)
+                order_progress_1_encoding_2 = L.tensor_one_hot(torch.tensor([int(order_progress_1 / 10)]),
+                                                               cls.max_order_progress).reshape(1, -1)
             print('order_progress_1_encoding:', order_progress_1_encoding) if debug else None
             field_encoding_list.append(order_progress_1_encoding)
             print('order_progress_1_encoding_2:', order_progress_1_encoding_2) if debug else None
@@ -469,12 +468,12 @@ class EntityEncoder(nn.Module):
             '''
 
             order_progress_2_encoding = torch.zeros(1, 1, dtype=torch.float)
-            order_progress_2_encoding_2 = torch.zeros(1, self.max_order_progress, dtype=torch.float)
+            order_progress_2_encoding_2 = torch.zeros(1, cls.max_order_progress, dtype=torch.float)
             order_progress_2 = entity.order_progress_2
             if order_progress_2 is not None:
                 order_progress_2_encoding = torch.tensor([order_progress_2 / 100.], dtype=torch.float).reshape(1, -1)
-                order_progress_2_encoding_2 = L.to_one_hot(torch.tensor([order_progress_2 / 10]),
-                                                           self.max_order_progress).reshape(1, -1)
+                order_progress_2_encoding_2 = L.tensor_one_hot(torch.tensor([int(order_progress_2 / 10)]),
+                                                               cls.max_order_progress).reshape(1, -1)
             print('order_progress_2_encoding:', order_progress_2_encoding) if debug else None
             field_encoding_list.append(order_progress_2_encoding)
             print('order_progress_2_encoding_2:', order_progress_2_encoding_2) if debug else None
@@ -485,7 +484,7 @@ class EntityEncoder(nn.Module):
             # C: None
             weapon_upgrades = entity.attack_upgrade_level
             assert weapon_upgrades >= 0 and weapon_upgrades <= 3
-            weapon_upgrades_encoding = L.to_one_hot(torch.tensor([weapon_upgrades]), self.max_weapon_upgrades).reshape(1, -1)
+            weapon_upgrades_encoding = L.tensor_one_hot(torch.tensor([weapon_upgrades]), cls.max_weapon_upgrades).reshape(1, -1)
             print('weapon_upgrades_encoding:', weapon_upgrades_encoding) if debug else None
             field_encoding_list.append(weapon_upgrades_encoding)
 
@@ -494,7 +493,7 @@ class EntityEncoder(nn.Module):
             # C: None
             armor_upgrades = entity.armor_upgrade_level
             assert armor_upgrades >= 0 and armor_upgrades <= 3
-            armor_upgrades_encoding = L.to_one_hot(torch.tensor([armor_upgrades]), self.max_armor_upgrades).reshape(1, -1)
+            armor_upgrades_encoding = L.tensor_one_hot(torch.tensor([armor_upgrades]), cls.max_armor_upgrades).reshape(1, -1)
             print('armor_upgrades_encoding:', armor_upgrades_encoding) if debug else None
             field_encoding_list.append(armor_upgrades_encoding)
 
@@ -503,7 +502,7 @@ class EntityEncoder(nn.Module):
             # C: None
             shield_upgrades = entity.shield_upgrade_level
             assert shield_upgrades >= 0 and shield_upgrades <= 3
-            shield_upgrades_encoding = L.to_one_hot(torch.tensor([shield_upgrades]), self.max_shield_upgrades).reshape(1, -1)
+            shield_upgrades_encoding = L.tensor_one_hot(torch.tensor([shield_upgrades]), cls.max_shield_upgrades).reshape(1, -1)
             print('shield_upgrades_encoding:', shield_upgrades_encoding) if debug else None
             field_encoding_list.append(shield_upgrades_encoding)
 
@@ -511,7 +510,7 @@ class EntityEncoder(nn.Module):
             # B: optional bool is_selected = 11;
             # C: None
             was_selected = int(entity.is_selected)
-            was_selected_encoding = L.to_one_hot(torch.tensor([was_selected]), self.max_was_selected).reshape(1, -1)
+            was_selected_encoding = L.tensor_one_hot(torch.tensor([was_selected]), cls.max_was_selected).reshape(1, -1)
             print('was_selected_encoding:', was_selected_encoding) if debug else None
             field_encoding_list.append(was_selected_encoding)
 
@@ -519,7 +518,7 @@ class EntityEncoder(nn.Module):
             # B: not found,   optional uint64 engaged_target_tag = 34; (maybe)
             # C: None
             was_targeted = int(entity.is_targeted)
-            was_targeted_encoding = L.to_one_hot(torch.tensor([was_targeted]), self.max_was_targeted).reshape(1, -1)
+            was_targeted_encoding = L.tensor_one_hot(torch.tensor([was_targeted]), cls.max_was_targeted).reshape(1, -1)
             print('was_targeted_encoding:', was_targeted_encoding) if debug else None
             field_encoding_list.append(was_targeted_encoding)
 
@@ -527,7 +526,7 @@ class EntityEncoder(nn.Module):
             print('entity_tensor.shape:', entity_tensor.shape) if debug else None
 
             # There are up to 512 of these preprocessed entities, and any entities after 512 are ignored.
-            if index < self.max_entities:
+            if index < cls.max_entities:
                 entity_tensor_list.append(entity_tensor)
             else:
                 break
@@ -535,25 +534,491 @@ class EntityEncoder(nn.Module):
 
         all_entities_tensor = torch.cat(entity_tensor_list, dim=0)
         # count how many real entities we have
-        self.real_entities_size = all_entities_tensor.shape[0]
-        print('self.real_entities_size:', self.real_entities_size) if debug else None
+        real_entities_size = all_entities_tensor.shape[0]
+        print('real_entities_size:', real_entities_size) if debug else None
 
         # We use a bias of -1e9 for any of the 512 entries that doesn't refer to an entity.
-        if all_entities_tensor.shape[0] < self.max_entities:
-            bias_length = self.max_entities - all_entities_tensor.shape[0]
+        if all_entities_tensor.shape[0] < cls.max_entities:
+            bias_length = cls.max_entities - all_entities_tensor.shape[0]
             bias = torch.zeros([bias_length, AHP.embedding_size])
-            bias[:, :] = -1e9
+            bias[:, :] = cls.bias_value
             print('bias:', bias) if debug else None
             print('bias.shape:', bias.shape) if debug else None
             all_entities_tensor = torch.cat([all_entities_tensor, bias], dim=0)
 
         return all_entities_tensor
 
+    @classmethod
+    def preprocess_in_numpy(cls, entity_list, debug=False):
+        entity_array_list = []
+        index = 0
+
+        for entity in entity_list:
+            field_encoding_list = []
+
+            # comments below have this style:
+            # A: alphastar description
+            # B: s2clientprotocol description
+            # C: my notes
+
+            # A: unit_type: One-hot with maximum cls.max_unit_type (including unknown unit-type)
+            # B: optional uint32 unit_type = 4;
+            # C: with maximum cls.max_unit_type
+            unit_type = entity.unit_type
+            print('unit_type:', unit_type) if debug else None
+            print('cls.max_unit_type:', cls.max_unit_type) if debug else None
+
+            # note: if we use the SC2 built-in unit type ID, due to its max > 2000, is costs many space for one-hot,
+            # on the contray, we only has 259 about unit types, so we change the built-in unit type to our version
+            unit_type_index = L.unit_tpye_to_unit_type_index(unit_type)
+            print('unit_type_index:', unit_type_index) if debug else None
+            assert unit_type_index >= 0 and unit_type_index <= cls.max_unit_type
+
+            unit_type_encoding = L.np_one_hot(np.array([unit_type_index]), cls.max_unit_type)
+            print('unit_type_encoding:', unit_type_encoding) if debug else None
+            print('unit_type_encoding.shape:', unit_type_encoding.shape) if debug else None
+            field_encoding_list.append(unit_type_encoding)
+
+            # A: unit_attributes: One boolean for each of the 13 unit attributes
+            # B: not found
+            # C: lack
+            unit_attributes_encoding = np.array(entity.unit_attributes, dtype=np.float32).reshape(1, -1)
+            print('unit_attributes_encoding:', unit_attributes_encoding) if debug else None
+            print('unit_attributes_encoding.shape:', unit_attributes_encoding.shape) if debug else None
+            field_encoding_list.append(unit_attributes_encoding)
+
+            # A: alliance: One-hot with maximum 5 (including unknown alliance)
+            # B: optional Alliance alliance = 2; not max is 4, not 5
+            # C: use A
+            alliance_encoding = L.np_one_hot(np.array([entity.alliance]), cls.max_alliance)
+            print('alliance_encoding:', alliance_encoding) if debug else None
+            print('alliance_encoding.shape:', alliance_encoding.shape) if debug else None
+            field_encoding_list.append(alliance_encoding)
+
+            # A: display_type: One-hot with maximum 5
+            # B: note: in s2clientprotocol raw.proto, display type only has 4 values, type of enum DisplayType,
+            # C: we keep in consistent with s2clientprotocol
+            display_type_encoding = L.np_one_hot(np.array([entity.display_type]), cls.max_display_type)
+            print('display_type_encoding:', display_type_encoding) if debug else None
+            print('display_type_encoding.shape:', display_type_encoding.shape) if debug else None
+            field_encoding_list.append(display_type_encoding)
+
+            # A: x_position: Binary encoding of entity x-coordinate, in game units
+            # B: optional Point pos = 6;
+            # C: use np.unpackbits
+            x_encoding = np.unpackbits(np.array([entity.x], np.uint8)).reshape(1, -1)
+            print('x_encoding:', x_encoding) if debug else None
+            print('x_encoding.shape:', x_encoding.shape) if debug else None
+            field_encoding_list.append(x_encoding)
+
+            # A: y_position: Binary encoding of entity y-coordinate, in game units
+            # B: optional Point pos = 6;
+            # C: use np.unpackbits
+            # change sequence due to easy processing of entity_x_y_index
+            y_encoding = np.unpackbits(np.array([entity.y], np.uint8)).reshape(1, -1)
+            print('y_encoding:', y_encoding) if debug else None
+            print('y_encoding.shape:', y_encoding.shape) if debug else None
+            field_encoding_list.append(y_encoding)
+
+            # A: current_health: One-hot of sqrt(min(current_health, 1500)) with maximum sqrt(1500), rounding down
+            # B: optional float health = 14;
+            # C: None
+            print('entity.health:', entity.health) if debug else None
+            current_health = int(min(entity.health, cls.max_health) ** 0.5)
+            print('current_health:', current_health) if debug else None
+            current_health_encoding = L.np_one_hot(np.array([current_health]), int(cls.max_health ** 0.5) + 1)
+            print('current_health_encoding:', current_health_encoding) if debug else None
+            print('current_health_encoding.shape:', current_health_encoding.shape) if debug else None
+            field_encoding_list.append(current_health_encoding)
+
+            # A: current_shields: One-hot of sqrt(min(current_shields, 1000)) with maximum sqrt(1000), rounding down
+            # B: optional float shield = 16;
+            # C: None
+            print('entity.shield:', entity.shield) if debug else None
+            current_shield = int(min(entity.shield, cls.max_shield) ** 0.5)
+            print('current_shield:', current_shield) if debug else None
+            current_shield_encoding = L.np_one_hot(np.array([current_shield]), int(cls.max_shield ** 0.5) + 1)
+            print('current_shield_encoding:', current_shield_encoding) if debug else None
+            print('current_shield_encoding.shape:', current_shield_encoding.shape) if debug else None
+            field_encoding_list.append(current_shield_encoding)
+
+            # A: current_energy: One-hot of sqrt(min(current_energy, 200)) with maximum sqrt(200), rounding down
+            # B: optional float energy = 17;
+            # C: None
+            print('entity.energy:', entity.energy) if debug else None
+            current_energy = int(min(entity.energy, cls.max_energy) ** 0.5)
+            print('current_energy:', current_energy) if debug else None
+            current_energy_encoding = L.np_one_hot(np.array([current_energy]), int(cls.max_energy ** 0.5) + 1).reshape(1, -1)
+            print('current_energy_encoding.shape:', current_energy_encoding.shape) if debug else None
+            field_encoding_list.append(current_energy_encoding)
+
+            # A: cargo_space_used: One-hot with maximum 9
+            # B: optional int32 cargo_space_taken = 25;
+            # C: None
+            cargo_space_used = entity.cargo_space_taken
+            assert cargo_space_used >= 0 and cargo_space_used <= 8
+            cargo_space_used_encoding = L.np_one_hot(np.array([cargo_space_used]), cls.max_cargo_space_used).reshape(1, -1)
+            print('cargo_space_used_encoding:', cargo_space_used_encoding) if debug else None
+            field_encoding_list.append(cargo_space_used_encoding)
+
+            # A: cargo_space_maximum: One-hot with maximum 9
+            # B: optional int32 cargo_space_max = 26;
+            # C: None
+            cargo_space_maximum = entity.cargo_space_max
+            assert cargo_space_maximum >= 0 and cargo_space_maximum <= 8
+            cargo_space_maximum_encoding = L.np_one_hot(np.array([cargo_space_maximum]), cls.max_cargo_space_maximum).reshape(1, -1)
+            print('cargo_space_maximum_encoding:', cargo_space_maximum_encoding) if debug else None
+            field_encoding_list.append(cargo_space_maximum_encoding)
+
+            # A: build_progress: Float of build progress, in [0, 1]
+            # B: optional float build_progress = 9;        // Range: [0.0, 1.0]
+            # C: None
+            build_progress_encoding = np.array([entity.build_progress], dtype=np.float32).reshape(1, -1)
+            print('build_progress_encoding:', build_progress_encoding) if debug else None
+            field_encoding_list.append(build_progress_encoding)
+
+            # A: current_health_ratio: Float of health ratio, in [0, 1]
+            # B: optional float health_max = 15;
+            # C: None
+            current_health_ratio = entity.health / entity.health_max if entity.health_max else 0.
+            current_health_ratio_encoding = np.array([current_health_ratio], dtype=np.float32).reshape(1, -1)
+            print('current_health_ratio_encoding:', current_health_ratio_encoding) if debug else None
+            field_encoding_list.append(current_health_ratio_encoding)
+
+            # A: current_shield_ratio: Float of shield ratio, in [0, 1]
+            # B: optional float shield_max = 36;
+            # C: None
+            current_shield_ratio = entity.shield / entity.shield_max if entity.shield_max else 0.
+            current_shield_ratio_encoding = np.array([current_shield_ratio], dtype=np.float32).reshape(1, -1)
+            print('current_shield_ratio_encoding:', current_shield_ratio_encoding) if debug else None
+            field_encoding_list.append(current_shield_ratio_encoding)
+
+            # A: current_energy_ratio: Float of energy ratio, in [0, 1]
+            # B: optional float energy_max = 37;
+            # C: None
+            current_energy_ratio = entity.energy / entity.energy_max if entity.energy_max else 0.
+            current_energy_ratio_encoding = np.array([current_energy_ratio], dtype=np.float32).reshape(1, -1)
+            print('current_energy_ratio_encoding:', current_energy_ratio_encoding) if debug else None
+            field_encoding_list.append(current_energy_ratio_encoding)
+
+            # A: is_cloaked: One-hot with maximum 5
+            # B: note: in s2clientprotocol raw.proto, this is called clock, type of enum CloakState,
+            # C: we keep in consistent with s2clientprotocol
+            #clock_value = entity.cloak.value
+            cloakState_encoding = L.np_one_hot(np.array([entity.is_cloaked]), cls.max_cloakState).reshape(1, -1)
+            print('cloakState_encoding:', cloakState_encoding) if debug else None
+            field_encoding_list.append(cloakState_encoding)
+
+            # A: is_powered: One-hot with maximum 2
+            # B: note: in s2clientprotocol raw.proto, this is type of bool
+            # C: we convert it from bool to int
+            is_powered_value = int(entity.is_powered)
+            is_powered_encoding = L.np_one_hot(np.array([is_powered_value]), cls.max_is_powered).reshape(1, -1)
+            print('is_powered_encoding:', is_powered_encoding) if debug else None
+            field_encoding_list.append(is_powered_encoding)
+
+            # A: is_hallucination: One-hot with maximum 2
+            # B: note: in s2clientprotocol raw.proto, this is type of bool
+            # C: we convert it from bool to int
+            is_hallucination_value = int(entity.is_hallucination)
+            is_hallucination_encoding = L.np_one_hot(np.array([is_hallucination_value]), cls.max_is_hallucination).reshape(1, -1)
+            print('is_hallucination_encoding:', is_hallucination_encoding) if debug else None
+            field_encoding_list.append(is_hallucination_encoding)
+
+            # A: is_active: One-hot with maximum 2
+            # B: note: in s2clientprotocol raw.proto, this is type of bool
+            # C: we convert it from bool to int
+            is_active_value = int(entity.is_active)
+            is_active_encoding = L.np_one_hot(np.array([is_active_value]), cls.max_is_active).reshape(1, -1)
+            print('is_active_encoding:', is_active_encoding) if debug else None
+            field_encoding_list.append(is_active_encoding)
+
+            # A: is_on_screen: One-hot with maximum 2
+            # B: note: in s2clientprotocol raw.proto, this is type of bool
+            # C: we convert it from bool to int
+            is_on_screen_value = int(entity.is_on_screen)
+            is_on_screen_encoding = L.np_one_hot(np.array([is_on_screen_value]), cls.max_is_on_screen).reshape(1, -1)
+            print('is_on_screen_encoding:', is_on_screen_encoding) if debug else None
+            field_encoding_list.append(is_on_screen_encoding)
+
+            # A: is_in_cargo: One-hot with maximum 2
+            # B: note: in s2clientprotocol raw.proto, there is no is_in_cargo
+            # C: wait to be resolved by other ways
+            is_in_cargo_value = int(entity.is_in_cargo)
+            is_in_cargo_encoding = L.np_one_hot(np.array([is_in_cargo_value]), cls.max_is_in_cargo).reshape(1, -1)
+            print('is_in_cargo_encoding:', is_in_cargo_encoding) if debug else None
+            field_encoding_list.append(is_in_cargo_encoding)
+
+            # A: current_minerals: One-hot of (current_minerals / 100) with maximum 19, rounding down
+            # B: optional int32 mineral_contents = 18; (maybe)
+            # C: I am not sure mineral_contents corrseponds to current_minerals
+            print('entity.current_minerals:', entity.current_minerals) if debug else None
+            current_minerals = int(entity.current_minerals / 100)
+            print('current_minerals:', current_minerals) if debug else None
+            current_minerals_encoding = L.np_one_hot(np.array([current_minerals]), cls.max_current_minerals).reshape(1, -1)
+            print('current_minerals_encoding.shape:', current_minerals_encoding.shape) if debug else None
+            field_encoding_list.append(current_minerals_encoding)
+
+            # A: current_vespene: One-hot of (current_vespene / 100) with maximum 26, rounding down
+            # B: optional int32 vespene_contents = 19; (maybe)
+            # C: I am not sure vespene_contents corrseponds to current_vespene
+            print('entity.current_vespene:', entity.current_vespene) if debug else None
+            current_vespene = int(entity.current_vespene / 100)
+            print('current_vespene:', current_vespene) if debug else None
+            current_vespene_encoding = L.np_one_hot(np.array([current_vespene]), cls.max_current_vespene).reshape(1, -1)
+            print('current_vespene_encoding.shape:', current_vespene_encoding.shape) if debug else None
+            field_encoding_list.append(current_vespene_encoding)
+
+            # A: mined_minerals: One-hot of sqrt(min(mined_minerals, 1800)) with maximum sqrt(1800), rounding down
+            # B: not found
+            # C: wait to be resolved by other ways
+            print('entity.mined_minerals:', entity.mined_minerals) if debug else None
+            mined_minerals = int(min(entity.mined_minerals, cls.max_mined_minerals) ** 0.5)
+            print('mined_minerals:', mined_minerals) if debug else None
+            mined_minerals_encoding = L.np_one_hot(np.array([mined_minerals]), int(cls.max_mined_minerals ** 0.5) + 1).reshape(1, -1)
+            print('mined_minerals_encoding.shape:', mined_minerals_encoding.shape) if debug else None
+            field_encoding_list.append(mined_minerals_encoding)
+
+            # A: mined_vespene: One-hot of sqrt(min(mined_vespene, 2500)) with maximum sqrt(2500), rounding down
+            # B: not found
+            # C: wait to be resolved by other ways
+            print('entity.mined_vespene:', entity.mined_vespene) if debug else None
+            mined_vespene = int(min(entity.mined_vespene, cls.max_mined_vespene) ** 0.5)
+            print('mined_vespene:', mined_vespene) if debug else None
+            mined_vespene_encoding = L.np_one_hot(np.array([mined_vespene]), int(cls.max_mined_vespene ** 0.5) + 1).reshape(1, -1)
+            print('mined_vespene_encoding.shape:', mined_vespene_encoding.shape) if debug else None
+            field_encoding_list.append(mined_vespene_encoding)
+
+            # A: assigned_harvesters: One-hot with maximum 24
+            # B: optional int32 assigned_harvesters = 28;
+            # C: None
+            assigned_harvesters_encoding = L.np_one_hot(np.array([entity.assigned_harvesters]), cls.max_assigned_harvesters).reshape(1, -1)
+            print('assigned_harvesters_encoding:', assigned_harvesters_encoding) if debug else None
+            field_encoding_list.append(assigned_harvesters_encoding)
+
+            # A: ideal_harvesters: One-hot with maximum 17
+            # B: optional int32 ideal_harvesters = 29;
+            # C: None
+            ideal_harvesters_encoding = L.np_one_hot(np.array([entity.ideal_harvesters]), cls.max_ideal_harvesters).reshape(1, -1)
+            print('ideal_harvesters_encoding:', ideal_harvesters_encoding) if debug else None
+            field_encoding_list.append(ideal_harvesters_encoding)
+
+            # A: weapon_cooldown: One-hot with maximum 32 (counted in game steps)
+            # B: optional float weapon_cooldown = 30;
+            # C: None
+            weapon_cooldown = int(entity.weapon_cooldown)
+            weapon_cooldown_encoding = L.np_one_hot(np.array([weapon_cooldown]), cls.max_weapon_cooldown).reshape(1, -1)
+            print('weapon_cooldown_encoding:', weapon_cooldown_encoding) if debug else None
+            field_encoding_list.append(weapon_cooldown_encoding)
+
+            # A: order_queue_length: One-hot with maximum 9
+            # B: repeated UnitOrder orders = 22; Not populated for enemies;
+            # C: equal to FeatureUnit.order_length
+            order_queue_length = entity.order_length
+            order_queue_length_encoding = L.np_one_hot(np.array([order_queue_length]), cls.max_order_queue_length).reshape(1, -1)
+            print('order_queue_length_encoding:', order_queue_length_encoding) if debug else None
+            field_encoding_list.append(order_queue_length_encoding)
+
+            # A: order_1: One-hot across all order IDs
+            # B: below is the definition of order
+            '''
+                message UnitOrder {
+                      optional uint32 ability_id = 1;
+                      oneof target {
+                        Point target_world_space_pos = 2;
+                        uint64 target_unit_tag = 3;
+                      }
+                      optional float progress = 4;              // Progress of train abilities. Range: [0.0, 1.0]
+                    }
+            '''
+            # C: actually this is across all ability_ids in orders, lack: a vector for all ability_ids
+            order_1 = entity.order_id_1
+            order_1_encoding = L.np_one_hot(np.array([order_1]), cls.max_order_ids).reshape(1, -1)
+            print('order_1_encoding:', order_1_encoding) if debug else None
+            field_encoding_list.append(order_1_encoding)
+
+            # A: order_2: One-hot across all building training order IDs. Note that this tracks queued building orders, and unit orders will be ignored
+            # B: None
+            # C: in mAS, we ingore it
+            if AHP != MAHP:
+                order_2 = entity.order_id_2
+                order_2_encoding = L.np_one_hot(np.array([order_2]), cls.max_order_ids).reshape(1, -1)
+                print('order_2_encoding:', order_2_encoding) if debug else None
+                field_encoding_list.append(order_2_encoding)
+
+            # A: order_3: One-hot across all building training order IDs
+            # B: None
+            # C: in mAS, we ingore it
+            if AHP != MAHP:
+                order_3 = entity.order_id_3
+                order_3_encoding = L.np_one_hot(np.array([order_3]), cls.max_order_ids).reshape(1, -1)
+                print('order_3_encoding:', order_3_encoding) if debug else None
+                field_encoding_list.append(order_3_encoding)
+
+            # A: order_4: One-hot across all building training order IDs
+            # B: None
+            # C: in mAS, we ingore it
+            if AHP != MAHP:
+                order_4 = entity.order_id_4
+                order_4_encoding = L.np_one_hot(np.array([order_4]), cls.max_order_ids).reshape(1, -1)
+                print('order_4_encoding:', order_4_encoding) if debug else None
+                field_encoding_list.append(order_4_encoding)
+
+            # A: buffs: Boolean for each buff of whether or not it is active. Only the first two buffs are tracked
+            # B: None
+            # C: in mAS, we ingore buff_id_2
+            buff_id_1 = entity.buff_id_1
+            buff_id_1_encoding = L.np_one_hot(np.array([buff_id_1]), cls.max_buffer_ids).reshape(1, -1)
+            print('buff_id_1_encoding:', buff_id_1_encoding) if debug else None
+            field_encoding_list.append(buff_id_1_encoding)            
+
+            if AHP != MAHP:
+                buff_id_2 = entity.buff_id_2
+                buff_id_2_encoding = L.np_one_hot(np.array([buff_id_2]), cls.max_buffer_ids).reshape(1, -1)
+                print('buff_id_2_encoding:', buff_id_2_encoding) if debug else None
+                field_encoding_list.append(buff_id_2_encoding)
+
+            # TODO (Important!): Move the order_length, 4 orders and 2 buff ids and order progresses to the field_encoding_list
+
+            # A: addon_type: One-hot of every possible add-on type
+            # B: optional uint64 add_on_tag = 23;
+            # C: lack: from tag to find a unit, then get the unit type of the unit 
+            # in mAS, we ingore it
+            if AHP != MAHP:
+                addon_unit_type = entity.addon_unit_type
+                addon_unit_type_encoding = L.np_one_hot(np.array([addon_unit_type]), cls.max_add_on_type).reshape(1, -1)
+                print('addon_unit_type_encoding:', addon_unit_type_encoding) if debug else None
+                field_encoding_list.append(addon_unit_type_encoding)
+
+            # A: order_progress_1: Float of order progress, in [0, 1], and one-hot of (`order_progress_1` / 10) with maximum 10
+            # B: optional float progress = 4;              // Progress of train abilities. Range: [0.0, 1.0]
+            # C: None
+            '''
+            orders = entity.orders
+            if len(orders) >= 1:
+                order_1 = orders[0]
+                if hasattr(order_1, 'progress'):
+            '''
+
+            order_progress_1_encoding = np.zeros((1, 1), dtype=np.float32)
+            order_progress_1_encoding_2 = np.zeros((1, cls.max_order_progress), dtype=np.float32)
+            order_progress_1 = entity.order_progress_1
+            if order_progress_1 is not None:
+                order_progress_1_encoding = np.array([order_progress_1 / 100.], dtype=np.float32).reshape(1, -1)
+                print('order_progress_1', order_progress_1) if debug else None
+                print('cls.max_order_progress', cls.max_order_progress) if debug else None
+                order_progress_1_encoding_2 = L.np_one_hot(np.array([int(order_progress_1 / 10)]),
+                                                           cls.max_order_progress).reshape(1, -1)
+            print('order_progress_1_encoding:', order_progress_1_encoding) if debug else None
+            field_encoding_list.append(order_progress_1_encoding)
+            print('order_progress_1_encoding_2:', order_progress_1_encoding_2) if debug else None
+            field_encoding_list.append(order_progress_1_encoding_2)
+
+            # A: order_progress_2: Float of order progress, in [0, 1], and one-hot of (`order_progress_2` / 10) with maximum 10
+            # B: optional float progress = 4;              // Progress of train abilities. Range: [0.0, 1.0]
+            # C: None
+            '''
+            if len(orders) >= 2:
+                order_2 = orders[1]
+                if hasattr(order_2, 'progress'):
+            '''
+
+            order_progress_2_encoding = np.zeros((1, 1), dtype=np.float32)
+            order_progress_2_encoding_2 = np.zeros((1, cls.max_order_progress), dtype=np.float32)
+            order_progress_2 = entity.order_progress_2
+            if order_progress_2 is not None:
+                order_progress_2_encoding = np.array([order_progress_2 / 100.], dtype=np.float32).reshape(1, -1)
+                order_progress_2_encoding_2 = L.np_one_hot(np.array([int(order_progress_2 / 10)]),
+                                                           cls.max_order_progress).reshape(1, -1)
+            print('order_progress_2_encoding:', order_progress_2_encoding) if debug else None
+            field_encoding_list.append(order_progress_2_encoding)
+            print('order_progress_2_encoding_2:', order_progress_2_encoding_2) if debug else None
+            field_encoding_list.append(order_progress_2_encoding_2)
+
+            # A: weapon_upgrades: One-hot with maximum 4
+            # B: optional int32 attack_upgrade_level = 40;
+            # C: None
+            weapon_upgrades = entity.attack_upgrade_level
+            assert weapon_upgrades >= 0 and weapon_upgrades <= 3
+            weapon_upgrades_encoding = L.np_one_hot(np.array([weapon_upgrades]), cls.max_weapon_upgrades).reshape(1, -1)
+            print('weapon_upgrades_encoding:', weapon_upgrades_encoding) if debug else None
+            field_encoding_list.append(weapon_upgrades_encoding)
+
+            # A: armor_upgrades: One-hot with maximum 4
+            # B: optional int32 armor_upgrade_level = 41;
+            # C: None
+            armor_upgrades = entity.armor_upgrade_level
+            assert armor_upgrades >= 0 and armor_upgrades <= 3
+            armor_upgrades_encoding = L.np_one_hot(np.array([armor_upgrades]), cls.max_armor_upgrades).reshape(1, -1)
+            print('armor_upgrades_encoding:', armor_upgrades_encoding) if debug else None
+            field_encoding_list.append(armor_upgrades_encoding)
+
+            # A: shield_upgrades: One-hot with maximum 4
+            # B: optional int32 armor_upgrade_level = 41;
+            # C: None
+            shield_upgrades = entity.shield_upgrade_level
+            assert shield_upgrades >= 0 and shield_upgrades <= 3
+            shield_upgrades_encoding = L.np_one_hot(np.array([shield_upgrades]), cls.max_shield_upgrades).reshape(1, -1)
+            print('shield_upgrades_encoding:', shield_upgrades_encoding) if debug else None
+            field_encoding_list.append(shield_upgrades_encoding)
+
+            # A: was_selected: One-hot with maximum 2 of whether this unit was selected last actionn
+            # B: optional bool is_selected = 11;
+            # C: None
+            was_selected = int(entity.is_selected)
+            was_selected_encoding = L.np_one_hot(np.array([was_selected]), cls.max_was_selected).reshape(1, -1)
+            print('was_selected_encoding:', was_selected_encoding) if debug else None
+            field_encoding_list.append(was_selected_encoding)
+
+            # A: was_targeted: One-hot with maximum 2 of whether this unit was targeted last action
+            # B: not found,   optional uint64 engaged_target_tag = 34; (maybe)
+            # C: None
+            was_targeted = int(entity.is_targeted)
+            was_targeted_encoding = L.np_one_hot(np.array([was_targeted]), cls.max_was_targeted).reshape(1, -1)
+            print('was_targeted_encoding:', was_targeted_encoding) if debug else None
+            field_encoding_list.append(was_targeted_encoding)
+
+            entity_array = np.concatenate(field_encoding_list, axis=1)
+            print('entity_array:', entity_array) if debug else None
+            print('entity_array.shape:', entity_array.shape) if debug else None
+
+            # There are up to 512 of these preprocessed entities, and any entities after 512 are ignored.
+            if index < cls.max_entities:
+                entity_array_list.append(entity_array)
+            else:
+                break
+            index = index + 1
+
+        all_entities_array = np.concatenate(entity_array_list, axis=0)
+        # count how many real entities we have
+        real_entities_size = all_entities_array.shape[0]
+        print('real_entities_size:', real_entities_size) if debug else None
+
+        # We use a bias of -1e9 for any of the 512 entries that doesn't refer to an entity.
+        if all_entities_array.shape[0] < cls.max_entities:
+            bias_length = cls.max_entities - all_entities_array.shape[0]
+            bias = np.zeros((bias_length, AHP.embedding_size))
+            bias[:, :] = cls.bias_value
+            print('bias:', bias) if debug else None
+            print('bias.shape:', bias.shape) if debug else None
+            all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
+
+        entities_tensor = torch.tensor(all_entities_array, dtype=torch.float32)
+        return entities_tensor
+
     def forward(self, x):
         # assert the input shape is : batch_seq_size x entities_size x embeding_size
         # note: because the feature size of entity is not equal to 256, so it can not fed into transformer directly.
         # thus, we add a embedding layer to transfer it to right size.
         print('entity_input is nan:', torch.isnan(x).any()) if debug else None
+
+        # calculate there are how many real entities in each batch
+        tmp_x = torch.mean(x, dim=2, keepdim=False)
+        tmp_y = (tmp_x > self.bias_value + 1e3)
+        real_number_tensor = torch.sum(tmp_y, dim=1, keepdim=False)
+        # this means for each batch, there are how many real enetities
+        print('real_number_tensor:', real_number_tensor) if 1 else None
+
         x = self.embedd(x)
 
         # x is batch_entities_tensor (dim = 3). Shape: batch_size x entities_size x embeding_size
@@ -569,15 +1034,30 @@ class EntityEncoder(nn.Module):
         print('entity_embeddings.shape:', entity_embeddings.shape) if debug else None
 
         # masked by the missing entries
-        print('out.shape:', out.shape) if debug else None
-        out = out[:, :self.real_entities_size, :]
-        print('out.shape:', out.shape) if debug else None
+        # note, different batch may contain different number of real entities
+        tensor_list = []
+        for i, batch in enumerate(out):
+            mean_entity = 0.
+            real_number = real_number_tensor[i]
+            real_number = real_number if real_number != 0 else 1
+            for j, entity in enumerate(batch):
+                if j >= real_number_tensor[i]:
+                    break        
+                mean_entity = mean_entity + entity
+            mean_entity = mean_entity / (real_number)
+            tensor_list.append(mean_entity.reshape(1, -1))
+        tensor_mean = torch.cat(tensor_list, dim=0)
+        print('tensor_mean:', tensor_mean) if 1 else None
+
+        # print('out.shape:', out.shape) if debug else None
+        # out = out[:, :self.real_entities_size, :]
+        # print('out.shape:', out.shape) if debug else None
 
         # note, dim=1 means the mean is across all entities in one timestep
         # The mean of the transformer output across across the units  
         # is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`
-        embedded_entity = F.relu(self.fc1(torch.mean(out, dim=1, keepdim=False)))
-        print('embedded_entity.shape:', embedded_entity.shape) if debug else None
+        embedded_entity = F.relu(self.fc1(tensor_mean))
+        print('embedded_entity.shape:', embedded_entity.shape) if 1 else None
 
         return entity_embeddings, embedded_entity
 
@@ -649,9 +1129,9 @@ class Entity(object):
         return 'unit_type: ' + str(self.unit_type) + ', alliance: ' + str(self.alliance) + ', health: ' + str(self.health)
 
 
-def test():
+def test(debug=True):
     print(torch.tensor(np.unpackbits(np.array([25], np.uint8))))
-    batch_size = 2
+    batch_size = 10
 
     e_list = []
     e1 = Entity(115, [0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0], 0, 100, 60, 50, 4, 8, 95, 0.2, 0.0, 0.0, 140, 60, 100,
@@ -662,15 +1142,47 @@ def test():
     e_list.append(e2)
 
     encoder = EntityEncoder()
-    entities_tensor = encoder.preprocess(e_list)
+
+    # test use preproces in numpy array
+    entities_tensor = EntityEncoder.preprocess_in_numpy(e_list)
+
+    # test use preproces in torch tensor
+    # entities_tensor = EntityEncoder.preprocess_in_tensor(e_list)
+
+    # test use default
+    # entities = EntityEncoder.preprocess(e_list)
+
+    # benchmark test
+    benchmark_start = time.time()
+
+    for i in range(1000):
+        entities_tensor = EntityEncoder.preprocess_in_numpy(e_list)
+
+    elapse_time = time.time() - benchmark_start
+    elapse_time = datetime.timedelta(seconds=elapse_time)
+    print("Preprocess time {}".format(elapse_time))
+
+    # benchmark test
+    benchmark_start = time.time()
+
+    for i in range(1000):
+        entities_tensor = EntityEncoder.preprocess_in_tensor(e_list)
+
+    elapse_time = time.time() - benchmark_start
+    elapse_time = datetime.timedelta(seconds=elapse_time)
+    print("Preprocess time {}".format(elapse_time))
+
     print('entities_tensor:', entities_tensor) if debug else None
     print('entities_tensor.shape:', entities_tensor.shape) if debug else None
     # entities_tensor (dim = 2): entities_size x embeding_size
 
     entities_tensor = entities_tensor.unsqueeze(0)
-    if batch_size == 2:
+
+    batch_entities_tensor = entities_tensor
+
+    for i in range(batch_size):
         entities_tensor_copy = entities_tensor.detach().clone()
-        batch_entities_tensor = torch.cat([entities_tensor, entities_tensor_copy], dim=0)   
+        batch_entities_tensor = torch.cat([batch_entities_tensor, entities_tensor_copy], dim=0)   
 
     print('batch_entities_tensor.shape:', batch_entities_tensor.shape) if debug else None
     entity_embeddings, embedded_entity = encoder.forward(batch_entities_tensor)

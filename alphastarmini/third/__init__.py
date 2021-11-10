@@ -1,3 +1,3 @@
 import alphastarmini.third.transformer
 
-print("third init")
+#print("third init")
