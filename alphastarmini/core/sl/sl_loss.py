@@ -82,7 +82,8 @@ def get_sl_loss(traj_batch, model, use_eval=False):
         print(traceback.format_exc())
 
         loss = torch.tensor([0.])
-        loss_list = []
+        loss_list = [0., 0., 0., 0., 0., 0.]
+        acc_num_list = [0., 0., 0., 0., 0., 0.]
 
     # if use_eval:
     #     return loss, loss_list, acc_num_action_type, all_num

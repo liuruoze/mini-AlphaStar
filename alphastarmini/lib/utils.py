@@ -230,12 +230,19 @@ def one_hot_embedding(labels, num_classes):
 
 def to_one_hot(y, n_dims=None):
     """ Take integer y (tensor or variable) with n dims and convert it to 1-hot representation with n+1 dims. """
+    print('y', y)
     cuda_check = y.is_cuda
+    print('cuda_check', cuda_check)
+
     if cuda_check:
         get_cuda_device = y.get_device()
+        print('get_cuda_device', get_cuda_device)
 
     y_tensor = y.data if isinstance(y, Variable) else y
+    print('y_tensor', y_tensor)
     y_tensor = y_tensor.type(torch.LongTensor).view(-1, 1)
+    print('y_tensor', y_tensor)
+
     n_dims = n_dims if n_dims is not None else int(torch.max(y_tensor)) + 1
     y_one_hot = torch.zeros(y_tensor.size()[0], n_dims).scatter_(1, y_tensor, 1)
     y_one_hot = y_one_hot.view(*y.shape, -1)

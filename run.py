@@ -1,5 +1,5 @@
 import os
-USED_DEVICES = "0"
+USED_DEVICES = "1, 2"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -32,7 +32,7 @@ import param as P
 
 if __name__ == '__main__':
     # if we don't add this line, it may cause running time error while in Windows
-    torch.multiprocessing.freeze_support()
+    # torch.multiprocessing.freeze_support()
 
     print("run init")
 
@@ -43,8 +43,12 @@ if __name__ == '__main__':
     # transform_replay_data.test(on_server=P.on_server)
 
     # # 2. second we use pickle to do supervised learning
-    from alphastarmini.core.sl import sl_train_by_pickle
-    sl_train_by_pickle.test(on_server=P.on_server)
+    from alphastarmini.core.sl import sl_multi_gpu_by_pickle
+    sl_multi_gpu_by_pickle.test(on_server=P.on_server)
+
+    # # 2. second we use pickle to do supervised learning
+    #from alphastarmini.core.sl import sl_train_by_pickle
+    # sl_train_by_pickle.test(on_server=P.on_server)
 
     # 3. third we use SL model and replays to do reinforcement learning
     # from alphastarmini.core.rl import rl_train_with_replay
