@@ -2,22 +2,34 @@
 
 ## Introduction
 
-We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2).
+We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar (AS) program. 
 
-"mini-scale" means that we make the original AS's hyper-parameters adjustable so that mAS can be training and running on a small scale (e.g., in a single common commercial machine).
+AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2).
+
+"mini-scale" means that we make the original AS's hyper-parameters adjustable. 
+
+So that mAS can be training and running on a small scale (e.g., in a single common commercial machine).
+
+When designing the mAS, we referred to the "Occam's Razor Principle", simple is good.
+
+Therefore, we build mAS from scratch. Unless the function has a great impact on speed and performance, we shall omit it.
+
+At the same time, we also try not to use too many dependency packages, so that mAS should only depend on PyTorch (at most specify the version).
+
+In this way, we greatly simplify the learning cost of mAS and make the architecture and code of mAS relatively easy to read.
+
+In addition, we have added a lot of comments in the code to ensure that some key designs can be conveyed to the readers.
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
 ## Update
 
-This is the "v_1.03" version, and the updates are as follows:
+This is the "v_1.04" version, and the updates are as follows:
 
-* Add guides for "how run RL?" in USAGE.MD;
-* Fix some bugs and a bug in SL training;
-* Add USAGE.MD;
-* Fix a bug by split the map_channels and scatter_channels;
-* Fix the right version to see replays of AlphaStar Final Terran;
-* Change from z_2 = F.relu(self.fc_2(z_1)) to z_2 = self.fc_2(F.relu(z_1)) in selected_units_head;
+* Add mask for supervised learning loss calculation;
+* Add camera and non-camera accuracy for evaluation;
+* Refactor most code for multi-GPU training;
+* Add support for multi-GPU supervised training;
 
 ## Location
 
@@ -80,6 +92,22 @@ to start the program (you may use comments and uncomments to select the training
 
 The [USAGE Guide](doc/USAGE.MD) may provide some answers to problems and questions.
 
+## Multi-GPU Usage
+
+This version starts to support multi-GPU supervised learning training for mAS, which can greatly improve the training speed.
+
+The way to use multi-GPU training is very straightforward, as follows:
+```
+python run_multi-gpu.py
+```
+
+(Currently, multi-GPU training for RL is still not supported)
+
+Notice:
+
+Multi-GPU training may have unstable factors (this is caused by the reason that PyTorch's support is not as stable as imagined). 
+
+If you find that multi-GPU training has training instability and runtime errors, please switch back to single-GPU training.
 
 ## Replays
 

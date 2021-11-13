@@ -150,7 +150,7 @@ class AlphaStarAgent(RandomAgent):
 
     def step_nn(self, observation, last_state):
         """Performs inference on the observation, given hidden state last_state."""
-        state = self.agent_nn.preprocess_state_all(observation)
+        state = Agent.preprocess_state_all(obs=observation)
         device = self.agent_nn.device()
 
         print("step_nn device:", device) if debug else None
@@ -222,7 +222,7 @@ class AlphaStarAgent(RandomAgent):
             home_obs_seq = traj.observation
             bo_seq = traj.build_order
             for j, home_obs in enumerate(home_obs_seq):
-                state = self.agent_nn.preprocess_state_all(home_obs, build_order=bo_seq[j])
+                state = Agent.preprocess_state_all(obs=home_obs, build_order=bo_seq[j])
                 state_traj.append(state)
 
             away_obs_seq = traj.opponent_observation

@@ -84,43 +84,40 @@ class ArchModel(nn.Module):
         return self.core.init_hidden_state()
 
     def forward(self, state, batch_size=None, sequence_length=None, hidden_state=None, return_logits=False, 
-                baseline_state=None, baseline_opponent_state=None, return_baseline=False):
+                baseline_state=None, baseline_opponent_state=None, 
+                return_baseline=False, multi_gpu_supvised_learning=False):
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
-        entity_embeddings, embedded_entity = self.entity_encoder(state.entity_state)   
 
-        pos_index = SCHP.max_unit_type + AHP.entity_x_y_index  # 13 + 1 + 5 + 5
-        entity_x_y = state.entity_state[:, :, pos_index: pos_index + 8 * 2]
-
+        # pos_index = SCHP.max_unit_type + AHP.entity_x_y_index  # 13 + 1 + 5 + 5
+        #entity_x_y = state.entity_state[:, :, pos_index: pos_index + 8 * 2]
         #map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings, entity_x_y)
+        entity_embeddings, embedded_entity = self.entity_encoder(state.entity_state)   
         map_skip, embedded_spatial = self.spatial_encoder(state.map_state)
-
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
-
-        print("entity_embeddings.shape:", entity_embeddings.shape) if debug else None
 
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
                                               batch_size, sequence_length, hidden_state)
-
         print('lstm_output.shape:', lstm_output.shape) if debug else None
         print('lstm_output is nan:', torch.isnan(lstm_output).any()) if debug else None
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context)
-        print("action_type:", action_type) if debug else None
-
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
+
         units_logits, units, autoregressive_embedding = self.selected_units_head(autoregressive_embedding, action_type, entity_embeddings)
 
         target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, action_type, entity_embeddings)
         target_location_logits, target_location = self.location_head(autoregressive_embedding, action_type, map_skip)
 
-        # return [action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits], 
-        #[action_type, delay, queue, units, target_unit, target_location]
-        action = ArgsAction(action_type=action_type, delay=delay, queue=queue,
-                            units=units, target_unit=target_unit, target_location=target_location)
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)
+        action = ArgsAction(action_type=action_type, delay=delay, queue=queue,
+                            units=units, target_unit=target_unit, target_location=target_location)
+
+        if multi_gpu_supvised_learning:
+            return action_type, action_type_logits, delay_logits, queue_logits, \
+                units_logits, target_unit_logits, target_location_logits
 
         if return_logits:
 

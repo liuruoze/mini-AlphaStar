@@ -14,7 +14,7 @@ from pysc2.lib.actions import RAW_FUNCTIONS
 
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
-
+from alphastarmini.core.sl import utils as SU
 
 __author__ = "Ruo-Ze Liu"
 
@@ -65,81 +65,18 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     action_gt.to(device)
     print('action_gt:', action_gt) if debug else None
 
-    def unroll(state, batch_size=None, sequence_length=None):
-        action_logits_pred, action_pred, _ = model.forward(state, batch_size=batch_size, sequence_length=sequence_length, return_logits=True)
-        return action_logits_pred, action_pred
+    loss = torch.tensor([0.])
+    loss_list = [0., 0., 0., 0., 0., 0.]
+    acc_num_list = [0., 0., 0., 0., 0., 0.]    
 
-    try:
-        action_logits_pred, action_pred = unroll(state, batch_size=batch_size, sequence_length=seq_len)
-        print('action_logits_pred:', action_logits_pred) if debug else None
+    action_logits_pred, action_pred, _ = model.forward(state, batch_size=batch_size, sequence_length=seq_len, return_logits=True)
 
-        loss, loss_list = get_classify_loss(action_gt, action_logits_pred, criterion, device, use_mask=use_mask)    
-
-        # if use_eval:
-        acc_num_list = get_accuracy(action_gt.action_type, action_pred.action_type, device)
-
-    except Exception as e:
-        print(traceback.format_exc())
-
-        loss = torch.tensor([0.])
-        loss_list = [0., 0., 0., 0., 0., 0.]
-        acc_num_list = [0., 0., 0., 0., 0., 0.]
+    loss, loss_list = get_classify_loss(action_gt, action_logits_pred, criterion, device, use_mask=use_mask)    
 
     # if use_eval:
-    #     return loss, loss_list, acc_num_action_type, all_num
+    acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred.action_type, device)
 
     return loss, loss_list, acc_num_list
-
-
-def get_accuracy(ground_truth, predict, device):
-    accuracy = 0.
-
-    ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
-    ground_truth_new = ground_truth_new.to(device)
-    print('ground_truth', ground_truth_new) if debug else None
-
-    predict_new = predict.reshape(-1)
-    print('predict_new', predict_new) if debug else None
-
-    # calculate how many move_camera? the id is 168 in raw_action
-    MOVE_CAMERA_ID = 168
-    #camera_num_action_type = torch.sum(MOVE_CAMERA_ID == ground_truth_new)
-    move_camera_index = (ground_truth_new == MOVE_CAMERA_ID).nonzero(as_tuple=True)[0]
-    non_camera_index = (ground_truth_new != MOVE_CAMERA_ID).nonzero(as_tuple=True)[0]
-
-    print('move_camera_index', move_camera_index) if debug else None    
-    print('non_camera_index', non_camera_index) if debug else None  
-
-    print('for any type action') if debug else None
-    right_num, all_num = get_right_and_all_num(ground_truth_new, predict_new)
-
-    print('for move_camera action') if debug else None
-    camera_ground_truth_new = ground_truth_new[move_camera_index]
-    camera_predict_new = predict_new[move_camera_index]
-    camera_right_num, camera_all_num = get_right_and_all_num(camera_ground_truth_new, camera_predict_new)
-
-    print('for non-camera action') if debug else None
-    non_camera_ground_truth_new = ground_truth_new[non_camera_index]
-    non_camera_predict_new = predict_new[non_camera_index]
-    non_camera_right_num, non_camera_all_num = get_right_and_all_num(non_camera_ground_truth_new, non_camera_predict_new)
-
-    return [right_num, all_num, camera_right_num, camera_all_num, non_camera_right_num, non_camera_all_num]
-
-
-def get_right_and_all_num(gt, pred):
-    acc_num_action_type = torch.sum(pred == gt)
-    print('acc_num_action_type', acc_num_action_type) if debug else None
-
-    right_num = acc_num_action_type.item()
-    print('right_num', right_num) if debug else None
-
-    all_num = gt.shape[0]
-    print('all_num', all_num) if debug else None
-
-    accuracy = right_num / (all_num + 1e-9)
-    print('accuracy', accuracy) if debug else None
-
-    return right_num, all_num
 
 
 def get_classify_loss(action_gt, action_pred, criterion, device, use_mask=True):
@@ -151,7 +88,7 @@ def get_classify_loss(action_gt, action_pred, criterion, device, use_mask=True):
     mask_list = [] 
     print('ground_truth_raw_action_id', ground_truth_raw_action_id) if debug else None
     for raw_action_id in ground_truth_raw_action_id:
-        mask_list.append(get_mask_by_raw_action_id(raw_action_id.item()))
+        mask_list.append(SU.get_mask_by_raw_action_id(raw_action_id.item()))
     print('mask_list', mask_list) if debug else None
     mask_tensor = torch.tensor(mask_list)
     print('mask_tensor:', mask_tensor) if debug else None
@@ -163,13 +100,10 @@ def get_classify_loss(action_gt, action_pred, criterion, device, use_mask=True):
 
     # we don't consider delay loss now
     delay_loss = criterion(action_gt.delay, action_pred.delay)
-    #loss += delay_loss
+    loss += delay_loss * 0
 
-    queue_loss = criterion(action_gt.queue, action_pred.queue)
+    queue_loss = action_pred.queue.sum()  # criterion(action_gt.queue, action_pred.queue)
     queue_loss_mask = criterion(action_gt.queue, action_pred.queue, mask=mask_tensor[:, 2].reshape(-1))
-
-    print('queue_loss', queue_loss) if debug else None
-    print('queue_loss_mask', queue_loss_mask) if debug else None
 
     if use_mask:
         queue_loss = queue_loss_mask
@@ -240,25 +174,3 @@ def get_classify_loss(action_gt, action_pred, criterion, device, use_mask=True):
     # return loss
     loss_list = [action_type_loss, delay_loss, queue_loss, units_loss, target_unit_loss, target_location_loss]
     return loss, loss_list
-
-
-def get_mask_by_raw_action_id(raw_action_id):
-    need_args = RAW_FUNCTIONS[raw_action_id].args
-
-    # action type and delay is always enable
-    action_mask = [1, 1, 0, 0, 0, 0]
-
-    for arg in need_args:
-        print("arg:", arg) if debug else None
-        if arg.name == 'queued':
-            action_mask[2] = 1
-        elif arg.name == 'unit_tags':
-            action_mask[3] = 1
-        elif arg.name == 'target_unit_tag':
-            action_mask[4] = 1
-        elif arg.name == 'world':
-            action_mask[5] = 1                       
-
-    print('action_mask:', action_mask) if debug else None
-
-    return action_mask

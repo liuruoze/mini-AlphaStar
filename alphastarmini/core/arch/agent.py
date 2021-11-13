@@ -68,7 +68,7 @@ class Agent(object):
         return action_output
 
     @staticmethod
-    def preprocess_state_all(self, obs, build_order=None):
+    def preprocess_state_all(obs, build_order=None):
         batch_entities_tensor = Agent.preprocess_state_entity(obs)
         scalar_list = Agent.preprocess_state_scalar(obs, build_order=build_order)
         map_data = Agent.preprocess_state_spatial(obs)
@@ -259,7 +259,7 @@ class Agent(object):
         return map_data
 
     def action_by_obs(self, obs):
-        state = self.preprocess_state_all(obs)
+        state = Agent.preprocess_state_all(obs)
         action = self.model.forward(state)
         return action
 
@@ -278,7 +278,7 @@ class Agent(object):
         return action_logits, actions, new_state
 
     def state_by_obs(self, obs, return_tag_list = False):
-        state, tag_list = self.preprocess_state_all(obs, return_tag_list)
+        state, tag_list = Agent.preprocess_state_all(obs, return_tag_list)
 
         if tag_list and return_tag_list:
             return state, tag_list

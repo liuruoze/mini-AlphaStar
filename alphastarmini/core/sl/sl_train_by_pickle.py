@@ -4,13 +4,6 @@
 " Train from the replay files through python pickle file"
 
 import os
-
-USED_DEVICES = "0"
-import os
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
 import sys
 import time
 import traceback
@@ -67,7 +60,7 @@ SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
 NUM_EPOCHS = 100  # SLTHP.num_epochs
-LEARNING_RATE = 1e-3  # SLTHP.learning_rate
+LEARNING_RATE = 1e-4  # SLTHP.learning_rate
 WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
 CLIP = 0.5  # SLTHP.clip
 

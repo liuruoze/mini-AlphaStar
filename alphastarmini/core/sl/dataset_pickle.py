@@ -92,30 +92,37 @@ class OneReplayDataset(Dataset):
 
 class FullDataset(Dataset):
 
-    def __init__(self, replay_data_path, max_file_size=None, shuffle=False, seq_length=AHP.sequence_length):
+    def __init__(self, replay_data_path, val=False, max_file_size=None, shuffle=False, seq_length=AHP.sequence_length):
         super().__init__()
 
         self.seq_len = seq_length
 
         replay_files = os.listdir(replay_data_path)
-        print('length of replay_files:', len(replay_files))
-
+        print('length of replay_files:', len(replay_files)) if debug else None
         replay_files.sort()
+
+        max_file_size = max_file_size if max_file_size < len(replay_files) else len(replay_files)
+        print('max_file_size', max_file_size) if debug else None
+
+        training_size = int(max_file_size * DATASET_SPLIT_RATIO.training)
+        if val:
+            replay_files = replay_files[training_size:max_file_size]
+            print('length for val files:', len(replay_files)) if debug else None
+        else:
+            replay_files = replay_files[0:training_size]
+            print('length for train files:', len(replay_files)) if debug else None
+
         if shuffle:
             random.shuffle(replay_files)
 
-        # self.feature_list = []
-        # self.label_list = []
         self.obs_list = []
+        obs_index = 0
+        self.final_index_list = []
 
         for i, replay_file in enumerate(tqdm(replay_files)):
             try:
-                if max_file_size is not None:
-                    if i >= max_file_size:
-                        break
-
                 replay_path = replay_data_path + replay_file
-                print('replay_path:', replay_path) if 1 else None
+                print('replay_path:', replay_path) if debug else None
 
                 with open(replay_path, 'rb') as handle:
                     traj_dict = pickle.load(handle)                  
@@ -123,11 +130,14 @@ class FullDataset(Dataset):
 
                     #print('len(key_list):', len(key_list)) if 1 else None
                     for key, value in traj_dict.items():
-                        print('key', key)
+                        print('key', key) if debug else None
                         # feature, label = obs2feature(value)
                         # self.feature_list.append(feature)
                         # self.label_list.append(label)
                         self.obs_list.append(value)
+                        obs_index = obs_index + 1
+
+                    self.final_index_list.append(obs_index - 1)
 
             except Exception as e:
                 traceback.print_exc()
@@ -146,16 +156,29 @@ class FullDataset(Dataset):
         # label_list = self.label_list[index:index + self.seq_len]
 
         features = torch.cat(feature_list, dim=0)
-        print("features.shape:", features.shape) if 1 else None
+        print("features.shape:", features.shape) if debug else None
 
         labels = torch.cat(label_list, dim=0)
-        print("labels.shape:", labels.shape) if 1 else None
+        print("labels.shape:", labels.shape) if debug else None
 
-        # TODO: consider is_final
         is_final = torch.zeros([features.shape[0], 1])
 
+        # consider is_final
+        print('begin', index) if debug else None
+        print('end', index + self.seq_len) if debug else None
+        for j in self.final_index_list:
+            print('j', j) if debug else None
+            if j >= index and j < index + self.seq_len:
+                print('in it!')
+                print('begin', index)
+                print('end', index + self.seq_len)
+                print('j', j)
+                is_final[j - index, 0] = 1
+            else:
+                pass
+
         one_traj = torch.cat([features, labels, is_final], dim=1)
-        print("one_traj.shape:", one_traj.shape) if 1 else None
+        print("one_traj.shape:", one_traj.shape) if debug else None
 
         return one_traj
 

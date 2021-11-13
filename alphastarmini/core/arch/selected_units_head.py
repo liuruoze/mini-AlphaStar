@@ -231,8 +231,9 @@ class SelectedUnitsHead(nn.Module):
 
             # AlphaStar: reduced by the mean across the entities,
             # Wenhai: should be key mean
-            # TODO: change to the key mean
-            mean = torch.mean(entity_one_hot, dim=-1, keepdim=True)
+            # Ruo-Ze: should be out mean
+            # mean = torch.mean(entity_one_hot, dim=-1, keepdim=True)
+            mean = torch.mean(out, dim=-1, keepdim=True)
             # mean shape: [batch_size x 1]
             out = out - mean
             print("out:", out) if debug else None
