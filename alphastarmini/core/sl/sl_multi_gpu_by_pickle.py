@@ -196,7 +196,7 @@ def train(net, criterion, optimizer, train_loader, device, rank, val_loader=None
             batch_iter += 1
             print('batch_iter', batch_iter)
 
-            if batch_iter % 50 == 0:
+            if batch_iter % 100 == 0:
                 print('Epoch: [{}/{}]| loss: {:.3f} | acc: {:.3f} | batch time: {:.3f}s '.format(
                     batch_iter, epoch, loss_sum / (batch_iter + 1), 0, batch_time))
 
