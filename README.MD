@@ -2,9 +2,15 @@
 
 ## Introduction
 
-We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2). "mini-scale" means that we make the original AS's hyper-parameters adjustable so that mAS can be training and running on a small scale (e.g., in a single common commercial machine).
+We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2). 
 
-When designing the mAS, we referred to the "Occam's Razor Principle", simple is good. Therefore, we build mAS from scratch. Unless the function has a great impact on speed and performance, we shall omit it. At the same time, we also try not to use too many dependency packages, so that mAS should only depend on PyTorch (at most specify the version). In this way, we greatly simplify the learning cost of mAS and make the architecture and code of mAS relatively easy to read. In addition, we have added a lot of comments in the code to ensure that some key designs can be conveyed to the readers.
+"mini-scale" means that we make the original AS's hyper-parameters adjustable so that mAS can be training and running on a small scale (e.g., in a single common commercial machine).
+
+When designing the mAS, we referred to the "Occam's Razor Principle", simple is good. Therefore, we build mAS from scratch. Unless the function has a great impact on speed and performance, we shall omit it. 
+
+At the same time, we also try not to use too many dependency packages, so that mAS should only depend on PyTorch (at most specify the version). In this way, we greatly simplify the learning cost of mAS and make the architecture and code of mAS relatively easy to read. 
+
+In addition, we have added a lot of comments in the code to ensure that some key designs can be conveyed to the readers.
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
