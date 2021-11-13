@@ -204,16 +204,17 @@ def train(net, criterion, optimizer, train_loader, device, rank, val_loader=None
                 val_loss, val_acc = eval(net, val_loader, device)
                 print('eval end')
 
-                print("Val loss: {:.6f}.".format(val_loss))
-                writer.add_scalar('Val/Loss', val_loss, batch_iter)
+                if rank == 0:
+                    print("Val loss: {:.6f}.".format(val_loss))
+                    writer.add_scalar('Val/Loss', val_loss, batch_iter)
 
-                # for accuracy of actions in val
-                print("Val action acc: {:.6f}.".format(val_acc[0]))
-                writer.add_scalar('Val/action Acc', val_acc[0], batch_iter)
-                print("Val move_camera acc: {:.6f}.".format(val_acc[1]))
-                writer.add_scalar('Val/move_camera Acc', val_acc[1], batch_iter)
-                print("Val non_camera acc: {:.6f}.".format(val_acc[2]))
-                writer.add_scalar('Val/non_camera Acc', val_acc[2], batch_iter)
+                    # for accuracy of actions in val
+                    print("Val action acc: {:.6f}.".format(val_acc[0]))
+                    writer.add_scalar('Val/action Acc', val_acc[0], batch_iter)
+                    print("Val move_camera acc: {:.6f}.".format(val_acc[1]))
+                    writer.add_scalar('Val/move_camera Acc', val_acc[1], batch_iter)
+                    print("Val non_camera acc: {:.6f}.".format(val_acc[2]))
+                    writer.add_scalar('Val/non_camera Acc', val_acc[2], batch_iter)
 
                 if rank == 0:    
                     torch.save(net, SAVE_PATH + "" + ".pkl")
