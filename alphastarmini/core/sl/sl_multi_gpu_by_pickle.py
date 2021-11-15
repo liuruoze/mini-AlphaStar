@@ -54,7 +54,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--path", default="./data/replay_data/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
-parser.add_argument('--num_workers', type=int, default=2, help='')
+parser.add_argument('--num_workers', type=int, default=8, help='')
 
 # multi-gpu parameters
 parser.add_argument('--gpu', default=None, type=int, help='GPU id to use.')
