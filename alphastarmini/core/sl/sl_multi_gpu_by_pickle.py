@@ -40,6 +40,7 @@ from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 from alphastarmini.core.sl import sl_loss_multi_gpu as Loss
 from alphastarmini.core.sl.dataset_pickle import OneReplayDataset, AllReplayDataset, FullDataset
+from alphastarmini.core.sl import utils as SU
 
 from alphastarmini.lib.utils import load_latest_model
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
@@ -52,6 +53,7 @@ debug = False
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--path", default="./data/replay_data/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
+parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=2, help='')
 
 # multi-gpu parameters
@@ -67,6 +69,12 @@ args = parser.parse_args()
 # training paramerters
 PATH = args.path
 MODEL = args.model
+RESTORE = args.restore
+
+MODEL_PATH = "./model/"
+if not os.path.exists(MODEL_PATH):
+    os.mkdir(MODEL_PATH)
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-15_08-05-03.pkl'
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
@@ -83,7 +91,9 @@ NUM_ITERS = 100  # 100
 
 # use too many Files may cause the following problem: 
 # ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
-FILE_SIZE = 50  # 100
+FILE_SIZE = 10  # 100
+
+EVAL_INTERFEVL = 10
 
 # set random seed
 # torch.manual_seed(SLTHP.seed)
@@ -101,6 +111,10 @@ def main_worker(gpu, ngpus_per_node, args):
 
     print('==> Making model..')
     net = ArchModel()
+
+    if RESTORE:
+        net = torch.load(RESTORE_PATH, map_location=torch.device(args.rank))
+
     torch.cuda.set_device(args.gpu)
     net = net.cuda(args.gpu)
 
@@ -140,23 +154,20 @@ def main_worker(gpu, ngpus_per_node, args):
     optimizer = Adam(net.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
     criterion = None
-    train(net, criterion, optimizer, train_loader, args.gpu, args.rank, val_loader)
+    train(net, criterion, optimizer, train_set, train_loader, args.gpu, args.rank, val_set, val_loader)
 
 
-def train(net, criterion, optimizer, train_loader, device, rank, val_loader=None):
+def train(net, criterion, optimizer, train_set, train_loader, device, rank, val_set, val_loader=None):
     if rank == 0:
         now = datetime.datetime.now()
         summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
         writer = SummaryWriter(summary_path)
 
         # model path
-        MODEL_PATH = "./model/"
-        if not os.path.exists(MODEL_PATH):
-            os.mkdir(MODEL_PATH)
         SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + time.strftime("%y-%m-%d_%H-%M-%S", time.localtime()))
+    dist.barrier()
 
     epoch_start = time.time()
-
     batch_iter = 0
 
     for epoch in range(NUM_EPOCHS):
@@ -167,22 +178,19 @@ def train(net, criterion, optimizer, train_loader, device, rank, val_loader=None
         for batch_idx, traj in enumerate(train_loader):
             # put model in train mode
             net.train()
-
-            #traj = next(iter(train_loader))
-
             start = time.time()
 
-            traj = traj.cuda(device)
+            traj_tensor = traj.cuda(device)
 
-            loss, loss_list, acc_num_list = Loss.get_sl_loss(traj, net)
+            loss, loss_list, acc_num_list = Loss.get_sl_loss(traj_tensor, net)
 
             optimizer.zero_grad()
             loss.backward() 
             optimizer.step()
 
             # add a grad clip
-            # parameters = [p for p in net.parameters() if p is not None and p.requires_grad]
-            # torch.nn.utils.clip_grad_norm_(parameters, CLIP)
+            parameters = [p for p in net.parameters() if p is not None and p.requires_grad]
+            torch.nn.utils.clip_grad_norm_(parameters, CLIP)
 
             loss_sum += loss.item()
 
@@ -191,43 +199,46 @@ def train(net, criterion, optimizer, train_loader, device, rank, val_loader=None
             non_camera_accuracy = acc_num_list[4] / (acc_num_list[5] + 1e-9)
 
             batch_time = time.time() - start
-            #print('rank', rank)
 
             batch_iter += 1
             print('batch_iter', batch_iter)
 
-            if batch_iter % 100 == 0:
+            if batch_iter % EVAL_INTERFEVL == 0:
                 print('Epoch: [{}/{}]| loss: {:.3f} | acc: {:.3f} | batch time: {:.3f}s '.format(
-                    batch_iter, epoch, loss_sum / (batch_iter + 1), 0, batch_time))
+                    batch_iter, epoch, loss_sum / (batch_iter + 1), action_accuracy, batch_time))
 
-                print('eval begin')
-                val_loss, val_acc = eval(net, val_loader, device)
-                print('eval end')
+                if True:
+                    print('eval begin')
+                    val_loss, val_acc = eval(net, val_set, val_loader, device)
+                    print('eval end')
 
-                if rank == 0:
-                    print("Val loss: {:.6f}.".format(val_loss))
-                    writer.add_scalar('Val/Loss', val_loss, batch_iter)
+                    if rank == 0:
+                        print("Val loss: {:.6f}.".format(val_loss))
+                        writer.add_scalar('Val/Loss', val_loss, batch_iter)
 
-                    # for accuracy of actions in val
-                    print("Val action acc: {:.6f}.".format(val_acc[0]))
-                    writer.add_scalar('Val/action Acc', val_acc[0], batch_iter)
-                    print("Val move_camera acc: {:.6f}.".format(val_acc[1]))
-                    writer.add_scalar('Val/move_camera Acc', val_acc[1], batch_iter)
-                    print("Val non_camera acc: {:.6f}.".format(val_acc[2]))
-                    writer.add_scalar('Val/non_camera Acc', val_acc[2], batch_iter)
+                        # for accuracy of actions in val
+                        print("Val action acc: {:.6f}.".format(val_acc[0]))
+                        writer.add_scalar('Val/action Acc', val_acc[0], batch_iter)
+                        print("Val move_camera acc: {:.6f}.".format(val_acc[1]))
+                        writer.add_scalar('Val/move_camera Acc', val_acc[1], batch_iter)
+                        print("Val non_camera acc: {:.6f}.".format(val_acc[2]))
+                        writer.add_scalar('Val/non_camera Acc', val_acc[2], batch_iter)
+                    dist.barrier()    
 
                 if rank == 0:    
                     torch.save(net, SAVE_PATH + "" + ".pkl")
+                dist.barrier()
 
             if rank == 0:
                 write(writer, loss.item(), loss_list, action_accuracy, move_camera_accuracy, non_camera_accuracy, batch_iter)
+            dist.barrier()
 
     elapse_time = time.time() - epoch_start
     elapse_time = datetime.timedelta(seconds=elapse_time)
     print("Training time {}".format(elapse_time))
 
 
-def eval(model, val_loader, device):
+def eval(model, val_set, val_loader, device):
     model.eval()
 
     loss_sum = 0.0
@@ -243,7 +254,11 @@ def eval(model, val_loader, device):
     non_camera_action_all_num = 0.
 
     for traj in val_loader:
-        traj = traj.cuda(device)
+
+        if i > 10:
+            break
+
+        traj_tensor = traj.cuda(device)
 
         loss, _, acc_num_list = Loss.get_sl_loss(traj, model)
         print('eval i', i, 'loss', loss) if debug else None

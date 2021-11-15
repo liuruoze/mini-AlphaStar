@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader, Dataset
 from alphastarmini.core.arch.agent import Agent
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
+from alphastarmini.core.sl import utils as SU
 
 from alphastarmini.lib.hyper_parameters import DATASET_SPLIT_RATIO
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
@@ -24,26 +25,6 @@ from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 __author__ = "Ruo-Ze Liu"
 
 debug = False
-
-
-def obs2feature(obs):
-    s = Agent.get_state_and_action_from_pickle(obs)
-    feature = Feature.state2feature(s)
-    print("feature:", feature) if debug else None
-    print("feature.shape:", feature.shape) if debug else None
-
-    print("begin a:") if debug else None
-    func_call = obs['func_call']
-    action = Agent.func_call_to_action(func_call).toTenser()
-    #tag_list = agent.get_tag_list(obs)
-    print('action.get_shape:', action.get_shape()) if debug else None
-
-    logits = action.toLogits()
-    print('logits.shape:', logits) if debug else None
-    label = Label.action2label(logits)
-    print("label:", label) if debug else None
-    print("label.shape:", label.shape) if debug else None
-    return feature, label
 
 
 class OneReplayDataset(Dataset):
@@ -69,7 +50,7 @@ class OneReplayDataset(Dataset):
         for key in key_list:
             obs = self.traj_dict[key]
 
-            feature, label = obs2feature(obs)
+            feature, label = SU.obs2feature(obs)
             feature_list.append(feature)
             label_list.append(label)
 
@@ -233,7 +214,7 @@ class FullDataset(Dataset):
                     #print('len(key_list):', len(key_list)) if 1 else None
                     for key, value in traj_dict.items():
                         print('key', key) if debug else None
-                        # feature, label = obs2feature(value)
+                        # feature, label = SU.obs2feature(value)
                         # self.feature_list.append(feature)
                         # self.label_list.append(label)
                         self.obs_list.append(value)
@@ -247,15 +228,17 @@ class FullDataset(Dataset):
     def __getitem__(self, index):
 
         obs = self.obs_list[index:index + self.seq_len]
+
+        # note, we must not convert the obs to tensor, otherwise this will cause a memory leak of shared memory
+        # in PyTorch's dataloader, this is a bug reported:
+        # https://discuss.pytorch.org/t/training-crashes-due-to-insufficient-shared-memory-shm-nn-dataparallel/26396/18
+
         feature_list = []
         label_list = []
         for value in obs:
-            feature, label = obs2feature(value)
+            feature, label = SU.obs2feature(value)
             feature_list.append(feature)
             label_list.append(label)
-
-        # feature_list = self.feature_list[index:index + self.seq_len]
-        # label_list = self.label_list[index:index + self.seq_len]
 
         features = torch.cat(feature_list, dim=0)
         print("features.shape:", features.shape) if debug else None
@@ -271,16 +254,23 @@ class FullDataset(Dataset):
         for j in self.final_index_list:
             print('j', j) if debug else None
             if j >= index and j < index + self.seq_len:
-                print('in it!')
-                print('begin', index)
-                print('end', index + self.seq_len)
-                print('j', j)
+                if debug:
+                    print('in it!') 
+                    print('begin', index)
+                    print('end', index + self.seq_len)
+                    print('j', j)
                 is_final[j - index, 0] = 1
             else:
                 pass
 
         one_traj = torch.cat([features, labels, is_final], dim=1)
         print("one_traj.shape:", one_traj.shape) if debug else None
+
+        # The elegant processing method should be to directly generate numpy array, 
+        # but this may require a lot of changes. The stupid but simple approach taken 
+        # here is to directly convert tensor to numpy.
+        one_traj = one_traj.cpu().detach().numpy()
+        print("one_traj:", one_traj) if debug else None
 
         return one_traj
 

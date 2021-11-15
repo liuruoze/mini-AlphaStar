@@ -12,6 +12,8 @@ import torch.nn as nn
 
 from pysc2.lib.actions import RAW_FUNCTIONS
 
+from alphastarmini.core.arch.agent import Agent
+
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 
@@ -19,6 +21,63 @@ from alphastarmini.lib.hyper_parameters import Label_Size as LS
 
 
 debug = False
+
+
+def obs2feature(obs):
+    s = Agent.get_state_and_action_from_pickle(obs)
+    feature = Feature.state2feature(s)
+    print("feature:", feature) if debug else None
+    print("feature.shape:", feature.shape) if debug else None
+
+    print("begin a:") if debug else None
+    func_call = obs['func_call']
+    action = Agent.func_call_to_action(func_call).toTenser()
+    #tag_list = agent.get_tag_list(obs)
+    print('action.get_shape:', action.get_shape()) if debug else None
+
+    logits = action.toLogits()
+    print('logits.shape:', logits) if debug else None
+    label = Label.action2label(logits)
+    print("label:", label) if debug else None
+    print("label.shape:", label.shape) if debug else None
+    return feature, label
+
+
+def obsToTensor(obs, final_index_list, seq_len):
+    feature_list = []
+    label_list = []
+    for value in obs:
+        feature, label = obs2feature(value)
+        feature_list.append(feature)
+        label_list.append(label)
+
+    features = torch.cat(feature_list, dim=0)
+    print("features.shape:", features.shape) if debug else None
+
+    labels = torch.cat(label_list, dim=0)
+    print("labels.shape:", labels.shape) if debug else None
+
+    is_final = torch.zeros([features.shape[0], 1])
+
+    # consider is_final
+    print('begin', index) if debug else None
+    print('end', index + seq_len) if debug else None
+    for j in final_index_list:
+        print('j', j) if debug else None
+        if j >= index and j < index + seq_len:
+            if debug:
+                print('in it!') 
+                print('begin', index)
+                print('end', index + seq_len)
+                print('j', j)
+            is_final[j - index, 0] = 1
+        else:
+            pass
+
+    one_traj = torch.cat([features, labels, is_final], dim=1)
+    print("one_traj.shape:", one_traj.shape) if debug else None
+
+    return one_traj
 
 
 def get_mask_by_raw_action_id(raw_action_id):
@@ -97,7 +156,7 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device):
     # the non_move_camera weight is MAX_ACTIONS /2. / alpha
     # alpha set to 10
     MOVE_CAMERA_WEIGHT = 1.  # 1. / LS.action_type_encoding * 2.
-    alpha = 20.
+    alpha = 40.
     NON_MOVE_CAMERA_WEIGHT = LS.action_type_encoding / 2. / alpha
 
     for raw_action_id in ground_truth_raw_action_id:
