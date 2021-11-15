@@ -91,9 +91,10 @@ NUM_ITERS = 100  # 100
 
 # use too many Files may cause the following problem: 
 # ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
-FILE_SIZE = 10  # 100
+FILE_SIZE = 100  # 100
 
-EVAL_INTERFEVL = 10
+EVAL_INTERFEVL = 100
+EVAL_NUM = 100
 
 # set random seed
 # torch.manual_seed(SLTHP.seed)
@@ -255,7 +256,7 @@ def eval(model, val_set, val_loader, device):
 
     for traj in val_loader:
 
-        if i > 10:
+        if i > EVAL_NUM:
             break
 
         traj_tensor = traj.cuda(device)
