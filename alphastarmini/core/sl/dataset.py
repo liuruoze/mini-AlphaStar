@@ -10,7 +10,7 @@ import traceback
 from tqdm import tqdm
 
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from alphastarmini.lib.hyper_parameters import DATASET_SPLIT_RATIO
 
@@ -174,6 +174,20 @@ class SC2ReplayDataset(Dataset):
         max_len -= self.seq_length
 
         return int(max_len / self.seq_length)
+
+
+class ReplayTensorDataset(Dataset[Tuple[Tensor, ...]]):
+
+    def __init__(self, *tensors: Tensor, seq_len=AHP.sequence_length) -> None:
+        assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors), "Size mismatch between tensors"
+        self.tensors = tensors
+        self.seq_len = seq_len
+
+    def __getitem__(self, index):
+        return tuple(tensor[index:index + self.seq_len] for tensor in self.tensors)
+
+    def __len__(self):
+        return self.tensors[0].size(0) - seq_len + 1
 
 
 def test():

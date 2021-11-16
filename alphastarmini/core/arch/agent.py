@@ -87,6 +87,16 @@ class Agent(object):
 
         return state
 
+    @staticmethod
+    def get_state_and_action_from_pickle_numpy(obs):
+        batch_entities_tensor = Agent.preprocess_state_entity_numpy(obs)
+        scalar_list = Agent.preprocess_state_scalar_numpy(obs)
+        map_data = Agent.preprocess_state_spatial_numpy(obs)
+        state = MsState(entity_state=batch_entities_tensor, 
+                        statistical_state=scalar_list, map_state=map_data)
+
+        return state
+
     def get_scalar_list(self, obs, build_order=None):
         scalar_list = []
 
@@ -164,6 +174,12 @@ class Agent(object):
     @staticmethod
     def preprocess_state_scalar(obs, build_order=None):
         scalar_list = ArchModel.preprocess_scalar(obs, build_order=build_order)
+
+        return scalar_list
+
+    @staticmethod
+    def preprocess_state_scalar_numpy(obs, build_order=None):
+        scalar_list = ArchModel.preprocess_scalar_numpy(obs, build_order=build_order)
 
         return scalar_list
 
@@ -253,8 +269,96 @@ class Agent(object):
         return batch_entities_tensor
 
     @staticmethod
+    def preprocess_state_entity_numpy(obs, return_tag_list = False):
+        raw_units = obs["raw_units"]
+        e_list = []
+        tag_list = []
+        for i, raw_unit in enumerate(raw_units):
+            unit_type = raw_unit.unit_type
+            alliance = raw_unit.alliance
+            tag = raw_unit.tag
+            # note: wo only consider the entities not beyond the max number
+            if i < AHP.max_entities:
+                # print('our raw_unit:', raw_unit)
+                print('tag:', tag) if debug else None
+
+                e = Entity()
+                e.unit_type = raw_unit.unit_type
+                # e.unit_attributes = None
+                e.alliance = raw_unit.alliance
+                e.health = raw_unit.health
+                e.shield = raw_unit.shield
+                e.energy = raw_unit.energy
+                e.cargo_space_taken = raw_unit.cargo_space_taken
+                e.cargo_space_max = raw_unit.cargo_space_max
+                e.build_progress = raw_unit.build_progress
+                e.current_health_ratio = raw_unit.health_ratio
+                e.current_shield_ratio = raw_unit.shield_ratio
+                e.current_energy_ratio = raw_unit.energy_ratio
+                # e.health_max = None
+                # e.shield_max = None
+                # e.energy_max = None
+                e.display_type = raw_unit.display_type
+                e.x = raw_unit.x
+                e.y = raw_unit.y
+                e.is_cloaked = raw_unit.cloak
+                e.is_powered = raw_unit.is_powered
+                e.is_hallucination = raw_unit.hallucination
+                e.is_active = raw_unit.active
+                e.is_on_screen = raw_unit.is_on_screen
+                e.is_in_cargo = raw_unit.is_in_cargo
+                e.current_minerals = raw_unit.mineral_contents
+                e.current_vespene = raw_unit.vespene_contents
+                # e.mined_minerals = None
+                # e.mined_vespene = None
+                e.assigned_harvesters = raw_unit.assigned_harvesters
+                e.ideal_harvesters = raw_unit.ideal_harvesters
+                e.weapon_cooldown = raw_unit.weapon_cooldown
+                e.order_length = raw_unit.order_length
+                e.order_1 = raw_unit.order_id_0
+                e.order_2 = raw_unit.order_id_1
+                e.order_3 = raw_unit.order_id_2
+                e.order_4 = raw_unit.order_id_3
+                e.order_progress_1 = raw_unit.order_progress_0
+                e.order_progress_2 = raw_unit.order_progress_1
+                e.buff_id_1 = raw_unit.buff_id_0
+                e.buff_id_2 = raw_unit.buff_id_1
+                e.addon_unit_type = raw_unit.addon_unit_type
+                e.attack_upgrade_level = raw_unit.attack_upgrade_level
+                e.armor_upgrade_level = raw_unit.armor_upgrade_level
+                e.shield_upgrade_level = raw_unit.shield_upgrade_level
+                e.is_selected = raw_unit.is_selected
+                # e.is_targeted = None 
+
+                # add tag
+                # note: we use tag to find the right index of entity
+                e.tag = raw_unit.tag
+                e_list.append(e)
+
+                # note: the unit_tags and target_unit_tag in pysc2 actions
+                # are actually index in _raw_tags!
+                # so they are different from the tags really used by a SC2-action!
+                # thus we only need to append index, not sc2 tags          
+                # tag_list.append(e.tag)
+                tag_list.append(i)  # we only need to append index, not sc2 tags 
+            else:
+                break
+
+        # preprocess entity list
+        entities_array = ArchModel.preprocess_entity_numpy(e_list)
+        batch_entities_array = np.expand_dims(entities_array, axis = 0) 
+
+        return batch_entities_array
+
+    @staticmethod
     def preprocess_state_spatial(obs):
         map_data = ArchModel.preprocess_spatial(obs)
+
+        return map_data
+
+    @staticmethod
+    def preprocess_state_spatial_numpy(obs):
+        map_data = ArchModel.preprocess_spatial_numpy(obs)
 
         return map_data
 

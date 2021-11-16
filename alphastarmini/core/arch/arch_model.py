@@ -80,6 +80,18 @@ class ArchModel(nn.Module):
     def preprocess_spatial(obs):
         return SpatialEncoder.preprocess(obs)
 
+    @staticmethod
+    def preprocess_entity_numpy(e_list):
+        return EntityEncoder.preprocess_numpy(e_list)
+
+    @staticmethod    
+    def preprocess_scalar_numpy(obs, build_order=None):
+        return ScalarEncoder.preprocess_numpy(obs, build_order=build_order)
+
+    @staticmethod    
+    def preprocess_spatial_numpy(obs):
+        return SpatialEncoder.preprocess_numpy(obs)
+
     def init_hidden_state(self):
         return self.core.init_hidden_state()
 

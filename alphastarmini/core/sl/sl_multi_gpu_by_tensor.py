@@ -18,7 +18,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 from torch.optim import Adam, RMSprop
 
 # for multi-process gpu training
@@ -52,9 +52,9 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-p", "--path", default="./data/replay_data/", help="The path where data stored")
+parser.add_argument("-p", "--path", default="./data/replay_data_tensor/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
-parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
+parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=2, help='')
 
 # multi-gpu parameters
@@ -130,8 +130,30 @@ def main_worker(gpu, ngpus_per_node, args):
 
     print('==> Preparing data..')
 
-    train_set = FullDataset(replay_data_path=PATH, max_file_size=FILE_SIZE, shuffle=False)
-    val_set = FullDataset(replay_data_path=PATH, val=True, max_file_size=FILE_SIZE, shuffle=False)
+    # train_set = FullDataset(replay_data_path=PATH, max_file_size=FILE_SIZE, shuffle=False)
+    # val_set = FullDataset(replay_data_path=PATH, val=True, max_file_size=FILE_SIZE, shuffle=False)
+
+    replay_files = os.listdir(PATH)
+    print('length of replay_files:', len(replay_files)) if debug else None
+    replay_files.sort()
+    td_list = []
+    for i, replay_file in enumerate(tqdm(replay_files)):
+        try:
+            replay_path = PATH + replay_file
+            print('replay_path:', replay_path) if debug else None
+
+            features, labels = torch.load(replay_path)
+            is_final = torch.zeros([features.shape[0], 1])
+
+            traj = torch.cat([features, labels, is_final], dim=0)
+
+            td_list.append(ReplayTensorDataset(traj))
+
+        except Exception as e:
+            traceback.print_exc()
+
+    train_set = ConcatDataset(td_list)
+    val_set = ConcatDataset(td_list)
 
     print('len(train_set)', len(train_set))
     print('len(val_set)', len(val_set))

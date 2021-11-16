@@ -3,6 +3,8 @@
 
 " Label object, transfer the action to one-dimension label"
 
+import numpy as np
+
 import torch
 
 from alphastarmini.core.rl.action import ArgsAction, ArgsActionLogits
@@ -80,6 +82,33 @@ class Label(object):
         action.target_unit = target_unit_encoding
 
         label = torch.cat(action.toList(), dim=1)
+        return label
+
+    @staticmethod
+    def action2label_numpy(action):
+        ''' 
+        input: args action logits (tensor) 
+        outoput: [batch_size x label_feature_size]
+        '''
+        target_location_index = LabelIndex.target_location_encoding
+        target_location_encoding = action.target_location
+        batch_size = target_location_encoding.shape[0]
+        print("target_location_encoding.shape before:", target_location_encoding.shape) if debug else None
+        target_location_encoding = target_location_encoding.reshape(batch_size, LS[target_location_index])
+        print("target_location_encoding.shape after:", target_location_encoding.shape) if debug else None
+        action.target_location = target_location_encoding
+
+        units_index = LabelIndex.select_units_encoding
+        units_encoding = action.units
+        units_encoding = units_encoding.reshape(batch_size, LS[units_index])
+        action.units = units_encoding
+
+        target_unit_index = LabelIndex.target_unit_encoding
+        target_unit_encoding = action.target_unit
+        target_unit_encoding = target_unit_encoding.reshape(batch_size, LS[target_unit_index])
+        action.target_unit = target_unit_encoding
+
+        label = np.concatenate(action.toList(), axis=1)
         return label
 
     @staticmethod

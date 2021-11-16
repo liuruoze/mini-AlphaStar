@@ -60,11 +60,11 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     device = next(model.parameters()).device
     print("model.device:", device) if debug else None
 
-    state.to(device)
-    print('state:', state) if debug else None
+    # state.to(device)
+    # print('state:', state) if debug else None
 
-    action_gt.to(device)
-    print('action_gt:', action_gt) if debug else None
+    # action_gt.to(device)
+    # print('action_gt:', action_gt) if debug else None
 
     loss = torch.tensor([0.])
     loss_list = [0., 0., 0., 0., 0., 0.]

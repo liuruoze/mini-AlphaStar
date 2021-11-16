@@ -43,8 +43,8 @@ if __name__ == '__main__':
     # transform_replay_data.test(on_server=P.on_server)
 
     # # 2. second we use pickle to do supervised learning
-    from alphastarmini.core.sl import sl_train_by_pickle
-    sl_train_by_pickle.test(on_server=P.on_server)
+    # from alphastarmini.core.sl import sl_train_by_pickle
+    # sl_train_by_pickle.test(on_server=P.on_server)
 
     # 3. third we use SL model and replays to do reinforcement learning
     # from alphastarmini.core.rl import rl_train_with_replay
@@ -52,7 +52,10 @@ if __name__ == '__main__':
 
     # ------------------------
     #
-    # below is not recommended to use
+    # below is optional to use
+
+    from alphastarmini.core.sl import load_pickle
+    load_pickle.test(on_server=False)
 
     # from alphastarmini.core.sl import analyze_replay_statistic
     # analyze_replay_statistic.test(on_server=False)

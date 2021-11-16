@@ -11,6 +11,8 @@ import random
 
 from tqdm import tqdm
 
+import numpy as np
+
 import torch
 from torch.utils.data import DataLoader, Dataset
 
@@ -226,7 +228,57 @@ class FullDataset(Dataset):
                 traceback.print_exc()
 
     def __getitem__(self, index):
+        #t = self.get_tensor_item(index)
 
+        result = self.get_array_item(index)
+
+        return result
+
+    def get_array_item(self, index):
+        obs = self.obs_list[index:index + self.seq_len]
+
+        feature_list = []
+        label_list = []
+        for value in obs:
+            feature, label = SU.obs2feature_numpy(value)
+            feature_list.append(feature)
+            label_list.append(label)
+
+        features = np.concatenate(feature_list, axis=0)
+        print("features.shape:", features.shape) if debug else None
+
+        labels = np.concatenate(label_list, axis=0)
+        print("labels.shape:", labels.shape) if debug else None
+
+        is_final = np.zeros([features.shape[0], 1])
+
+        # consider is_final
+        # for speed, we don't use it now
+        if False:
+            print('begin', index) if debug else None
+            print('end', index + self.seq_len) if debug else None
+            for j in self.final_index_list:
+                print('j', j) if debug else None
+                if j >= index and j < index + self.seq_len:
+                    if debug:
+                        print('in it!') 
+                        print('begin', index)
+                        print('end', index + self.seq_len)
+                        print('j', j)
+                    is_final[j - index, 0] = 1
+                else:
+                    pass
+
+        one_traj = np.concatenate([features, labels, is_final], axis=1)
+
+        del features, labels, is_final
+
+        print("one_traj.shape:", one_traj.shape) if debug else None
+        print("one_traj:", one_traj) if debug else None
+
+        return one_traj
+
+    def get_tensor_item(self, index):
         obs = self.obs_list[index:index + self.seq_len]
 
         # note, we must not convert the obs to tensor, otherwise this will cause a memory leak of shared memory
@@ -275,7 +327,7 @@ class FullDataset(Dataset):
         return one_traj
 
     def __len__(self):
-        return len(self.obs_list) - self.seq_len
+        return len(self.obs_list) - self.seq_len + 1
 
 
 def test():

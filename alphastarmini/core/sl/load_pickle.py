@@ -8,7 +8,11 @@ import sys
 import traceback
 import pickle
 
+import numpy as np
+
 import torch
+
+from torch.utils.data import TensorDataset
 
 from absl import flags
 from absl import app
@@ -17,6 +21,7 @@ from tqdm import tqdm
 from alphastarmini.core.arch.agent import Agent
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
+from alphastarmini.core.sl import utils as SU
 
 __author__ = "Ruo-Ze Liu"
 
@@ -24,6 +29,7 @@ debug = False
 
 FLAGS = flags.FLAGS
 flags.DEFINE_string("replay_data_path", "./data/replay_data/", "path to replays_save replay data")
+flags.DEFINE_string("save_tensor_path", "./data/replay_data_tensor/", "path to replays_save replay data tensor")
 FLAGS(sys.argv)
 
 ON_SERVER = False
@@ -37,47 +43,70 @@ def print_tensor_list(tensor_list):
             print(l.shape)
 
 
-def test():
-    DATA_PATH = FLAGS.replay_data_path
-    print('data path:', DATA_PATH)
-    replay_files = os.listdir(DATA_PATH)
+def from_pickle_to_tensor(pickle_path, tensor_path, from_index=0, end_index=None):
+    replay_files = os.listdir(pickle_path)
     print('length of replay_files:', len(replay_files))
     replay_files.sort()
 
-    agent = Agent()
-    j = 0
     replay_length_list = []
     traj_list = []
-    for replay_file in replay_files:
+    for i, replay_file in enumerate(replay_files):
         try:
-            replay_path = DATA_PATH + replay_file
+            do_write = False
+            if i >= from_index:
+                if end_index is None:
+                    do_write = True
+                elif end_index is not None and i < end_index:
+                    do_write = True
+
+            if not do_write:
+                continue    
+
+            replay_path = pickle_path + replay_file
             print('replay_path:', replay_path)
 
+            feature_list = []
+            label_list = []
+
             with open(replay_path, 'rb') as handle:
-                b = pickle.load(handle)
-                keys = b.keys()
-                #print('keys:', keys)
-                for key in keys:
-                    obs = b[key]
-                    s = agent.get_state_and_action_from_pickle(obs)
-                    feature = Feature.state2feature(s)
-                    print("feature:", feature) if debug else None
-                    print("feature.shape:", feature.shape) if debug else None
+                traj_dict = pickle.load(handle)
 
-                    print("begin a:") if debug else None
-                    func_call = obs['func_call']
-                    action = agent.func_call_to_action(func_call).toTenser()
-                    #tag_list = agent.get_tag_list(obs)
-                    print('action.get_shape:', action.get_shape()) if debug else None
+                j = 0
+                for key, value in traj_dict.items():
+                    # if j > 10:
+                    #     break
+                    feature, label = SU.obs2feature_numpy(value)
+                    feature_list.append(feature)
+                    label_list.append(label)
+                    del value, feature, label
+                    j += 1 
 
-                    logits = action.toLogits()
-                    print('logits.shape:', logits) if debug else None
-                    label = Label.action2label(logits)
-                    print("label:", label) if debug else None
-                    print("label.shape:", label.shape) if debug else None
+                del traj_dict
+
+            features = np.concatenate(feature_list, axis=0)
+            print("features.shape:", features.shape) if debug else None
+            del feature_list
+
+            labels = np.concatenate(label_list, axis=0)
+            print("labels.shape:", labels.shape) if debug else None
+            del label_list
+
+            features = torch.tensor(features)
+            labels = torch.tensor(labels)
+
+            m = (features, labels)
+
+            if not os.path.exists(tensor_path):
+                os.mkdir(tensor_path)
+            file_name = tensor_path + replay_file.replace('.SC2Replay', '') + '.pt'
+            torch.save(m, file_name)
 
         except Exception as e:
             traceback.print_exc()    
 
     print("end")
     print("replay_length_list:", replay_length_list)
+
+
+def test(on_server=False):
+    from_pickle_to_tensor(FLAGS.replay_data_path, FLAGS.save_tensor_path, 0, 1)

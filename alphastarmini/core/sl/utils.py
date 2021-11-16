@@ -43,6 +43,26 @@ def obs2feature(obs):
     return feature, label
 
 
+def obs2feature_numpy(obs):
+    s = Agent.get_state_and_action_from_pickle_numpy(obs)
+    feature = Feature.state2feature_numpy(s)
+    print("feature:", feature) if debug else None
+    print("feature.shape:", feature.shape) if debug else None
+
+    print("begin a:") if debug else None
+    func_call = obs['func_call']
+    action = Agent.func_call_to_action(func_call).toArray()
+    #tag_list = agent.get_tag_list(obs)
+    print('action.get_shape:', action.get_shape()) if debug else None
+
+    logits = action.toLogits_numpy()
+    print('logits.shape:', logits) if debug else None
+    label = Label.action2label_numpy(logits)
+    print("label:", label) if debug else None
+    print("label.shape:", label.shape) if debug else None
+    return feature, label
+
+
 def obsToTensor(obs, final_index_list, seq_len):
     feature_list = []
     label_list = []

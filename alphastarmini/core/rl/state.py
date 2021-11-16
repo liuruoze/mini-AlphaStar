@@ -6,6 +6,8 @@ the statistical state (Global) and the map state (Image)."
 
 import time
 
+import numpy as np
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False

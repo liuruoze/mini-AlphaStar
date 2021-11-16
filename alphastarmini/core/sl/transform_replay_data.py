@@ -66,10 +66,12 @@ flags.DEFINE_float("no_op_threshold", 0.005, "The threshold to save no op operat
 flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
 flags.DEFINE_integer("observed_player", 1, "Which player to observe. For 2 player game, this can be 1 or 2.")
 
+flags.DEFINE_integer("save_type", 0, "0 is torch_tensor, 1 is python_pickle, 2 is numpy_array")
 flags.DEFINE_string("replay_version", "3.16.1", "the replays released by blizzard are all 3.16.1 version")
 
 flags.DEFINE_bool("save_data", False, "replays_save data or not")
 flags.DEFINE_string("save_path", "./data/replay_data/", "path to replays_save replay data")
+flags.DEFINE_string("save_path_tensor", "./data/replay_data_tensor/", "path to replays_save replay data tensor")
 FLAGS(sys.argv)
 
 
@@ -83,7 +85,12 @@ class SaveType(enum.IntEnum):
     numpy_array = 2
 
 
-SAVE_TYPE = SaveType.python_pickle
+if FLAGS.save_type == 0:
+    SAVE_TYPE = SaveType.torch_tensor
+elif FLAGS.save_type == 1:
+    SAVE_TYPE = SaveType.python_pickle
+else:
+    SAVE_TYPE = SaveType.numpy_array
 
 
 def check_info(replay_info):
@@ -123,25 +130,25 @@ def store_info(replay_info):
     '''
 
 
-def getFeatureAndLabel(obs, func_call, agent):
+def getFeatureAndLabel_numpy(obs, func_call):
     print("begin s:") if debug else None
-    s, tag_list = agent.state_by_obs(obs, return_tag_list=True)
-    feature = Feature.state2feature(s)
+    s = Agent.get_state_and_action_from_pickle_numpy(obs)
+    feature = Feature.state2feature_numpy(s)
     print("feature:", feature) if debug else None
     print("feature.shape:", feature.shape) if debug else None
 
     print("begin a:") if debug else None
-    action = agent.func_call_to_action(func_call, obs=obs)
+    action = Agent.func_call_to_action(func_call).toArray()
     # tag_list = agent.get_tag_list(obs)
-    a = action.toLogits(tag_list)
-    label = Label.action2label(a)
+    a = action.toLogits_numpy()
+    label = Label.action2label_numpy(a)
     print("label:", label) if debug else None
     print("label.shape:", label.shape) if debug else None
 
     return feature, label
 
 
-def getObsAndFunc(obs, func_call, agent, z):
+def getObsAndFunc(obs, func_call, z):
     # add z
     [bo, bu] = z
 
@@ -299,7 +306,7 @@ def test(on_server=False):
         REPLAY_PATH = "data/Replays/filtered_replays_1/"
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 120 * 22.4  # 60 * 60 * 22.4
+        max_steps_of_replay = 1 * 22.4  # 60 * 60 * 22.4
         max_replays = 5  # 1
 
     run_config = run_configs.get(version=FLAGS.replay_version)
@@ -450,16 +457,20 @@ def test(on_server=False):
                                 z = [player_bo, player_ucb]
 
                                 if SAVE_TYPE == SaveType.torch_tensor:
-                                    feature, label = getFeatureAndLabel(obs, func_call, agent)
+                                    feature, label = getFeatureAndLabel_numpy(obs, func_call)
+                                    feature = torch.tensor(feature)
+                                    label = torch.tensor(label)
                                     feature_list.append(feature)
                                     label_list.append(label)
 
                                 elif SAVE_TYPE == SaveType.python_pickle:
-                                    the_dict = getObsAndFunc(obs, func_call, agent, z)
+                                    the_dict = getObsAndFunc(obs, func_call, z)
                                     step_dict[i] = the_dict
 
                                 elif SAVE_TYPE == SaveType.numpy_array:
-                                    pass
+                                    feature, label = getFeatureAndLabel_numpy(obs, func_call)
+                                    feature_list.append(feature)
+                                    label_list.append(label)
 
                         except Exception as e:
                             traceback.print_exc()
@@ -486,8 +497,12 @@ def test(on_server=False):
                     labels = torch.cat(label_list, dim=0)
                     print('features.shape:', features.shape) if debug else None
                     print('labels.shape:', labels.shape) if debug else None
-                    m = {'features': features, 'labels': labels}
-                    file_name = FLAGS.save_path + replay_file.replace('.SC2Replay', '') + '.pt'
+                    #m = {'features': features, 'labels': labels}
+                    m = (features, labels)
+
+                    if not os.path.exists(FLAGS.save_path_tensor):
+                        os.mkdir(FLAGS.save_path_tensor)
+                    file_name = FLAGS.save_path_tensor + replay_file.replace('.SC2Replay', '') + '.pt'
                     torch.save(m, file_name)
 
                 elif SAVE_TYPE == SaveType.python_pickle:
@@ -496,7 +511,15 @@ def test(on_server=False):
                         pickle.dump(step_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
                 elif SAVE_TYPE == SaveType.numpy_array:
-                    pass    
+                    features = np.concatenate(feature_list, axis=0)
+                    labels = np.concatenate(label_list, axis=0)
+                    print('features.shape:', features.shape) if debug else None
+                    print('labels.shape:', labels.shape) if debug else None
+                    m = (features, labels)
+                    if not os.path.exists(FLAGS.save_path_tensor):
+                        os.mkdir(FLAGS.save_path_tensor)
+                    file_name = FLAGS.save_path_tensor + replay_file.replace('.SC2Replay', '') + '.npy'
+                    np.save(m, file_name)    
 
                 print('end save!')
 

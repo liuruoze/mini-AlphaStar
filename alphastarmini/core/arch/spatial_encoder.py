@@ -65,6 +65,13 @@ class SpatialEncoder(nn.Module):
     @classmethod
     def preprocess(cls, obs):
         map_data = cls.get_map_data(obs)
+        map_data = torch.tensor(map_data)
+
+        return map_data
+
+    @classmethod
+    def preprocess_numpy(cls, obs):
+        map_data = cls.get_map_data(obs)
         return map_data
 
     def scatter(self, entity_embeddings, entity_x_y):
@@ -206,9 +213,6 @@ class SpatialEncoder(nn.Module):
                                    alerts, pathable, buildable], axis=3)
         map_data = np.transpose(map_data, [0, 3, 1, 2])
         print('map_data.shape:', map_data.shape) if verbose else None
-
-        map_data = torch.tensor(map_data)
-        print('torch map_data.shape:', map_data.shape) if verbose else None
 
         return map_data
 

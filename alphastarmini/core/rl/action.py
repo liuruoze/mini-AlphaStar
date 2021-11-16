@@ -5,6 +5,8 @@
 
 from collections import namedtuple
 
+import numpy as np
+
 import torch
 
 from alphastarmini.lib import utils as L
@@ -97,6 +99,54 @@ class ArgsAction(object):
         return ArgsAction(action_type_encoding, delay_encoding, queue_encoding, select_units_encoding,
                           target_unit_encoding, target_location_encoding)
 
+    def toArray(self):
+        # for numpy or int object to tensor
+        # note, this is used in the one element case
+        action_type_encoding = np.zeros((1, 1), dtype=np.int32)
+        if self.action_type is not None:
+            action_type_encoding[0, 0] = self.action_type
+
+        delay_encoding = np.zeros((1, 1), dtype=np.int32)    
+        if self.delay is not None:
+            delay_encoding[0, 0] = self.delay
+
+        queue_encoding = np.zeros((1, 1), dtype=np.int32)    
+        if self.queue is not None:
+            queue_encoding[0, 0] = self.queue
+
+        select_units_encoding = np.zeros((1, self.max_selected, 1), dtype=np.int32)
+        if self.units is not None:
+            for i, u in enumerate(self.units):
+                if i >= self.max_selected:
+                    break
+                # ensure the unit index not beyond the max entities we considered
+                if u >= self.max_units:
+                    u = 0
+                select_units_encoding[0, i, 0] = u
+
+        target_unit_encoding = np.zeros((1, 1, 1), dtype=np.int32)
+        if self.target_unit is not None:
+            # ensure the target unit index not beyond the max entities we considered
+            u = self.target_unit
+            if u >= self.max_units:
+                u = 0
+            target_unit_encoding[0, 0, 0] = u
+
+        target_location_encoding = np.zeros((1, 2), dtype=np.int32)
+        if self.target_location is not None:
+            x = self.target_location[0]
+            y = self.target_location[1]
+            # ensure the position not beyond the map size
+            if x >= self.output_map_size:
+                x = 0
+            if y >= self.output_map_size:
+                y = 0
+            target_location_encoding[0, 0] = y  # note: the row index (0-index) is the y-axis
+            target_location_encoding[0, 1] = x  # note: the col index (1-index) is the x-axis
+
+        return ArgsAction(action_type_encoding, delay_encoding, queue_encoding, select_units_encoding,
+                          target_unit_encoding, target_location_encoding)
+
     def toLogits(self, tag_list=None):
         # for tensor action to tensor action with one-hot embedding
         batch_size = self.action_type.shape[0]
@@ -122,6 +172,41 @@ class ArgsAction(object):
         print('target_unit_encoding:', target_unit_encoding) if debug else None
 
         target_location_encoding = torch.zeros(batch_size, self.output_map_size, self.output_map_size)
+        for i, z in enumerate(self.target_location):
+            (x, y) = z
+            target_row_col = (y, x)
+            target_location_encoding[i, y, x] = 1
+
+        print('self.target_location:', self.target_location) if debug else None
+        print('target_location_encoding:', target_location_encoding) if debug else None
+        return ArgsActionLogits(action_type_encoding, delay_encoding, queue_encoding, select_units_encoding,
+                                target_unit_encoding, target_location_encoding)
+
+    def toLogits_numpy(self, tag_list=None):
+        # for tensor action to tensor action with one-hot embedding
+        batch_size = self.action_type.shape[0]
+
+        action_type_encoding = L.np_one_hot(self.action_type, self.max_actions).squeeze(-2)
+        print('self.action_type:', self.action_type) if debug else None
+        print('action_type_encoding:', action_type_encoding) if debug else None
+
+        delay_encoding = L.np_one_hot(self.delay, self.max_delay).squeeze(-2)
+        print('self.delay:', self.delay) if debug else None
+        print('delay_encoding:', delay_encoding) if debug else None
+
+        queue_encoding = L.np_one_hot(self.queue, self.max_queue).squeeze(-2)
+        print('self.queue:', self.queue) if debug else None
+        print('queue_encoding:', queue_encoding) if debug else None
+
+        print('self.units_index:', self.units) if debug else None
+        select_units_encoding = L.np_one_hot(self.units, self.max_units).squeeze(-2)
+        print('select_units_encoding:', select_units_encoding) if debug else None
+
+        target_unit_encoding = L.np_one_hot(self.target_unit, self.max_units).squeeze(-2)
+        print('self.target_unit_index:', self.target_unit) if debug else None
+        print('target_unit_encoding:', target_unit_encoding) if debug else None
+
+        target_location_encoding = np.zeros((batch_size, self.output_map_size, self.output_map_size))
         for i, z in enumerate(self.target_location):
             (x, y) = z
             target_row_col = (y, x)

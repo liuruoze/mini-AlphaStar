@@ -3,6 +3,8 @@
 
 " Feature object, transfer the state to one-dimension feature"
 
+import numpy as np
+
 import torch
 
 from alphastarmini.core.rl.state import MsState
@@ -70,6 +72,50 @@ class Feature(object):
         print("feature_3.shape:", feature_3.shape) if debug else None
 
         feature = torch.cat([feature_1, feature_2, feature_3], dim=1) 
+        return feature
+
+    @staticmethod
+    def state2feature_numpy(state):
+        ''' 
+        input: MsState 
+        outoput: [batch_size x feature_embedding_size]
+        '''
+
+        '''not used:
+        map_data = state[2]
+        batch_entities_tensor = state[1]
+        scalar_list = state[0]
+        '''
+
+        map_data = state.map_state
+        batch_entities_tensor = state.entity_state
+        scalar_list = state.statistical_state
+
+        batch_size = map_data.shape[0]  
+        bbo_index = ScalarFeature.beginning_build_order
+        scalar_list[bbo_index] = scalar_list[bbo_index].reshape(batch_size, SFS[bbo_index])
+        for z in scalar_list:
+            print("z.shape:", z.shape) if debug else None
+
+        feature_1 = np.concatenate(scalar_list, axis=1)
+        print("feature_1.shape:", feature_1.shape) if debug else None
+
+        print('batch_entities_tensor.shape', batch_entities_tensor.shape) if debug else None
+        print('batch_size', batch_size) if debug else None
+        print('AHP.max_entities', AHP.max_entities) if debug else None
+        print('AHP.embedding_size', AHP.embedding_size) if debug else None
+
+        feature_2 = batch_entities_tensor.reshape(batch_size, AHP.max_entities * AHP.embedding_size)
+        print("feature_2.shape:", feature_2.shape) if debug else None
+
+        print('map_data.shape', map_data.shape) if debug else None
+        print('AHP.map_channels', AHP.map_channels) if debug else None
+        print('AHP.minimap_size', AHP.minimap_size) if debug else None
+
+        feature_3 = map_data.reshape(batch_size, AHP.map_channels * AHP.minimap_size * AHP.minimap_size)
+        print("feature_3.shape:", feature_3.shape) if debug else None
+
+        feature = np.concatenate([feature_1, feature_2, feature_3], axis=1) 
         return feature
 
     @staticmethod    

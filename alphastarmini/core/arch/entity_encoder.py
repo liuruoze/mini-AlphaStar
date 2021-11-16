@@ -98,6 +98,12 @@ class EntityEncoder(nn.Module):
 
     @classmethod
     def preprocess(cls, entity_list):
+        all_entities_array = cls.preprocess_in_numpy(entity_list)
+        entities_tensor = torch.tensor(all_entities_array, dtype=torch.float32)
+        return entities_tensor
+
+    @classmethod
+    def preprocess_numpy(cls, entity_list):
         return cls.preprocess_in_numpy(entity_list)
 
     # The fields of each entity in `entity_list` are first preprocessed and concatenated so that \
@@ -1003,8 +1009,7 @@ class EntityEncoder(nn.Module):
             print('bias.shape:', bias.shape) if debug else None
             all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
 
-        entities_tensor = torch.tensor(all_entities_array, dtype=torch.float32)
-        return entities_tensor
+        return all_entities_array
 
     def forward(self, x):
         # assert the input shape is : batch_seq_size x entities_size x embeding_size
@@ -1170,7 +1175,7 @@ def test(debug=False):
     encoder = EntityEncoder()
 
     # test use preproces in numpy array
-    entities_tensor = EntityEncoder.preprocess_in_numpy(e_list)
+    entities_tensor = EntityEncoder.preprocess(e_list)
 
     # test use preproces in torch tensor
     # entities_tensor = EntityEncoder.preprocess_in_tensor(e_list)
