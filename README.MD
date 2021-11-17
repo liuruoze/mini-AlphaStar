@@ -104,7 +104,7 @@ File | Content
 sl_train_by_pickle.py | pickle training (pickles are data not preprocessed). Slow, but cost small disk space.
 sl_train_by_tensor.py | tensor training  (tensors are data preprocessed). Fast, but cost huge disk space.
 sl_multi_gpu_by_pickle.py | multi-GPU, pickle training. It has a requirement need for large shared memory.
-sl_multi_gpu_by_tensor.py | multi-GPU, tensor training. It has a requirement need for large memory and shared memory.
+sl_multi_gpu_by_tensor.py | multi-GPU, tensor training. It needs both for large memory and shared memory.
 
 You can choose the suitable way you need to do training.
 
