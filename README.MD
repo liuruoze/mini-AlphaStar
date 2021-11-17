@@ -92,9 +92,9 @@ The [REPLAY Guide](doc/REPLAY.MD) shows a guide to download these SC2 replays.
 
 The [ZHIHU Guide](https://zhuanlan.zhihu.com/p/410523216) provides Chinese users who are not convenient to use Battle.net (outside China) a guide to download replays.
 
-After downloading replays, you should make the replays in "./data./Replays./filtered_replays_1".
+After downloading replays, you should make the replays in "./data/Replays/filtered_replays_1".
 
-After downloading replays, you should make the replays in "./data./Replays./filtered_replays_1".
+After downloading replays, you should make the replays in "./data/Replays/filtered_replays_1".
 
 Then use transform_replay_data.py to transform these replays to pickles or tensors (the output type can be changed in the code of that file).
 
@@ -124,7 +124,7 @@ sl_multi_gpu_by_tensor.py | multi-GPU, tensor training. It needs both for large 
 
 You can choose the suitable way you need to do training.
 
-You can use the load_pickle.py to transform the generated pickles (in "./data/replay_data/) to tensors (in "./data/replay_data_tensor/").
+You can use the load_pickle.py to transform the generated pickles (in "./data/replay_data") to tensors (in "./data/replay_data_tensor").
 
 ## Results
 
