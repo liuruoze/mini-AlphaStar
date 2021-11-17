@@ -92,6 +92,14 @@ The [REPLAY Guide](doc/REPLAY.MD) shows a guide to download these SC2 replays.
 
 The [ZHIHU Guide](https://zhuanlan.zhihu.com/p/410523216) provides Chinese users who are not convenient to use Battle.net (outside China) a guide to download replays.
 
+After downloading replays, you should make the replays in "./data./Replays./filtered_replays_1".
+
+After downloading replays, you should make the replays in "./data./Replays./filtered_replays_1".
+
+Then use transform_replay_data.py to transform these replays to pickles or tensors (the output type can be changed in the code of that file).
+
+Pickles are Python pickle data that are not preprocessed. Tensors are PyTorch tensors that have been preprocessed.
+
 ## Multi-GPU training
 
 This version starts to support multi-GPU supervised learning training for mAS, which can greatly improve the training speed. The way to use multi-GPU training is very straightforward, as follows:
