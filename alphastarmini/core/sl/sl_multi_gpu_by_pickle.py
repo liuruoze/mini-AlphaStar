@@ -43,7 +43,7 @@ from alphastarmini.core.sl import sl_loss_multi_gpu as Loss
 from alphastarmini.core.sl.dataset_pickle import OneReplayDataset, AllReplayDataset, FullDataset
 from alphastarmini.core.sl import utils as SU
 
-from alphastarmini.lib.utils import load_latest_model
+from alphastarmini.lib.utils import load_latest_model, initial_model_state_dict
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import SL_Training_Hyper_Parameters as SLTHP
 
@@ -75,7 +75,7 @@ RESTORE = args.restore
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-16_13-30-24.pkl'
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-16_13-30-24.pth'
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
@@ -94,12 +94,12 @@ NUM_ITERS = 100  # 100
 # ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
 FILE_SIZE = 25  # 100
 
-EVAL_INTERFEVL = 200
+EVAL_INTERFEVL = 5
 EVAL_NUM = 50
 
 # set random seed
-# torch.manual_seed(SLTHP.seed)
-# np.random.seed(SLTHP.seed)
+torch.manual_seed(SLTHP.seed)
+np.random.seed(SLTHP.seed)
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -115,7 +115,8 @@ def main_worker(gpu, ngpus_per_node, args):
     net = ArchModel()
 
     if RESTORE:
-        net = torch.load(RESTORE_PATH, map_location=torch.device(args.rank))
+        # use state dict to restore
+        net.load_state_dict(torch.load(RESTORE_PATH, map_location=torch.device(args.rank)), strict=False)
 
     torch.cuda.set_device(args.gpu)
     net = net.cuda(args.gpu)
@@ -215,7 +216,10 @@ def train(net, criterion, optimizer, train_set, train_loader, device, rank, val_
                     batch_iter, epoch, loss_sum / (batch_iter + 1), action_accuracy, batch_time))
 
                 if rank == 0:    
-                    torch.save(net, SAVE_PATH + "" + ".pkl")
+                    # torch.save(net, SAVE_PATH + "" + ".pkl")
+                    # we use new save ways, only save the state_dict, and the extension changes to pt
+                    torch.save(net.state_dict(), SAVE_PATH + "" + ".pth")
+
                 dist.barrier()
 
             if rank == 0:
@@ -224,7 +228,7 @@ def train(net, criterion, optimizer, train_set, train_loader, device, rank, val_
 
             gc.collect()
 
-        if True:
+        if False:
             print('eval begin')
             val_loss, val_acc = eval(net, val_set, val_loader, device)
             print('eval end')

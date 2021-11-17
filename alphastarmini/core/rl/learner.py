@@ -81,7 +81,9 @@ class Learner:
 
         print("end backward") if debug else None
 
-        torch.save(agent.agent_nn.model, SAVE_PATH + "" + ".pkl")
+        # we use new ways to save
+        # torch.save(agent.agent_nn.model, SAVE_PATH + "" + ".pkl")
+        torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
         agent.steps += AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
         # self.player.agent.set_weights(self.optimizer.minimize(loss))

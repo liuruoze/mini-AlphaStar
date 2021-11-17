@@ -48,6 +48,8 @@ MAX_EPISODES = 1000      # 100
 # gpu setting
 ON_GPU = torch.cuda.is_available()
 DEVICE = torch.device("cuda:0" if ON_GPU else "cpu")
+
+# TODO: remove this line
 torch.backends.cudnn.enabled = False
 
 

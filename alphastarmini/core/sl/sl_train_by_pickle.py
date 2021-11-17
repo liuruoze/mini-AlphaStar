@@ -30,7 +30,7 @@ from alphastarmini.core.sl.label import Label
 from alphastarmini.core.sl import sl_loss as Loss
 from alphastarmini.core.sl.dataset_pickle import OneReplayDataset, AllReplayDataset
 
-from alphastarmini.lib.utils import load_latest_model
+from alphastarmini.lib.utils import load_latest_model, initial_model_state_dict
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import SL_Training_Hyper_Parameters as SLTHP
 
@@ -85,7 +85,9 @@ SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + time.strftime("%y-%m-%d_%H-%M
 
 def train_for_val(replays, replay_data, agent):
     if RESTORE:
-        agent.model = load_latest_model(model_type=MODEL, path=MODEL_PATH)
+        # agent.model = load_latest_model(model_type=MODEL, path=MODEL_PATH)
+        # use state dict to replace
+        initial_model_state_dict(model_type=MODEL, path=MODEL_PATH, model=agent.model)
 
     print('torch.cuda.device_count():', torch.cuda.device_count())
     # if torch.cuda.device_count() > 1:
@@ -206,7 +208,10 @@ def train_for_val(replays, replay_data, agent):
         writer.add_scalar('Val/non_camera Acc', val_acc[2], epoch)
 
         print("beign to save model in " + SAVE_PATH)
-        torch.save(agent.model, SAVE_PATH + "" + ".pkl")
+
+        # torch.save(agent.model, SAVE_PATH + "" + ".pkl")
+        # we use new save ways, only save the state_dict, and the extension changes to pt
+        torch.save(agent.model.state_dict(), SAVE_PATH + "" + ".pth")
 
 
 def eval(agent, val_loader):

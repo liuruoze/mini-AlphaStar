@@ -109,4 +109,4 @@ def from_pickle_to_tensor(pickle_path, tensor_path, from_index=0, end_index=None
 
 
 def test(on_server=False):
-    from_pickle_to_tensor(FLAGS.replay_data_path, FLAGS.save_tensor_path, 0, 1)
+    from_pickle_to_tensor(FLAGS.replay_data_path, FLAGS.save_tensor_path, 1, 2)

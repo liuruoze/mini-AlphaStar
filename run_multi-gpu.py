@@ -1,5 +1,5 @@
 import os
-USED_DEVICES = "4, 5"
+USED_DEVICES = "2, 3"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -43,12 +43,12 @@ if __name__ == '__main__':
     # transform_replay_data.test(on_server=P.on_server)
 
     # # 2. second we use pickle to do multi-gpu supervised learning
-    # from alphastarmini.core.sl import sl_multi_gpu_by_pickle
-    # sl_multi_gpu_by_pickle.test(on_server=P.on_server)
+    from alphastarmini.core.sl import sl_multi_gpu_by_pickle
+    sl_multi_gpu_by_pickle.test(on_server=P.on_server)
 
     # # 2. second we use  to do supervised learning
-    from alphastarmini.core.sl import sl_multi_gpu_by_tensor
-    sl_multi_gpu_by_tensor.test(on_server=P.on_server)
+    # from alphastarmini.core.sl import sl_multi_gpu_by_tensor
+    # sl_multi_gpu_by_tensor.test(on_server=P.on_server)
 
     # 3. third we use SL model and replays to do reinforcement learning
     # from alphastarmini.core.rl import rl_train_with_replay

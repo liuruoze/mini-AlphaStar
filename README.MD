@@ -39,7 +39,7 @@ The table below shows the corresponding packages in the project.
 Packages | Content
 ------------ | -------------
 alphastarmini.core.arch | deep neural architecture
-alphastarmini.core.sl | surpervised learning
+alphastarmini.core.sl | supervised learning
 alphastarmini.core.rl | reinforcement learning
 alphastarmini.core.ma | multi-agent league traning
 alphastarmini.lib | lib functions
@@ -96,6 +96,17 @@ python run_multi-gpu.py
 Notice:
 
 Multi-GPU training may have unstable factors (this is caused by the reason that PyTorch's support is not as stable as imagined). If you find that multi-GPU training has training instability and runtime errors, please switch back to single-GPU training.
+
+Currently, we support four types of supervised training. They all reside in the package of "alphastarmini.core.sl".
+
+File | Content
+------------ | -------------
+sl_train_by_pickle.py | pickle training (pickles are data not preprocessed). Slow, but cost small disk space.
+sl_train_by_tensor.py | tensor training  (tensors are data preprocessed). Fast, but cost huge disk space.
+sl_multi_gpu_by_pickle.py | multi-GPU, pickle training. It has a requirement need for large shared memory.
+sl_multi_gpu_by_tensor.py | multi-GPU, tensor training. It has a requirement need for large memory and shared memory.
+
+You can choose the suitable way you need to do training.
 
 ## Replays
 

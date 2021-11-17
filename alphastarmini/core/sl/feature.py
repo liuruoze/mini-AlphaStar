@@ -139,6 +139,7 @@ class Feature(object):
         outoput: MsState
         '''
         batch_size = feature.shape[0]
+        print('feature.shape', feature.shape) if debug else None
 
         # note: do not use AHP.scalar_feature_size
         #feature_1_size = AHP.scalar_feature_size

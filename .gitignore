@@ -36,6 +36,7 @@ data/replay_data_tensor/*
 data/*.zip
 res/paper/
 model/*.pkl
+model/*.pth
 *.SC2Replay
 data/experiment.txt
 tmp/*

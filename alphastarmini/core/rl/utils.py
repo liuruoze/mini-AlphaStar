@@ -9,7 +9,7 @@ import torch
 import traceback
 import collections
 
-from alphastarmini.lib.utils import load_latest_model
+from alphastarmini.lib.utils import load_latest_model, initial_model_state_dict
 from alphastarmini.core.rl.alphastar_agent import AlphaStarAgent
 
 __author__ = "Ruo-Ze Liu"
@@ -43,9 +43,10 @@ def get_supervised_agent(race, path="./model/", model_type="sl", restore=True):
     as_agent = AlphaStarAgent(name='supervised', race=race, initial_weights=None)
 
     if restore:
-        sl_model = load_latest_model(model_type=model_type, path=path)
-        if sl_model is not None:
-            as_agent.agent_nn.model = sl_model
+        # sl_model = load_latest_model(model_type=model_type, path=path)
+        # if sl_model is not None:
+        #     as_agent.agent_nn.model = sl_model
+        initial_model_state_dict(model_type=model_type, path=path, model=as_agent.agent_nn.model)
 
     return as_agent
 

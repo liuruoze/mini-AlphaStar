@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-" Train （multi-gpu） from the replay files through python pickle file"
+" Train （multi-gpu） from the replay files through python tensor file"
 
 # reference most from https://github.com/dnddnjs/pytorch-multigpu/blob/master/dist_parallel/train.py
 
@@ -18,7 +18,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from torch.utils.data import DataLoader, Dataset, TensorDataset
+from torch.utils.data import DataLoader, ConcatDataset
 from torch.optim import Adam, RMSprop
 
 # for multi-process gpu training
@@ -40,10 +40,10 @@ from alphastarmini.core.arch.arch_model import ArchModel
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 from alphastarmini.core.sl import sl_loss_multi_gpu as Loss
-from alphastarmini.core.sl.dataset_pickle import OneReplayDataset, AllReplayDataset, FullDataset
+from alphastarmini.core.sl.dataset import ReplayTensorDataset
 from alphastarmini.core.sl import utils as SU
 
-from alphastarmini.lib.utils import load_latest_model
+from alphastarmini.lib.utils import load_latest_model, initial_model_state_dict
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import SL_Training_Hyper_Parameters as SLTHP
 
@@ -54,7 +54,7 @@ debug = False
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--path", default="./data/replay_data_tensor/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
-parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
+parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=2, help='')
 
 # multi-gpu parameters
@@ -75,7 +75,7 @@ RESTORE = args.restore
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-16_13-30-24.pkl'
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-17_12-20-00.pth'
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
@@ -98,8 +98,37 @@ EVAL_INTERFEVL = 200
 EVAL_NUM = 50
 
 # set random seed
-# torch.manual_seed(SLTHP.seed)
-# np.random.seed(SLTHP.seed)
+torch.manual_seed(SLTHP.seed)
+np.random.seed(SLTHP.seed)
+
+
+def getReplayData(path, replay_files, from_index=0, end_index=None):
+    td_list = []
+    for i, replay_file in enumerate(tqdm(replay_files)):
+        try:
+            do_write = False
+            if i >= from_index:
+                if end_index is None:
+                    do_write = True
+                elif end_index is not None and i < end_index:
+                    do_write = True
+
+            if not do_write:
+                continue 
+
+            replay_path = path + replay_file
+            print('replay_path:', replay_path) if debug else None
+
+            features, labels = torch.load(replay_path)
+            print('features.shape:', features.shape) if 1 else None
+            print('labels.shape::', labels.shape) if 1 else None
+
+            td_list.append(ReplayTensorDataset(features, labels))
+
+        except Exception as e:
+            traceback.print_exc() 
+
+    return td_list
 
 
 def main_worker(gpu, ngpus_per_node, args):
@@ -115,7 +144,8 @@ def main_worker(gpu, ngpus_per_node, args):
     net = ArchModel()
 
     if RESTORE:
-        net = torch.load(RESTORE_PATH, map_location=torch.device(args.rank))
+        # use state dict to restore
+        net.load_state_dict(torch.load(RESTORE_PATH, map_location=torch.device(args.rank)), strict=False)
 
     torch.cuda.set_device(args.gpu)
     net = net.cuda(args.gpu)
@@ -130,30 +160,12 @@ def main_worker(gpu, ngpus_per_node, args):
 
     print('==> Preparing data..')
 
-    # train_set = FullDataset(replay_data_path=PATH, max_file_size=FILE_SIZE, shuffle=False)
-    # val_set = FullDataset(replay_data_path=PATH, val=True, max_file_size=FILE_SIZE, shuffle=False)
-
     replay_files = os.listdir(PATH)
     print('length of replay_files:', len(replay_files)) if debug else None
     replay_files.sort()
-    td_list = []
-    for i, replay_file in enumerate(tqdm(replay_files)):
-        try:
-            replay_path = PATH + replay_file
-            print('replay_path:', replay_path) if debug else None
 
-            features, labels = torch.load(replay_path)
-            is_final = torch.zeros([features.shape[0], 1])
-
-            traj = torch.cat([features, labels, is_final], dim=0)
-
-            td_list.append(ReplayTensorDataset(traj))
-
-        except Exception as e:
-            traceback.print_exc()
-
-    train_set = ConcatDataset(td_list)
-    val_set = ConcatDataset(td_list)
+    train_list = getReplayData(PATH, replay_files, from_index=0, end_index=1)
+    val_list = getReplayData(PATH, replay_files, from_index=1, end_index=2)
 
     print('len(train_set)', len(train_set))
     print('len(val_set)', len(val_set))
@@ -199,16 +211,17 @@ def train(net, criterion, optimizer, train_set, train_loader, device, rank, val_
         # dist.barrier()
         loss_sum = 0
 
-        for batch_idx, traj in enumerate(train_loader):
+        for batch_idx, (features, labels) in enumerate(train_loader):
             # put model in train mode
             net.train()
             start = time.time()
 
-            traj_tensor = traj.cuda(device).float()
-            del traj
+            feature_tensor = features.cuda(device).float()
+            labels_tensor = labels.cuda(device).float()
+            del features, labels
 
-            loss, loss_list, acc_num_list = Loss.get_sl_loss(traj_tensor, net)
-            del traj_tensor
+            loss, loss_list, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, labels_tensor, net)
+            del feature_tensor, labels_tensor
 
             optimizer.zero_grad()
             loss.backward() 
@@ -237,7 +250,10 @@ def train(net, criterion, optimizer, train_set, train_loader, device, rank, val_
                     batch_iter, epoch, loss_sum / (batch_iter + 1), action_accuracy, batch_time))
 
                 if rank == 0:    
-                    torch.save(net, SAVE_PATH + "" + ".pkl")
+                    # torch.save(net, SAVE_PATH + "" + ".pkl")
+                    # we use new save ways, only save the state_dict, and the extension changes to pt
+                    torch.save(net.state_dict(), SAVE_PATH + "" + ".pth")
+
                 dist.barrier()
 
             if rank == 0:
@@ -262,6 +278,10 @@ def train(net, criterion, optimizer, train_set, train_loader, device, rank, val_
                 writer.add_scalar('Val/move_camera Acc', val_acc[1], batch_iter)
                 print("Val non_camera acc: {:.6f}.".format(val_acc[2]))
                 writer.add_scalar('Val/non_camera Acc', val_acc[2], batch_iter)
+
+            del val_loss, val_acc
+            gc.collect()
+
             dist.barrier()  
 
     elapse_time = time.time() - epoch_start
@@ -284,16 +304,18 @@ def eval(model, val_set, val_loader, device):
     non_camera_action_acc_num = 0.
     non_camera_action_all_num = 0.
 
-    for traj in val_loader:
+    for i, (features, labels) in enumerate(val_loader):
 
         if i > EVAL_NUM:
             break
 
-        traj_tensor = traj.cuda(device).float()
-        del traj
+        feature_tensor = features.cuda(device).float()
+        labels_tensor = labels.cuda(device).float()
+        del features, labels
 
-        loss, _, acc_num_list = Loss.get_sl_loss(traj_tensor, model)
-        del traj_tensor
+        with torch.no_grad():
+            loss, _, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, labels_tensor, model)
+            del feature_tensor, labels_tensor
 
         print('eval i', i, 'loss', loss) if debug else None
 
@@ -308,7 +330,7 @@ def eval(model, val_set, val_loader, device):
         non_camera_action_acc_num += acc_num_list[4]
         non_camera_action_all_num += acc_num_list[5]
 
-        i += 1
+        gc.collect()
 
     val_loss = loss_sum / (i + 1e-9)
 

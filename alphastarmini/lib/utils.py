@@ -179,13 +179,34 @@ def load_latest_model(model_type, path):
     models.sort()    
     model_path = os.path.join(path, models[-1])
     print("load model from {}".format(model_path))
-    model = torch.load(model_path)
+
+    model = torch.load(model_path, map_location=torch.device(device))
 
     return model
 
 
 def load_the_model(model_path):
+    # we use new ways
     model = torch.load(model_path)
+    return model
+
+
+def initial_model_state_dict(model_type, path, model):
+    models = list(filter(lambda x: model_type in x, os.listdir(path)))
+    if len(models) == 0:
+        print("No models are found!")
+        return None
+
+    models.sort()    
+    model_path = os.path.join(path, models[-1])
+    print("load model from {}".format(model_path))
+
+    device = 'cpu'
+    if torch.cuda.is_available():
+        device = 'cuda:0'
+
+    model.load_state_dict(torch.load(model_path, map_location=device), strict=False) 
+
     return model
 
 
