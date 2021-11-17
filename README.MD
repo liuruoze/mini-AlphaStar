@@ -84,7 +84,15 @@ to start the program (you may use comments and uncomments to select the training
 
 The [USAGE Guide](doc/USAGE.MD) may provide some answers to problems and questions.
 
-## Multi-GPU Usage
+## Replays processing
+
+In supervised learning, you need to first download many SC2 replays.
+
+The [REPLAY Guide](doc/REPLAY.MD) shows a guide to download these SC2 replays.
+
+The [ZHIHU Guide](https://zhuanlan.zhihu.com/p/410523216) provides Chinese users who are not convenient to use Battle.net (outside China) a guide to download replays.
+
+## Multi-GPU training
 
 This version starts to support multi-GPU supervised learning training for mAS, which can greatly improve the training speed. The way to use multi-GPU training is very straightforward, as follows:
 ```
@@ -108,13 +116,7 @@ sl_multi_gpu_by_tensor.py | multi-GPU, tensor training. It needs both for large 
 
 You can choose the suitable way you need to do training.
 
-## Replays
-
-In supervised learning, you need to first download many SC2 replays.
-
-The [REPLAY Guide](doc/REPLAY.MD) shows a guide to download these SC2 replays.
-
-The [ZHIHU Guide](https://zhuanlan.zhihu.com/p/410523216) provides Chinese users who are not convenient to use Battle.net (outside China) a guide to download replays.
+You can use the load_pickle.py to transform the generated pickles (in "./data/replay_data/) to tensors (in "./data/replay_data_tensor/").
 
 ## Results
 
