@@ -59,7 +59,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-17_12-20-00.pth'
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-17_16-45-46.pth'
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
@@ -91,6 +91,9 @@ def getReplayData(path, replay_files, from_index=0, end_index=None):
     td_list = []
     for i, replay_file in enumerate(tqdm(replay_files)):
         try:
+            replay_path = path + replay_file
+            print('replay_path:', replay_path) if 1 else None
+
             do_write = False
             if i >= from_index:
                 if end_index is None:
@@ -100,9 +103,6 @@ def getReplayData(path, replay_files, from_index=0, end_index=None):
 
             if not do_write:
                 continue 
-
-            replay_path = path + replay_file
-            print('replay_path:', replay_path) if debug else None
 
             features, labels = torch.load(replay_path)
             print('features.shape:', features.shape) if 1 else None
@@ -136,8 +136,8 @@ def main_worker(device):
     print('length of replay_files:', len(replay_files)) if debug else None
     replay_files.sort()
 
-    train_list = getReplayData(PATH, replay_files, from_index=0, end_index=2)
-    val_list = getReplayData(PATH, replay_files, from_index=3, end_index=4)
+    train_list = getReplayData(PATH, replay_files, from_index=2, end_index=5)
+    val_list = getReplayData(PATH, replay_files, from_index=5, end_index=6)
 
     train_set = ConcatDataset(train_list)
     val_set = ConcatDataset(val_list)
