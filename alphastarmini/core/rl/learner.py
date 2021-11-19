@@ -73,11 +73,13 @@ class Learner:
         #torch.backends.cudnn.enabled = False
 
         self.optimizer.zero_grad()
-        loss = loss_function(agent, trajectories)
-        print("loss:", loss) if debug else None
 
-        loss.backward()
-        self.optimizer.step()
+        with torch.autograd.set_detect_anomaly(True):
+            loss = loss_function(agent, trajectories)
+            print("loss:", loss) if debug else None
+
+            loss.backward()
+            self.optimizer.step()
 
         print("end backward") if debug else None
 

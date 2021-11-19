@@ -1,44 +1,47 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-" The code for the actor (only play against the inner computer) in the actor-learner mode in the IMPALA architecture "
+" Train for RL by fighting against built-in AI (computer), using no replays"
 
-# modified from AlphaStar pseudo-code
+import os
+import random
 import traceback
 from time import time, sleep, strftime, localtime
 import threading
 
-import os
-
-import torch
-from torch.optim import Adam
-
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
+from pysc2.lib import actions as sc2_actions
 
 from alphastarmini.core.rl.utils import Trajectory, get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
-from alphastarmini.core.rl import utils as U
+from alphastarmini.core.rl import utils as RU
 
-from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
+from alphastarmini.lib import utils as L
 
 from alphastarmini.core.ma.league import League
 from alphastarmini.core.ma.coordinator import Coordinator
 
+from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
+
+from alphastarmini.lib.sc2.raw_actions_mapping_protoss import select_and_target_unit_type_for_protoss_actions
 
 __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+MAX_EPISODES = 25
+IS_TRAINING = True
+MAP_NAME = "AbyssalReef"
 STEP_MUL = 8
 GAME_STEPS_PER_EPISODE = 12000    # 9000
-MAX_EPISODES = 25      # 100   
-MAIN_PLAYER_NUMS = 1
-ACTOR_NUMS = 2
-IS_TRAINING = True
+
+DIFFICULTY = 1
+RANDOM_SEED = 1
+VERSION = '4.10.0'
 
 
-class ActorLoopVersusComputer:
+class ActorVSComputer:
     """A single actor loop that generates trajectories by playing with built-in AI (computer).
 
     We don't use batched inference here, but it was used in practice.
@@ -48,14 +51,13 @@ class ActorLoopVersusComputer:
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING):
-
         self.player = player
+
+        print('initialed player')
         self.player.add_actor(self)
 
-        # below code is not used because we only can create the env when we know the opponnet information (e.g., race)
-        # AlphaStar: self.environment = SC2Environment()
-
         self.teacher = get_supervised_agent(player.race, model_type="sl")
+        print('initialed teacher')
 
         self.coordinator = coordinator
         self.max_time_for_training = max_time_for_training
@@ -79,10 +81,12 @@ class ActorLoopVersusComputer:
     def run(self):
         try:
             self.is_running = True
+
             """A run loop to have agents and an environment interact."""
             total_frames = 0
             total_episodes = 0
 
+            # the total numberv_for_all_episodes as [loss, draw, win]
             results = [0, 0, 0]
 
             start_time = time()
@@ -100,6 +104,8 @@ class ActorLoopVersusComputer:
 
                     for agent, obs_spec, act_spec in zip(agents, observation_spec, action_spec):
                         agent.setup(obs_spec, act_spec)
+
+                    self.teacher.setup(self.player.agent.obs_spec, self.player.agent.action_spec)
 
                     print('player:', self.player) if debug else None
                     print('opponent:', "Computer bot") if debug else None
@@ -126,6 +132,9 @@ class ActorLoopVersusComputer:
                         player_memory = self.player.agent.initial_state()
                         teacher_memory = self.teacher.initial_state()
 
+                        # initial build order
+                        player_bo = []
+
                         episode_frames = 0
                         # default outcome is 0 (means draw)
                         outcome = 0
@@ -139,18 +148,30 @@ class ActorLoopVersusComputer:
                             total_frames += 1
                             episode_frames += 1
 
-                            # run_loop: actions = [agent.step(timestep) for agent, timestep in zip(agents, timesteps)]
                             player_step = self.player.agent.step_logits(home_obs, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory = player_step
+                            print("player_function_call:", player_function_call) if 1 else None
 
-                            print("player_function_call:", player_function_call) if 0 else None
+                            # don't use the blow line, may cause in-place error in PyTorch 1.5.
+                            # teacher_logits = player_logits
 
-                            teacher_logits = player_logits
+                            # Q: how to do it ?
+                            # may change implemention of teacher_logits
+                            # teacher_logits = self.teacher(home_obs, player_action, teacher_memory)
 
-                            env_actions = [player_function_call]
+                            teacher_step = self.teacher.step_logits(home_obs, teacher_memory)
+                            teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
+                            print("teacher_function_call:", teacher_function_call) if debug else None
+
+                            if player_function_call.function == 168:
+                                sc2_pb_actions = sc2_actions.FunctionCall(0, [])
+                            else:
+                                sc2_pb_actions = injected_function_call(home_obs, env, player_function_call)
+
+                            env_actions = [sc2_pb_actions]  # [player_function_call]
 
                             player_action_spec = action_spec[0]
-                            action_masks = U.get_mask(player_action, player_action_spec)
+                            action_masks = RU.get_mask(player_action, player_action_spec)
                             z = None
 
                             timesteps = env.step(env_actions)
@@ -159,6 +180,17 @@ class ActorLoopVersusComputer:
                             print("reward: ", reward) if 0 else None
 
                             is_final = home_next_obs.last()
+
+                            # calculate the build order
+                            player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
+                            print("player build order:", player_bo) if debug else None
+
+                            # calculate the unit counts of bag
+                            player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
+                            print("player unit count of bow:", sum(player_ucb)) if debug else None
+
+                            game_loop = home_obs.observation.game_loop[0]
+                            print("game_loop", game_loop)
 
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
                             # them here
@@ -173,6 +205,12 @@ class ActorLoopVersusComputer:
                                 teacher_logits=teacher_logits,      
                                 is_final=is_final,                                          
                                 reward=reward,
+
+                                build_order=player_bo,
+                                z_build_order=player_bo,  # we change it to the sampled build order
+                                unit_counts=player_ucb,
+                                z_unit_counts=player_ucb,  # we change it to the sampled unit counts
+                                game_loop=game_loop,
                             )
                             trajectory.append(traj_step)
 
@@ -186,7 +224,7 @@ class ActorLoopVersusComputer:
                                 results[outcome + 1] += 1
 
                             if len(trajectory) >= AHP.sequence_length:                    
-                                trajectories = U.stack_namedtuple(trajectory)
+                                trajectories = RU.stack_namedtuple(trajectory)
 
                                 if self.player.learner is not None:
                                     if self.player.learner.is_running:
@@ -217,8 +255,6 @@ class ActorLoopVersusComputer:
                         # use max_frames_per_episode to end the episode
                         if self.max_episodes and total_episodes >= self.max_episodes:
                             print("Beyond the max_episodes, return!")
-                            print("results: ", results) if 1 else None
-                            print("win rate: ", results[2] / (1e-8 + sum(results))) if 1 else None
                             return
 
         except Exception as e:
@@ -226,12 +262,15 @@ class ActorLoopVersusComputer:
             print(traceback.format_exc())
 
         finally:
+            print("results: ", results) if 1 else None
+            print("win rate: ", results[2] / (1e-9 + sum(results))) if 1 else None
+
             self.is_running = False
 
     # create env function
     def create_env_one_player(self, player, game_steps_per_episode=GAME_STEPS_PER_EPISODE, 
-                              step_mul=STEP_MUL, version=None, 
-                              map_name="Simple64", random_seed=1):
+                              step_mul=STEP_MUL, version=VERSION, 
+                              map_name=MAP_NAME, random_seed=RANDOM_SEED):
 
         player_aif = AgentInterfaceFormat(**AAIFP._asdict())
         agent_interface_format = [player_aif]
@@ -242,7 +281,7 @@ class ActorLoopVersusComputer:
         print('player.race:', player.race)
 
         sc2_computer = Bot([Race.terran],
-                           Difficulty.very_hard,
+                           Difficulty(DIFFICULTY),
                            [BotBuild.random])
 
         env = SC2Env(map_name=map_name,
@@ -257,13 +296,166 @@ class ActorLoopVersusComputer:
         return env
 
 
-def test(on_server=False):
+def injected_function_call(home_obs, env, function_call):
+    obs = home_obs.observation
+    raw_units = obs["raw_units"]
+
+    select, target, min_num = select_and_target_unit_type_for_protoss_actions(function_call)
+    print('select, target, min_num', select, target, min_num) if debug else None
+
+    select_candidate = []
+    target_candidate = []
+
+    for u in raw_units:
+        if select is not None:
+            if not isinstance(select, list):
+                select = [select]
+            if u.alliance == 1:
+                if u.unit_type in select:
+                    select_candidate.append(u.tag)
+
+        if target is not None:
+            if u.unit_type == target:
+                target_candidate.append(u.tag)
+
+    if len(select_candidate) > 0:
+        print('select_candidate', select_candidate)
+        unit_tag = random.choice(select_candidate)
+
+    if len(target_candidate) > 0:   
+        print('target_candidate', target_candidate) 
+        target_tag = random.choice(target_candidate)
+
+    sc2_action = env._features[0].transform_action(obs, function_call)  
+    print("sc2_action before transformed:", sc2_action) if debug else None
+
+    if sc2_action.HasField("action_raw"):
+        raw_act = sc2_action.action_raw
+        if raw_act.HasField("unit_command"):
+            uc = raw_act.unit_command
+            # to judge a repteated field whether has 
+            # use the following way
+            if len(uc.unit_tags) != 0:
+                # can not assign, must use unit_tags[:]=[xx tag]
+                print("the_tag", the_tag) if debug else None
+                if len(select_candidate) > 0:
+                    uc.unit_tags[:] = [unit_tag]
+            # we use fixed target unit tag only for Harvest_Gather_unit action
+            if uc.HasField("target_unit_tag"):
+                if len(target_candidate) > 0:    
+                    uc.target_unit_tag = target_tag
+
+    print("sc2_action after transformed:", sc2_action) if debug else None
+
+    return sc2_action
+
+
+def some_change(home_obs, env, function_call):
+    obs = home_obs.observation
+
+    print('type(observation)', type(home_obs.observation))
+
+    raw_units = obs["raw_units"]
+
+    our_unit_list = []
+    mineral_unit_list = []
+    nexus_list = []
+    probe_list = []
+    idle_probe_list = []
+    for u in raw_units:
+        # only include the units we have
+        if u.alliance == 1:
+            print('u.tag', u.tag, 'u.unit_type', u.unit_type)
+            # our_unit_list.append(u)
+            if u.unit_type == 59:
+                #print('nexus tag', u.tag)
+                nexus_list.append(u)
+            if u.unit_type == 84:
+                #print('probe tag', u.tag)
+                probe_list.append(u)
+                if u.order_length == 0:
+                    idle_probe_list.append(u)
+        # include the units of Neutral   
+        if u.alliance == 3:
+            if u.display_type == 1:
+                if u.x < 40 and u.y < 50:
+                    if u.mineral_contents > 0:
+                        mineral_unit_list.append(u)
+
+    our_unit_list.extend(nexus_list)
+
+    def myFunc(e):
+        return e.tag
+    probe_list.sort(reverse=False, key=myFunc)
+    our_unit_list.extend(probe_list)
+
+    random_index = random.randint(0, len(our_unit_list) - 1)
+
+    if len(mineral_unit_list) > 0:
+        max_mineral_contents = mineral_unit_list[0].mineral_contents
+        max_mineral_tag = mineral_unit_list[0].tag
+
+        for u in mineral_unit_list:
+            if u.mineral_contents > max_mineral_contents:
+                max_mineral_contents = u.mineral_contents
+                max_mineral_tag = u.tag
+
+    unit_index = random_index
+
+    the_tag = our_unit_list[unit_index].tag
+
+    # we change pysc2 action to sc2 action, for replace the unit tag
+    sc2_action = env._features[0].transform_action(obs, function_call)                         
+    print("sc2_action before transformed:", sc2_action) if 1 else None
+
+    if len(nexus_list) > 0:
+        nexus_tag = nexus_list[0].tag
+        print("nexus_tag", nexus_tag) if debug else None
+        if function_call.function == 64:
+            the_tag = nexus_tag
+
+    # if len(idle_probe_list) > 0:
+    #     idle_probe_tag = idle_probe_list[0].tag
+    #     print("idle_probe_tag", idle_probe_tag) if debug else None
+    #     if function_call.function == 35:
+    #         the_tag = idle_probe_tag
+    # elif len(probe_list) > 0:
+    #     probe_tag = probe_list[0].tag
+    #     print("probe_tag", probe_tag) if debug else None
+    #     if function_call.function == 35:
+    #         the_tag = probe_tag
+
+    if sc2_action.HasField("action_raw"):
+        raw_act = sc2_action.action_raw
+        if raw_act.HasField("unit_command"):
+            uc = raw_act.unit_command
+            # to judge a repteated field whether has 
+            # use the following way
+            if len(uc.unit_tags) != 0:
+                # can not assign, must use unit_tags[:]=[xx tag]
+                print("the_tag", the_tag) if debug else None
+                uc.unit_tags[:] = [the_tag]
+            # we use fixed target unit tag only for Harvest_Gather_unit action
+            if uc.HasField("target_unit_tag"):
+                uc.target_unit_tag = max_mineral_tag
+
+    print("sc2_action after transformed:", sc2_action) if 1 else None
+
+    return sc2_action
+
+
+def test(on_server=False, replay_path=None):
+    # model path
+    MODEL_TYPE = "sl"
+    MODEL_PATH = "./model/"
+    ACTOR_NUMS = 1
+
     league = League(
         initial_agents={
-            race: get_supervised_agent(race, model_type="rl")
+            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=True)
             for race in [Race.protoss]
         },
-        main_players=MAIN_PLAYER_NUMS, 
+        main_players=1, 
         main_exploiters=0,
         league_exploiters=0)
 
@@ -275,15 +467,13 @@ def test(on_server=False):
         player = league.get_learning_player(idx)
         learner = Learner(player, max_time_for_training=60 * 60 * 24)
         learners.append(learner)
-        actors.extend([ActorLoopVersusComputer(player, coordinator) for _ in range(ACTOR_NUMS)])
+        actors.extend([ActorVSComputer(player, coordinator) for _ in range(ACTOR_NUMS)])
 
     threads = []
-
     for l in learners:
         l.start()
         threads.append(l.thread)
         sleep(1)
-
     for a in actors:
         a.start()
         threads.append(a.thread)

@@ -1336,6 +1336,11 @@ def compute_pseudoreward(trajectories, reward_name):
         rewards_tensor = torch.tensor(trajectories.reward, dtype=torch.float32, device=device)
         return rewards_tensor
 
+    # if we don't use replays to generate reward, just return the result reward
+    # if trajectories.build_order[0][0] is None and trajectories.z_build_order[0][0] is None:
+    #     rewards_tensor = torch.tensor(trajectories.reward, dtype=torch.float32, device=device)
+    #     return rewards_tensor
+
     print("trajectories.build_order", trajectories.build_order) if debug else None
     print("trajectories.z_build_order", trajectories.z_build_order) if debug else None
     print("trajectories.unit_counts", trajectories.unit_counts) if debug else None

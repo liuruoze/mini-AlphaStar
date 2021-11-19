@@ -59,7 +59,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-17_16-45-46.pth'
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-18_08-00-04.pth'
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
@@ -136,8 +136,8 @@ def main_worker(device):
     print('length of replay_files:', len(replay_files)) if debug else None
     replay_files.sort()
 
-    train_list = getReplayData(PATH, replay_files, from_index=2, end_index=5)
-    val_list = getReplayData(PATH, replay_files, from_index=5, end_index=6)
+    train_list = getReplayData(PATH, replay_files, from_index=2, end_index=4)
+    val_list = getReplayData(PATH, replay_files, from_index=4, end_index=5)
 
     train_set = ConcatDataset(train_list)
     val_set = ConcatDataset(val_list)
