@@ -9,6 +9,55 @@ from pysc2.lib.units import Protoss, Neutral
 __author__ = "Ruo-Ze Liu"
 
 
+def small_select_and_target_unit_type_for_actions(function_call):
+
+    select = None
+    target = None
+    min_num = None
+
+    try:
+        function = function_call.function
+        # note, this "function" is a IntEnum
+        # change it to int by "int(function)" or "function.value"
+        # or show the string by "function.name"
+
+        # function_id = int(function)
+        # print('function_id', function_id)
+        # print('function.name', function.name)
+        # print('function.value', function.value)
+
+        func_name = function.name
+
+        if func_name == "Train_Probe_quick":
+            select = Protoss.Nexus
+
+        elif func_name == "Build_Pylon_pt":
+            select = Protoss.Probe
+
+        elif func_name == "Build_Gateway_pt":
+            select = Protoss.Probe
+
+        elif func_name == "Build_Assimilator_unit":
+            select = Protoss.Probe
+            target = Neutral.VespeneGeyser
+
+        elif func_name == "Build_CyberneticsCore_pt":
+            select = Protoss.Probe
+
+        elif func_name == "Train_Zealot_quick":
+            select = Protoss.Gateway
+
+        elif func_name == "Train_Stalker_quick":
+            select = Protoss.Gateway
+
+    except Exception as e:
+        print("Find exception in small_select_and_target_unit_type_for_actions:", e)
+        print(traceback.format_exc())
+
+    finally:
+        return select, target, min_num
+
+
 def select_and_target_unit_type_for_protoss_actions(function_call):
 
     select = None

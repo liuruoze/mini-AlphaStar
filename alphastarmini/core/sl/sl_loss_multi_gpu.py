@@ -92,7 +92,7 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     return loss, loss_list, acc_num_list
 
 
-def get_sl_loss_for_tensor(features, labels, model, use_mask=True, use_eval=False):
+def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=False):
 
     criterion = cross_entropy
 
@@ -137,7 +137,7 @@ def get_sl_loss_for_tensor(features, labels, model, use_mask=True, use_eval=Fals
     loss, loss_list = get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type_logits,
                                                              delay_logits, queue_logits, units_logits,
                                                              target_unit_logits, target_location_logits, criterion,
-                                                             device)
+                                                             device, decrease_smart_opertaion=decrease_smart_opertaion)
     acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, device)
 
     print('loss', loss) if debug else None
@@ -146,11 +146,12 @@ def get_sl_loss_for_tensor(features, labels, model, use_mask=True, use_eval=Fals
 
 
 def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, delay, queue, units,
-                                           target_unit, target_location, criterion, device):
+                                           target_unit, target_location, criterion, device, decrease_smart_opertaion=False):
     loss = 0.
 
     # consider using move camera weight
-    move_camera_weight = SU.get_move_camera_weight_in_SL(action_gt.action_type, action_pred, device).reshape(-1)
+    move_camera_weight = SU.get_move_camera_weight_in_SL(action_gt.action_type, action_pred, 
+                                                         device, decrease_smart_opertaion=decrease_smart_opertaion).reshape(-1)
     #move_camera_weight = None
     action_type_loss = criterion(action_gt.action_type, action_type, mask=move_camera_weight)
     loss += action_type_loss

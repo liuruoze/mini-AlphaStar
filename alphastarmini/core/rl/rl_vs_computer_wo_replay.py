@@ -24,7 +24,7 @@ from alphastarmini.core.ma.coordinator import Coordinator
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
 
-from alphastarmini.lib.sc2.raw_actions_mapping_protoss import select_and_target_unit_type_for_protoss_actions
+from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
 __author__ = "Ruo-Ze Liu"
 
@@ -300,8 +300,11 @@ def injected_function_call(home_obs, env, function_call):
     obs = home_obs.observation
     raw_units = obs["raw_units"]
 
-    select, target, min_num = select_and_target_unit_type_for_protoss_actions(function_call)
-    print('select, target, min_num', select, target, min_num) if debug else None
+    select, target, min_num = RAMP.small_select_and_target_unit_type_for_actions(function_call)
+    print('select, target, min_num', select, target, min_num) if 1 else None
+
+    # select, target, min_num = RAMP.select_and_target_unit_type_for_protoss_actions(function_call)
+    # print('select, target, min_num', select, target, min_num) if debug else None
 
     select_candidate = []
     target_candidate = []

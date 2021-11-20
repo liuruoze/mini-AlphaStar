@@ -164,7 +164,7 @@ def get_two_way_mask_in_SL(action_type_gt, action_pred, device):
     return mask_tensor_return
 
 
-def get_move_camera_weight_in_SL(action_type_gt, action_pred, device):
+def get_move_camera_weight_in_SL(action_type_gt, action_pred, device, decrease_smart_opertaion=False):
     # consider the ground truth and the predicted
     ground_truth_raw_action_id = torch.nonzero(action_type_gt, as_tuple=True)[-1]
     mask_list = [] 
@@ -179,9 +179,24 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device):
     alpha = 40.
     NON_MOVE_CAMERA_WEIGHT = LS.action_type_encoding / 2. / alpha
 
+    # note, the human replays have many operations like smart_pt and smart_unit
+    # these actions are meaningless (we are hard to filter unit types for selection for them)
+    # so we also choose to decrease their weight
+    if decrease_smart_opertaion:
+        Smart_pt_id = 1
+        Smart_unit_id = 12
+        # TODO: change these ids to Func.id
+        SMART_WEIGHT = 1.5
+    else:
+        SMART_WEIGHT = NON_MOVE_CAMERA_WEIGHT
+
     for raw_action_id in ground_truth_raw_action_id:
         if raw_action_id.item() == MOVE_CAMERA_ID:
             mask_list.append([MOVE_CAMERA_WEIGHT])
+        elif raw_action_id.item() == Smart_pt_id:
+            mask_list.append([SMART_WEIGHT])
+        elif raw_action_id.item() == Smart_unit_id:
+            mask_list.append([SMART_WEIGHT])
         else:
             mask_list.append([NON_MOVE_CAMERA_WEIGHT])
     mask_tensor = torch.tensor(mask_list)

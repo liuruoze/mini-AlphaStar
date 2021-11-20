@@ -55,18 +55,18 @@ The [SCRIPT Guide](scripts/Setup_cmd.MD) gives some commands to install PyTorch 
 
 E.g., like:
 ```
-conda create -n torch_1_5 python=3.7 pytorch=1.5 -c pytorch
+conda create -n th_1_5 python=3.7 pytorch=1.5 -c pytorch
 ```
 to install PyTorch 1.5 (with accompanied CUDA and cudnn).
 
 After install PyTorch, use the following command to active the conda environment:
 ```
-source activate torch_1_5 
+source activate th_1_5 
 ```
 
 In Windows, this command may be:
 ```
-conda activate torch_1_5 
+conda activate th_1_5 
 ```
 
 Then you can install other python packages by pip, e.g., the command in the below line:

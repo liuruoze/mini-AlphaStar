@@ -59,7 +59,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-18_08-00-04.pth'
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-20_08-14-29.pth' 
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
@@ -136,8 +136,8 @@ def main_worker(device):
     print('length of replay_files:', len(replay_files)) if debug else None
     replay_files.sort()
 
-    train_list = getReplayData(PATH, replay_files, from_index=2, end_index=4)
-    val_list = getReplayData(PATH, replay_files, from_index=4, end_index=5)
+    train_list = getReplayData(PATH, replay_files, from_index=6, end_index=8)
+    val_list = getReplayData(PATH, replay_files, from_index=8, end_index=9)
 
     train_set = ConcatDataset(train_list)
     val_set = ConcatDataset(val_list)
@@ -184,7 +184,7 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             labels_tensor = labels.to(device).float()
             del features, labels
 
-            loss, loss_list, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, labels_tensor, net)
+            loss, loss_list, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, labels_tensor, net, decrease_smart_opertaion=True)
             del feature_tensor, labels_tensor
 
             optimizer.zero_grad()
@@ -249,6 +249,9 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
 def eval(model, val_set, val_loader, device):
     model.eval()
 
+    # should we use it ？
+    # model.core.lstm.train()
+
     loss_sum = 0.0
     i = 0
 
@@ -263,7 +266,7 @@ def eval(model, val_set, val_loader, device):
 
     for i, (features, labels) in enumerate(val_loader):
 
-        if i > EVAL_NUM:
+        if False and i > EVAL_NUM:
             break
 
         feature_tensor = features.to(device).float()
@@ -271,7 +274,7 @@ def eval(model, val_set, val_loader, device):
         del features, labels
 
         with torch.no_grad():
-            loss, _, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, labels_tensor, model)
+            loss, _, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, labels_tensor, model, decrease_smart_opertaion=True)
             del feature_tensor, labels_tensor
 
         print('eval i', i, 'loss', loss) if debug else None
@@ -336,5 +339,12 @@ def test(on_server):
     # gpu setting
     ON_GPU = torch.cuda.is_available()
     DEVICE = torch.device("cuda:0" if ON_GPU else "cpu")
+
+    if ON_GPU:
+        if torch.backends.cudnn.is_available():
+            print('cudnn available')
+            print('cudnn version', torch.backends.cudnn.version())
+            torch.backends.cudnn.enabled = True
+            torch.backends.cudnn.benchmark = True
 
     main_worker(DEVICE)
