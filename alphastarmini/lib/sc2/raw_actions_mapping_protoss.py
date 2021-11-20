@@ -8,26 +8,24 @@ from pysc2.lib.units import Protoss, Neutral
 
 __author__ = "Ruo-Ze Liu"
 
+SMALL_MAPPING = {
+    "Train_Probe_quick": [Protoss.Nexus, None, 1],
+    "Build_Pylon_pt": [Protoss.Probe, None, 1],
+    "Build_Gateway_pt": [Protoss.Probe, None, 1],
+    "Build_Assimilator_unit": [Protoss.Probe, Neutral.VespeneGeyser, 1],
+    "Build_CyberneticsCore_pt": [Protoss.Probe, None, 1],
+    "Train_Zealot_quick": [Protoss.Gateway, None, 1],
+    "Train_Stalker_quick": [Protoss.Gateway, None, 1],
+}
 
-def small_select_and_target_unit_type_for_actions(function_call):
+
+def small_select_and_target_unit_type_for_actions(func_name):
 
     select = None
     target = None
     min_num = None
 
     try:
-        function = function_call.function
-        # note, this "function" is a IntEnum
-        # change it to int by "int(function)" or "function.value"
-        # or show the string by "function.name"
-
-        # function_id = int(function)
-        # print('function_id', function_id)
-        # print('function.name', function.name)
-        # print('function.value', function.value)
-
-        func_name = function.name
-
         if func_name == "Train_Probe_quick":
             select = Protoss.Nexus
 

@@ -59,7 +59,13 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-20_08-14-29.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-20_12-19-48.pth' 
+
+TRAIN_FROM = 8
+TRAIN_NUM = 2
+
+VAL_FROM = 10
+VAL_NUM = 1
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
@@ -136,8 +142,8 @@ def main_worker(device):
     print('length of replay_files:', len(replay_files)) if debug else None
     replay_files.sort()
 
-    train_list = getReplayData(PATH, replay_files, from_index=6, end_index=8)
-    val_list = getReplayData(PATH, replay_files, from_index=8, end_index=9)
+    train_list = getReplayData(PATH, replay_files, from_index=TRAIN_FROM, end_index=TRAIN_FROM + TRAIN_NUM)
+    val_list = getReplayData(PATH, replay_files, from_index=VAL_FROM, end_index=VAL_FROM + VAL_NUM)
 
     train_set = ConcatDataset(train_list)
     val_set = ConcatDataset(val_list)
@@ -184,7 +190,11 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             labels_tensor = labels.to(device).float()
             del features, labels
 
-            loss, loss_list, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, labels_tensor, net, decrease_smart_opertaion=True)
+            loss, loss_list, \
+                acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, 
+                                                           labels_tensor, net, 
+                                                           decrease_smart_opertaion=True,
+                                                           return_important=True)
             del feature_tensor, labels_tensor
 
             optimizer.zero_grad()
@@ -203,6 +213,7 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             action_accuracy = acc_num_list[0] / (acc_num_list[1] + 1e-9)
             move_camera_accuracy = acc_num_list[2] / (acc_num_list[3] + 1e-9)
             non_camera_accuracy = acc_num_list[4] / (acc_num_list[5] + 1e-9)
+            short_important_accuracy = acc_num_list[6] / (acc_num_list[7] + 1e-9)
 
             batch_time = time.time() - start
 
@@ -217,7 +228,9 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
                 # we use new save ways, only save the state_dict, and the extension changes to pt
                 torch.save(net.state_dict(), SAVE_PATH + "" + ".pth")
 
-            write(writer, loss_value, loss_list, action_accuracy, move_camera_accuracy, non_camera_accuracy, batch_iter)
+            write(writer, loss_value, loss_list, action_accuracy, 
+                  move_camera_accuracy, non_camera_accuracy, short_important_accuracy,
+                  batch_iter)
 
             gc.collect()
 
@@ -236,6 +249,8 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             writer.add_scalar('Val/move_camera Acc', val_acc[1], batch_iter)
             print("Val non_camera acc: {:.6f}.".format(val_acc[2]))
             writer.add_scalar('Val/non_camera Acc', val_acc[2], batch_iter)
+            print("Val short_important acc: {:.6f}.".format(val_acc[3]))
+            writer.add_scalar('Val/short_important Acc', val_acc[3], batch_iter)
 
             del val_loss, val_acc
 
@@ -264,6 +279,9 @@ def eval(model, val_set, val_loader, device):
     non_camera_action_acc_num = 0.
     non_camera_action_all_num = 0.
 
+    short_important_action_acc_num = 0.
+    short_important_action_all_num = 0.
+
     for i, (features, labels) in enumerate(val_loader):
 
         if False and i > EVAL_NUM:
@@ -274,7 +292,10 @@ def eval(model, val_set, val_loader, device):
         del features, labels
 
         with torch.no_grad():
-            loss, _, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, labels_tensor, model, decrease_smart_opertaion=True)
+            loss, _, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, 
+                                                                labels_tensor, model, 
+                                                                decrease_smart_opertaion=True,
+                                                                return_important=True)
             del feature_tensor, labels_tensor
 
         print('eval i', i, 'loss', loss) if debug else None
@@ -290,6 +311,11 @@ def eval(model, val_set, val_loader, device):
         non_camera_action_acc_num += acc_num_list[4]
         non_camera_action_all_num += acc_num_list[5]
 
+        short_important_action_acc_num += acc_num_list[6]
+        short_important_action_all_num += acc_num_list[7]
+
+        del loss, acc_num_list
+
         gc.collect()
 
     val_loss = loss_sum / (i + 1e-9)
@@ -297,11 +323,13 @@ def eval(model, val_set, val_loader, device):
     action_accuracy = action_acc_num / (action_all_num + 1e-9)
     move_camera_accuracy = move_camera_action_acc_num / (move_camera_action_all_num + 1e-9)
     non_camera_accuracy = non_camera_action_acc_num / (non_camera_action_all_num + 1e-9)
+    short_important_accuracy = short_important_action_acc_num / (short_important_action_all_num + 1e-9)
 
-    return val_loss, [action_accuracy, move_camera_accuracy, non_camera_accuracy]
+    return val_loss, [action_accuracy, move_camera_accuracy, non_camera_accuracy, short_important_accuracy]
 
 
-def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy, non_camera_accuracy, batch_iter):
+def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy, 
+          non_camera_accuracy, short_important_accuracy, batch_iter):
 
     print("One batch loss: {:.6f}.".format(loss))
     writer.add_scalar('OneBatch/Loss', loss, batch_iter)
@@ -333,6 +361,9 @@ def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy, non_ca
 
         print("One batch non_camera_accuracy: {:.6f}.".format(non_camera_accuracy))
         writer.add_scalar('OneBatch/non_camera_accuracy', non_camera_accuracy, batch_iter)
+
+        print("One batch short_important_accuracy: {:.6f}.".format(short_important_accuracy))
+        writer.add_scalar('OneBatch/short_important_accuracy', short_important_accuracy, batch_iter)
 
 
 def test(on_server):

@@ -92,7 +92,8 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     return loss, loss_list, acc_num_list
 
 
-def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=False):
+def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=False,
+                           return_important=False):
 
     criterion = cross_entropy
 
@@ -138,7 +139,7 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
                                                              delay_logits, queue_logits, units_logits,
                                                              target_unit_logits, target_location_logits, criterion,
                                                              device, decrease_smart_opertaion=decrease_smart_opertaion)
-    acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, device)
+    acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, device, return_important=return_important)
 
     print('loss', loss) if debug else None
 

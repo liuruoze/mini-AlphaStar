@@ -300,7 +300,13 @@ def injected_function_call(home_obs, env, function_call):
     obs = home_obs.observation
     raw_units = obs["raw_units"]
 
-    select, target, min_num = RAMP.small_select_and_target_unit_type_for_actions(function_call)
+    function = function_call.function
+    # note, this "function" is a IntEnum
+    # change it to int by "int(function)" or "function.value"
+    # or show the string by "function.name"
+    func_name = function.name
+
+    select, target, min_num = RAMP.small_select_and_target_unit_type_for_actions(func_name)
     print('select, target, min_num', select, target, min_num) if 1 else None
 
     # select, target, min_num = RAMP.select_and_target_unit_type_for_protoss_actions(function_call)
