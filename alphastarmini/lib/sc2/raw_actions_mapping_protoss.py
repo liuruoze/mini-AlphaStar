@@ -18,6 +18,16 @@ SMALL_MAPPING = {
     "Train_Stalker_quick": [Protoss.Gateway, None, 1],
 }
 
+SMALL_LIST = [
+    F.Train_Probe_quick.id.value,
+    F.Build_Pylon_pt.id.value,
+    F.Build_Gateway_pt.id.value,
+    F.Build_Assimilator_unit.id.value,
+    F.Build_CyberneticsCore_pt.id.value,
+    F.Train_Zealot_quick.id.value,
+    F.Train_Stalker_quick.id.value,
+]
+
 
 def small_select_and_target_unit_type_for_actions(func_name):
 

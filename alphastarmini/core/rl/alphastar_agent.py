@@ -117,6 +117,9 @@ class AlphaStarAgent(RandomAgent):
         # init lstm hidden state
         self.memory_state = self.initial_state()
 
+    def set_rl_training(self, staus):
+        self.agent_nn.set_rl_training(staus)
+
     def initial_state(self):
         """Returns the hidden state of the agent for the start of an episode."""
         # Network details elided.

@@ -59,16 +59,6 @@ conda create -n th_1_5 python=3.7 pytorch=1.5 -c pytorch
 ```
 to install PyTorch 1.5 (with accompanied CUDA and cudnn).
 
-After install PyTorch, use the following command to active the conda environment:
-```
-source activate th_1_5 
-```
-
-In Windows, this command may be:
-```
-conda activate th_1_5 
-```
-
 Then you can install other python packages by pip, e.g., the command in the below line:
 ```
 pip install -r requirements.txt

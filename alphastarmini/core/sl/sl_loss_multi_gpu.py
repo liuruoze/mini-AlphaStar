@@ -31,6 +31,7 @@ def cross_entropy(soft_targets, pred, mask=None):
     logsoftmax = nn.LogSoftmax(dim=-1)
     x_1 = - soft_targets * logsoftmax(pred)
     x_2 = torch.sum(x_1, -1)
+    # This mask is for each item's mask
     if mask is not None:
         x_2 = x_2 * mask
     x_4 = torch.mean(x_2)
@@ -93,7 +94,7 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
 
 
 def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=False,
-                           return_important=False):
+                           return_important=False, only_consider_small=False):
 
     criterion = cross_entropy
 
@@ -138,7 +139,9 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
     loss, loss_list = get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type_logits,
                                                              delay_logits, queue_logits, units_logits,
                                                              target_unit_logits, target_location_logits, criterion,
-                                                             device, decrease_smart_opertaion=decrease_smart_opertaion)
+                                                             device, 
+                                                             decrease_smart_opertaion=decrease_smart_opertaion,
+                                                             only_consider_small=only_consider_small)
     acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, device, return_important=return_important)
 
     print('loss', loss) if debug else None
@@ -147,12 +150,18 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
 
 
 def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, delay, queue, units,
-                                           target_unit, target_location, criterion, device, decrease_smart_opertaion=False):
+                                           target_unit, target_location, 
+                                           criterion, device, 
+                                           decrease_smart_opertaion=False,
+                                           only_consider_small=False):
     loss = 0.
 
     # consider using move camera weight
-    move_camera_weight = SU.get_move_camera_weight_in_SL(action_gt.action_type, action_pred, 
-                                                         device, decrease_smart_opertaion=decrease_smart_opertaion).reshape(-1)
+    move_camera_weight = SU.get_move_camera_weight_in_SL(action_gt.action_type, 
+                                                         action_pred, 
+                                                         device, 
+                                                         decrease_smart_opertaion=decrease_smart_opertaion,
+                                                         only_consider_small=only_consider_small).reshape(-1)
     #move_camera_weight = None
     action_type_loss = criterion(action_gt.action_type, action_type, mask=move_camera_weight)
     loss += action_type_loss

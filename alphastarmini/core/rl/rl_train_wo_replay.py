@@ -5,12 +5,6 @@
 
 import os
 
-USED_DEVICES = "0"
-import os
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
 import traceback
 from time import time, sleep
 import threading

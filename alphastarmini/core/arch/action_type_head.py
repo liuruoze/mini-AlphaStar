@@ -3,10 +3,13 @@
 
 " Action Type Head."
 
+import random
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from pysc2.lib.actions import RAW_FUNCTIONS
 from alphastarmini.core.arch.spatial_encoder import ResBlock1D
 from alphastarmini.lib.glu import GLU
 from alphastarmini.lib.multinomial import stable_multinomial
@@ -15,6 +18,8 @@ from alphastarmini.lib import utils as L
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import Label_Size as LS
+
+from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
 __author__ = "Ruo-Ze Liu"
 
@@ -34,8 +39,10 @@ class ActionTypeHead(nn.Module):
     def __init__(self, lstm_dim=AHP.lstm_hidden_dim, n_resblocks=AHP.n_resblocks, 
                  is_sl_training=True, temperature=0.8, original_256=AHP.original_256,
                  max_action_num=LS.action_type_encoding, context_size=AHP.context_size, 
-                 autoregressive_embedding_size=AHP.autoregressive_embedding_size):
+                 autoregressive_embedding_size=AHP.autoregressive_embedding_size,
+                 use_action_type_mask=False, is_rl_training=False):
         super().__init__()
+        # TODO: make is_sl_training effective 
         self.is_sl_training = is_sl_training
         if not self.is_sl_training:
             self.temperature = temperature
@@ -58,8 +65,15 @@ class ActionTypeHead(nn.Module):
                          output_size=autoregressive_embedding_size)
         self.softmax = nn.Softmax(dim=-1)
 
+        self.use_action_type_mask = use_action_type_mask
+
+        self.is_rl_training = is_rl_training
+
     def preprocess(self):
         pass
+
+    def set_rl_training(self, staus):
+        self.is_rl_training = staus
 
     def forward(self, lstm_output, scalar_context):
         batch_size = lstm_output.shape[0]
@@ -104,13 +118,38 @@ class ActionTypeHead(nn.Module):
         action_type_logits = action_type_logits / self.temperature
         print('action_type_logits after temperature:', action_type_logits) if debug else None
 
+        if self.is_rl_training and random.random() < 0.5:
+            action_type_logits[:] = 0.
+
         action_type_probs = self.softmax(action_type_logits)
         print('action_type_probs:', action_type_probs) if debug else None
         print('action_type_probs.shape:', action_type_probs.shape) if debug else None
 
+        device = next(self.parameters()).device
+        print('ActionTypeHead device:', device) if debug else None
+        print('self.max_action_num:', self.max_action_num) if debug else None
+
+        if self.is_rl_training or self.use_action_type_mask:
+            action_type_mask = torch.zeros(self.max_action_num, device=device)
+            print('action_type_mask:', action_type_mask) if debug else None
+            print('action_type_mask.shape:', action_type_mask.shape) if debug else None
+
+            # action_type_mask[RAMP.SMALL_LIST] = 1.
+
+            action_type_mask[RAW_FUNCTIONS.Build_Pylon_pt.id.value] = 1.
+            action_type_mask[RAW_FUNCTIONS.Train_Probe_quick.id.value] = 1.
+
+            print('right action_type_mask:', action_type_mask) if debug else None
+            print('right action_type_mask.shape:', action_type_mask.shape) if debug else None
+
+            action_type_probs = action_type_probs * action_type_mask
+            print('masked action_type_probs:', action_type_probs) if debug else None
+            print('masked action_type_probs.shape:', action_type_probs.shape) if debug else None
+
         # note, torch.multinomial need samples to non-negative, finite and have a non-zero sum
         # which is different with tf.multinomial which can accept negative values like log(action_type_probs)
         action_type = torch.multinomial(action_type_probs.reshape(batch_size, -1), 1)
+
         #action_type = stable_multinomial(logits=action_type_logits, temperature=self.temperature)
         print('stable action_type:', action_type) if debug else None
         print('action_type.shape:', action_type.shape) if debug else None
@@ -128,10 +167,6 @@ class ActionTypeHead(nn.Module):
         if cuda_check:
             get_cuda_device = action_type.get_device()
             print('get_cuda_device:', get_cuda_device) if debug else None
-
-        device = next(self.parameters()).device
-        print('ActionTypeHead device:', device) if debug else None
-        print('self.max_action_num:', self.max_action_num) if debug else None
 
         # change action_type to one_hot version
         action_type_one_hot = L.to_one_hot(action_type, self.max_action_num)

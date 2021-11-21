@@ -59,12 +59,12 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-20_12-19-48.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-20_22-39-01.pth' 
 
-TRAIN_FROM = 8
+TRAIN_FROM = 0
 TRAIN_NUM = 2
 
-VAL_FROM = 10
+VAL_FROM = 0
 VAL_NUM = 1
 
 # hyper paramerters
@@ -194,7 +194,8 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
                 acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, 
                                                            labels_tensor, net, 
                                                            decrease_smart_opertaion=True,
-                                                           return_important=True)
+                                                           return_important=True,
+                                                           only_consider_small=True)
             del feature_tensor, labels_tensor
 
             optimizer.zero_grad()
@@ -295,7 +296,8 @@ def eval(model, val_set, val_loader, device):
             loss, _, acc_num_list = Loss.get_sl_loss_for_tensor(feature_tensor, 
                                                                 labels_tensor, model, 
                                                                 decrease_smart_opertaion=True,
-                                                                return_important=True)
+                                                                return_important=True,
+                                                                only_consider_small=True)
             del feature_tensor, labels_tensor
 
         print('eval i', i, 'loss', loss) if debug else None

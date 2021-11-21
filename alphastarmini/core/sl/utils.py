@@ -164,7 +164,8 @@ def get_two_way_mask_in_SL(action_type_gt, action_pred, device):
     return mask_tensor_return
 
 
-def get_move_camera_weight_in_SL(action_type_gt, action_pred, device, decrease_smart_opertaion=False):
+def get_move_camera_weight_in_SL(action_type_gt, action_pred, device, 
+                                 decrease_smart_opertaion=False, only_consider_small=False):
     # consider the ground truth and the predicted
     ground_truth_raw_action_id = torch.nonzero(action_type_gt, as_tuple=True)[-1]
     mask_list = [] 
@@ -197,19 +198,25 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device, decrease_s
     for raw_action_id in ground_truth_raw_action_id:
         aid = raw_action_id.item()
 
-        if aid == MOVE_CAMERA_ID:
-            mask_list.append([MOVE_CAMERA_WEIGHT])
-        elif aid == Smart_pt_id:
-            mask_list.append([SMART_WEIGHT])
-        elif aid == Smart_unit_id:
-            mask_list.append([SMART_WEIGHT])
+        if not only_consider_small:
+            if aid == MOVE_CAMERA_ID:
+                mask_list.append([MOVE_CAMERA_WEIGHT])
+            elif aid == Smart_pt_id:
+                mask_list.append([SMART_WEIGHT])
+            elif aid == Smart_unit_id:
+                mask_list.append([SMART_WEIGHT])
+            else:
+                func_name = F[aid].name
+                select, _, _ = RAMP.small_select_and_target_unit_type_for_actions(func_name)
+                if select is not None:
+                    mask_list.append([SMALL_IMPORTANT_WEIGHT])
+                else:
+                    mask_list.append([NON_MOVE_CAMERA_WEIGHT])
         else:
-            func_name = F[aid].name
-            select, _, _ = RAMP.small_select_and_target_unit_type_for_actions(func_name)
-            if select is not None:
+            if aid in RAMP.SMALL_LIST:
                 mask_list.append([SMALL_IMPORTANT_WEIGHT])
             else:
-                mask_list.append([NON_MOVE_CAMERA_WEIGHT])
+                mask_list.append([0.])                
 
     mask_tensor = torch.tensor(mask_list)
 

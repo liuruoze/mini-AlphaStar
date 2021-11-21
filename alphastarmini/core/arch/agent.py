@@ -48,6 +48,9 @@ class Agent(object):
         else:
             return None
 
+    def set_rl_training(self, staus):
+        self.model.set_rl_training(staus)
+
     def device(self):
         device = next(self.model.parameters()).device
         return device

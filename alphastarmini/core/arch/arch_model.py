@@ -64,6 +64,9 @@ class ArchModel(nn.Module):
         self.upgrades_baseline = Baseline(baseline_type='upgrades')
         self.effects_baseline = Baseline(baseline_type='effects')
 
+    def set_rl_training(self, staus):
+        self.action_type_head.set_rl_training(staus)
+
     def count_parameters(self):  
         # https://discuss.pytorch.org/t/how-do-i-check-the-number-of-parameters-of-a-model/4325/7
         return sum(p.numel() for p in self.parameters() if p.requires_grad)

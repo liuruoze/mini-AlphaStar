@@ -9,6 +9,8 @@ import traceback
 from time import time, sleep, strftime, localtime
 import threading
 
+import torch
+
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
 from pysc2.lib import actions as sc2_actions
 
@@ -37,8 +39,17 @@ STEP_MUL = 8
 GAME_STEPS_PER_EPISODE = 12000    # 9000
 
 DIFFICULTY = 1
-RANDOM_SEED = 1
+RANDOM_SEED = 2
 VERSION = '4.10.0'
+
+# gpu setting
+ON_GPU = torch.cuda.is_available()
+DEVICE = torch.device("cuda:0" if ON_GPU else "cpu")
+if torch.backends.cudnn.is_available():
+    print('cudnn available')
+    print('cudnn version', torch.backends.cudnn.version())
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = True
 
 
 class ActorVSComputer:
@@ -55,9 +66,14 @@ class ActorVSComputer:
 
         print('initialed player')
         self.player.add_actor(self)
+        self.player.agent.set_rl_training(True)
+        if ON_GPU:
+            self.player.agent.agent_nn.to(DEVICE)
 
         self.teacher = get_supervised_agent(player.race, model_type="sl")
         print('initialed teacher')
+        if ON_GPU:
+            self.teacher.agent_nn.to(DEVICE)
 
         self.coordinator = coordinator
         self.max_time_for_training = max_time_for_training
@@ -315,7 +331,12 @@ def injected_function_call(home_obs, env, function_call):
     select_candidate = []
     target_candidate = []
 
+    nexus_u = None
+
     for u in raw_units:
+        if u.alliance == 1:
+            if u.unit_type == 59:  # Nexus
+                nexus_u = u
         if select is not None:
             if not isinstance(select, list):
                 select = [select]
@@ -325,7 +346,8 @@ def injected_function_call(home_obs, env, function_call):
 
         if target is not None:
             if u.unit_type == target:
-                target_candidate.append(u.tag)
+                if u.display_type == 1:  # visible
+                    target_candidate.append(u.tag)
 
     if len(select_candidate) > 0:
         print('select_candidate', select_candidate)
@@ -336,7 +358,7 @@ def injected_function_call(home_obs, env, function_call):
         target_tag = random.choice(target_candidate)
 
     sc2_action = env._features[0].transform_action(obs, function_call)  
-    print("sc2_action before transformed:", sc2_action) if debug else None
+    print("sc2_action before transformed:", sc2_action) if 1 else None
 
     if sc2_action.HasField("action_raw"):
         raw_act = sc2_action.action_raw
@@ -353,8 +375,21 @@ def injected_function_call(home_obs, env, function_call):
             if uc.HasField("target_unit_tag"):
                 if len(target_candidate) > 0:    
                     uc.target_unit_tag = target_tag
+            if uc.HasField("target_world_space_pos"):
+                twsp = uc.target_world_space_pos
+                rand_x = random.randint(-15, 15)
+                rand_y = random.randint(-15, 15)
 
-    print("sc2_action after transformed:", sc2_action) if debug else None
+                if nexus_u is not None:
+                    print('nexus_u', nexus_u.x, nexus_u.y)
+                    twsp.x = (nexus_u.x + rand_x * 1)
+                    twsp.y = 150 - (nexus_u.y + rand_y * 1)  
+                else:
+                    # AbysaalReef is [152 x 136]
+                    twsp.x = 152 - (30 + rand_x * 1)
+                    twsp.y = 136 - (30 + rand_y * 1)                    
+
+    print("sc2_action after transformed:", sc2_action) if 1 else None
 
     return sc2_action
 

@@ -54,6 +54,8 @@ class Learner:
         self.max_time_for_training = max_time_for_training
         self.is_running = False
 
+        self.is_rl_training = True
+
     def get_parameters(self):
         return self.player.agent.get_parameters()
 
@@ -64,31 +66,32 @@ class Learner:
         trajectories = self.trajectories[:AHP.batch_size]
         self.trajectories = self.trajectories[AHP.batch_size:]
 
-        agent = self.player.agent
+        if 0 and self.is_rl_training:
+            agent = self.player.agent
 
-        print("begin backward") if debug else None
+            print("begin backward") if debug else None
 
-        # a error: cudnn RNN backward can only be called in training mode
-        agent.agent_nn.model.train()
-        #torch.backends.cudnn.enabled = False
+            # a error: cudnn RNN backward can only be called in training mode
+            agent.agent_nn.model.train()
+            #torch.backends.cudnn.enabled = False
 
-        self.optimizer.zero_grad()
+            self.optimizer.zero_grad()
 
-        with torch.autograd.set_detect_anomaly(True):
-            loss = loss_function(agent, trajectories)
-            print("loss:", loss) if debug else None
+            with torch.autograd.set_detect_anomaly(True):
+                loss = loss_function(agent, trajectories)
+                print("loss:", loss) if debug else None
 
-            loss.backward()
-            self.optimizer.step()
+                loss.backward()
+                self.optimizer.step()
 
-        print("end backward") if debug else None
+            print("end backward") if debug else None
 
-        # we use new ways to save
-        # torch.save(agent.agent_nn.model, SAVE_PATH + "" + ".pkl")
-        torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
+            # we use new ways to save
+            # torch.save(agent.agent_nn.model, SAVE_PATH + "" + ".pkl")
+            torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
-        agent.steps += AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
-        # self.player.agent.set_weights(self.optimizer.minimize(loss))
+            agent.steps += AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
+            # self.player.agent.set_weights(self.optimizer.minimize(loss))
 
     def start(self):
         self.thread.start()

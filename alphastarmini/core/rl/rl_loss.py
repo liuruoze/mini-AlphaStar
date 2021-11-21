@@ -522,6 +522,11 @@ def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
     # This matches the form of scan_discounted_sum:
     #   result = scan_sum_with_discount(sequence, discount,
     #                                   initial_value = state_values[last])
+    print("pcontinues", pcontinues) if 1 else None
+    print("state_values", state_values) if 1 else None
+    print("lambda_", lambda_) if 1 else None
+    print("rewards", rewards) if 1 else None    
+
     sequence = rewards + pcontinues * state_values * (1 - lambda_)
     print("sequence", sequence) if debug else None
     print("sequence.shape", sequence.shape) if debug else None
@@ -822,6 +827,9 @@ def td_lambda_loss(baselines, rewards, trajectories):
 
     baselines = baselines
     rewards = rewards[1:]
+
+    print("baselines:", baselines) if 1 else None
+    print("rewards:", rewards) if 1 else None
 
     # The baseline is then updated using TDLambda, with relative weighting 10.0 and lambda 0.8.
     returns = lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
