@@ -98,7 +98,7 @@ def from_pickle_to_tensor(pickle_path, tensor_path, from_index=0, end_index=None
 
             if not os.path.exists(tensor_path):
                 os.mkdir(tensor_path)
-            file_name = tensor_path + replay_file.replace('.SC2Replay', '') + '.pt'
+            file_name = tensor_path + replay_file.replace('.pickle', '') + '.pt'
             torch.save(m, file_name)
 
         except Exception as e:

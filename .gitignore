@@ -33,6 +33,7 @@ _ReSharper*/
 packages/
 data/replay_data/*
 data/replay_data_tensor/*
+data/replay_data_tensor_simple/*
 data/*.zip
 res/paper/
 model/*.pkl

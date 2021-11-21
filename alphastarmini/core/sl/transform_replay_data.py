@@ -27,6 +27,7 @@ from pysc2.lib import units as Unit
 from pysc2 import run_configs
 
 from s2clientprotocol import sc2api_pb2 as sc_pb
+from s2clientprotocol import common_pb2 as com_pb
 
 from alphastarmini.core.arch.agent import Agent
 from alphastarmini.core.sl.feature import Feature
@@ -69,9 +70,14 @@ flags.DEFINE_integer("observed_player", 1, "Which player to observe. For 2 playe
 flags.DEFINE_integer("save_type", 0, "0 is torch_tensor, 1 is python_pickle, 2 is numpy_array")
 flags.DEFINE_string("replay_version", "3.16.1", "the replays released by blizzard are all 3.16.1 version")
 
+# note, replay path should be absoulte path
+# D:/work/gitproject/mini-AlphaStar/data/Replays/filtered_replays_1/
+# D:/work/gitproject/mini-AlphaStar/data/Replays/small_simple64_replays/
+flags.DEFINE_string("no_server_replay_path", "D:/work/gitproject/mini-AlphaStar/data/Replays/small_simple64_replays/", "path of replay data")
+
 flags.DEFINE_bool("save_data", False, "replays_save data or not")
 flags.DEFINE_string("save_path", "./data/replay_data/", "path to replays_save replay data")
-flags.DEFINE_string("save_path_tensor", "./data/replay_data_tensor/", "path to replays_save replay data tensor")
+flags.DEFINE_string("save_path_tensor", "./data/replay_data_tensor_simple/", "path to replays_save replay data tensor")
 FLAGS(sys.argv)
 
 
@@ -303,11 +309,11 @@ def test(on_server=False):
         max_steps_of_replay = FLAGS.max_steps_of_replay
         max_replays = FLAGS.max_replays
     else:
-        REPLAY_PATH = "data/Replays/filtered_replays_1/"
+        REPLAY_PATH = FLAGS.no_server_replay_path
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 1 * 22.4  # 60 * 60 * 22.4
-        max_replays = 5  # 1
+        max_steps_of_replay = 60 * 60 * 22.4
+        max_replays = 15  # 1
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)
@@ -365,11 +371,44 @@ def test(on_server=False):
                 replay_data = run_config.replay_data(replay_path)
                 replay_info = controller.replay_info(replay_data)
 
+                print('replay_info', replay_info) if 1 else None
+                print('type(replay_info)', type(replay_info)) if debug else None
+
+                print('replay_info.player_info：', replay_info.player_info) if debug else None
+                infos = replay_info.player_info
+
+                observe_id_list = []
+                observe_result_list = []
+                for info in infos:
+                    print('info：', info) if debug else None
+                    player_info = info.player_info
+                    result = info.player_result.result
+                    print('player_info', player_info) if debug else None
+                    if player_info.race_actual == com_pb.Protoss:
+                        observe_id_list.append(player_info.player_id)
+                        observe_result_list.append(result)
+
+                print('observe_id_list', observe_id_list) if debug else None
+                print('observe_result_list', observe_result_list) if debug else None
+
+                need_observe_id = 0
+
+                for i, result in enumerate(observe_result_list):
+                    if result == sc_pb.Victory:
+                        need_observe_id = observe_id_list[i]
+                        break
+
+                print('need_observe_id', need_observe_id)
+
+                if need_observe_id == 0:
+                    print('no need_observe_id found! continue')
+                    continue
+
                 start_replay = sc_pb.RequestStartReplay(
                     replay_data=replay_data,
                     options=interface,
                     disable_fog=False,  # FLAGS.disable_fog
-                    observed_player_id=random.randint(1, 2),  # 1 or 2, wo random select it. FLAGS.observed_player
+                    observed_player_id=need_observe_id,  # random.randint(1, 2),  # 1 or 2, wo random select it. FLAGS.observed_player
                     map_data=None,
                     realtime=False
                 )
@@ -495,8 +534,8 @@ def test(on_server=False):
                 if SAVE_TYPE == SaveType.torch_tensor:
                     features = torch.cat(feature_list, dim=0)
                     labels = torch.cat(label_list, dim=0)
-                    print('features.shape:', features.shape) if debug else None
-                    print('labels.shape:', labels.shape) if debug else None
+                    print('features.shape:', features.shape) if 1 else None
+                    print('labels.shape:', labels.shape) if 1 else None
                     #m = {'features': features, 'labels': labels}
                     m = (features, labels)
 

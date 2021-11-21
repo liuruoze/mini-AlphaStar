@@ -42,7 +42,7 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-p", "--path", default="./data/replay_data_tensor/", help="The path where data stored")
+parser.add_argument("-p", "--path", default="./data/replay_data_tensor_simple/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=1, help='')
