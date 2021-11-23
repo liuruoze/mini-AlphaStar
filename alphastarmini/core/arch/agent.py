@@ -188,6 +188,8 @@ class Agent(object):
 
     @staticmethod
     def preprocess_state_entity(obs, return_tag_list = False):
+        # TODO-QUICK: remove this function.
+
         raw_units = obs["raw_units"]
         e_list = []
         tag_list = []
@@ -273,6 +275,8 @@ class Agent(object):
 
     @staticmethod
     def preprocess_state_entity_numpy(obs, return_tag_list = False):
+        # TODO-QUICK: add a qucik verion without Entity()
+
         raw_units = obs["raw_units"]
         e_list = []
         tag_list = []
@@ -364,15 +368,6 @@ class Agent(object):
         map_data = ArchModel.preprocess_spatial_numpy(obs)
 
         return map_data
-
-    def action_by_obs(self, obs):
-        state = Agent.preprocess_state_all(obs)
-        action = self.model.forward(state)
-        return action
-
-    def action_by_state(self, state):
-        action = self.model.forward(state)
-        return action
 
     def action_logits_by_state(self, state, hidden_state = None, single_inference = False):
         batch_size = 1 if single_inference else None
@@ -622,8 +617,8 @@ def test():
 
     print("Multi-source state:", state) if debug else None
 
-    action = agent.action_by_state(state)
-    print("action is:", action) if debug else None
+    # action = agent.action_by_state(state)
+    # print("action is:", action) if debug else None
 
     action_logits, actions, hidden_state = agent.action_logits_by_state(state)
     print("action_logits is:", action_logits) if debug else None

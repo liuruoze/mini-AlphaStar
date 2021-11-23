@@ -131,7 +131,7 @@ class ArchModel(nn.Module):
                             units=units, target_unit=target_unit, target_location=target_location)
 
         if multi_gpu_supvised_learning:
-            return action_type, action_type_logits, delay_logits, queue_logits, \
+            return action_type, target_location, action_type_logits, delay_logits, queue_logits, \
                 units_logits, target_unit_logits, target_location_logits
 
         if return_logits:

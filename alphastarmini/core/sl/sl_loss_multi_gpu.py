@@ -75,7 +75,7 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     # we can't make them all into as a list or into ArgsActionLogits
     # if we do that, the pytorch DDP will cause a runtime error, just like the loss don't include all parameters
     # This error is strange, so we choose to use a specific loss writing schema for multi-gpu calculation.
-    action_pred, action_type_logits, delay_logits, queue_logits, \
+    action_pred, target_location, action_type_logits, delay_logits, queue_logits, \
         units_logits, target_unit_logits, \
         target_location_logits = model.forward(state, batch_size=batch_size, 
                                                sequence_length=seq_len, multi_gpu_supvised_learning=True)
@@ -86,6 +86,7 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
                                                              delay_logits, queue_logits, units_logits,
                                                              target_unit_logits, target_location_logits, criterion,
                                                              device)
+
     acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, device)
 
     print('loss', loss) if debug else None
@@ -129,7 +130,7 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
     # we can't make them all into as a list or into ArgsActionLogits
     # if we do that, the pytorch DDP will cause a runtime error, just like the loss don't include all parameters
     # This error is strange, so we choose to use a specific loss writing schema for multi-gpu calculation.
-    action_pred, action_type_logits, delay_logits, queue_logits, \
+    action_pred, target_location, action_type_logits, delay_logits, queue_logits, \
         units_logits, target_unit_logits, \
         target_location_logits = model.forward(state, batch_size=batch_size, 
                                                sequence_length=seq_len, multi_gpu_supvised_learning=True)
@@ -143,6 +144,7 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
                                                              decrease_smart_opertaion=decrease_smart_opertaion,
                                                              only_consider_small=only_consider_small)
     acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, device, return_important=return_important)
+    location_acc = SU.get_location_accuracy(action_gt.target_location, target_location, device, return_important=return_important)
 
     print('loss', loss) if debug else None
 

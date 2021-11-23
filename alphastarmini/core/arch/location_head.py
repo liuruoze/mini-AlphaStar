@@ -108,12 +108,10 @@ class LocationHead(nn.Module):
             self.temperature = 1.0
 
         mmc = max_map_channels
-
         self.ds_1 = nn.Conv2d(mmc + 4, mmc, kernel_size=1, stride=1,
                               padding=0, bias=True)
 
         self.film_net = FiLM(n_resblock=4, conv_hidden=mmc, gate_size=autoregressive_embedding_size)
-
         self.us_1 = nn.ConvTranspose2d(mmc, int(mmc / 2), kernel_size=4, stride=2,
                                        padding=1, bias=True)
         self.us_2 = nn.ConvTranspose2d(int(mmc / 2), int(mmc / 4), 
@@ -132,9 +130,7 @@ class LocationHead(nn.Module):
         # note: in mAS, we add a upsampling layer to transfer from 8x8 to 256x256
         self.us_5 = nn.ConvTranspose2d(int(mmc / 16), 1, kernel_size=4, stride=2,
                                        padding=1, bias=True)
-
         self.output_map_size = output_map_size
-
         self.softmax = nn.Softmax(dim=-1)
 
     def preprocess(self):
@@ -179,7 +175,7 @@ class LocationHead(nn.Module):
         # AlphaStar: with 128 channels, kernel size 3, and FiLM, gated on `autoregressive_embedding`  
         # note: FilM is Feature-wise Linear Modulation, please see the paper "FiLM: Visual Reasoning with 
         # a General Conditioning Layer"
-        # in here we use 4 Gated ResBlocks, and the value can be changde
+        # in here we use 4 Gated ResBlocks, and the value can be changed
         x = self.film_net(x, gate=autoregressive_embedding)
 
         # x shape (-1, 128, 16, 16)
@@ -209,23 +205,26 @@ class LocationHead(nn.Module):
 
         device = next(self.parameters()).device
 
-        # AlphaStar: (masking out invalid locations using `action_type`, such as those outside 
-        # the camera for build actions)
-        # TODO: use action to decide the mask
-        mask = torch.ones(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
-        print("mask:", mask) if debug else None
-        print("mask.shape:", mask.shape) if debug else None
+        print("y:", y) if debug else None
+        print("y_.shape:", y.shape) if debug else None
 
-        # assert y.shape == mask.shape
-        y_2 = y * mask
-        print("y_2:", y_2) if debug else None
-        print("y_2.shape:", y_2.shape) if debug else None
-
-        target_location_logits = y_2.div(self.temperature)
+        target_location_logits = y.div(self.temperature)
         print("target_location_logits:", target_location_logits) if debug else None
         print("target_location_logits.shape:", target_location_logits.shape) if debug else None
 
         target_location_probs = self.softmax(target_location_logits)
+
+        # AlphaStar: (masking out invalid locations using `action_type`, such as those outside 
+        # the camera for build actions)
+        # TODO: use action to decide the mask
+        if True:
+            mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
+            print("mask:", mask) if debug else None
+            print("mask.shape:", mask.shape) if debug else None
+
+            mask = L.get_location_mask(mask)
+            target_location_probs = target_location_probs * mask
+
         location_id = torch.multinomial(target_location_probs, num_samples=1, replacement=True)
         print("location_id:", location_id) if debug else None
         print("location_id.shape:", location_id.shape) if debug else None
@@ -235,9 +234,11 @@ class LocationHead(nn.Module):
         # print("location_out.shape:", location_out.shape) if debug else None
 
         for i, idx in enumerate(location_id):
-            target_location_y = idx // self.output_map_size
-            target_location_x = idx - self.output_map_size * target_location_y
+            row_number = idx // self.output_map_size
+            col_number = idx - self.output_map_size * row_number
 
+            target_location_y = row_number
+            target_location_x = col_number
             print("target_location_y, target_location_x", target_location_y, target_location_x) if debug else None
             # note! sc2 and pysc2 all accept the position as [x, y], so x be the first, y be the last!
             # this is not right : location_out[i] = [target_location_y.item(), target_location_x.item()]

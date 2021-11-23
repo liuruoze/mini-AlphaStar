@@ -526,15 +526,30 @@ def action_involve_targeting_location_mask(action_types):
     return mask
 
 
-def dec2bin(x, bits):
-    # mask = 2 ** torch.arange(bits).to(x.device, x.dtype)
-    mask = 2 ** torch.arange(bits - 1, -1, -1).to(x.device, x.dtype)
-    return x.unsqueeze(-1).bitwise_and(mask).ne(0).float()
+def get_location_mask(mask):
+    # mask shape [batch_size, output_map_size x output_map_size]
+    map_name = 'Simple64'
+    mask = mask.reshape(mask.shape[0], SCHP.world_size, SCHP.world_size)
 
+    map_size = (256, 256)
+    if map_name == 'Simple64':
+        map_size = (64, 64)
+    elif map_name == 'AbyssalReef':
+        map_size = (152, 136)
 
-def bin2dec(b, bits):
-    mask = 2 ** torch.arange(bits - 1, -1, -1).to(b.device, b.dtype)
-    return torch.sum(mask * b, -1)
+    # for t, ma in enumerate(mask):
+    #     for i, row in enumerate(ma):
+    #         for j, col in enumerate(row):
+    #             # note, i is row number, compare to y
+    #             if i >= map_size[1] or j >= map_size[0]:
+    #                 mask[t][i][j] = 0.
+
+    mask[:, :map_size[1], :map_size[0]] = 1. 
+    print('mask[0]', mask[0]) if debug else None 
+    print('mask[0].sum()', mask[0].sum()) if debug else None
+    mask = mask.reshape(mask.shape[0], -1)
+
+    return mask
 
 
 def test():

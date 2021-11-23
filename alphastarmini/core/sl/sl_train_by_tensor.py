@@ -62,7 +62,7 @@ if not os.path.exists(MODEL_PATH):
 RESTORE_PATH = MODEL_PATH + 'sl_21-11-20_22-39-01.pth' 
 
 TRAIN_FROM = 0
-TRAIN_NUM = 2
+TRAIN_NUM = 1
 
 VAL_FROM = 0
 VAL_NUM = 1

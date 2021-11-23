@@ -34,12 +34,12 @@ debug = False
 
 MAX_EPISODES = 25
 IS_TRAINING = True
-MAP_NAME = "AbyssalReef"
+MAP_NAME = "Simple64"  # "Simple64" "AbyssalReef"
 STEP_MUL = 8
-GAME_STEPS_PER_EPISODE = 12000    # 9000
+GAME_STEPS_PER_EPISODE = 24000    # 9000
 
 DIFFICULTY = 1
-RANDOM_SEED = 2
+RANDOM_SEED = 1
 VERSION = '4.10.0'
 
 # gpu setting
@@ -51,6 +51,9 @@ if torch.backends.cudnn.is_available():
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
 
+
+# TODO: solve following exception
+# The game didn't advance to the expected game loop. Expected: 4544, got: 4539
 
 class ActorVSComputer:
     """A single actor loop that generates trajectories by playing with built-in AI (computer).
@@ -322,8 +325,8 @@ def injected_function_call(home_obs, env, function_call):
     # or show the string by "function.name"
     func_name = function.name
 
-    select, target, min_num = RAMP.small_select_and_target_unit_type_for_actions(func_name)
-    print('select, target, min_num', select, target, min_num) if 1 else None
+    [select, target, max_num] = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])
+    print('select, target, max_num', select, target, max_num) if 1 else None
 
     # select, target, min_num = RAMP.select_and_target_unit_type_for_protoss_actions(function_call)
     # print('select, target, min_num', select, target, min_num) if debug else None
@@ -345,13 +348,19 @@ def injected_function_call(home_obs, env, function_call):
                     select_candidate.append(u.tag)
 
         if target is not None:
-            if u.unit_type == target:
+            if not isinstance(target, list):
+                target = [target]
+            if u.unit_type in target:
                 if u.display_type == 1:  # visible
                     target_candidate.append(u.tag)
 
+    unit_tags = []
     if len(select_candidate) > 0:
         print('select_candidate', select_candidate)
-        unit_tag = random.choice(select_candidate)
+        if max_num == 1:
+            unit_tags = [random.choice(select_candidate)]
+        elif max_num > 1:
+            unit_tags = select_candidate[0:max_num - 1]
 
     if len(target_candidate) > 0:   
         print('target_candidate', target_candidate) 
@@ -368,26 +377,27 @@ def injected_function_call(home_obs, env, function_call):
             # use the following way
             if len(uc.unit_tags) != 0:
                 # can not assign, must use unit_tags[:]=[xx tag]
-                print("the_tag", the_tag) if debug else None
-                if len(select_candidate) > 0:
-                    uc.unit_tags[:] = [unit_tag]
+                uc.unit_tags[:] = unit_tags
+
             # we use fixed target unit tag only for Harvest_Gather_unit action
             if uc.HasField("target_unit_tag"):
                 if len(target_candidate) > 0:    
                     uc.target_unit_tag = target_tag
+
             if uc.HasField("target_world_space_pos"):
                 twsp = uc.target_world_space_pos
-                rand_x = random.randint(-15, 15)
-                rand_y = random.randint(-15, 15)
+                rand_x = random.randint(-10, 10)
+                rand_y = random.randint(-10, 10)
 
-                if nexus_u is not None:
+                if func_name != "Attack_pt":  # build buildings
                     print('nexus_u', nexus_u.x, nexus_u.y)
-                    twsp.x = (nexus_u.x + rand_x * 1)
-                    twsp.y = 150 - (nexus_u.y + rand_y * 1)  
-                else:
+                    # these value are considered in minimap unit
+                    twsp.x = (35 + rand_x * 1)
+                    twsp.y = (55 + rand_y * 1)  
                     # AbysaalReef is [152 x 136]
-                    twsp.x = 152 - (30 + rand_x * 1)
-                    twsp.y = 136 - (30 + rand_y * 1)                    
+                else:                        # attack point
+                    twsp.x = 50
+                    twsp.y = 22                 
 
     print("sc2_action after transformed:", sc2_action) if 1 else None
 

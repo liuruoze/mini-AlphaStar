@@ -17,6 +17,7 @@ from alphastarmini.core.arch.agent import Agent
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 
+from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Label_Size as LS
 from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
@@ -207,7 +208,7 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
                 mask_list.append([SMART_WEIGHT])
             else:
                 func_name = F[aid].name
-                select, _, _ = RAMP.small_select_and_target_unit_type_for_actions(func_name)
+                select, _, _ = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])  # RAMP.small_select_and_target_unit_type_for_actions(func_name)
                 if select is not None:
                     mask_list.append([SMALL_IMPORTANT_WEIGHT])
                 else:
@@ -239,15 +240,62 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     return mask_tensor
 
 
+def get_location_accuracy(ground_truth, predict, device, return_important=False):
+    accuracy = 0.
+
+    # print('location ground_truth', ground_truth)
+    # print('location ground_truth.shape', ground_truth.shape)
+
+    ground_truth = ground_truth.reshape(ground_truth.shape[0], -1)
+    ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
+    ground_truth_new = ground_truth_new.to(device)
+    print('ground_truth location', ground_truth_new) if 1 else None
+
+    output_map_size = SCHP.world_size
+
+    all_nums = ground_truth.shape[0]
+    correct_nums = 0
+    distance_loss = 0.
+
+    for i, idx in enumerate(ground_truth_new):
+        row_number = idx // output_map_size
+        col_number = idx - output_map_size * row_number
+
+        gt_location_y = row_number
+        gt_location_x = col_number
+        print("gt_location_y, gt_location_x", gt_location_y, gt_location_x) if 1 else None
+
+        [predict_x, predict_y] = predict[i] 
+        print("predict_x, predict_y", predict_x, predict_y) if 1 else None
+
+        x_diff_square = (predict_x.item() - gt_location_x.item()) ** 2
+        y_diff_square = (predict_y.item() - gt_location_y.item()) ** 2
+
+        print('x_diff_square', x_diff_square) if 1 else None
+        print('y_diff_square', y_diff_square) if 1 else None
+
+        if not (gt_location_y.item() == 0 and gt_location_x.item() == 0):
+            if not (predict_x.item() == 0 and predict_y.item() == 0):
+                diff_square = x_diff_square + y_diff_square
+                distance_loss += diff_square
+
+                if diff_square == 0:
+                    correct_nums += 1
+
+    print([correct_nums, all_nums, distance_loss])
+
+    return [correct_nums, all_nums, distance_loss]
+
+
 def get_accuracy(ground_truth, predict, device, return_important=False):
     accuracy = 0.
 
     ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
     ground_truth_new = ground_truth_new.to(device)
-    print('ground_truth', ground_truth_new) if debug else None
+    print('ground_truth action_type', ground_truth_new) if 1 else None
 
     predict_new = predict.reshape(-1)
-    print('predict_new', predict_new) if debug else None
+    print('predict_new', predict_new) if debug else None  
 
     # calculate how many move_camera? the id is 168 in raw_action
     MOVE_CAMERA_ID = 168
@@ -264,7 +312,7 @@ def get_accuracy(ground_truth, predict, device, return_important=False):
         short_important_list.append(short_index)
 
     short_important_index = torch.cat(short_important_list)
-    print('short_important_index', short_important_index)
+    print('short_important_index', short_important_index) if debug else None  
 
     print('move_camera_index', move_camera_index) if debug else None    
     print('non_camera_index', non_camera_index) if debug else None  

@@ -9,16 +9,20 @@ from pysc2.lib.units import Protoss, Neutral
 __author__ = "Ruo-Ze Liu"
 
 SMALL_MAPPING = {
+    "no_op": [None, None, 0],
     "Train_Probe_quick": [Protoss.Nexus, None, 1],
     "Build_Pylon_pt": [Protoss.Probe, None, 1],
     "Build_Gateway_pt": [Protoss.Probe, None, 1],
     "Build_Assimilator_unit": [Protoss.Probe, Neutral.VespeneGeyser, 1],
     "Build_CyberneticsCore_pt": [Protoss.Probe, None, 1],
-    "Train_Zealot_quick": [Protoss.Gateway, None, 1],
-    "Train_Stalker_quick": [Protoss.Gateway, None, 1],
+    "Train_Zealot_quick": [Protoss.Gateway, None, 8],
+    "Train_Stalker_quick": [Protoss.Gateway, None, 8],
+    "Harvest_Gather_unit": [Protoss.Probe, [Neutral.MineralField, Neutral.VespeneGeyser], 1],
+    "Attack_pt": [[Protoss.Zealot, Protoss.Stalker], None, 24],
 }
 
 SMALL_LIST = [
+    F.no_op.id.value,
     F.Train_Probe_quick.id.value,
     F.Build_Pylon_pt.id.value,
     F.Build_Gateway_pt.id.value,
@@ -26,6 +30,8 @@ SMALL_LIST = [
     F.Build_CyberneticsCore_pt.id.value,
     F.Train_Zealot_quick.id.value,
     F.Train_Stalker_quick.id.value,
+    F.Harvest_Gather_unit.id.value,
+    F.Attack_pt.id.value,
 ]
 
 

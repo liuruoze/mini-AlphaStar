@@ -90,7 +90,7 @@ def check_info(replay_info):
 
 def getFeatureAndLabel(obs, func_call, agent):
     print("begin s:") if debug else None
-    s, tag_list = agent.state_by_obs(obs, return_tag_list=True)
+    s = agent.state_by_obs(obs)
     feature = Feature.state2feature(s)
     print("feature:", feature) if debug else None
     print("feature.shape:", feature.shape) if debug else None
@@ -98,7 +98,7 @@ def getFeatureAndLabel(obs, func_call, agent):
     print("begin a:") if debug else None
     action = agent.func_call_to_action(func_call, obs=obs)
     # tag_list = agent.get_tag_list(obs)
-    a = action.toLogits(tag_list)
+    a = action.toLogits()
     label = Label.action2label(a)
     print("label:", label) if debug else None
     print("label.shape:", label.shape) if debug else None

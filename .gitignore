@@ -36,6 +36,7 @@ data/replay_data_tensor/*
 data/replay_data_tensor_simple/*
 data/*.zip
 res/paper/
+res/s2clientprotocol/
 model/*.pkl
 model/*.pth
 *.SC2Replay

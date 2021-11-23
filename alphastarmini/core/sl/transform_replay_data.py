@@ -127,14 +127,6 @@ def store_info(replay_info):
             game_duration_loops,
             game_duration_seconds]
 
-    '''
-    a = agent.action_by_obs(obs)
-    print("a:", a) if debug else None
-    print("predict func:", A.RAW_FUNCTIONS[a.action_type]) if debug else None
-    func_id = a.action_type
-    print("feat action spec functions:", feat.action_spec().functions[func_id]) if debug else None
-    '''
-
 
 def getFeatureAndLabel_numpy(obs, func_call):
     print("begin s:") if debug else None

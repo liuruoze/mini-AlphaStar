@@ -118,8 +118,12 @@ class ActionTypeHead(nn.Module):
         action_type_logits = action_type_logits / self.temperature
         print('action_type_logits after temperature:', action_type_logits) if debug else None
 
-        if self.is_rl_training and random.random() < 0.5:
-            action_type_logits[:] = 0.
+        if self.is_rl_training:
+            if random.random() < 0.8:
+                if random.random() < 0.8:
+                    action_type_logits[:, 0] = 1e5
+                else:
+                    action_type_logits[:] = 0.
 
         action_type_probs = self.softmax(action_type_logits)
         print('action_type_probs:', action_type_probs) if debug else None
@@ -136,8 +140,13 @@ class ActionTypeHead(nn.Module):
 
             # action_type_mask[RAMP.SMALL_LIST] = 1.
 
+            action_type_mask[RAW_FUNCTIONS.no_op.id.value] = 1.
             action_type_mask[RAW_FUNCTIONS.Build_Pylon_pt.id.value] = 1.
             action_type_mask[RAW_FUNCTIONS.Train_Probe_quick.id.value] = 1.
+            action_type_mask[RAW_FUNCTIONS.Build_Gateway_pt.id.value] = 1.
+            action_type_mask[RAW_FUNCTIONS.Train_Zealot_quick.id.value] = 1.
+            action_type_mask[RAW_FUNCTIONS.Harvest_Gather_unit.id.value] = 1.
+            action_type_mask[RAW_FUNCTIONS.Attack_pt.id.value] = 1.
 
             print('right action_type_mask:', action_type_mask) if debug else None
             print('right action_type_mask.shape:', action_type_mask.shape) if debug else None
