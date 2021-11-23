@@ -28,18 +28,20 @@ from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_
 
 from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
+import param as P
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False
 
 MAX_EPISODES = 25
 IS_TRAINING = True
-MAP_NAME = "Simple64"  # "Simple64" "AbyssalReef"
+MAP_NAME = P.map_name  # "Simple64" "AbyssalReef"
 STEP_MUL = 8
 GAME_STEPS_PER_EPISODE = 24000    # 9000
 
 DIFFICULTY = 1
-RANDOM_SEED = 1
+RANDOM_SEED = 2
 VERSION = '4.10.0'
 
 # gpu setting
@@ -169,7 +171,7 @@ class ActorVSComputer:
 
                             player_step = self.player.agent.step_logits(home_obs, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory = player_step
-                            print("player_function_call:", player_function_call) if 1 else None
+                            print("player_function_call:", player_function_call) if debug else None
 
                             # don't use the blow line, may cause in-place error in PyTorch 1.5.
                             # teacher_logits = player_logits
@@ -239,7 +241,7 @@ class ActorVSComputer:
 
                             if is_final:
                                 outcome = reward
-                                print("outcome: ", outcome) if 1 else None
+                                print("outcome: ", outcome) if debug else None
                                 results[outcome + 1] += 1
 
                             if len(trajectory) >= AHP.sequence_length:                    
@@ -281,8 +283,8 @@ class ActorVSComputer:
             print(traceback.format_exc())
 
         finally:
-            print("results: ", results) if 1 else None
-            print("win rate: ", results[2] / (1e-9 + sum(results))) if 1 else None
+            print("results: ", results) if debug else None
+            print("win rate: ", results[2] / (1e-9 + sum(results))) if debug else None
 
             self.is_running = False
 
@@ -326,7 +328,7 @@ def injected_function_call(home_obs, env, function_call):
     func_name = function.name
 
     [select, target, max_num] = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])
-    print('select, target, max_num', select, target, max_num) if 1 else None
+    print('select, target, max_num', select, target, max_num) if debug else None
 
     # select, target, min_num = RAMP.select_and_target_unit_type_for_protoss_actions(function_call)
     # print('select, target, min_num', select, target, min_num) if debug else None
@@ -340,6 +342,7 @@ def injected_function_call(home_obs, env, function_call):
         if u.alliance == 1:
             if u.unit_type == 59:  # Nexus
                 nexus_u = u
+                print('nexus_u', nexus_u.x, nexus_u.y)
         if select is not None:
             if not isinstance(select, list):
                 select = [select]
@@ -367,7 +370,7 @@ def injected_function_call(home_obs, env, function_call):
         target_tag = random.choice(target_candidate)
 
     sc2_action = env._features[0].transform_action(obs, function_call)  
-    print("sc2_action before transformed:", sc2_action) if 1 else None
+    print("sc2_action before transformed:", sc2_action) if debug else None
 
     if sc2_action.HasField("action_raw"):
         raw_act = sc2_action.action_raw
@@ -399,7 +402,7 @@ def injected_function_call(home_obs, env, function_call):
                     twsp.x = 50
                     twsp.y = 22                 
 
-    print("sc2_action after transformed:", sc2_action) if 1 else None
+    print("sc2_action after transformed:", sc2_action) if debug else None
 
     return sc2_action
 
@@ -460,7 +463,7 @@ def some_change(home_obs, env, function_call):
 
     # we change pysc2 action to sc2 action, for replace the unit tag
     sc2_action = env._features[0].transform_action(obs, function_call)                         
-    print("sc2_action before transformed:", sc2_action) if 1 else None
+    print("sc2_action before transformed:", sc2_action) if debug else None
 
     if len(nexus_list) > 0:
         nexus_tag = nexus_list[0].tag
@@ -493,7 +496,7 @@ def some_change(home_obs, env, function_call):
             if uc.HasField("target_unit_tag"):
                 uc.target_unit_tag = max_mineral_tag
 
-    print("sc2_action after transformed:", sc2_action) if 1 else None
+    print("sc2_action after transformed:", sc2_action) if debug else None
 
     return sc2_action
 

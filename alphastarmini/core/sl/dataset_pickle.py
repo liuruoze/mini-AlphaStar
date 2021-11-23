@@ -213,7 +213,7 @@ class FullDataset(Dataset):
                     traj_dict = pickle.load(handle)                  
                     #key_list = list(traj_dict.keys())
 
-                    #print('len(key_list):', len(key_list)) if 1 else None
+                    #print('len(key_list):', len(key_list)) if debug else None
                     for key, value in traj_dict.items():
                         print('key', key) if debug else None
                         # feature, label = SU.obs2feature(value)

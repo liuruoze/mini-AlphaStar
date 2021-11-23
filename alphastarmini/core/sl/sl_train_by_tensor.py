@@ -42,7 +42,7 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-p", "--path", default="./data/replay_data_tensor_simple/", help="The path where data stored")
+parser.add_argument("-p", "--path", default="./data/replay_data_tensor/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=1, help='')
@@ -59,12 +59,12 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-20_22-39-01.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-23_16-27-57.pth' 
 
 TRAIN_FROM = 0
-TRAIN_NUM = 1
+TRAIN_NUM = 14
 
-VAL_FROM = 0
+VAL_FROM = 14
 VAL_NUM = 1
 
 # hyper paramerters
@@ -98,7 +98,7 @@ def getReplayData(path, replay_files, from_index=0, end_index=None):
     for i, replay_file in enumerate(tqdm(replay_files)):
         try:
             replay_path = path + replay_file
-            print('replay_path:', replay_path) if 1 else None
+            print('replay_path:', replay_path) if debug else None
 
             do_write = False
             if i >= from_index:
@@ -111,8 +111,8 @@ def getReplayData(path, replay_files, from_index=0, end_index=None):
                 continue 
 
             features, labels = torch.load(replay_path)
-            print('features.shape:', features.shape) if 1 else None
-            print('labels.shape::', labels.shape) if 1 else None
+            print('features.shape:', features.shape) if debug else None
+            print('labels.shape::', labels.shape) if debug else None
 
             td_list.append(ReplayTensorDataset(features, labels))
 

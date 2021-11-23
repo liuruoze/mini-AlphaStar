@@ -131,7 +131,7 @@ class ActorLoopPlusZ:
 
                     print('player:', self.player) if debug else None
                     print('opponent:', self.opponent) if debug else None
-                    print('teacher:', self.teacher) if 1 else None
+                    print('teacher:', self.teacher) if debug else None
 
                     trajectory = []
                     start_time = time()  # in seconds.
@@ -331,7 +331,7 @@ class ActorLoopPlusZ:
 
                                 if is_final:
                                     outcome = reward
-                                    print("outcome: ", outcome) if 1 else None
+                                    print("outcome: ", outcome) if debug else None
                                     results[outcome + 1] += 1
 
                                 if len(trajectory) >= AHP.sequence_length:                    
@@ -369,8 +369,8 @@ class ActorLoopPlusZ:
                             # use max_frames_per_episode to end the episode
                             if self.max_episodes and total_episodes >= self.max_episodes:
                                 print("Beyond the max_episodes, return!")
-                                print("results: ", results) if 1 else None
-                                print("win rate: ", results[2] / (1e-8 + sum(results))) if 1 else None
+                                print("results: ", results) if debug else None
+                                print("win rate: ", results[2] / (1e-8 + sum(results))) if debug else None
                                 return
 
                     # close the replays

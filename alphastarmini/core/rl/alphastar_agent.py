@@ -169,7 +169,7 @@ class AlphaStarAgent(RandomAgent):
     def step(self, obs):
         # note here obs is actually timestep 
         rand_func_call = super(AlphaStarAgent, self).step(obs)
-        print('name:', self.name) if 1 else None
+        print('name:', self.name) if debug else None
 
         # note someimes obs is timestep 
         if isinstance(obs, E.TimeStep):
@@ -188,7 +188,7 @@ class AlphaStarAgent(RandomAgent):
             return rand_func_call
 
     def step_logits(self, obs, last_state):       
-        print('name:', self.name) if 1 else None
+        print('name:', self.name) if debug else None
 
         # note someimes obs is timestep 
         if isinstance(obs, E.TimeStep):

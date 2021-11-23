@@ -143,7 +143,6 @@ class ScalarEncoder(nn.Module):
         # implement the available_actions
         # note: if we use raw action, this key doesn't exist
         # the_available_actions = obs["available_actions"] 
-        # print('the_available_actions:', the_available_actions) if 1 else None
         available_actions = torch.zeros(1, SFS.available_actions)
 
         # implement the unit_counts_bow
@@ -290,7 +289,7 @@ class ScalarEncoder(nn.Module):
         # TODO: implement the available_actions
         # note: if we use raw action, this key doesn't exist
         # the_available_actions = obs["available_actions"] 
-        # print('the_available_actions:', the_available_actions) if 1 else None
+        # print('the_available_actions:', the_available_actions) if debug else None
         available_actions = np.zeros((1, SFS.available_actions))
 
         # implement the unit_counts_bow

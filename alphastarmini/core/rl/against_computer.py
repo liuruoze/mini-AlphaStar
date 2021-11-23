@@ -182,7 +182,7 @@ class ActorLoopVersusComputer:
 
                             if is_final:
                                 outcome = reward
-                                print("outcome: ", outcome) if 1 else None
+                                print("outcome: ", outcome) if debug else None
                                 results[outcome + 1] += 1
 
                             if len(trajectory) >= AHP.sequence_length:                    
@@ -217,8 +217,8 @@ class ActorLoopVersusComputer:
                         # use max_frames_per_episode to end the episode
                         if self.max_episodes and total_episodes >= self.max_episodes:
                             print("Beyond the max_episodes, return!")
-                            print("results: ", results) if 1 else None
-                            print("win rate: ", results[2] / (1e-8 + sum(results))) if 1 else None
+                            print("results: ", results) if debug else None
+                            print("win rate: ", results[2] / (1e-8 + sum(results))) if debug else None
                             return
 
         except Exception as e:

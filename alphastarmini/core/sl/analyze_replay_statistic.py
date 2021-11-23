@@ -373,8 +373,8 @@ def test(on_server=False):
                                 player_function_call, player_action, player_logits, player_new_memory = player_step
                                 player_memory = player_new_memory
 
-                                print('expert raw func_call: ', func_call) if 1 else None
-                                print('agent raw func_call: ', player_function_call) if 1 else None
+                                print('expert raw func_call: ', func_call) if debug else None
+                                print('agent raw func_call: ', player_function_call) if debug else None
 
                         except Exception as e:
                             traceback.print_exc()

@@ -139,27 +139,48 @@ def get_one_way_mask_in_SL(action_type_gt, device):
     return mask_tensor
 
 
-def get_two_way_mask_in_SL(action_type_gt, action_pred, device):
+def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsion=False):
     # consider the ground truth and the predicted
     ground_truth_raw_action_id = torch.nonzero(action_type_gt, as_tuple=True)[-1]
+    action_pred = action_pred.reshape(-1)
+
     mask_list = [] 
-
-    print('ground_truth_raw_action_id.shape', ground_truth_raw_action_id.shape) if debug else None
-
-    for raw_action_id in ground_truth_raw_action_id:
-        mask_list.append(get_mask_by_raw_action_id(raw_action_id.item()))
-
-    mask_tensor = torch.tensor(mask_list)
-
     mask_list_2 = [] 
 
-    print('action_pred.shape', action_pred.shape) if debug else None  
-    for action_id in action_pred:
-        mask_list_2.append(get_mask_by_raw_action_id(action_id.item()))
+    print('ground_truth.shape', ground_truth_raw_action_id.shape) if debug else None
+    print('ground_truth', ground_truth_raw_action_id) if debug else None
+    print('action_pred.shape', action_pred.shape) if debug else None 
+    print('action_pred', action_pred) if debug else None 
+
+    for raw_action_id, action_id in zip(ground_truth_raw_action_id, action_pred):
+        mask_raw = get_mask_by_raw_action_id(raw_action_id.item())
+        mask_predict = get_mask_by_raw_action_id(action_id.item())
+
+        if strict_comparsion:
+            if raw_action_id.item() == action_id.item():
+                mask_list.append(mask_raw)
+                mask_list_2.append(mask_predict)
+            else:
+                zero_mask = [1, 1, 0, 0, 0, 0]
+                mask_list.append(zero_mask)
+                mask_list_2.append(zero_mask)                
+        else:
+            mask_list.append(mask_raw)
+            mask_list_2.append(mask_predict)
+
+    mask_tensor = torch.tensor(mask_list)
+    # print('action_pred.shape', action_pred.shape) if debug else None  
+    # for action_id in action_pred:
+    #     mask_list_2.append(get_mask_by_raw_action_id(action_id.item()))
 
     mask_tensor_2 = torch.tensor(mask_list_2)
 
+    print('mask_tensor', mask_tensor) if debug else None 
+    print('mask_tensor_2', mask_tensor_2) if debug else None 
+
     mask_tensor_return = mask_tensor * mask_tensor_2
+    print('mask_tensor_return', mask_tensor_return) if debug else None 
+
     mask_tensor_return = mask_tensor_return.to(device)
 
     return mask_tensor_return
@@ -249,7 +270,7 @@ def get_location_accuracy(ground_truth, predict, device, return_important=False)
     ground_truth = ground_truth.reshape(ground_truth.shape[0], -1)
     ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
     ground_truth_new = ground_truth_new.to(device)
-    print('ground_truth location', ground_truth_new) if 1 else None
+    print('ground_truth location', ground_truth_new) if debug else None
 
     output_map_size = SCHP.world_size
 
@@ -275,6 +296,8 @@ def get_location_accuracy(ground_truth, predict, device, return_important=False)
         print('x_diff_square', x_diff_square) if debug else None
         print('y_diff_square', y_diff_square) if debug else None
 
+        # pos(0, 0) isconsidered a flag meaning this arugment is not applied for this action;
+        # e.g., we hardly will choose or see a point of pos(0, 0)
         if not (gt_location_y.item() == 0 and gt_location_x.item() == 0):
             if not (predict_x.item() == 0 and predict_y.item() == 0):
                 effect_nums += 1
@@ -295,7 +318,7 @@ def get_accuracy(ground_truth, predict, device, return_important=False):
 
     ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
     ground_truth_new = ground_truth_new.to(device)
-    print('ground_truth action_type', ground_truth_new) if 1 else None
+    print('ground_truth action_type', ground_truth_new) if debug else None
 
     predict_new = predict.reshape(-1)
     print('predict_new', predict_new) if debug else None  

@@ -285,7 +285,7 @@ def getFuncCall(o, feat, prev_obs, use_raw=True):
     else:
 
         feat_func_call = feat.reverse_action(o.actions[0])
-        print('expert feature func_call: ', feat_func_call) if 1 else None
+        print('expert feature func_call: ', feat_func_call) if debug else None
 
         func_call = feat_func_call
 
@@ -363,7 +363,7 @@ def test(on_server=False):
                 replay_data = run_config.replay_data(replay_path)
                 replay_info = controller.replay_info(replay_data)
 
-                print('replay_info', replay_info) if 1 else None
+                print('replay_info', replay_info) if debug else None
                 print('type(replay_info)', type(replay_info)) if debug else None
 
                 print('replay_info.player_info：', replay_info.player_info) if debug else None
@@ -526,8 +526,8 @@ def test(on_server=False):
                 if SAVE_TYPE == SaveType.torch_tensor:
                     features = torch.cat(feature_list, dim=0)
                     labels = torch.cat(label_list, dim=0)
-                    print('features.shape:', features.shape) if 1 else None
-                    print('labels.shape:', labels.shape) if 1 else None
+                    print('features.shape:', features.shape) if debug else None
+                    print('labels.shape:', labels.shape) if debug else None
                     #m = {'features': features, 'labels': labels}
                     m = (features, labels)
 

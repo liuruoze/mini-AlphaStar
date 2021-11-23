@@ -120,8 +120,8 @@ def getReplayData(path, replay_files, from_index=0, end_index=None):
             print('replay_path:', replay_path) if debug else None
 
             features, labels = torch.load(replay_path)
-            print('features.shape:', features.shape) if 1 else None
-            print('labels.shape::', labels.shape) if 1 else None
+            print('features.shape:', features.shape) if debug else None
+            print('labels.shape::', labels.shape) if debug else None
 
             td_list.append(ReplayTensorDataset(features, labels))
 

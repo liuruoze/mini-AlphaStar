@@ -160,7 +160,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       minimap_size=128,                                                
                                                       embedding_size=3585,
                                                       map_channels=18,
-                                                      scatter_channels=16,
+                                                      scatter_channels=0,  # 0 or 1
                                                       entity_x_y_index=24,
                                                       scalar_encoder_fc1_input=1504,
                                                       scalar_encoder_fc2_input=544,
@@ -195,7 +195,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 / Mini_Sc
                                                      minimap_size=64,                                               
                                                      embedding_size=1545,
                                                      map_channels=18,
-                                                     scatter_channels=16,
+                                                     scatter_channels=0,  # 0 or 1
                                                      entity_x_y_index=24,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
@@ -329,7 +329,8 @@ AgentInterfaceFormatParams = namedtuple('AgentInterfaceFormatParams', ['feature_
 
 AlphaStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dimensions=sc2_env.Dimensions(screen=128, minimap=64),
                                                                      rgb_dimensions=None,
-                                                                     raw_resolution=None,
+                                                                     raw_resolution=None,  # 64 or None. Improtant! It will change the value of entity x and y.
+                                                                     # If none, it will use the map size.
                                                                      action_space=None,
                                                                      camera_width_world_units=24,
                                                                      use_feature_units=True,
@@ -350,33 +351,33 @@ AlphaStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dim
                                                                      allow_cheating_layers=False,
                                                                      add_cargo_to_units=False)
 
+# actually not used
+# MiniStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dimensions=sc2_env.Dimensions(screen=64, minimap=32),
+#                                                                     rgb_dimensions=None,
+#                                                                     raw_resolution=None,
+#                                                                     action_space=None,
+#                                                                     camera_width_world_units=16,
+#                                                                     use_feature_units=True,
+#                                                                     use_raw_units=True,
+#                                                                     use_raw_actions=True,
+#                                                                     max_raw_actions=512,
+#                                                                     max_selected_units=32,
+#                                                                     use_unit_counts=True,
+#                                                                     use_camera_position=False,
+#                                                                     show_cloaked=True,
+#                                                                     show_burrowed_shadows=True,
+#                                                                     show_placeholders=True,
+#                                                                     hide_specific_actions=True,
+#                                                                     action_delay_fn=None,
+#                                                                     send_observation_proto=False,
+#                                                                     crop_to_playable_area=False,
+#                                                                     raw_crop_to_playable_area=False,
+#                                                                     allow_cheating_layers=False,
+#                                                                     add_cargo_to_units=False)
 
-MiniStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dimensions=sc2_env.Dimensions(screen=64, minimap=32),
-                                                                    rgb_dimensions=None,
-                                                                    raw_resolution=None,
-                                                                    action_space=None,
-                                                                    camera_width_world_units=16,
-                                                                    use_feature_units=True,
-                                                                    use_raw_units=True,
-                                                                    use_raw_actions=True,
-                                                                    max_raw_actions=512,
-                                                                    max_selected_units=32,
-                                                                    use_unit_counts=True,
-                                                                    use_camera_position=False,
-                                                                    show_cloaked=True,
-                                                                    show_burrowed_shadows=True,
-                                                                    show_placeholders=True,
-                                                                    hide_specific_actions=True,
-                                                                    action_delay_fn=None,
-                                                                    send_observation_proto=False,
-                                                                    crop_to_playable_area=False,
-                                                                    raw_crop_to_playable_area=False,
-                                                                    allow_cheating_layers=False,
-                                                                    add_cargo_to_units=False)
-
-if THE_PROJECT_TYPE == ProjectType.MiniStar:
-    Agent_Interface_Format_Params = MiniStar_Agent_Interface_Format_Params
-elif THE_PROJECT_TYPE == ProjectType.AlphaStar:
-    Agent_Interface_Format_Params = AlphaStar_Agent_Interface_Format_Params
-else:
-    Agent_Interface_Format_Params = MiniStar_Agent_Interface_Format_Params
+# if THE_PROJECT_TYPE == ProjectType.MiniStar:
+#     Agent_Interface_Format_Params = MiniStar_Agent_Interface_Format_Params
+# elif THE_PROJECT_TYPE == ProjectType.AlphaStar:
+#     Agent_Interface_Format_Params = AlphaStar_Agent_Interface_Format_Params
+# else:
+#     Agent_Interface_Format_Params = MiniStar_Agent_Interface_Format_Params

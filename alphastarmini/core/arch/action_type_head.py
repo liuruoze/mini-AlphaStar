@@ -138,15 +138,15 @@ class ActionTypeHead(nn.Module):
             print('action_type_mask:', action_type_mask) if debug else None
             print('action_type_mask.shape:', action_type_mask.shape) if debug else None
 
-            # action_type_mask[RAMP.SMALL_LIST] = 1.
+            action_type_mask[RAMP.SMALL_LIST] = 1.
 
-            action_type_mask[RAW_FUNCTIONS.no_op.id.value] = 1.
-            action_type_mask[RAW_FUNCTIONS.Build_Pylon_pt.id.value] = 1.
-            action_type_mask[RAW_FUNCTIONS.Train_Probe_quick.id.value] = 1.
-            action_type_mask[RAW_FUNCTIONS.Build_Gateway_pt.id.value] = 1.
-            action_type_mask[RAW_FUNCTIONS.Train_Zealot_quick.id.value] = 1.
-            action_type_mask[RAW_FUNCTIONS.Harvest_Gather_unit.id.value] = 1.
-            action_type_mask[RAW_FUNCTIONS.Attack_pt.id.value] = 1.
+            # action_type_mask[RAW_FUNCTIONS.no_op.id.value] = 1.
+            # action_type_mask[RAW_FUNCTIONS.Build_Pylon_pt.id.value] = 1.
+            # action_type_mask[RAW_FUNCTIONS.Train_Probe_quick.id.value] = 1.
+            # action_type_mask[RAW_FUNCTIONS.Build_Gateway_pt.id.value] = 1.
+            # action_type_mask[RAW_FUNCTIONS.Train_Zealot_quick.id.value] = 1.
+            # action_type_mask[RAW_FUNCTIONS.Harvest_Gather_unit.id.value] = 1.
+            # action_type_mask[RAW_FUNCTIONS.Attack_pt.id.value] = 1.
 
             print('right action_type_mask:', action_type_mask) if debug else None
             print('right action_type_mask.shape:', action_type_mask.shape) if debug else None

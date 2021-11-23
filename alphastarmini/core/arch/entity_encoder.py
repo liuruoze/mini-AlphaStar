@@ -31,6 +31,8 @@ class EntityEncoder(nn.Module):
     max_unit_type = SCHP.max_unit_type
     max_alliance = 5
 
+    max_unit_attributes = 13
+
     max_health = 1500
     max_shield = 1000
     max_energy = 200

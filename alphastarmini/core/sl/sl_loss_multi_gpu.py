@@ -173,7 +173,7 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
     loss += action_type_loss
 
     #mask_tensor = get_one_way_mask_in_SL(action_gt.action_type, device)
-    mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device)
+    mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=True)
 
     # we don't consider delay loss now
     delay_loss = criterion(action_gt.delay, delay)

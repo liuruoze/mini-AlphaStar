@@ -18,6 +18,8 @@ from alphastarmini.lib import utils as L
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import MiniStar_Arch_Hyper_Parameters as MAHP
 
+import param as P
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False
@@ -37,7 +39,7 @@ class SpatialEncoder(nn.Module):
                  original_256=AHP.original_256,
                  original_512=AHP.original_512):
         super().__init__()
-        self.project_inplanes = AHP.map_channels  # + AHP.scatter_channels
+        self.project_inplanes = AHP.map_channels + AHP.original_32 * AHP.scatter_channels
         self.project = nn.Conv2d(self.project_inplanes, original_32, kernel_size=1, stride=1,
                                  padding=0, bias=True)
         # ds means downsampling
@@ -76,9 +78,13 @@ class SpatialEncoder(nn.Module):
 
     def scatter(self, entity_embeddings, entity_x_y):
         # `entity_embeddings` are embedded through a size 32 1D convolution, followed by a ReLU,
+        # [batch_size x entity_size x embedding_size]
         print("entity_embeddings.shape:", entity_embeddings.shape) if debug else None
+
+        # [batch_size x entity_size x reduced_embedding_size(e.g. 16)]
         reduced_entity_embeddings = F.relu(self.conv1(entity_embeddings.transpose(1, 2))).transpose(1, 2)
         print("reduced_entity_embeddings.shape:", reduced_entity_embeddings.shape) if debug else None
+
         # then scattered into a map layer so that the size 32 vector at a specific 
         # location corresponds to the units placed there.
 
@@ -103,20 +109,25 @@ class SpatialEncoder(nn.Module):
         for i in range(batch_size):
             for j in range(entity_size):
                 # can not be masked entity
-                if entity_x_y[i, j, 0] != -1e9:
+                print('entity_x_y[i, j, 0]', entity_x_y[i, j, 0]) if debug else None
+                if entity_x_y[i, j, 0] != EntityEncoder.bias_value:
                     x = entity_x_y[i, j, :8]
                     y = entity_x_y[i, j, 8:]
                     x = bits2value(x)
                     y = bits2value(y)
                     print('x', x) if debug else None
                     print('y', y) if debug else None
-                    # note, we reduce 128 to 64, so the x and y should also be
-                    # 128 is half of 256, 64 is half of 128, so we divide by 4
-                    x = int(x / 4)
-                    y = int(y / 4)
-                    scatter_map[i, :, y, x] += reduced_entity_embeddings[i, j, :]
 
-        #print("scatter_map:", scatter_map[0, :, 23, 19]) if 1 else None
+                    # Note: the x and y from obs["raw_data"] is actually minimap position!
+                    # because the pysc2 has transformed the world pos to minimap pos in the raw data 
+                    # However, the minimap size is not set by feature_dimensions.minimap but
+                    # the raw_resolution! If the raw_resolution is none, it will use the map_size,
+                    # making the x and y beyond 64 !
+                    if P.map_name == 'AbyssalReef':
+                        x = int(x / 4)
+                        y = int(y / 4)
+                    scatter_map[i, :, y, x] = reduced_entity_embeddings[i, j, :]
+
         return scatter_map   
 
     def forward(self, x, entity_embeddings=None, entity_x_y=None):

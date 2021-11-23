@@ -17,8 +17,6 @@ from pysc2.env import sc2_env
 from alphastarmini.core.rl.alphastar_agent import RandomAgent, AlphaStarAgent
 from alphastarmini.core.rl.env_run_loop import run_loop
 
-from alphastarmini.lib.hyper_parameters import Agent_Interface_Format_Params as AIFP
-from alphastarmini.lib.hyper_parameters import MiniStar_Agent_Interface_Format_Params as MAIFP
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
 
 __author__ = "Ruo-Ze Liu"

@@ -10,6 +10,8 @@ __author__ = "Ruo-Ze Liu"
 
 SMALL_MAPPING = {
     "no_op": [None, None, 0],
+    "Smart_pt": [None, None, 1],
+    "raw_move_camera": [None, None, 0],
     "Train_Probe_quick": [Protoss.Nexus, None, 1],
     "Build_Pylon_pt": [Protoss.Probe, None, 1],
     "Build_Gateway_pt": [Protoss.Probe, None, 1],
@@ -23,6 +25,8 @@ SMALL_MAPPING = {
 
 SMALL_LIST = [
     F.no_op.id.value,
+    F.Smart_pt.id.value,
+    F.raw_move_camera.id.value,    
     F.Train_Probe_quick.id.value,
     F.Build_Pylon_pt.id.value,
     F.Build_Gateway_pt.id.value,

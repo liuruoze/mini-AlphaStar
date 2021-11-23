@@ -522,10 +522,10 @@ def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
     # This matches the form of scan_discounted_sum:
     #   result = scan_sum_with_discount(sequence, discount,
     #                                   initial_value = state_values[last])
-    print("pcontinues", pcontinues) if 1 else None
-    print("state_values", state_values) if 1 else None
-    print("lambda_", lambda_) if 1 else None
-    print("rewards", rewards) if 1 else None    
+    print("pcontinues", pcontinues) if debug else None
+    print("state_values", state_values) if debug else None
+    print("lambda_", lambda_) if debug else None
+    print("rewards", rewards) if debug else None    
 
     sequence = rewards + pcontinues * state_values * (1 - lambda_)
     print("sequence", sequence) if debug else None
@@ -828,8 +828,8 @@ def td_lambda_loss(baselines, rewards, trajectories):
     baselines = baselines
     rewards = rewards[1:]
 
-    print("baselines:", baselines) if 1 else None
-    print("rewards:", rewards) if 1 else None
+    print("baselines:", baselines) if debug else None
+    print("rewards:", rewards) if debug else None
 
     # The baseline is then updated using TDLambda, with relative weighting 10.0 and lambda 0.8.
     returns = lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
@@ -1497,7 +1497,7 @@ def loss_function(agent, trajectories):
             # baseline_cost is for lambda_loss
             pg_cost, baseline_cost, reward_name = costs_and_rewards
 
-            print("reward_name:", reward_name) if 1 else None
+            print("reward_name:", reward_name) if debug else None
             rewards = compute_pseudoreward(trajectories, reward_name)
 
             # The action_type argument, delay, and all other arguments are separately updated 
@@ -1507,12 +1507,12 @@ def loss_function(agent, trajectories):
             # Actor-Critic loss, with relative weight 1.0. 
 
             lambda_loss = td_lambda_loss(baseline, rewards, trajectories)
-            print("lambda_loss:", lambda_loss) if 1 else None
+            print("lambda_loss:", lambda_loss) if debug else None
             loss_actor_critic += (baseline_cost * lambda_loss)
 
             # we add the split_vtrace_pg_loss
             pg_loss = split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories)
-            print("pg_loss:", pg_loss) if 1 else None
+            print("pg_loss:", pg_loss) if debug else None
             loss_actor_critic += (pg_cost * pg_loss)
 
         reward_index += 1
@@ -1567,10 +1567,10 @@ def loss_function(agent, trajectories):
 
     loss_all = loss_actor_critic + loss_upgo + loss_he + loss_ent
 
-    print("loss_actor_critic:", loss_actor_critic) if 1 else None
-    print("loss_upgo:", loss_upgo) if 1 else None
-    print("loss_he:", loss_he) if 1 else None
-    print("loss_ent:", loss_ent) if 1 else None
-    print("loss_all:", loss_all) if 1 else None
+    print("loss_actor_critic:", loss_actor_critic) if debug else None
+    print("loss_upgo:", loss_upgo) if debug else None
+    print("loss_he:", loss_he) if debug else None
+    print("loss_ent:", loss_ent) if debug else None
+    print("loss_all:", loss_all) if debug else None
 
     return loss_all

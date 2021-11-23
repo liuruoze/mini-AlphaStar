@@ -141,17 +141,20 @@ class LocationHead(nn.Module):
         Inputs:
             autoregressive_embedding: [batch_size x autoregressive_embedding_size]
             action_type: [batch_size x 1]
-            map_skip: [batch_size x entity_size x embedding_size]
+            map_skip: [batch_size x channel x height x width]
         Output:
             target_location_logits: [batch_size x self.output_map_size x self.output_map_size]
-            location_out: [batch_size x 1]
+            location_out: [batch_size x 2 (x and y)]
         '''
 
         # AlphaStar: `autoregressive_embedding` is reshaped to have the same height/width as the final skip in `map_skip` 
         # AlphaStar: (which was just before map information was reshaped to a 1D embedding) with 4 channels
+        print("map_skip.shape:", map_skip.shape) if debug else None
         batch_size = map_skip.shape[0]
+
         assert autoregressive_embedding.shape[0] == action_type.shape[0]
         assert autoregressive_embedding.shape[0] == map_skip.shape[0]
+
         reshap_size = map_skip.shape[-1]
         reshape_channels = int(AHP.autoregressive_embedding_size / (reshap_size * reshap_size))
 
@@ -162,7 +165,6 @@ class LocationHead(nn.Module):
         # AlphaStar: and the two are concatenated together along the channel dimension,
         # map skip shape: (-1, 128, 16, 16)
         # x shape: (-1, 132, 16, 16)
-        print("map_skip.shape:", map_skip.shape) if debug else None
         x = torch.cat([autoregressive_embedding_map, map_skip], dim=1)
         print("x.shape:", x.shape) if debug else None
 
@@ -192,9 +194,11 @@ class LocationHead(nn.Module):
         if AHP == MAHP:
             x = F.relu(self.us_4(x))
             # only in mAS, we need one more upsample step
-            x = F.relu(self.us_5(x))
+            # x = F.relu(self.us_5(x))
+            # Note: in the final layer, we don't use relu
+            x = self.us_5(x)
         else:
-            x = F.relu(self.us_4_original(x))
+            x = self.us_4_original(x)
 
         # AlphaStar: Those final logits are flattened and sampled (masking out invalid locations using `action_type`, 
         # AlphaStar: such as those outside the camera for build actions) with temperature 0.8 
@@ -202,6 +206,20 @@ class LocationHead(nn.Module):
         # x shape: (-1, 1, 256, 256)
         print('x.shape:', x.shape) if debug else None
         y = x.reshape(batch_size, 1 * self.output_map_size * self.output_map_size)
+
+        if False:
+            # to see it
+            temp = y
+            max_value = torch.max(temp, dim=1)
+
+            max_value_value = max_value.values
+            max_value_index = max_value.indices
+
+            print('max_value_value', max_value_value)
+            print('max_value_value.shape', max_value_value.shape)
+
+            min_value = torch.min(temp, dim=1)
+            print('min_value', min_value)
 
         device = next(self.parameters()).device
 

@@ -100,14 +100,19 @@ class ArchModel(nn.Module):
 
     def forward(self, state, batch_size=None, sequence_length=None, hidden_state=None, return_logits=False, 
                 baseline_state=None, baseline_opponent_state=None, 
-                return_baseline=False, multi_gpu_supvised_learning=False):
+                return_baseline=False, multi_gpu_supvised_learning=False,
+                use_scatter_map=True):
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
-
-        # pos_index = SCHP.max_unit_type + AHP.entity_x_y_index  # 13 + 1 + 5 + 5
-        #entity_x_y = state.entity_state[:, :, pos_index: pos_index + 8 * 2]
-        #map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings, entity_x_y)
         entity_embeddings, embedded_entity = self.entity_encoder(state.entity_state)   
-        map_skip, embedded_spatial = self.spatial_encoder(state.map_state)
+
+        if AHP.scatter_channels:
+            pos_index = SCHP.max_unit_type + EntityEncoder.max_unit_attributes + EntityEncoder.max_alliance \
+                + EntityEncoder.max_display_type  
+            entity_x_y = state.entity_state[:, :, pos_index: pos_index + 8 * 2]
+            map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings, entity_x_y)
+        else:
+            map_skip, embedded_spatial = self.spatial_encoder(state.map_state)
+
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
 
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
@@ -270,7 +275,7 @@ def test():
     # if MiniStar_Arch_Hyper_Parameters is used, and Mini_Scale = 16,
     # then batch_size = 96 / 16 = 6, sequence_length = 64 / 16 = 4, batch_seq_size = 6 * 4 = 24.
     # Thus shape = [24, number_of_action_types=564]
-    print("action_logits.action_type.shape:", action_logits.action_type.shape) if 1 else None
+    print("action_logits.action_type.shape:", action_logits.action_type.shape) if debug else None
 
     optimizer = Adam(arch_model.parameters(), lr=1e-4)
     with torch.autograd.set_detect_anomaly(True):
@@ -291,12 +296,10 @@ def test():
                                                                                          return_baseline=True)
             optimizer.zero_grad()
             print("action_logits.action_type:", action_logits.action_type) if debug else None
-            print("action_logits.action_type.shape:", action_logits.action_type.shape) if 1 else None
+            print("action_logits.action_type.shape:", action_logits.action_type.shape) if debug else None
 
             print("baseline_value:", baseline_value) if debug else None
-            #print("baseline_value.shape:", baseline_value.shape) if 1 else None
-
-            print("new_hidden_state.shape:", new_hidden_state[0].shape) if 1 else None
+            print("new_hidden_state.shape:", new_hidden_state[0].shape) if debug else None
 
             loss_base = sum([base.sum() for base in baseline_value])
 
