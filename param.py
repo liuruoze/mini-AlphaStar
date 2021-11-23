@@ -14,3 +14,7 @@ replay_path = "data/Replays/filtered_replays_1/"
 #Mini_Scale = 4
 #Mini_Scale = 8
 Mini_Scale = 16
+
+
+map_name = 'Simple64'
+# map_name = 'AbyssalReef'

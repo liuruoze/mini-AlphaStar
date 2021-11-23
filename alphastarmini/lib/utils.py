@@ -14,12 +14,13 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from pysc2.lib import actions
+from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
 
 from alphastarmini.lib import config as C
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
-from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
+import param as P
 
 __author__ = "Ruo-Ze Liu"
 
@@ -528,7 +529,7 @@ def action_involve_targeting_location_mask(action_types):
 
 def get_location_mask(mask):
     # mask shape [batch_size, output_map_size x output_map_size]
-    map_name = 'Simple64'
+    map_name = P.map_name
     mask = mask.reshape(mask.shape[0], SCHP.world_size, SCHP.world_size)
 
     map_size = (256, 256)

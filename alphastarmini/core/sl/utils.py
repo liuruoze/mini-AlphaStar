@@ -254,6 +254,7 @@ def get_location_accuracy(ground_truth, predict, device, return_important=False)
     output_map_size = SCHP.world_size
 
     all_nums = ground_truth.shape[0]
+    effect_nums = 0  # when the location argument applied both in ground_truth and predict
     correct_nums = 0
     distance_loss = 0.
 
@@ -263,28 +264,30 @@ def get_location_accuracy(ground_truth, predict, device, return_important=False)
 
         gt_location_y = row_number
         gt_location_x = col_number
-        print("gt_location_y, gt_location_x", gt_location_y, gt_location_x) if 1 else None
+        print("gt_location_y, gt_location_x", gt_location_y, gt_location_x) if debug else None
 
         [predict_x, predict_y] = predict[i] 
-        print("predict_x, predict_y", predict_x, predict_y) if 1 else None
+        print("predict_x, predict_y", predict_x, predict_y) if debug else None
 
         x_diff_square = (predict_x.item() - gt_location_x.item()) ** 2
         y_diff_square = (predict_y.item() - gt_location_y.item()) ** 2
 
-        print('x_diff_square', x_diff_square) if 1 else None
-        print('y_diff_square', y_diff_square) if 1 else None
+        print('x_diff_square', x_diff_square) if debug else None
+        print('y_diff_square', y_diff_square) if debug else None
 
         if not (gt_location_y.item() == 0 and gt_location_x.item() == 0):
             if not (predict_x.item() == 0 and predict_y.item() == 0):
+                effect_nums += 1
+
                 diff_square = x_diff_square + y_diff_square
                 distance_loss += diff_square
 
                 if diff_square == 0:
                     correct_nums += 1
 
-    print([correct_nums, all_nums, distance_loss])
+    print([correct_nums, effect_nums, all_nums, distance_loss])
 
-    return [correct_nums, all_nums, distance_loss]
+    return [correct_nums, effect_nums, all_nums, distance_loss]
 
 
 def get_accuracy(ground_truth, predict, device, return_important=False):

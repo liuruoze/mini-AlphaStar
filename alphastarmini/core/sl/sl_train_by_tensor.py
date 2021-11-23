@@ -195,7 +195,8 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
                                                            labels_tensor, net, 
                                                            decrease_smart_opertaion=True,
                                                            return_important=True,
-                                                           only_consider_small=True)
+                                                           only_consider_small=True,
+                                                           include_location_accuracy=True)
             del feature_tensor, labels_tensor
 
             optimizer.zero_grad()
@@ -216,6 +217,9 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             non_camera_accuracy = acc_num_list[4] / (acc_num_list[5] + 1e-9)
             short_important_accuracy = acc_num_list[6] / (acc_num_list[7] + 1e-9)
 
+            location_accuracy = acc_num_list[8] / (acc_num_list[9] + 1e-9)
+            location_distance = acc_num_list[11] / (acc_num_list[9] + 1e-9)
+
             batch_time = time.time() - start
 
             batch_iter += 1
@@ -231,6 +235,7 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
 
             write(writer, loss_value, loss_list, action_accuracy, 
                   move_camera_accuracy, non_camera_accuracy, short_important_accuracy,
+                  location_accuracy, location_distance,
                   batch_iter)
 
             gc.collect()
@@ -252,6 +257,10 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             writer.add_scalar('Val/non_camera Acc', val_acc[2], batch_iter)
             print("Val short_important acc: {:.6f}.".format(val_acc[3]))
             writer.add_scalar('Val/short_important Acc', val_acc[3], batch_iter)
+            print("Val location_accuracy acc: {:.6f}.".format(val_acc[4]))
+            writer.add_scalar('Val/location_accuracy Acc', val_acc[4], batch_iter)
+            print("Val location_distance acc: {:.6f}.".format(val_acc[5]))
+            writer.add_scalar('Val/location_distance Acc', val_acc[5], batch_iter)
 
             del val_loss, val_acc
 
@@ -283,6 +292,10 @@ def eval(model, val_set, val_loader, device):
     short_important_action_acc_num = 0.
     short_important_action_all_num = 0.
 
+    location_acc_num = 0.
+    location_effect_num = 0.
+    location_dist = 0.
+
     for i, (features, labels) in enumerate(val_loader):
 
         if False and i > EVAL_NUM:
@@ -297,7 +310,8 @@ def eval(model, val_set, val_loader, device):
                                                                 labels_tensor, model, 
                                                                 decrease_smart_opertaion=True,
                                                                 return_important=True,
-                                                                only_consider_small=True)
+                                                                only_consider_small=True,
+                                                                include_location_accuracy=True)
             del feature_tensor, labels_tensor
 
         print('eval i', i, 'loss', loss) if debug else None
@@ -316,6 +330,10 @@ def eval(model, val_set, val_loader, device):
         short_important_action_acc_num += acc_num_list[6]
         short_important_action_all_num += acc_num_list[7]
 
+        location_acc_num += acc_num_list[8]
+        location_effect_num += acc_num_list[9]
+        location_dist += acc_num_list[11]
+
         del loss, acc_num_list
 
         gc.collect()
@@ -327,11 +345,16 @@ def eval(model, val_set, val_loader, device):
     non_camera_accuracy = non_camera_action_acc_num / (non_camera_action_all_num + 1e-9)
     short_important_accuracy = short_important_action_acc_num / (short_important_action_all_num + 1e-9)
 
-    return val_loss, [action_accuracy, move_camera_accuracy, non_camera_accuracy, short_important_accuracy]
+    location_accuracy = location_acc_num / (location_effect_num + 1e-9)
+    location_distance = location_dist / (location_effect_num + 1e-9)
+
+    return val_loss, [action_accuracy, move_camera_accuracy, non_camera_accuracy, 
+                      short_important_accuracy, location_accuracy, location_distance]
 
 
 def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy, 
-          non_camera_accuracy, short_important_accuracy, batch_iter):
+          non_camera_accuracy, short_important_accuracy, 
+          location_accuracy, location_distance, batch_iter):
 
     print("One batch loss: {:.6f}.".format(loss))
     writer.add_scalar('OneBatch/Loss', loss, batch_iter)
@@ -366,6 +389,12 @@ def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy,
 
         print("One batch short_important_accuracy: {:.6f}.".format(short_important_accuracy))
         writer.add_scalar('OneBatch/short_important_accuracy', short_important_accuracy, batch_iter)
+
+        print("One batch location_accuracy: {:.6f}.".format(location_accuracy))
+        writer.add_scalar('OneBatch/location_accuracy', location_accuracy, batch_iter)
+
+        print("One batch location_distance: {:.6f}.".format(location_distance))
+        writer.add_scalar('OneBatch/location_distance', location_distance, batch_iter)
 
 
 def test(on_server):
