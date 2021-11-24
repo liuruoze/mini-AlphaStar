@@ -72,28 +72,16 @@ class ArchModel(nn.Module):
         return sum(p.numel() for p in self.parameters() if p.requires_grad)
 
     @staticmethod
-    def preprocess_entity(e_list):
-        return EntityEncoder.preprocess(e_list)
-
-    @staticmethod    
-    def preprocess_scalar(obs, build_order=None):
-        return ScalarEncoder.preprocess(obs, build_order=build_order)
-
-    @staticmethod    
-    def preprocess_spatial(obs):
-        return SpatialEncoder.preprocess(obs)
-
-    @staticmethod
-    def preprocess_entity_numpy(e_list):
-        return EntityEncoder.preprocess_numpy(e_list)
+    def preprocess_entity_numpy(e_list, return_entity_pos=False):
+        return EntityEncoder.preprocess_numpy(e_list, return_entity_pos=return_entity_pos)
 
     @staticmethod    
     def preprocess_scalar_numpy(obs, build_order=None):
         return ScalarEncoder.preprocess_numpy(obs, build_order=build_order)
 
     @staticmethod    
-    def preprocess_spatial_numpy(obs):
-        return SpatialEncoder.preprocess_numpy(obs)
+    def preprocess_spatial_numpy(obs, entity_pos_list=None):
+        return SpatialEncoder.preprocess_numpy(obs, entity_pos_list=entity_pos_list)
 
     def init_hidden_state(self):
         return self.core.init_hidden_state()
@@ -214,7 +202,7 @@ def test():
     e_list.append(e2)
 
     # preprocess entity list
-    entities_tensor = ArchModel.preprocess_entity(e_list)
+    entities_tensor = torch.tensor(ArchModel.preprocess_entity_numpy(e_list))
     print('entities_tensor.shape:', entities_tensor.shape) if debug else None
     batch_entities_tensor = torch.unsqueeze(entities_tensor, dim=0)
     batch_entities_list = []

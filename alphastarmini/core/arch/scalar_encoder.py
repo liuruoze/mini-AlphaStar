@@ -72,7 +72,7 @@ class ScalarEncoder(nn.Module):
         self.relu = nn.ReLU()
 
     @classmethod
-    def preprocess(cls, obs, build_order=None):
+    def preprocess_tensor(cls, obs, build_order=None):
         scalar_list = []
 
         player = obs["player"]

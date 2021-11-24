@@ -101,27 +101,21 @@ class EntityEncoder(nn.Module):
         self.real_entities_size = 0
 
     @classmethod
-    def preprocess(cls, entity_list):
-        all_entities_array = cls.preprocess_in_numpy(entity_list)
-        entities_tensor = torch.tensor(all_entities_array, dtype=torch.float32)
-        return entities_tensor
-
-    @classmethod
-    def preprocess_numpy(cls, entity_list):
-        return cls.preprocess_in_numpy(entity_list)
-
-    # The fields of each entity in `entity_list` are first preprocessed and concatenated so that \
-    # there is a single 1D tensor for each entity. Fields are preprocessed as follows:
-    @classmethod
-    def preprocess_in_tensor(cls, entity_list):
-        # Deprecated
-        pass
-
-    @classmethod
-    def preprocess_in_numpy(cls, entity_list, debug=False):
+    def preprocess_numpy(cls, entity_list, return_entity_pos=False, debug=False):
         entity_array_list = []
-        index = 0
 
+        # add in mAS 1.05
+        # the pos of each entity like (x, y)
+        # note the x and y are in the position of minimap,
+        # but the minimap size is not decided by the feature_dimensions(minimap), 
+        # but the raw_resolution in AgentInterfaceFormatParams (It's a trap).
+        # Be careful, if you give the raw_resolution a None, it will use the map default size.
+        # E.g., if you use the AbyssalReef, give the feature_dimensions(minimap) a value of 64 but the 
+        # raw_resolution a value of None. The raw_resolution will be about 152 x 132, so the (x, y) of
+        # each entity will be much larger than 64.
+        entity_pos_list = []
+
+        index = 0
         for entity in entity_list:
             field_encoding_list = []
 
@@ -237,6 +231,9 @@ class EntityEncoder(nn.Module):
             print('y_encoding:', y_encoding) if debug else None
             print('y_encoding.shape:', y_encoding.shape) if debug else None
             field_encoding_list.append(y_encoding)
+
+            # for use in the spatial encoder's to calculate the scatter map.
+            entity_pos_list.append([entity.x, entity.y])
 
             # A: current_health: One-hot of sqrt(min(current_health, 1500)) with maximum sqrt(1500), rounding down
             # B: optional float health = 14;
@@ -709,6 +706,9 @@ class EntityEncoder(nn.Module):
             print('bias.shape:', bias.shape) if debug else None
             all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
 
+        if return_entity_pos:
+            return all_entities_array, entity_pos_list
+
         return all_entities_array
 
     def forward(self, x):
@@ -839,7 +839,7 @@ def benchmark(e_list):
     benchmark_start = time.time()
 
     for i in range(1000):
-        entities_tensor = EntityEncoder.preprocess_in_numpy(e_list)
+        entities_tensor = torch.tensor(EntityEncoder.preprocess_numpy(e_list))
 
     elapse_time = time.time() - benchmark_start
     elapse_time = datetime.timedelta(seconds=elapse_time)
@@ -875,13 +875,10 @@ def test(debug=False):
     encoder = EntityEncoder()
 
     # test use preproces in numpy array
-    entities_tensor = EntityEncoder.preprocess(e_list)
+    entities_tensor = torch.tensor(EntityEncoder.preprocess_numpy(e_list))
 
     # test use preproces in torch tensor
     # entities_tensor = EntityEncoder.preprocess_in_tensor(e_list)
-
-    # test use default
-    # entities = EntityEncoder.preprocess(e_list)
 
     entities_tensor = entities_tensor.unsqueeze(0)
 

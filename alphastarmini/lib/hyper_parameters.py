@@ -159,7 +159,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       max_entities =int(512),
                                                       minimap_size=128,                                                
                                                       embedding_size=3585,
-                                                      map_channels=18,
+                                                      map_channels=24,
                                                       scatter_channels=1,  # 0 or 1
                                                       entity_x_y_index=24,
                                                       scalar_encoder_fc1_input=1504,
@@ -194,8 +194,8 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 / Mini_Sc
                                                      max_entities=int(512),
                                                      minimap_size=64,                                               
                                                      embedding_size=1545,
-                                                     map_channels=18,
-                                                     scatter_channels=1,  # 0 or 1
+                                                     map_channels=24,
+                                                     scatter_channels=0,  # 0 or 1
                                                      entity_x_y_index=24,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
@@ -329,7 +329,7 @@ AgentInterfaceFormatParams = namedtuple('AgentInterfaceFormatParams', ['feature_
 
 AlphaStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dimensions=sc2_env.Dimensions(screen=128, minimap=64),
                                                                      rgb_dimensions=None,
-                                                                     raw_resolution=None,  # 64 or None. Improtant! It will change the value of entity x and y.
+                                                                     raw_resolution=64,  # 64 or None. Improtant! It will change the value of entity x and y.
                                                                      # If none, it will use the map size.
                                                                      action_space=None,
                                                                      camera_width_world_units=24,

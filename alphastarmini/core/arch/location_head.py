@@ -175,9 +175,6 @@ class LocationHead(nn.Module):
         self.output_map_size = output_map_size
         self.softmax = nn.Softmax(dim=-1)
 
-    def preprocess(self):
-        pass
-
     def forward(self, autoregressive_embedding, action_type, map_skip):    
         '''
         Inputs:

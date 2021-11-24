@@ -49,9 +49,6 @@ class QueueHead(nn.Module):
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=-1)
 
-    def preprocess(self):
-        pass
-
     # QUESTION: It is similar to delay head. But how did it use the embedded_entity?
     def forward(self, autoregressive_embedding, action_type, embedded_entity=None):
         # AlphaStar: Queued Head is similar to the delay head except a temperature of 0.8 

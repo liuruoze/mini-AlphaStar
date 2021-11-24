@@ -54,9 +54,6 @@ class TargetUnitHead(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-    def preprocess(self):
-        pass
-
     def forward(self, autoregressive_embedding, action_type, entity_embeddings):
         '''
         Inputs:

@@ -48,9 +48,6 @@ class DelayHead(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-    def preprocess(self):
-        pass
-
     def forward(self, autoregressive_embedding):
         checkNaNandInf(autoregressive_embedding, 'autoregressive_embedding')
 

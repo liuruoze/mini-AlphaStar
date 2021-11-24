@@ -58,9 +58,6 @@ class SelectedUnitsHead(nn.Module):
         self.project = nn.Linear(original_32, autoregressive_embedding_size)
         self.softmax = nn.Softmax(dim=-1)
 
-    def preprocess(self):
-        pass
-
     def forward(self, autoregressive_embedding, action_type, entity_embeddings):
         '''
         Inputs:

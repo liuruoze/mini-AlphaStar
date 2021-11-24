@@ -3,6 +3,8 @@
 
 " Spatial Encoder."
 
+import random
+
 import numpy as np
 
 import torch
@@ -70,15 +72,8 @@ class SpatialEncoder(nn.Module):
         self.map_width = AHP.minimap_size
 
     @classmethod
-    def preprocess(cls, obs):
-        map_data = cls.get_map_data(obs)
-        map_data = torch.tensor(map_data)
-
-        return map_data
-
-    @classmethod
-    def preprocess_numpy(cls, obs):
-        map_data = cls.get_map_data(obs)
+    def preprocess_numpy(cls, obs, entity_pos_list=None):
+        map_data = cls.get_map_data(obs, entity_pos_list=entity_pos_list)
         return map_data
 
     def scatter(self, entity_embeddings, entity_x_y):
@@ -191,17 +186,38 @@ class SpatialEncoder(nn.Module):
         return map_skip, embedded_spatial
 
     @classmethod
-    def get_map_data(cls, obs, map_width=AHP.minimap_size, verbose=False):
+    def get_map_data(cls, obs, entity_pos_list=None, map_width=AHP.minimap_size, verbose=False):
         '''
-        TODO: camera: One-hot with maximum 2 of whether a location is within the camera, this refers to mimimap
         default map_width is 64
         '''
-        if "feature_minimap" in obs:
-            feature_minimap = obs["feature_minimap"]
-        else:
-            feature_minimap = obs
-
+        feature_minimap = obs["feature_minimap"] if "feature_minimap" in obs else obs
         save_type = np.float32
+
+        # we consider the most 4 entities in the same position
+        scatter_map = np.zeros((1, map_width, map_width, 4), dtype=save_type)
+        if entity_pos_list is not None:
+            # make the scatter_map has the index of entity in the entity's position (matrix format)      
+            for i, (x, y) in enumerate(entity_pos_list):
+                for j in range(4):
+                    if not scatter_map[0, y, x, j]:
+                        scatter_map[0, y, x, j] = i
+                        break
+
+            if False:  # a simple test
+                for j in range(5):
+                    r = random.randint(0, 10)
+                    if r < len(entity_pos_list):
+                        (x, y) = entity_pos_list[r]
+                        print('r', r)
+                        print('x', x)
+                        print('y', y)
+                        print('scatter_map[0, y, x]', scatter_map[0, y, x])
+                        assert r in scatter_map[0, y, x].tolist()
+
+        # A: camera: One-hot with maximum 2 of whether a location is within the camera, this refers to mimimap
+        camera_map = L.np_one_hot(feature_minimap["camera"].reshape(-1, map_width, map_width), 2).astype(save_type)
+        print('camera_map:', camera_map) if verbose else None
+        print('camera_map.shape:', camera_map.shape) if verbose else None
 
         # A: height_map: Float of (height_map / 255.0)
         height_map = np.expand_dims(feature_minimap["height_map"].reshape(-1, map_width, map_width) / 255.0, -1).astype(save_type)
@@ -237,10 +253,12 @@ class SpatialEncoder(nn.Module):
         buildable = L.np_one_hot(feature_minimap["buildable"].reshape(-1, map_width, map_width), 2).astype(save_type)
         print('buildable:', buildable) if verbose else None
 
-        out_channels = 1 + 4 + 2 + 5 + 2 + 2 + 2
+        out_channels = 1 + 2 + 1 + 4 + 2 + 5 + 2 + 2 + 2
 
-        map_data = np.concatenate([height_map, visibility, creep, entity_owners, 
-                                   alerts, pathable, buildable], axis=3)
+        map_data = np.concatenate([scatter_map, camera_map, height_map, visibility, creep, entity_owners, 
+                                   alerts, pathable, buildable], axis=-1)  # the channel is at the last axis
+
+        # NWHC to NCHW
         map_data = np.transpose(map_data, [0, 3, 1, 2])
         print('map_data.shape:', map_data.shape) if verbose else None
 
@@ -299,32 +317,6 @@ class ResBlock_BN(nn.Module):
         out = self.relu(out)
 
         return out
-
-
-class GatedResBlock(nn.Module):
-
-    def __init__(self, inplanes=128, planes=128, stride=1, downsample=None):
-        super(ResBlock, self).__init__()
-        self.sigmoid = nn.Sigmoid()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
-        self.conv1_mask = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
-                                    padding=1, bias=False)
-
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
-                               padding=1, bias=False)
-        self.conv2_mask = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
-                                    padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(planes)
-
-    def forward(self, x):
-        residual = x
-        x = F.relu(self.bn1(self.conv1(x) * self.sigmoid(self.conv1_mask(x))))
-        x = self.bn2(self.conv2(x) * self.sigmoid(self.conv2_mask(x)))
-        x += residual
-        x = F.relu(x)
-        return x
 
 
 class ResBlockImproved(nn.Module):

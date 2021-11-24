@@ -69,9 +69,6 @@ class ActionTypeHead(nn.Module):
 
         self.is_rl_training = is_rl_training
 
-    def preprocess(self):
-        pass
-
     def set_rl_training(self, staus):
         self.is_rl_training = staus
 

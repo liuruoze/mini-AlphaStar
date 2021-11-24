@@ -44,6 +44,8 @@ DIFFICULTY = 1
 RANDOM_SEED = 2
 VERSION = '4.10.0'
 
+RESTORE = False
+
 # gpu setting
 ON_GPU = torch.cuda.is_available()
 DEVICE = torch.device("cuda:0" if ON_GPU else "cpu")
@@ -75,7 +77,7 @@ class ActorVSComputer:
         if ON_GPU:
             self.player.agent.agent_nn.to(DEVICE)
 
-        self.teacher = get_supervised_agent(player.race, model_type="sl")
+        self.teacher = get_supervised_agent(player.race, model_type="sl", restore=RESTORE)
         print('initialed teacher')
         if ON_GPU:
             self.teacher.agent_nn.to(DEVICE)
@@ -509,7 +511,7 @@ def test(on_server=False, replay_path=None):
 
     league = League(
         initial_agents={
-            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=True)
+            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)
             for race in [Race.protoss]
         },
         main_players=1, 
