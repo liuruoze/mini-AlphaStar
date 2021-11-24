@@ -44,7 +44,7 @@ debug = False
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--path", default="./data/replay_data_tensor/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
-parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
+parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=1, help='')
 
 
@@ -59,12 +59,12 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-23_16-27-57.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-23_22-25-27.pth' 
 
 TRAIN_FROM = 0
-TRAIN_NUM = 14
+TRAIN_NUM = 1
 
-VAL_FROM = 14
+VAL_FROM = 1
 VAL_NUM = 1
 
 # hyper paramerters
@@ -195,7 +195,7 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
                                                            labels_tensor, net, 
                                                            decrease_smart_opertaion=True,
                                                            return_important=True,
-                                                           only_consider_small=True,
+                                                           only_consider_small=False,
                                                            include_location_accuracy=True)
             del feature_tensor, labels_tensor
 
@@ -310,7 +310,7 @@ def eval(model, val_set, val_loader, device):
                                                                 labels_tensor, model, 
                                                                 decrease_smart_opertaion=True,
                                                                 return_important=True,
-                                                                only_consider_small=True,
+                                                                only_consider_small=False,
                                                                 include_location_accuracy=True)
             del feature_tensor, labels_tensor
 

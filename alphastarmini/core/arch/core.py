@@ -29,8 +29,12 @@ class Core(nn.Module):
         super(Core, self).__init__()
         self.n_layers = n_layers
         self.hidden_dim = hidden_dim
+
+        # Unfortunately, PyTorch doesn't have a LayerNorm RNN cell or LayerNorm LSTM class, so we use the ordinary one.
+        # please see https://github.com/pytorch/pytorch/issues/6760
         self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_dim, num_layers=n_layers, 
                             dropout=drop_prob, batch_first=True)
+
         self.batch_size = batch_size
         self.sequence_length = sequence_length
 

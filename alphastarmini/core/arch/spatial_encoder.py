@@ -39,9 +39,14 @@ class SpatialEncoder(nn.Module):
                  original_256=AHP.original_256,
                  original_512=AHP.original_512):
         super().__init__()
-        self.project_inplanes = AHP.map_channels + AHP.original_32 * AHP.scatter_channels
+        self.use_improved_one = True
+
+        self.project_inplanes = AHP.map_channels
+        self.project_inplanes_scatter = AHP.map_channels + AHP.original_32 * AHP.scatter_channels
         self.project = nn.Conv2d(self.project_inplanes, original_32, kernel_size=1, stride=1,
                                  padding=0, bias=True)
+        self.project_scatter = nn.Conv2d(self.project_inplanes_scatter, original_32, kernel_size=1, stride=1,
+                                         padding=0, bias=True)
         # ds means downsampling
         self.ds_1 = nn.Conv2d(original_32, original_64, kernel_size=4, stride=2,
                               padding=1, bias=True)
@@ -50,7 +55,7 @@ class SpatialEncoder(nn.Module):
         self.ds_3 = nn.Conv2d(original_128, original_128, kernel_size=4, stride=2,
                               padding=1, bias=True)
         self.resblock_stack = nn.ModuleList([
-            ResBlock(inplanes=original_128, planes=original_128, stride=1, downsample=None)
+            ResBlock(inplanes=original_128, planes=original_128, stride=1)
             for _ in range(n_resblocks)])
 
         if AHP == MAHP:
@@ -106,6 +111,8 @@ class SpatialEncoder(nn.Module):
         scatter_map = torch.zeros(batch_size, AHP.original_32, self.map_width, self.map_width, device=device)
         print("scatter_map.shape:", scatter_map.shape) if debug else None
 
+        # This operation consumes much time.
+        # Do we have a good efficient one?
         for i in range(batch_size):
             for j in range(entity_size):
                 # can not be masked entity
@@ -139,7 +146,10 @@ class SpatialEncoder(nn.Module):
 
         # After preprocessing, the planes are concatenated, projected to 32 channels 
         # by a 2D convolution with kernel size 1, passed through a ReLU
-        x = F.relu(self.project(x))
+        if AHP.scatter_channels:
+            x = F.relu(self.project_scatter(x))
+        else:
+            x = F.relu(self.project(x))
 
         # then downsampled from 128x128 to 16x16 through 3 2D convolutions and ReLUs 
         # with channel size 64, 128, and 128 respectively. 
@@ -150,16 +160,26 @@ class SpatialEncoder(nn.Module):
         x = F.relu(self.ds_2(x))
         x = F.relu(self.ds_3(x))
 
-        # 4 ResBlocks with 128 channels and kernel size 3 and applied to the downsampled map, 
-        # with the skip connections placed into `map_skip`.
-        map_skip = x
-        for resblock in self.resblock_stack:
-            x = resblock(x)
+        if not self.use_improved_one:
+            # 4 ResBlocks with 128 channels and kernel size 3 and applied to the downsampled map, 
+            # with the skip connections placed into `map_skip`.
+            map_skip = x
+            for resblock in self.resblock_stack:
+                x = resblock(x)
 
-            # note if we add the follow line, it will output "can not comput gradient error"
-            # map_skip += x
-            # so we try to change to the follow line, which will not make a in-place operation
-            map_skip = map_skip + x
+                # note if we add the follow line, it will output "can not comput gradient error"
+                # map_skip += x
+                # so we try to change to the follow line, which will not make a in-place operation
+                map_skip = map_skip + x
+        else:
+            # Referenced mostly from "sc2_imitation_learning" project in spatial_decoder
+            map_skip = [x]
+            for resblock in self.resblock_stack:
+                x = resblock(x)
+                map_skip.append(x)
+
+        # Compared to AS, we a relu, referred from "sc2_imitation_learning"
+        x = F.relu(x)
 
         x = x.reshape(x.shape[0], -1)
 
@@ -174,8 +194,7 @@ class SpatialEncoder(nn.Module):
     def get_map_data(cls, obs, map_width=AHP.minimap_size, verbose=False):
         '''
         TODO: camera: One-hot with maximum 2 of whether a location is within the camera, this refers to mimimap
-        TODO: scattered_entities: 32 float values from entity embeddings
-        default map_width is 128
+        default map_width is 64
         '''
         if "feature_minimap" in obs:
             feature_minimap = obs["feature_minimap"]
@@ -229,6 +248,28 @@ class SpatialEncoder(nn.Module):
 
 
 class ResBlock(nn.Module):
+    # without batchnorm
+    # referenced from https://github.com/metataro/sc2_imitation_learning in conv.py
+    # also referenced from https://github.com/liuruoze/Thought-SC2 in ops.py
+
+    def __init__(self, inplanes=128, planes=128, stride=1, downsample=None):
+        super(ResBlock, self).__init__()
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
+                               padding=1, bias=True)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
+                               padding=1, bias=True)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        z = x
+        x = self.relu(x)
+        x = self.conv1(x)
+        x = self.relu(x)
+        x = self.conv2(x)
+        return x + z
+
+
+class ResBlock_BN(nn.Module):
 
     def __init__(self, inplanes=128, planes=128, stride=1, downsample=None):
         super(ResBlock, self).__init__()

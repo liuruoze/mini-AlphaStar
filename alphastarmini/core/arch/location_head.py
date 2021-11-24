@@ -57,10 +57,9 @@ class ResBlockFiLM(nn.Module):
         # kaiming_uniform(self.conv2.weight)
         pass
 
-# some copy from https://github.com/rosinality/film-pytorch/blob/master/model.py
-
 
 class FiLM(nn.Module):
+    # some copy from https://github.com/rosinality/film-pytorch/blob/master/model.py
     def __init__(self, n_resblock=4, conv_hidden=128, gate_size=1024):
         super().__init__()
         self.n_resblock = n_resblock
@@ -88,6 +87,38 @@ class FiLM(nn.Module):
         return out
 
 
+class FiLMplusMapSkip(nn.Module):
+    # Thanks mostly from https://github.com/metataro/sc2_imitation_learning in spatial_decoder
+    def __init__(self, n_resblock=4, conv_hidden=128, gate_size=1024):
+        super().__init__()
+        self.n_resblock = n_resblock
+        self.conv_hidden = conv_hidden
+
+        self.resblocks = nn.ModuleList()
+        for i in range(n_resblock):
+            self.resblocks.append(ResBlockFiLM(conv_hidden))
+
+        self.film_net = nn.Linear(gate_size, conv_hidden * 2 * n_resblock)
+
+    def reset(self):
+        # deprecated, should try to find others
+        # kaiming_uniform(self.film_net.weight)
+        # self.film_net.bias.data.zero_()
+        pass
+
+    def forward(self, x, gate, map_skip):
+        out = x
+        film = self.film_net(gate).chunk(self.n_resblock * 2, 1)
+
+        for i, resblock in enumerate(self.resblocks):
+            out = resblock(out, film[i * 2], film[i * 2 + 1])
+            out = out + map_skip[i]
+
+        # TODO: should we add a relu?
+
+        return out
+
+
 class LocationHead(nn.Module):
     '''
     Inputs: autoregressive_embedding, action_type, map_skip
@@ -101,6 +132,8 @@ class LocationHead(nn.Module):
                  max_map_channels=AHP.location_head_max_map_channels,
                  temperature=0.8):
         super().__init__()
+        self.use_improved_one = True
+
         self.is_sl_training = is_sl_training
         if not self.is_sl_training:
             self.temperature = temperature
@@ -110,8 +143,17 @@ class LocationHead(nn.Module):
         mmc = max_map_channels
         self.ds_1 = nn.Conv2d(mmc + 4, mmc, kernel_size=1, stride=1,
                               padding=0, bias=True)
+        self.film_blocks_num = 4
 
-        self.film_net = FiLM(n_resblock=4, conv_hidden=mmc, gate_size=autoregressive_embedding_size)
+        if not self.use_improved_one:
+            self.film_net = FiLM(n_resblock=self.film_blocks_num, 
+                                 conv_hidden=mmc, 
+                                 gate_size=autoregressive_embedding_size)
+        else:
+            self.film_net_mapskip = FiLMplusMapSkip(n_resblock=self.film_blocks_num, 
+                                                    conv_hidden=mmc, 
+                                                    gate_size=autoregressive_embedding_size)            
+
         self.us_1 = nn.ConvTranspose2d(mmc, int(mmc / 2), kernel_size=4, stride=2,
                                        padding=1, bias=True)
         self.us_2 = nn.ConvTranspose2d(int(mmc / 2), int(mmc / 4), 
@@ -149,23 +191,28 @@ class LocationHead(nn.Module):
 
         # AlphaStar: `autoregressive_embedding` is reshaped to have the same height/width as the final skip in `map_skip` 
         # AlphaStar: (which was just before map information was reshaped to a 1D embedding) with 4 channels
-        print("map_skip.shape:", map_skip.shape) if debug else None
-        batch_size = map_skip.shape[0]
+        # sc2_imitation_learning: map_skip = list(reversed(map_skip))
+        # sc2_imitation_learning: inputs, map_skip = map_skip[0], map_skip[1:]
+        map_skip = list(reversed(map_skip))
+        x, map_skip = map_skip[0], map_skip[1:]
+
+        print("x.shape:", map_skip.shape) if debug else None
+        batch_size = x.shape[0]
 
         assert autoregressive_embedding.shape[0] == action_type.shape[0]
-        assert autoregressive_embedding.shape[0] == map_skip.shape[0]
+        assert autoregressive_embedding.shape[0] == x.shape[0]
 
-        reshap_size = map_skip.shape[-1]
+        reshap_size = x.shape[-1]
         reshape_channels = int(AHP.autoregressive_embedding_size / (reshap_size * reshap_size))
 
         print("autoregressive_embedding.shape:", autoregressive_embedding.shape) if debug else None
-        autoregressive_embedding_map = autoregressive_embedding.reshape(batch_size, -1, reshap_size, reshap_size)
-        print("autoregressive_embedding_map.shape:", autoregressive_embedding_map.shape) if debug else None
+        ar_map = autoregressive_embedding.reshape(batch_size, -1, reshap_size, reshap_size)
+        print("ar_map.shape:", ar_map.shape) if debug else None
 
         # AlphaStar: and the two are concatenated together along the channel dimension,
         # map skip shape: (-1, 128, 16, 16)
         # x shape: (-1, 132, 16, 16)
-        x = torch.cat([autoregressive_embedding_map, map_skip], dim=1)
+        x = torch.cat([ar_map, x], dim=1)
         print("x.shape:", x.shape) if debug else None
 
         # AlphaStar: passed through a ReLU, 
@@ -173,16 +220,27 @@ class LocationHead(nn.Module):
         # AlphaStar: then passed through another ReLU.
         x = F.relu(self.ds_1(F.relu(x)))
 
-        # AlphaStar: The 3D tensor (height, width, and channels) is then passed through a series of Gated ResBlocks 
-        # AlphaStar: with 128 channels, kernel size 3, and FiLM, gated on `autoregressive_embedding`  
-        # note: FilM is Feature-wise Linear Modulation, please see the paper "FiLM: Visual Reasoning with 
-        # a General Conditioning Layer"
-        # in here we use 4 Gated ResBlocks, and the value can be changed
-        x = self.film_net(x, gate=autoregressive_embedding)
+        if not self.use_improved_one:
+            # AlphaStar: The 3D tensor (height, width, and channels) is then passed through a series of Gated ResBlocks 
+            # AlphaStar: with 128 channels, kernel size 3, and FiLM, gated on `autoregressive_embedding`  
+            # note: FilM is Feature-wise Linear Modulation, please see the paper "FiLM: Visual Reasoning with 
+            # a General Conditioning Layer"
+            # in here we use 4 Gated ResBlocks, and the value can be changed
+            x = self.film_net(x, gate=autoregressive_embedding)
 
-        # x shape (-1, 128, 16, 16)
-        # AlphaStar: and using the elements of `map_skip` in order of last ResBlock skip to first.
-        x = x + map_skip
+            # x shape (-1, 128, 16, 16)
+            # AlphaStar: and using the elements of `map_skip` in order of last ResBlock skip to first.
+            x = x + map_skip
+        else:
+            # Referenced mostly from "sc2_imitation_learning" project in spatial_decoder
+            assert len(map_skip) == self.film_blocks_num
+
+            # use the new FiLMplusMapSkip class
+            x = self.film_net_mapskip(x, gate=autoregressive_embedding, 
+                                      map_skip=map_skip)
+
+            # Compared to AS, we a relu, referred from "sc2_imitation_learning"
+            x = F.relu(x)
 
         # AlphaStar: Afterwards, it is upsampled 2x by each of a series of transposed 2D convolutions 
         # AlphaStar: with kernel size 4 and channel sizes 128, 64, 16, and 1 respectively 
@@ -230,12 +288,24 @@ class LocationHead(nn.Module):
         print("target_location_logits:", target_location_logits) if debug else None
         print("target_location_logits.shape:", target_location_logits.shape) if debug else None
 
-        target_location_probs = self.softmax(target_location_logits)
+        if True:
+            # referenced from lib/utils.py function of masked_softmax()
+            mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
+            mask = L.get_location_mask(mask)
+            mask_fill_value = -1e32  # a very small number
+            masked_vector = target_location_logits.masked_fill((1 - mask).bool(), mask_fill_value)
+            target_location_probs = self.softmax(masked_vector)
+        else:
+            target_location_probs = self.softmax(target_location_logits)
 
         # AlphaStar: (masking out invalid locations using `action_type`, such as those outside 
         # the camera for build actions)
         # TODO: use action to decide the mask
-        if True:
+        # Note: below lines will cause the torch.multinomial not work right,
+        # becaues multinomial needs the rows of input do not need to sum to one (in which case we use 
+        # the values as weights), but must be non-negative, finite and have a non-zero sum.
+        # if we have zero sum, it will cause a CUDA device error
+        if False:
             mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
             print("mask:", mask) if debug else None
             print("mask.shape:", mask.shape) if debug else None

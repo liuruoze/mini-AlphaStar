@@ -195,8 +195,9 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
     loss += target_unit_loss
 
     batch_size = action_gt.target_location.shape[0]
-    target_location_loss = criterion(action_gt.target_location.reshape(batch_size, -1),
-                                     target_location.reshape(batch_size, -1), mask=mask_tensor[:, 5].reshape(-1))
+    location_weight = 10.
+    target_location_loss = location_weight * criterion(action_gt.target_location.reshape(batch_size, -1),
+                                                       target_location.reshape(batch_size, -1), mask=mask_tensor[:, 5].reshape(-1))
     loss += target_location_loss
 
     return loss, [action_type_loss.item(), delay_loss.item(), queue_loss.item(), units_loss.item(), target_unit_loss.item(), target_location_loss.item()]

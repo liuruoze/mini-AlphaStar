@@ -228,9 +228,9 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
             elif aid == Smart_unit_id:
                 mask_list.append([SMART_WEIGHT])
             else:
-                func_name = F[aid].name
-                select, _, _ = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])  # RAMP.small_select_and_target_unit_type_for_actions(func_name)
-                if select is not None:
+                # func_name = F[aid].name
+                # select, _, _ = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])  
+                if aid in RAMP.SMALL_LIST:
                     mask_list.append([SMALL_IMPORTANT_WEIGHT])
                 else:
                     mask_list.append([NON_MOVE_CAMERA_WEIGHT])
@@ -238,7 +238,7 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
             if aid in RAMP.SMALL_LIST:
                 mask_list.append([SMALL_IMPORTANT_WEIGHT])
             else:
-                mask_list.append([0.])                
+                mask_list.append([1.])                
 
     mask_tensor = torch.tensor(mask_list)
 

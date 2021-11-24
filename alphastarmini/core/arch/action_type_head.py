@@ -118,12 +118,13 @@ class ActionTypeHead(nn.Module):
         action_type_logits = action_type_logits / self.temperature
         print('action_type_logits after temperature:', action_type_logits) if debug else None
 
+        # use frame-skipping and eplison random search in RL
         if self.is_rl_training:
             if random.random() < 0.8:
-                if random.random() < 0.8:
-                    action_type_logits[:, 0] = 1e5
-                else:
-                    action_type_logits[:] = 0.
+                action_type_logits[:, 0] = 1e9  # no-op
+            else:
+                if random.random() < 0.1:
+                    action_type_logits[:] = 0.  # equal random select
 
         action_type_probs = self.softmax(action_type_logits)
         print('action_type_probs:', action_type_probs) if debug else None
