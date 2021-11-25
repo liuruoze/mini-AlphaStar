@@ -34,6 +34,7 @@ class SpatialEncoder(nn.Module):
         embedded_spatial - A 1D tensor of the embedded map
         map_skip - Tensors of the outputs of intermediate computations
     '''
+    scatter_volume = 4
 
     def __init__(self, n_resblocks=4, original_32=AHP.original_32,
                  original_64=AHP.original_64,
@@ -44,7 +45,7 @@ class SpatialEncoder(nn.Module):
         self.use_improved_one = True
 
         self.project_inplanes = AHP.map_channels
-        self.project_inplanes_scatter = AHP.map_channels + AHP.original_32 * AHP.scatter_channels
+        self.project_inplanes_scatter = AHP.map_channels + AHP.original_32 * AHP.scatter_channels - self.scatter_volume
         self.project = nn.Conv2d(self.project_inplanes, original_32, kernel_size=1, stride=1,
                                  padding=0, bias=True)
         self.project_scatter = nn.Conv2d(self.project_inplanes_scatter, original_32, kernel_size=1, stride=1,
@@ -76,68 +77,56 @@ class SpatialEncoder(nn.Module):
         map_data = cls.get_map_data(obs, entity_pos_list=entity_pos_list)
         return map_data
 
-    def scatter(self, entity_embeddings, entity_x_y):
+    def scatter(self, scatter_index, entity_embeddings):
+        # Note, though this command is called scatter, it actually use the gather function in PyTorch,
+        # while 'gather' is an opposite operation of 'scatter'
+
         # `entity_embeddings` are embedded through a size 32 1D convolution, followed by a ReLU,
         # [batch_size x entity_size x embedding_size]
-        print("entity_embeddings.shape:", entity_embeddings.shape) if debug else None
 
         # [batch_size x entity_size x reduced_embedding_size(e.g. 16)]
         reduced_entity_embeddings = F.relu(self.conv1(entity_embeddings.transpose(1, 2))).transpose(1, 2)
-        print("reduced_entity_embeddings.shape:", reduced_entity_embeddings.shape) if debug else None
 
         # then scattered into a map layer so that the size 32 vector at a specific 
         # location corresponds to the units placed there.
-
-        def bits2value(bits):
-            # change from the bits to dec values.
-            l = len(bits)
-            v = 0
-            g = 1
-            for i in range(l - 1, -1, -1):               
-                v += bits[i] * g
-                g *= 2
-            return v
-
         # shape [batch_size x entity_size x embedding_size]
         batch_size = reduced_entity_embeddings.shape[0]
         entity_size = reduced_entity_embeddings.shape[1]
+        embed_size = reduced_entity_embeddings.shape[2]
 
         device = next(self.parameters()).device
-        scatter_map = torch.zeros(batch_size, AHP.original_32, self.map_width, self.map_width, device=device)
-        print("scatter_map.shape:", scatter_map.shape) if debug else None
+        zero_bias = torch.zeros(batch_size, 1, embed_size, device=device)
+        reduced_entity_embeddings = torch.cat([zero_bias, reduced_entity_embeddings[:, 1:, :]], dim=1)
+        print('reduced_entity_embeddings.shape', reduced_entity_embeddings.shape) if debug else None
 
-        # This operation consumes much time.
-        # Do we have a good efficient one?
-        for i in range(batch_size):
-            for j in range(entity_size):
-                # can not be masked entity
-                print('entity_x_y[i, j, 0]', entity_x_y[i, j, 0]) if debug else None
-                if entity_x_y[i, j, 0] != EntityEncoder.bias_value:
-                    x = entity_x_y[i, j, :8]
-                    y = entity_x_y[i, j, 8:]
-                    x = bits2value(x)
-                    y = bits2value(y)
-                    print('x', x) if debug else None
-                    print('y', y) if debug else None
+        # [batch_size x 4 x AHP.minimap_size x AHP.minimap_size]
+        scatter_index = scatter_index.reshape(batch_size, -1)
 
-                    # Note: the x and y from obs["raw_data"] is actually minimap position!
-                    # because the pysc2 has transformed the world pos to minimap pos in the raw data 
-                    # However, the minimap size is not set by feature_dimensions.minimap but
-                    # the raw_resolution! If the raw_resolution is none, it will use the map_size,
-                    # making the x and y beyond 64 !
-                    if P.map_name == 'AbyssalReef':
-                        x = int(x / 4)
-                        y = int(y / 4)
-                    scatter_map[i, :, y, x] = reduced_entity_embeddings[i, j, :]
+        scatter_index = scatter_index.unsqueeze(-1).repeat(1, 1, AHP.original_32)
+        # [batch_size x 4 * AHP.minimap_size * AHP.minimap_size x AHP.original_32]
 
-        return scatter_map   
+        # Question: This has a problem, the first element of index 0 will be averaged everywhere
+        # Solution: use zero_bias to remove
+        scatter_mid = reduced_entity_embeddings.gather(1, scatter_index.long())
 
-    def forward(self, x, entity_embeddings=None, entity_x_y=None):
-        # 
+        print('scatter_mid', scatter_mid[0, :16, :4]) if debug else None
+
+        scatter_mid = scatter_mid.reshape(batch_size, self.scatter_volume, 
+                                          self.map_width, self.map_width, AHP.original_32)
+        scatter_result = torch.mean(scatter_mid, dim=1)
+        scatter_result = scatter_result.permute(0, 3, 1, 2)
+
+        return scatter_result 
+
+    def forward(self, x, entity_embeddings=None):
+
         # scatter_map may cause a NaN bug in SL training, now we don't use it
-        if entity_embeddings is not None and entity_x_y is not None:
-            scatter_map = self.scatter(entity_embeddings, entity_x_y)
-            x = torch.cat([scatter_map, x], dim=1)
+        if entity_embeddings is not None:
+            channels = x.shape[1]
+            # the first 4 channels are scatter map
+            scatter_map, reduced = torch.split(x, [self.scatter_volume, channels - self.scatter_volume], dim=1)
+            scatter_entity = self.scatter(scatter_map, entity_embeddings)
+            x = torch.cat([scatter_entity, reduced], dim=1)
 
         # After preprocessing, the planes are concatenated, projected to 32 channels 
         # by a 2D convolution with kernel size 1, passed through a ReLU
@@ -194,25 +183,14 @@ class SpatialEncoder(nn.Module):
         save_type = np.float32
 
         # we consider the most 4 entities in the same position
-        scatter_map = np.zeros((1, map_width, map_width, 4), dtype=save_type)
+        scatter_map = np.zeros((1, map_width, map_width, cls.scatter_volume), dtype=save_type)
         if entity_pos_list is not None:
             # make the scatter_map has the index of entity in the entity's position (matrix format)      
             for i, (x, y) in enumerate(entity_pos_list):
-                for j in range(4):
+                for j in range(cls.scatter_volume):
                     if not scatter_map[0, y, x, j]:
-                        scatter_map[0, y, x, j] = i
+                        scatter_map[0, y, x, j] = min(i + 1, AHP.max_entities - 1)
                         break
-
-            if False:  # a simple test
-                for j in range(5):
-                    r = random.randint(0, 10)
-                    if r < len(entity_pos_list):
-                        (x, y) = entity_pos_list[r]
-                        print('r', r)
-                        print('x', x)
-                        print('y', y)
-                        print('scatter_map[0, y, x]', scatter_map[0, y, x])
-                        assert r in scatter_map[0, y, x].tolist()
 
         # A: camera: One-hot with maximum 2 of whether a location is within the camera, this refers to mimimap
         camera_map = L.np_one_hot(feature_minimap["camera"].reshape(-1, map_width, map_width), 2).astype(save_type)

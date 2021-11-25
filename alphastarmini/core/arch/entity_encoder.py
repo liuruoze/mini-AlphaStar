@@ -510,6 +510,7 @@ class EntityEncoder(nn.Module):
             # B: optional float weapon_cooldown = 30;
             # C: None
             weapon_cooldown = int(entity.weapon_cooldown)
+            weapon_cooldown = min(weapon_cooldown, 31)
             weapon_cooldown_encoding = L.np_one_hot(np.array([weapon_cooldown]), cls.max_weapon_cooldown).reshape(1, -1)
             print('weapon_cooldown_encoding:', weapon_cooldown_encoding) if debug else None
             field_encoding_list.append(weapon_cooldown_encoding)
@@ -518,6 +519,7 @@ class EntityEncoder(nn.Module):
             # B: repeated UnitOrder orders = 22; Not populated for enemies;
             # C: equal to FeatureUnit.order_length
             order_queue_length = entity.order_length
+            order_queue_length = min(order_queue_length, 8)
             order_queue_length_encoding = L.np_one_hot(np.array([order_queue_length]), cls.max_order_queue_length).reshape(1, -1)
             print('order_queue_length_encoding:', order_queue_length_encoding) if debug else None
             field_encoding_list.append(order_queue_length_encoding)

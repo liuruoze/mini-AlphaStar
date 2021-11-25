@@ -195,7 +195,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 / Mini_Sc
                                                      minimap_size=64,                                               
                                                      embedding_size=1545,
                                                      map_channels=24,
-                                                     scatter_channels=0,  # 0 or 1
+                                                     scatter_channels=1,  # 0 or 1
                                                      entity_x_y_index=24,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
@@ -327,7 +327,7 @@ AgentInterfaceFormatParams = namedtuple('AgentInterfaceFormatParams', ['feature_
                                                                        'allow_cheating_layers',
                                                                        'add_cargo_to_units'])
 
-AlphaStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dimensions=sc2_env.Dimensions(screen=128, minimap=64),
+AlphaStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dimensions=sc2_env.Dimensions(screen=64, minimap=64),
                                                                      rgb_dimensions=None,
                                                                      raw_resolution=64,  # 64 or None. Improtant! It will change the value of entity x and y.
                                                                      # If none, it will use the map size.

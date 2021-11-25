@@ -94,10 +94,7 @@ class ArchModel(nn.Module):
         entity_embeddings, embedded_entity = self.entity_encoder(state.entity_state)   
 
         if AHP.scatter_channels:
-            pos_index = SCHP.max_unit_type + EntityEncoder.max_unit_attributes + EntityEncoder.max_alliance \
-                + EntityEncoder.max_display_type  
-            entity_x_y = state.entity_state[:, :, pos_index: pos_index + 8 * 2]
-            map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings, entity_x_y)
+            map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
         else:
             map_skip, embedded_spatial = self.spatial_encoder(state.map_state)
 

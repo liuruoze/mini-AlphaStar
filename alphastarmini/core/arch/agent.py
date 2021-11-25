@@ -72,9 +72,20 @@ class Agent(object):
 
     @staticmethod
     def get_state_and_action_from_pickle_numpy(obs):
-        batch_entities_tensor = Agent.preprocess_state_entity_numpy(obs)
-        scalar_list = Agent.preprocess_state_scalar_numpy(obs)
-        map_data = Agent.preprocess_state_spatial_numpy(obs)
+        # batch_entities_tensor = Agent.preprocess_state_entity_numpy(obs)
+        # scalar_list = Agent.preprocess_state_scalar_numpy(obs)
+        # map_data = Agent.preprocess_state_spatial_numpy(obs)
+        # state = MsState(entity_state=batch_entities_tensor, 
+        #                 statistical_state=scalar_list, map_state=map_data)
+
+        batch_entities_tensor, entity_pos = Agent.preprocess_state_entity_numpy(obs, return_entity_pos=True)
+        map_data = Agent.preprocess_state_spatial_numpy(obs, entity_pos_list=entity_pos)
+        scalar_list = Agent.preprocess_state_scalar_numpy(obs, build_order=None)
+
+        batch_entities_tensor = torch.tensor(batch_entities_tensor)
+        scalar_list = [torch.tensor(s) for s in scalar_list]
+        map_data = torch.tensor(map_data)
+
         state = MsState(entity_state=batch_entities_tensor, 
                         statistical_state=scalar_list, map_state=map_data)
 

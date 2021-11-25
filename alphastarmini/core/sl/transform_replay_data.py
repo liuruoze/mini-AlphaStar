@@ -25,6 +25,7 @@ from pysc2.lib import features as F
 from pysc2.lib import actions as A
 from pysc2.lib import units as Unit
 from pysc2 import run_configs
+from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat
 
 from s2clientprotocol import sc2api_pb2 as sc_pb
 from s2clientprotocol import common_pb2 as com_pb
@@ -34,6 +35,7 @@ from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
+from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
 
 from alphastarmini.lib import utils as U
 
@@ -390,6 +392,7 @@ def test(on_server=False):
                         need_observe_id = observe_id_list[i]
                         break
 
+                # we observe the winning one
                 print('need_observe_id', need_observe_id)
 
                 if need_observe_id == 0:
@@ -433,11 +436,18 @@ def test(on_server=False):
                       construction.
                 '''
 
-                feat = F.features_from_game_info(game_info=controller.game_info(), 
+                aif = AgentInterfaceFormat(**AAIFP._asdict())
+
+                feat = F.features_from_game_info(game_info=controller.game_info(),
+                                                 raw_resolution=64, 
                                                  use_feature_units=True, use_raw_units=True,
                                                  use_unit_counts=True, use_raw_actions=True,
                                                  show_cloaked=True, show_burrowed_shadows=True, 
                                                  show_placeholders=True) 
+
+                # consistent with the SL and RL setting
+                # feat = F.features_from_game_info(game_info=controller.game_info(), agent_interface_format=aif)
+
                 print("feat obs spec:", feat.observation_spec()) if debug else None
                 print("feat action spec:", feat.action_spec()) if debug else None
                 prev_obs = None
