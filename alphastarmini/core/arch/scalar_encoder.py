@@ -60,7 +60,9 @@ class ScalarEncoder(nn.Module):
 
         self.before_beginning_build_order = nn.Linear(n_units_buildings, 16)  # without relu
         self.beginning_build_order_transformer = Transformer(d_model=16, d_inner=32,
-                                                             n_layers=3, n_head=2, d_k=8, d_v=8, dropout=0.1)
+                                                             n_layers=3, n_head=2, 
+                                                             d_k=8, d_v=8, 
+                                                             dropout=0.)  # make dropout=0 to make training and testing consistent
         # [20, num_entity_types], into transformer with q,k,v, also goto scalar_context
         self.last_delay_fc = nn.Linear(n_delay, original_64)  # with relu
         self.last_action_type_fc = nn.Linear(n_possible_actions, original_128)  # with relu

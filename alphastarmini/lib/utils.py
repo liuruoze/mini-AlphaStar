@@ -592,6 +592,27 @@ def masked_softmax(vector: torch.Tensor,
     return result
 
 
+def positional_encoding(max_position, embedding_size, add_batch_dim=False):
+    # from https://github.com/metataro/sc2_imitation_learning in spatial_decoder in utils.py
+    # has modification
+    positions = np.arange(max_position)
+    angle_rates = 1 / np.power(10000, (2 * (np.arange(embedding_size) // 2)) / np.float32(embedding_size))
+    angle_rads = positions[:, np.newaxis] * angle_rates[np.newaxis, :]
+
+    # note: "A::B" means from A every intervel of B, 0::5 is 0, 5, 10... ]
+    angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
+    angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
+
+    if add_batch_dim:
+        # before: [max_position x embedding_size]
+        # after: [1 x max_position x embedding_size]
+        angle_rads = angle_rads[np.newaxis, ...]
+
+    return_tensor = torch.tensor(angle_rads, dtype=torch.float)
+
+    return return_tensor
+
+
 def test():
 
     print("This is a test!") if debug else None

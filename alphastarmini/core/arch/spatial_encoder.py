@@ -271,6 +271,7 @@ class ResBlock_BN(nn.Module):
         super(ResBlock, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
+        # Batch norm is applied in the channels, C of (N, C, H, W)
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
@@ -303,6 +304,7 @@ class ResBlockImproved(nn.Module):
         super(ResBlockImproved, self).__init__()
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
+        # Batch norm is applied in the channels, C of (N, C, H, W)
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
@@ -326,6 +328,12 @@ class ResBlock1D(nn.Module):
         super(ResBlock1D, self).__init__()
         self.conv1 = nn.Conv1d(inplanes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)
+        # Layer norm is applied in the not N channels, 
+        # e.g., E of (N, S, E) in NLP,
+        # and [C, H, W] of (N, C, H, W) in CV.
+        # Note, because Layer norm doesn't average over dim of batch (N), so
+        # it is the same in training and evaluating.
+        # For Batch Norm, this is not the case.
         self.ln1 = nn.LayerNorm([planes, seq_len])
         self.conv2 = nn.Conv1d(planes, planes, kernel_size=3, stride=stride,
                                padding=1, bias=False)

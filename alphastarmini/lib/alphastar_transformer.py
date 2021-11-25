@@ -50,25 +50,24 @@ class Encoder(nn.Module):
 
         super().__init__()
 
-        self.dropout = nn.Dropout(p=dropout)
         self.layer_stack = nn.ModuleList([
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
+
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
-    def forward(self, x, return_attns=False):
-        enc_slf_attn_list = []
+        # note "unbiased=False" will affect the results
+        # layer_norm is b = (a - torch.mean(a))/(torch.var(a, unbiased=False)**0.5) * 1.0 + 0.0
 
+    def forward(self, x):
         # -- Forward
+
         enc_output = x
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(enc_output)
-            enc_slf_attn_list += [enc_slf_attn] if return_attns else []
 
         enc_output = self.layer_norm(enc_output)
 
-        if return_attns:
-            return enc_output, enc_slf_attn_list
         return enc_output,
 
 

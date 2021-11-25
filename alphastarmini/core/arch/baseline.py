@@ -59,7 +59,9 @@ class Baseline(nn.Module):
         self.upgrade_fc = nn.Linear(n_upgrade, original_32)  # with relu, also goto scalar_context. What is the difference with upgrades_fc?
         self.before_beginning_build_order = nn.Linear(n_units_buildings, 16)  # without relu
         self.beginning_build_order_transformer = Transformer(d_model=16, d_inner=32,
-                                                             n_layers=3, n_head=2, d_k=8, d_v=8, dropout=0.1)
+                                                             n_layers=3, n_head=2, 
+                                                             d_k=8, d_v=8, 
+                                                             dropout=0.)  # make dropout=0 to make training and testing consistent
         self.relu = nn.ReLU()
 
         self.embed_fc = nn.Linear(baseline_input, original_256)  # with relu

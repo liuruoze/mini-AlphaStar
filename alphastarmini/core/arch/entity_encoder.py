@@ -83,7 +83,7 @@ class EntityEncoder(nn.Module):
         entity_embeddings - The embedding of each entity (as opposed to `embedded_entity`, which has one embedding for all entities)
     '''
 
-    def __init__(self, dropout=0.1, original_256=AHP.original_256, 
+    def __init__(self, dropout=0.0, original_256=AHP.original_256, 
                  original_1024=AHP.original_1024,
                  original_128=AHP.original_128):
         super().__init__()
@@ -92,7 +92,8 @@ class EntityEncoder(nn.Module):
         self.embedd = nn.Linear(AHP.embedding_size, original_256)
         self.transformer = Transformer(d_model=original_256, d_inner=original_1024,
                                        n_layers=3, n_head=2, d_k=original_128, 
-                                       d_v=original_128, dropout=0.1)
+                                       d_v=original_128, 
+                                       dropout=0.)  # make dropout=0 to make training and testing consistent
         self.conv1 = nn.Conv1d(original_256, original_256, kernel_size=1, stride=1,
                                padding=0, bias=True)
         self.fc1 = nn.Linear(original_256, original_256)
