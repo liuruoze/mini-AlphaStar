@@ -7,8 +7,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from alphastarmini.third.transformer.SubLayers import MultiHeadAttention, PositionwiseFeedForward
+# Deprecated
+# from alphastarmini.third.transformer.SubLayers import MultiHeadAttention, PositionwiseFeedForward
 
+from alphastarmini.lib.transformer_layer import MultiHeadAttention
+from alphastarmini.lib.transformer_layer import PositionwiseFeedForward
 
 __author__ = "Ruo-Ze Liu"
 
@@ -17,6 +20,7 @@ debug = True
 
 class Transformer(nn.Module):
     ''' AlphaStar transformer composed with only three encoder layers '''
+    # refactored by reference to https://github.com/metataro/sc2_imitation_learning
 
     # default parameter from AlphaStar
     def __init__(
@@ -30,9 +34,9 @@ class Transformer(nn.Module):
             n_layers=n_layers, n_head=n_head, d_k=d_k, d_v=d_v,
             dropout=dropout)
 
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
+        # for p in self.parameters():
+        #     if p.dim() > 1:
+        #         nn.init.xavier_uniform_(p)
 
     def forward(self, x):
         enc_output, *_ = self.encoder(x)
@@ -54,8 +58,6 @@ class Encoder(nn.Module):
             EncoderLayer(d_model, d_inner, n_head, d_k, d_v, dropout=dropout)
             for _ in range(n_layers)])
 
-        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
-
         # note "unbiased=False" will affect the results
         # layer_norm is b = (a - torch.mean(a))/(torch.var(a, unbiased=False)**0.5) * 1.0 + 0.0
 
@@ -65,8 +67,6 @@ class Encoder(nn.Module):
         enc_output = x
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(enc_output)
-
-        enc_output = self.layer_norm(enc_output)
 
         return enc_output,
 
@@ -81,11 +81,25 @@ class EncoderLayer(nn.Module):
         self.slf_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
         self.pos_ffn = PositionwiseFeedForward(d_model, d_inner, dropout=dropout)
 
-    def forward(self, enc_input, slf_attn_mask=None):
-        enc_output, enc_slf_attn = self.slf_attn(
-            enc_input, enc_input, enc_input, mask=slf_attn_mask)
-        enc_output = self.pos_ffn(enc_output)
-        return enc_output, enc_slf_attn
+        self.dropout_1 = nn.Dropout(dropout)
+        self.dropout_2 = nn.Dropout(dropout)
+
+        self.layer_norm_1 = nn.LayerNorm(d_model, eps=1e-6)
+        self.layer_norm_2 = nn.LayerNorm(d_model, eps=1e-6)
+
+    def forward(self, x, slf_attn_mask=None):
+        att_out, enc_slf_attn = self.slf_attn(
+            x, x, x, mask=slf_attn_mask)
+
+        att_out = self.dropout_1(att_out)
+        out_1 = self.layer_norm_1(x + att_out)
+
+        ffn_out = self.pos_ffn(out_1)
+
+        ffn_out = self.dropout_1(ffn_out)
+        out = self.layer_norm_1(out_1 + ffn_out)
+
+        return out, enc_slf_attn
 
 
 def test():
