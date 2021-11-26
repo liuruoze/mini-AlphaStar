@@ -61,11 +61,20 @@ if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
 RESTORE_PATH = MODEL_PATH + 'sl_21-11-23_22-25-27.pth' 
 
-TRAIN_FROM = 0
-TRAIN_NUM = 12
+SIMPLE_TEST = False
+if SIMPLE_TEST:
+    TRAIN_FROM = 0
+    TRAIN_NUM = 1
 
-VAL_FROM = 12
-VAL_NUM = 3
+    VAL_FROM = 0
+    VAL_NUM = 1
+else:
+    TRAIN_FROM = 0
+    TRAIN_NUM = 12
+
+    VAL_FROM = 12
+    VAL_NUM = 3
+
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size

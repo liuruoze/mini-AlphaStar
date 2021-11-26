@@ -505,12 +505,10 @@ def test():
 
     # dummy map list
     map_list = []
-    map_data_1 = torch.zeros(batch_size, 1, AHP.minimap_size, AHP.minimap_size)
-    map_data_1_one_hot = L.to_one_hot(map_data_1, 2)
-    print('map_data_1_one_hot.shape:', map_data_1_one_hot.shape) if debug else None
+    map_data_1 = torch.zeros(batch_size, 6, AHP.minimap_size, AHP.minimap_size)
 
     map_list.append(map_data_1)
-    map_data_2 = torch.zeros(batch_size, 17, AHP.minimap_size, AHP.minimap_size)
+    map_data_2 = torch.zeros(batch_size, 18, AHP.minimap_size, AHP.minimap_size)
     map_list.append(map_data_2)
     map_data = torch.cat(map_list, dim=1)
 

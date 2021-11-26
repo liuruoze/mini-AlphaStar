@@ -54,10 +54,19 @@ class ArchModel(nn.Module):
         self.target_unit_head = TargetUnitHead()
         self.location_head = LocationHead()
 
-        # init all baselines
-        self.init_baselines()
+        # build all baselines
+        self.build_baselines()
 
-    def init_baselines(self):
+        # init all parameters
+        if AHP.init_net_params:
+            self.init_paramters()
+
+    def init_paramters(self):
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
+
+    def build_baselines(self):
         self.winloss_baseline = Baseline(baseline_type='winloss')
         self.build_order_baseline = Baseline(baseline_type='build_order')
         self.built_units_baseline = Baseline(baseline_type='built_units')
@@ -212,12 +221,10 @@ def test():
 
     # dummy map list
     map_list = []
-    map_data_1 = torch.zeros(batch_size, 1, AHP.minimap_size, AHP.minimap_size)
-    map_data_1_one_hot = L.to_one_hot(map_data_1, 2)
-    print('map_data_1_one_hot.shape:', map_data_1_one_hot.shape) if debug else None
+    map_data_1 = torch.zeros(batch_size, 18, AHP.minimap_size, AHP.minimap_size)
 
     map_list.append(map_data_1)
-    map_data_2 = torch.zeros(batch_size, 17, AHP.minimap_size, AHP.minimap_size)
+    map_data_2 = torch.zeros(batch_size, 6, AHP.minimap_size, AHP.minimap_size)
     map_list.append(map_data_2)
     map_data = torch.cat(map_list, dim=1)
 

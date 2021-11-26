@@ -16,7 +16,6 @@ from torch.autograd import Variable
 from pysc2.lib import actions
 from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
 
-from alphastarmini.lib import config as C
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 

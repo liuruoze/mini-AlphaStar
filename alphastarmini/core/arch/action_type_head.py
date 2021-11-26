@@ -12,7 +12,6 @@ import torch.nn.functional as F
 from pysc2.lib.actions import RAW_FUNCTIONS
 from alphastarmini.core.arch.spatial_encoder import ResBlock1D
 from alphastarmini.lib.glu import GLU
-from alphastarmini.lib.multinomial import stable_multinomial
 
 from alphastarmini.lib import utils as L
 
@@ -157,7 +156,6 @@ class ActionTypeHead(nn.Module):
         # which is different with tf.multinomial which can accept negative values like log(action_type_probs)
         action_type = torch.multinomial(action_type_probs.reshape(batch_size, -1), 1)
 
-        #action_type = stable_multinomial(logits=action_type_logits, temperature=self.temperature)
         print('stable action_type:', action_type) if debug else None
         print('action_type.shape:', action_type.shape) if debug else None
 

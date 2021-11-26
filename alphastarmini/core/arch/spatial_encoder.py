@@ -77,7 +77,7 @@ class SpatialEncoder(nn.Module):
         map_data = cls.get_map_data(obs, entity_pos_list=entity_pos_list)
         return map_data
 
-    def scatter(self, scatter_index, entity_embeddings):
+    def scatter(self, scatter_index, entity_embeddings, same_pos_handle='add'):
         # Note, though this command is called scatter, it actually use the gather function in PyTorch,
         # while 'gather' is an opposite operation of 'scatter'
 
@@ -113,7 +113,14 @@ class SpatialEncoder(nn.Module):
 
         scatter_mid = scatter_mid.reshape(batch_size, self.scatter_volume, 
                                           self.map_width, self.map_width, AHP.original_32)
-        scatter_result = torch.mean(scatter_mid, dim=1)
+
+        if same_pos_handle == 'add':
+            scatter_result = torch.sum(scatter_mid, dim=1)
+        elif same_pos_handle == 'mean':
+            scatter_result = torch.mean(scatter_mid, dim=1)
+        else:
+            scatter_result = torch.sum(scatter_mid, dim=1)
+
         scatter_result = scatter_result.permute(0, 3, 1, 2)
 
         return scatter_result 
@@ -367,12 +374,12 @@ def test():
     batch_size = 2
     # dummy map list
     map_list = []
-    map_data_1 = torch.zeros(batch_size, 1, AHP.minimap_size, AHP.minimap_size)
+    map_data_1 = torch.zeros(batch_size, 18, AHP.minimap_size, AHP.minimap_size)
     map_data_1_one_hot = L.to_one_hot(map_data_1, 2)
     print('map_data_1_one_hot.shape:', map_data_1_one_hot.shape) if debug else None
 
     map_list.append(map_data_1)
-    map_data_2 = torch.zeros(batch_size, 17, AHP.minimap_size, AHP.minimap_size)
+    map_data_2 = torch.zeros(batch_size, 18, AHP.minimap_size, AHP.minimap_size)
     map_list.append(map_data_2)
     map_data = torch.cat(map_list, dim=1)
 

@@ -356,15 +356,18 @@ def test():
     action_type_sample = 65  # func: 65/Effect_PsiStorm_pt (1/queued [2]; 2/unit_tags [512]; 0/world [0, 0])
     action_type = torch.randint(low=0, high=SFS.available_actions, size=(batch_size, 1))
 
+    map_skip = []
     if AHP == MAHP:
-        map_skip = torch.randn(batch_size, AHP.location_head_max_map_channels, 8, 8)
+        for i in range(5):
+            map_skip.append(torch.randn(batch_size, AHP.location_head_max_map_channels, 8, 8))
     else:
-        map_skip = torch.randn(batch_size, AHP.location_head_max_map_channels, 16, 16)
+        for i in range(5):
+            map_skip.append(torch.randn(batch_size, AHP.location_head_max_map_channels, 16, 16))
 
     location_head = LocationHead()
 
     print("autoregressive_embedding:", autoregressive_embedding) if debug else None
-    print("autoregressive_embedding.shape:", autoregressive_embedding.shape) if debug else None
+    print("autoregressive_embedding.shape:", autoregressive_embedding.shape) if 1 else None
 
     target_location_logits, target_location = \
         location_head.forward(autoregressive_embedding, action_type, map_skip)

@@ -708,13 +708,16 @@ class EntityEncoder(nn.Module):
             bias[:, :] = cls.bias_value
             all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
 
+        all_entities_array = all_entities_array.astype(np.float32)
+
         if return_entity_pos:
             return all_entities_array, entity_pos_list
 
         return all_entities_array
 
-    def forward(self, x, debug=True):
-        # refactor thanks mostly to the codes from https://github.com/opendilab/DI-star
+    def forward(self, x, debug=False):
+        # refactor by reference mostly to https://github.com/opendilab/DI-star
+        # some mistakes for transformer are fixed
         batch_size = x.shape[0]
 
         # calculate there are how many real entities in each batch
@@ -733,14 +736,14 @@ class EntityEncoder(nn.Module):
         # generate the mask for transformer
         mask = torch.arange(0, self.max_entities).float()
         mask = mask.repeat(batch_size, 1)
-        mask = mask < entity_num.unsqueeze(dim=1)
 
-        print('mask:', mask) if debug else None
-        print('mask.shape:', mask.shape) if debug else None
-
-        # mask: [batch_size, max_entities]
         device = next(self.parameters()).device
         mask = mask.to(device)
+
+        # mask: [batch_size, max_entities]
+        mask = mask < entity_num.unsqueeze(dim=1)
+        print('mask:', mask) if debug else None
+        print('mask.shape:', mask.shape) if debug else None
 
         # assert the input shape is : batch_seq_size x entities_size x embeding_size
         # note: because the feature size of entity is not equal to 256, so it can not fed into transformer directly.
@@ -766,7 +769,7 @@ class EntityEncoder(nn.Module):
 
         # AlphaStar: The mean of the transformer output across across the units (masked by the missing entries) 
         # is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`
-        masked_out = out * mask.unsqueeze(2)
+        masked_out = out * mask.unsqueeze(dim=2)
 
         # sum over across the units
         # masked_out: [batch_seq_size x entities_size x embeding_size]
@@ -775,7 +778,7 @@ class EntityEncoder(nn.Module):
 
         # here we should dived by the entity_num, not the cls.max_entities
         # z: [batch_size, embeding_size]
-        z = z / entity_num
+        z = z / entity_num.unsqueeze(dim=1)
 
         # note, dim=1 means the mean is across all entities in one timestep
         # The mean of the transformer output across across the units  
@@ -795,7 +798,7 @@ class Entity(object):
                  cargo_space_taken=0, cargo_space_max=0, build_progress=0,
                  current_health_ratio=0.4, current_shield_ratio=0.5, current_energy_ratio=0.7,
                  health_max=100, shield_max=50, energy_max=40,
-                 display_type=1, x=123, y=218, is_cloaked=3, is_powered=True, is_hallucination=False, is_active=True,
+                 display_type=1, x=43, y=23, is_cloaked=3, is_powered=True, is_hallucination=False, is_active=True,
                  is_on_screen=True, is_in_cargo=False, current_minerals=1000, current_vespene=1500, mined_minerals=500,
                  mined_vespene=300, assigned_harvesters=8, ideal_harvesters=14, weapon_cooldown=5.0, orders=[0, 1, 3, 0],
                  attack_upgrade_level=2, armor_upgrade_level=1, shield_upgrade_level=0, is_selected=True, is_targeted=False,
@@ -904,12 +907,14 @@ def test(debug=False):
 
     batch_entities_tensor = entities_tensor
 
-    for i in range(batch_size):
-        entities_tensor_copy = entities_tensor.detach().clone()
-        batch_entities_tensor = torch.cat([batch_entities_tensor, entities_tensor_copy], dim=0)   
+    # for i in range(batch_size):
+    #     entities_tensor_copy = entities_tensor.detach().clone()
+    #     batch_entities_tensor = torch.cat([batch_entities_tensor, entities_tensor_copy], dim=0)   
 
-    print('batch_entities_tensor:', batch_entities_tensor) if 1 else None    
-    print('batch_entities_tensor.shape:', batch_entities_tensor.shape) if 1 else None
+    # print('batch_entities_tensor:', batch_entities_tensor) if 1 else None    
+    # print('batch_entities_tensor.shape:', batch_entities_tensor.shape) if 1 else None
+
+    batch_entities_tensor = batch_entities_tensor.float()
 
     entity_embeddings, embedded_entity = encoder.forward(batch_entities_tensor)
 
