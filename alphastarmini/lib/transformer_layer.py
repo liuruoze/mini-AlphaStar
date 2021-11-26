@@ -1,14 +1,45 @@
 ''' Define the sublayers in encoder/decoder layer '''
 import numpy as np
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from alphastarmini.third.transformer.Modules import ScaledDotProductAttention
+__original__author__ = "Yu-Hsiang Huang"
 
-# Modified from alphastarmini/third/transformer/SubLayers.py
-# original __author__ = "Yu-Hsiang Huang"
+# modified refernect mostly to https://github.com/opendilab/DI-star in distar.model.alphastar.module_utils.Transformer
+__modified__ = "Ruo-Ze Liu"
+
 
 debug = True
+
+
+class ScaledDotProductAttention(nn.Module):
+    ''' Scaled Dot-Product Attention '''
+
+    def __init__(self, temperature, attn_dropout=0.1, bias_value=-1e9):
+        super().__init__()
+        self.temperature = temperature
+        self.dropout = nn.Dropout(attn_dropout)
+        self.biasval = bias_value
+
+    def forward(self, q, k, v, mask=None):
+
+        # q: (b, n, lq, dk)
+        # k: (b, n, lk, dk)
+        attn = torch.matmul(q / self.temperature, k.transpose(2, 3))
+
+        # atten: (b, n, lq, lk),
+        if mask is not None:
+            attn = attn.masked_fill(mask == 0, self.biasval)
+
+        attn = self.dropout(F.softmax(attn, dim=-1))
+
+        # v: (b, n, lv, dv)
+        # r: (b, n, lq, dv)
+        r = torch.matmul(attn, v)
+
+        return r, attn
 
 
 class MultiHeadAttention(nn.Module):
@@ -21,29 +52,35 @@ class MultiHeadAttention(nn.Module):
         self.d_k = d_k
         self.d_v = d_v
 
-        self.w_qs = nn.Linear(d_model, n_head * d_k, bias=False)
-        self.w_ks = nn.Linear(d_model, n_head * d_k, bias=False)
-        self.w_vs = nn.Linear(d_model, n_head * d_v, bias=False)
-        self.fc = nn.Linear(n_head * d_v, d_model, bias=False)
+        # pre-attention projection
+        self.w_qs = nn.Linear(d_model, n_head * d_k, bias=True)
+        self.w_ks = nn.Linear(d_model, n_head * d_k, bias=True)
+        self.w_vs = nn.Linear(d_model, n_head * d_v, bias=True)
 
+        # after-attention projection
+        self.fc = nn.Linear(n_head * d_v, d_model, bias=True)
+
+        # attention
         self.attention = ScaledDotProductAttention(temperature=d_k ** 0.5)
 
-        self.dropout = nn.Dropout(dropout)
-
     def forward(self, q, k, v, mask=None):
+        # q: (b, lq, dm)
+        # k: (b, lk, dm)
+        # v: (b, lv, dm)
 
         d_k, d_v, n_head = self.d_k, self.d_v, self.n_head
-        sz_b, len_q, len_k, len_v = q.size(0), q.size(1), k.size(1), v.size(1)
+        size_b, len_q, len_k, len_v = q.size(0), q.size(1), k.size(1), v.size(1)
 
-        # Pass through the pre-attention projection: b x lq x (n*dv)
-        # Separate different heads: b x lq x n x dv
-        # print('q.shape:', q.shape) if debug else None
+        # pass through the pre-attention projection
+        # separate different heads
 
-        q = self.w_qs(q).view(sz_b, len_q, n_head, d_k)
-        k = self.w_ks(k).view(sz_b, len_k, n_head, d_k)
-        v = self.w_vs(v).view(sz_b, len_v, n_head, d_v)
+        # after that q: (b, lq, n, dk)
+        q = self.w_qs(q).view(size_b, len_q, n_head, d_k)
 
-        # Transpose for attention dot product: b x n x lq x dv
+        k = self.w_ks(k).view(size_b, len_k, n_head, d_k)
+        v = self.w_vs(v).view(size_b, len_v, n_head, d_v)
+
+        # transpose for attention dot product: (b, n, lq, dk)
         q, k, v = q.transpose(1, 2), k.transpose(1, 2), v.transpose(1, 2)
 
         if mask is not None:
@@ -51,16 +88,17 @@ class MultiHeadAttention(nn.Module):
 
         q, attn = self.attention(q, k, v, mask=mask)
 
-        # q = (b, n, lq, dk) k = (b, n, lk, dk), atten = q x k_t = (b, n, lq, lk)
-        # v = (b, n, lv, dv), assert lv = lk
-        # atten x v = (b, n, lq, dv)
+        # q: (b, n, lq, dk), k: (b, n, lk, dk), atten = q \matmul k^t = (b, n, lq, lk),
+        # v: (b, n, lv, dv), assert lk = lv
+        # atten \matmul v = (b, n, lq, dv)
 
-        # Transpose to move the head dimension back: b x lq x n x dv
-        # Combine the last two dimensions to concatenate all the heads together: b x lq x (n*dv)
-        q = q.transpose(1, 2).contiguous().view(sz_b, len_q, -1)
-        q = self.dropout(self.fc(q))
+        # transpose to move the head dimension back: (b, lq, n, dv)
+        # combine the last two dimensions to concatenate all the heads together: (b, lq, (n*dv))
+        q = q.transpose(1, 2).contiguous().view(size_b, len_q, -1)
 
-        # q = (b, lq, n * dv) x (n * d_v, d_m) = (b, lq, d_m)
+        # q: (b, lq, (n*dv)) \matmul ((n*dv), dm) = (b, lq, dm)
+        # note, q has the same shape as when it enter in
+        q = self.fc(q)
 
         return q, attn
 

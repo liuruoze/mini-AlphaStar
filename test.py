@@ -29,6 +29,9 @@ if __name__ == '__main__':
     print("test init")
 
     entity_encoder.test()
+
+    stop()
+
     scalar_encoder.test()
     spatial_encoder.test()
 

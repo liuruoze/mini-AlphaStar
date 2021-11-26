@@ -38,8 +38,8 @@ class Transformer(nn.Module):
         #     if p.dim() > 1:
         #         nn.init.xavier_uniform_(p)
 
-    def forward(self, x):
-        enc_output, *_ = self.encoder(x)
+    def forward(self, x, mask=None):
+        enc_output, *_ = self.encoder(x, mask=mask)
 
         return enc_output
 
@@ -61,12 +61,12 @@ class Encoder(nn.Module):
         # note "unbiased=False" will affect the results
         # layer_norm is b = (a - torch.mean(a))/(torch.var(a, unbiased=False)**0.5) * 1.0 + 0.0
 
-    def forward(self, x):
+    def forward(self, x, mask=None):
         # -- Forward
 
         enc_output = x
         for enc_layer in self.layer_stack:
-            enc_output, enc_slf_attn = enc_layer(enc_output)
+            enc_output, enc_slf_attn = enc_layer(enc_output, mask=mask)
 
         return enc_output,
 
@@ -81,23 +81,22 @@ class EncoderLayer(nn.Module):
         self.slf_attn = MultiHeadAttention(n_head, d_model, d_k, d_v, dropout=dropout)
         self.pos_ffn = PositionwiseFeedForward(d_model, d_inner, dropout=dropout)
 
-        self.dropout_1 = nn.Dropout(dropout)
-        self.dropout_2 = nn.Dropout(dropout)
+        self.drop1 = nn.Dropout(dropout)
+        self.drop2 = nn.Dropout(dropout)
 
-        self.layer_norm_1 = nn.LayerNorm(d_model, eps=1e-6)
-        self.layer_norm_2 = nn.LayerNorm(d_model, eps=1e-6)
+        self.ln1 = nn.LayerNorm(d_model, eps=1e-6)
+        self.ln2 = nn.LayerNorm(d_model, eps=1e-6)
 
-    def forward(self, x, slf_attn_mask=None):
-        att_out, enc_slf_attn = self.slf_attn(
-            x, x, x, mask=slf_attn_mask)
+    def forward(self, x, mask=None):
+        att_out, enc_slf_attn = self.slf_attn(x, x, x, mask=mask)
 
-        att_out = self.dropout_1(att_out)
-        out_1 = self.layer_norm_1(x + att_out)
+        att_out = self.drop1(att_out)
+        out_1 = self.ln1(x + att_out)
 
         ffn_out = self.pos_ffn(out_1)
 
-        ffn_out = self.dropout_1(ffn_out)
-        out = self.layer_norm_1(out_1 + ffn_out)
+        ffn_out = self.drop2(ffn_out)
+        out = self.ln2(out_1 + ffn_out)
 
         return out, enc_slf_attn
 

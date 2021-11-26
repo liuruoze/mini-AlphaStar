@@ -696,17 +696,16 @@ class EntityEncoder(nn.Module):
             index = index + 1
 
         all_entities_array = np.concatenate(entity_array_list, axis=0)
+
         # count how many real entities we have
         real_entities_size = all_entities_array.shape[0]
-        print('real_entities_size:', real_entities_size) if debug else None
 
-        # We use a bias of -1e9 for any of the 512 entries that doesn't refer to an entity.
+        # we use a bias of -1e9 for any of the 512 entries that doesn't refer to an entity.
+        # TODO: make it better
         if all_entities_array.shape[0] < cls.max_entities:
             bias_length = cls.max_entities - all_entities_array.shape[0]
             bias = np.zeros((bias_length, AHP.embedding_size))
             bias[:, :] = cls.bias_value
-            print('bias:', bias) if debug else None
-            print('bias.shape:', bias.shape) if debug else None
             all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
 
         if return_entity_pos:
@@ -714,57 +713,75 @@ class EntityEncoder(nn.Module):
 
         return all_entities_array
 
-    def forward(self, x):
+    def forward(self, x, debug=True):
+        # refactor thanks mostly to the codes from https://github.com/opendilab/DI-star
+        batch_size = x.shape[0]
+
+        # calculate there are how many real entities in each batch
+        # tmp_x: [batch_seq_size x entities_size]
+        tmp_x = torch.mean(x, dim=2, keepdim=False)
+
+        # tmp_y: [batch_seq_size x entities_size]
+        tmp_y = (tmp_x > self.bias_value + 1e3)
+
+        # entity_num: [batch_seq_size]
+        entity_num = torch.sum(tmp_y, dim=1, keepdim=False)
+
+        # this means for each batch, there are how many real enetities
+        print('entity_num:', entity_num) if debug else None
+
+        # generate the mask for transformer
+        mask = torch.arange(0, self.max_entities).float()
+        mask = mask.repeat(batch_size, 1)
+        mask = mask < entity_num.unsqueeze(dim=1)
+
+        print('mask:', mask) if debug else None
+        print('mask.shape:', mask.shape) if debug else None
+
+        # mask: [batch_size, max_entities]
+        device = next(self.parameters()).device
+        mask = mask.to(device)
+
         # assert the input shape is : batch_seq_size x entities_size x embeding_size
         # note: because the feature size of entity is not equal to 256, so it can not fed into transformer directly.
         # thus, we add a embedding layer to transfer it to right size.
-        print('entity_input is nan:', torch.isnan(x).any()) if debug else None
-
-        # calculate there are how many real entities in each batch
-        tmp_x = torch.mean(x, dim=2, keepdim=False)
-        tmp_y = (tmp_x > self.bias_value + 1e3)
-        real_number_tensor = torch.sum(tmp_y, dim=1, keepdim=False)
-        # this means for each batch, there are how many real enetities
-        print('real_number_tensor:', real_number_tensor) if debug else None
-
+        # x is batch_entities_tensor (dim = 3). Shape: batch_seq_size x entities_size x embeding_size
         x = self.embedd(x)
-
-        # x is batch_entities_tensor (dim = 3). Shape: batch_size x entities_size x embeding_size
-        # change: x is batch_seq_entities_tensor (dim = 4). Shape: batch_size x seq_size x entities_size x embeding_size
         print('x.shape:', x.shape) if debug else None
 
-        # may found nan here: can use this to do torch.nan_to_num
-        out = self.transformer(x)
+        # mask for transformer need a special format
+        mask_seq_len = mask.shape[-1]
+        tran_mask = mask.unsqueeze(1)
 
+        # tran_mask: [batch_seq_size x max_entities x max_entities]
+        tran_mask = tran_mask.repeat(1, mask_seq_len, 1)
+
+        # out: [batch_seq_size x entities_size x embeding_size]
+        out = self.transformer(x, mask=tran_mask)
         print('out.shape:', out.shape) if debug else None
 
+        # entity_embeddings: [batch_seq_size x entities_size x conv1_output_size]
         entity_embeddings = F.relu(self.conv1(F.relu(out).transpose(1, 2))).transpose(1, 2)
         print('entity_embeddings.shape:', entity_embeddings.shape) if debug else None
 
-        # masked by the missing entries
-        # note, different batch may contain different number of real entities
-        tensor_list = []
-        for i, batch in enumerate(out):
-            mean_entity = 0.
-            real_number = real_number_tensor[i]
-            real_number = real_number if real_number != 0 else 1
-            for j, entity in enumerate(batch):
-                if j >= real_number_tensor[i]:
-                    break        
-                mean_entity = mean_entity + entity
-            mean_entity = mean_entity / (real_number)
-            tensor_list.append(mean_entity.reshape(1, -1))
-        tensor_mean = torch.cat(tensor_list, dim=0)
-        print('tensor_mean:', tensor_mean) if debug else None
+        # AlphaStar: The mean of the transformer output across across the units (masked by the missing entries) 
+        # is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`
+        masked_out = out * mask.unsqueeze(2)
 
-        # print('out.shape:', out.shape) if debug else None
-        # out = out[:, :self.real_entities_size, :]
-        # print('out.shape:', out.shape) if debug else None
+        # sum over across the units
+        # masked_out: [batch_seq_size x entities_size x embeding_size]
+        # z: [batch_size, embeding_size]
+        z = masked_out.sum(dim=1, keepdim=False)
+
+        # here we should dived by the entity_num, not the cls.max_entities
+        # z: [batch_size, embeding_size]
+        z = z / entity_num
 
         # note, dim=1 means the mean is across all entities in one timestep
         # The mean of the transformer output across across the units  
         # is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`
-        embedded_entity = F.relu(self.fc1(tensor_mean))
+        # embedded_entity: [batch_size, fc1_output_size]
+        embedded_entity = F.relu(self.fc1(z))
         print('embedded_entity.shape:', embedded_entity.shape) if debug else None
 
         return entity_embeddings, embedded_entity
@@ -891,7 +908,9 @@ def test(debug=False):
         entities_tensor_copy = entities_tensor.detach().clone()
         batch_entities_tensor = torch.cat([batch_entities_tensor, entities_tensor_copy], dim=0)   
 
-    print('batch_entities_tensor.shape:', batch_entities_tensor.shape) if debug else None
+    print('batch_entities_tensor:', batch_entities_tensor) if 1 else None    
+    print('batch_entities_tensor.shape:', batch_entities_tensor.shape) if 1 else None
+
     entity_embeddings, embedded_entity = encoder.forward(batch_entities_tensor)
 
     print('entity_embeddings.shape:', entity_embeddings.shape) if debug else None

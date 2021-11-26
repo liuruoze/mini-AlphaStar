@@ -42,7 +42,7 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-p", "--path", default="./data/replay_data_tensor/", help="The path where data stored")
+parser.add_argument("-p", "--path", default="./data/replay_data_tensor_new/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=1, help='')
@@ -62,10 +62,10 @@ if not os.path.exists(MODEL_PATH):
 RESTORE_PATH = MODEL_PATH + 'sl_21-11-23_22-25-27.pth' 
 
 TRAIN_FROM = 0
-TRAIN_NUM = 1
+TRAIN_NUM = 12
 
-VAL_FROM = 1
-VAL_NUM = 1
+VAL_FROM = 12
+VAL_NUM = 3
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
