@@ -344,7 +344,7 @@ def injected_function_call(home_obs, env, function_call):
         if u.alliance == 1:
             if u.unit_type == 59:  # Nexus
                 nexus_u = u
-                print('nexus_u', nexus_u.x, nexus_u.y)
+                print('nexus_u', nexus_u.x, nexus_u.y) if debug else None
         if select is not None:
             if not isinstance(select, list):
                 select = [select]
@@ -395,7 +395,7 @@ def injected_function_call(home_obs, env, function_call):
                 rand_y = random.randint(-10, 10)
 
                 if func_name != "Attack_pt":  # build buildings
-                    print('nexus_u', nexus_u.x, nexus_u.y)
+                    print('nexus_u', nexus_u.x, nexus_u.y) if debug else None
                     # these value are considered in minimap unit
                     twsp.x = (35 + rand_x * 1)
                     twsp.y = (55 + rand_y * 1)  

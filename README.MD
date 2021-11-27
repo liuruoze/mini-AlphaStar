@@ -2,13 +2,13 @@
 
 ## Introduction
 
-We release mini-AlphaStar (mAS), which is a mini-scale version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2). 
+We release mini-AlphaStar (mAS), which is a **mini-scale** version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2). 
 
-"mini-scale" means that we make the original AS's hyper-parameters adjustable so that mAS can be training and running on a small scale (e.g., in a single common commercial machine).
+"mini-scale" means that we make the original AS's hyper-parameters **adjustable** so that mAS can be training and running on a **small** scale (e.g., in a single common commercial machine).
 
-When designing the mAS, we referred to the "Occam's Razor Principle", simple is good. Therefore, we build mAS from scratch. Unless the function has a great impact on speed and performance, we shall omit it. 
+When designing the mAS, we referred to the "Occam's Razor Principle", **simple** is good. Therefore, we build mAS from scratch. Unless the function has a great impact on speed and performance, we shall omit it. 
 
-At the same time, we also try not to use too many dependency packages, so that mAS should only depend on PyTorch (at most specify the version). In this way, we greatly simplify the learning cost of mAS and make the architecture and code of mAS relatively easy to read. 
+At the same time, we also try not to use too many dependency packages, so that mAS should only depend on PyTorch (at most specify the version). In this way, we greatly simplify the learning cost of mAS and make the architecture and code of mAS relatively **easy** to read. 
 
 In addition, we have added a lot of comments in the code to ensure that some key designs can be conveyed to the readers.
 
@@ -82,9 +82,9 @@ The [REPLAY Guide](doc/REPLAY.MD) shows a guide to download these SC2 replays.
 
 The [ZHIHU Guide](https://zhuanlan.zhihu.com/p/410523216) provides Chinese users who are not convenient to use Battle.net (outside China) a guide to download replays.
 
-After downloading replays, you should move the replays to "./data/Replays/filtered_replays_1" (the name can be changed if you modify the source code in transform_replay_data.py).
+After downloading replays, you should move the replays to "./data/Replays/filtered_replays_1" (the name can be changed if you modify `transform_replay_data.py`).
 
-Then use transform_replay_data.py to transform these replays to pickles or tensors (the output type can be changed in the code of that file).
+Then use `transform_replay_data.py` to transform these replays to pickles or tensors (the output type can be changed in the code of that file).
 
 Pickles are Python pickle data that are not preprocessed. Tensors are PyTorch tensors that have been preprocessed.
 
@@ -105,14 +105,14 @@ Currently, we support four types of supervised training. They all reside in the 
 
 File | Content
 ------------ | -------------
-sl_train_by_pickle.py | pickle training (pickles are data not preprocessed). Slow, but cost small disk space.
-sl_train_by_tensor.py | tensor training  (tensors are data preprocessed). Fast, but cost huge disk space.
-sl_multi_gpu_by_pickle.py | multi-GPU, pickle training. It has a requirement need for large shared memory.
-sl_multi_gpu_by_tensor.py | multi-GPU, tensor training. It needs both for large memory and shared memory.
+`sl_train_by_pickle.py` | pickle (data not preprocessed) training: Slow, but cost small disk space.
+`sl_train_by_tensor.py` | tensor (data preprocessed)training: Fast, but cost huge disk space.
+`sl_multi_gpu_by_pickle.py` | multi-GPU, pickle training: It has a requirement need for large shared memory.
+`sl_multi_gpu_by_tensor.py` | multi-GPU, tensor training: It needs both for large memory and shared memory.
 
 You can choose the suitable way you need to do training.
 
-You can use the load_pickle.py to transform the generated pickles (in "./data/replay_data") to tensors (in "./data/replay_data_tensor").
+You can use the `load_pickle.py` to transform the generated pickles (in "./data/replay_data") to tensors (in "./data/replay_data_tensor").
 
 ## Results
 
