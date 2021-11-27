@@ -1,5 +1,5 @@
 import os
-USED_DEVICES = "0"
+USED_DEVICES = "0"  # if your want to use CPU in a server with GPU, change "0" to "-1"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"

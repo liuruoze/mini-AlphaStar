@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader, Dataset
 from alphastarmini.core.arch.agent import Agent
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
-from alphastarmini.core.sl import utils as SU
+from alphastarmini.core.sl import sl_utils as SU
 
 from alphastarmini.lib.hyper_parameters import DATASET_SPLIT_RATIO
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP

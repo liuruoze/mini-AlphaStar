@@ -21,7 +21,7 @@ from tqdm import tqdm
 from alphastarmini.core.arch.agent import Agent
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
-from alphastarmini.core.sl import utils as SU
+from alphastarmini.core.sl import sl_utils as SU
 
 __author__ = "Ruo-Ze Liu"
 

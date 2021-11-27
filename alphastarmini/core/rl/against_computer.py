@@ -15,9 +15,9 @@ from torch.optim import Adam
 
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
 
-from alphastarmini.core.rl.utils import Trajectory, get_supervised_agent
+from alphastarmini.core.rl.rl_utils import Trajectory, get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
-from alphastarmini.core.rl import utils as U
+from alphastarmini.core.rl import rl_utils as U
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 

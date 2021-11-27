@@ -13,10 +13,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from alphastarmini.core.rl.utils import Trajectory
+from alphastarmini.core.rl.rl_utils import Trajectory
 from alphastarmini.core.rl.action import ArgsActionLogits
 
-from alphastarmini.core.rl import utils as U
+from alphastarmini.core.rl import rl_utils as U
 from alphastarmini.core.rl import pseudo_reward as PR
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP

@@ -14,7 +14,7 @@ import torch
 
 import Levenshtein
 
-from alphastarmini.core.rl import utils as U
+from alphastarmini.core.rl import rl_utils as U
 
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 

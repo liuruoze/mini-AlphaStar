@@ -11,7 +11,7 @@ import threading
 
 from pysc2.env.sc2_env import Race
 
-from alphastarmini.core.rl.utils import get_supervised_agent
+from alphastarmini.core.rl.rl_utils import get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
 from alphastarmini.core.rl.actor_plus_z import ActorLoopPlusZ
 

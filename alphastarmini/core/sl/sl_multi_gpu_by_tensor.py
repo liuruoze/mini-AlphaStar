@@ -41,7 +41,7 @@ from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 from alphastarmini.core.sl import sl_loss_multi_gpu as Loss
 from alphastarmini.core.sl.dataset import ReplayTensorDataset
-from alphastarmini.core.sl import utils as SU
+from alphastarmini.core.sl import sl_utils as SU
 
 from alphastarmini.lib.utils import load_latest_model, initial_model_state_dict
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP

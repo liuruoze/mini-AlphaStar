@@ -14,7 +14,7 @@ from pysc2.lib.actions import RAW_FUNCTIONS
 
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
-from alphastarmini.core.sl import utils as SU
+from alphastarmini.core.sl import sl_utils as SU
 
 __author__ = "Ruo-Ze Liu"
 

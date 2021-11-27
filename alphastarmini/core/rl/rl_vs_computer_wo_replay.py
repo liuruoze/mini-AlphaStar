@@ -14,9 +14,9 @@ import torch
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
 from pysc2.lib import actions as sc2_actions
 
-from alphastarmini.core.rl.utils import Trajectory, get_supervised_agent
+from alphastarmini.core.rl.rl_utils import Trajectory, get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
-from alphastarmini.core.rl import utils as RU
+from alphastarmini.core.rl import rl_utils as RU
 
 from alphastarmini.lib import utils as L
 
