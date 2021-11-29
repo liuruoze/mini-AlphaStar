@@ -46,7 +46,7 @@ debug = False
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--path", default="./data/replay_data_tensor_new/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
-parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
+parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=1, help='')
 
 
@@ -61,7 +61,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-23_22-25-27.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-28_21-48-54.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
@@ -109,7 +109,7 @@ def getReplayData(path, replay_files, from_index=0, end_index=None):
     for i, replay_file in enumerate(tqdm(replay_files)):
         try:
             replay_path = path + replay_file
-            print('replay_path:', replay_path) if debug else None
+            print('replay_path:', replay_path) if 1 else None
 
             do_write = False
             if i >= from_index:

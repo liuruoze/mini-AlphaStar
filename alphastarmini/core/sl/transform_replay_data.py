@@ -327,7 +327,7 @@ def test(on_server=False):
     print('REPLAY_PATH:', REPLAY_PATH)
     replay_files = os.listdir(REPLAY_PATH)
     print('length of replay_files:', len(replay_files))
-    replay_files.sort(reverse=True)
+    replay_files.sort()
 
     screen_resolution = point.Point(FLAGS.screen_resolution, FLAGS.screen_resolution)
     minimap_resolution = point.Point(FLAGS.minimap_resolution, FLAGS.minimap_resolution)

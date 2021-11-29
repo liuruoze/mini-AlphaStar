@@ -193,15 +193,35 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
     queue_loss = criterion(action_gt.queue, queue, mask=mask_tensor[:, 2].reshape(-1))
     loss += queue_loss
 
+    batch_size = action_gt.units.shape[0]
     select_size = action_gt.units.shape[1]
     units_size = action_gt.units.shape[-1]
-    units_mask = mask_tensor[:, 3]  # selected units is in the fourth position of units_mask
 
+    units_mask = mask_tensor[:, 3]  # selected units is in the fourth position of units_mask
     units_mask = units_mask.unsqueeze(1).repeat(1, select_size)
     units_mask = units_mask.reshape(-1)
+    print('units_mask', units_mask) if debug else None
+    print('units_mask.shape', units_mask.shape) if debug else None
+
+    selected_mask = torch.arange(select_size, device=device).float()
+    selected_mask = selected_mask.repeat(batch_size, 1)
+    selected_mask = selected_mask < select_units_num.unsqueeze(dim=1)
+    selected_mask = selected_mask.reshape(-1)
+    print('selected_mask', selected_mask) if debug else None
+    print('selected_mask.shape', selected_mask.shape) if debug else None
+
+    bias_action_gt = torch.zeros(1, 1, units_size, device=device).float()
+    bias_action_gt[0, 0, -1] = 1
+    gt_units_mask = ~(action_gt.units == bias_action_gt).all(dim=-1)
+    gt_units_mask = gt_units_mask.reshape(-1)
+    print('gt_units_mask', gt_units_mask) if debug else None
+    print('gt_units_mask.shape', gt_units_mask.shape) if debug else None
+
+    all_units_mask = units_mask * selected_mask * gt_units_mask
+    print('all_units_mask', all_units_mask) if debug else None
 
     # TODO: change to a proporate calculation of selected units
-    units_loss = criterion(action_gt.units.reshape(-1, units_size), units.reshape(-1, units_size), mask=units_mask)
+    units_loss = criterion(action_gt.units.reshape(-1, units_size), units.reshape(-1, units_size), mask=all_units_mask)
     loss += units_loss
 
     target_unit_loss = criterion(action_gt.target_unit.squeeze(-2), target_unit.squeeze(-2), mask=mask_tensor[:, 4].reshape(-1))
