@@ -25,15 +25,13 @@ class ArgsAction(object):
     For the action with arguments, to be different with action which has only scalar value
     '''
 
-    def __init__(self, action_type=0, delay=SCHP.sc2_default_delay, queue=0, 
+    def __init__(self, action_type=-1, delay=SCHP.sc2_default_delay, queue=None, 
                  units=None, target_unit=None, 
-                 target_location=None, use_tag=False):
+                 target_location=None):
         super(ArgsAction, self).__init__()
         self.action_type = action_type
         self.delay = delay
         self.queue = queue
-        self.use_tag = use_tag
-
         self.units = units 
         self.target_unit = target_unit
 
@@ -54,47 +52,47 @@ class ArgsAction(object):
     def toTenser(self):
         # for numpy or int object to tensor
         # note, this is used in the one element case
-        action_type_encoding = torch.zeros(1, 1, dtype=torch.long)
+        action_type_encoding = - torch.ones(1, 1, dtype=torch.long)
         if self.action_type is not None:
             action_type_encoding[0, 0] = self.action_type
 
-        delay_encoding = torch.zeros(1, 1, dtype=torch.long)    
+        delay_encoding = - torch.ones(1, 1, dtype=torch.long)    
         if self.delay is not None:
             delay_encoding[0, 0] = self.delay
 
-        queue_encoding = torch.zeros(1, 1, dtype=torch.long)    
+        queue_encoding = - torch.ones(1, 1, dtype=torch.long)    
         if self.queue is not None:
             queue_encoding[0, 0] = self.queue
 
-        select_units_encoding = torch.zeros(1, self.max_selected, 1, dtype=torch.long)
+        select_units_encoding = - torch.ones(1, self.max_selected, 1, dtype=torch.long)
         if self.units is not None:
             for i, u in enumerate(self.units):
                 if i >= self.max_selected:
                     break
                 # ensure the unit index not beyond the max entities we considered
                 if u >= self.max_units:
-                    u = 0
+                    u = self.max_units - 1
                 select_units_encoding[0, i, 0] = u
 
-        target_unit_encoding = torch.zeros(1, 1, 1, dtype=torch.long)
+        target_unit_encoding = - torch.ones(1, 1, 1, dtype=torch.long)
         if self.target_unit is not None:
             # ensure the target unit index not beyond the max entities we considered
             u = self.target_unit
             if u >= self.max_units:
-                u = 0
+                u = self.max_units - 1
             target_unit_encoding[0, 0, 0] = u
 
-        target_location_encoding = torch.zeros(1, 2, dtype=torch.long)
+        target_location_encoding = - torch.ones(1, 2, dtype=torch.long)
         if self.target_location is not None:
             x = self.target_location[0]
             y = self.target_location[1]
             # ensure the position not beyond the map size
             if x >= self.output_map_size:
-                x = 0
+                x = self.output_map_size - 1
             if y >= self.output_map_size:
-                y = 0
-            target_location_encoding[0, 0] = y  # note: the row index (0-index) is the y-axis
-            target_location_encoding[0, 1] = x  # note: the col index (1-index) is the x-axis
+                y = self.output_map_size - 1
+            target_location_encoding[0, 0] = x  
+            target_location_encoding[0, 1] = y  
 
         return ArgsAction(action_type_encoding, delay_encoding, queue_encoding, select_units_encoding,
                           target_unit_encoding, target_location_encoding)
@@ -102,47 +100,48 @@ class ArgsAction(object):
     def toArray(self):
         # for numpy or int object to tensor
         # note, this is used in the one element case
-        action_type_encoding = np.zeros((1, 1), dtype=np.int32)
+        # in 1.05 version, we first init them to -1
+        action_type_encoding = - np.ones((1, 1), dtype=np.int32)
         if self.action_type is not None:
             action_type_encoding[0, 0] = self.action_type
 
-        delay_encoding = np.zeros((1, 1), dtype=np.int32)    
+        delay_encoding = - np.ones((1, 1), dtype=np.int32)    
         if self.delay is not None:
             delay_encoding[0, 0] = self.delay
 
-        queue_encoding = np.zeros((1, 1), dtype=np.int32)    
+        queue_encoding = - np.ones((1, 1), dtype=np.int32)    
         if self.queue is not None:
             queue_encoding[0, 0] = self.queue
 
-        select_units_encoding = np.zeros((1, self.max_selected, 1), dtype=np.int32)
+        select_units_encoding = - np.ones((1, self.max_selected, 1), dtype=np.int32)
         if self.units is not None:
             for i, u in enumerate(self.units):
                 if i >= self.max_selected:
                     break
                 # ensure the unit index not beyond the max entities we considered
                 if u >= self.max_units:
-                    u = 0
+                    u = self.max_units - 1
                 select_units_encoding[0, i, 0] = u
 
-        target_unit_encoding = np.zeros((1, 1, 1), dtype=np.int32)
+        target_unit_encoding = - np.ones((1, 1, 1), dtype=np.int32)
         if self.target_unit is not None:
             # ensure the target unit index not beyond the max entities we considered
             u = self.target_unit
             if u >= self.max_units:
-                u = 0
+                u = self.max_units - 1
             target_unit_encoding[0, 0, 0] = u
 
-        target_location_encoding = np.zeros((1, 2), dtype=np.int32)
+        target_location_encoding = - np.ones((1, 2), dtype=np.int32)
         if self.target_location is not None:
             x = self.target_location[0]
             y = self.target_location[1]
             # ensure the position not beyond the map size
             if x >= self.output_map_size:
-                x = 0
+                x = self.output_map_size - 1
             if y >= self.output_map_size:
-                y = 0
-            target_location_encoding[0, 0] = y  # note: the row index (0-index) is the y-axis
-            target_location_encoding[0, 1] = x  # note: the col index (1-index) is the x-axis
+                y = self.output_map_size - 1
+            target_location_encoding[0, 0] = x  
+            target_location_encoding[0, 1] = y 
 
         return ArgsAction(action_type_encoding, delay_encoding, queue_encoding, select_units_encoding,
                           target_unit_encoding, target_location_encoding)
@@ -184,6 +183,7 @@ class ArgsAction(object):
 
     def toLogits_numpy(self, tag_list=None):
         # for tensor action to tensor action with one-hot embedding
+        # note if the value is -1, np_one_hot will make the last index item has one in the one-hot embediing.
         batch_size = self.action_type.shape[0]
 
         action_type_encoding = L.np_one_hot(self.action_type, self.max_actions).squeeze(-2)
@@ -198,8 +198,8 @@ class ArgsAction(object):
         print('self.queue:', self.queue) if debug else None
         print('queue_encoding:', queue_encoding) if debug else None
 
-        print('self.units_index:', self.units) if debug else None
         select_units_encoding = L.np_one_hot(self.units, self.max_units).squeeze(-2)
+        print('self.units_index:', self.units) if debug else None
         print('select_units_encoding:', select_units_encoding) if debug else None
 
         target_unit_encoding = L.np_one_hot(self.target_unit, self.max_units).squeeze(-2)
@@ -209,9 +209,9 @@ class ArgsAction(object):
         target_location_encoding = np.zeros((batch_size, self.output_map_size, self.output_map_size))
         for i, z in enumerate(self.target_location):
             (x, y) = z
+            # note the x, y axis are opposiate to row, col!
             target_row_col = (y, x)
             target_location_encoding[i, y, x] = 1
-
         print('self.target_location:', self.target_location) if debug else None
         print('target_location_encoding:', target_location_encoding) if debug else None
         return ArgsActionLogits(action_type_encoding, delay_encoding, queue_encoding, select_units_encoding,

@@ -19,6 +19,8 @@ from alphastarmini.core.sl.label import Label
 
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Label_Size as LS
+from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
+
 from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
 debug = False
@@ -169,10 +171,6 @@ def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsio
             mask_list_2.append(mask_predict)
 
     mask_tensor = torch.tensor(mask_list)
-    # print('action_pred.shape', action_pred.shape) if debug else None  
-    # for action_id in action_pred:
-    #     mask_list_2.append(get_mask_by_raw_action_id(action_id.item()))
-
     mask_tensor_2 = torch.tensor(mask_list_2)
 
     print('mask_tensor', mask_tensor) if debug else None 
@@ -261,6 +259,45 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     return mask_tensor
 
 
+def get_selected_units_accuracy(ground_truth, predict, select_units_num, device, return_important=False):
+    print('ground_truth.shape', ground_truth.shape) if debug else None
+    batch_size = ground_truth.shape[0]
+
+    all_num, correct_num, gt_num, pred_num = 0, 0, 0, 0
+
+    for i in range(batch_size):
+        ground_truth_sample = ground_truth[i]
+        ground_truth_new = torch.nonzero(ground_truth_sample, as_tuple=True)[-1]
+        ground_truth_new = ground_truth_new.to(device)
+        print('ground_truth units', ground_truth_new) if debug else None
+
+        predict_sample = predict[i].reshape(-1)
+        print('predict_sample units', predict_sample) if debug else None
+
+        select_units_num_sample = select_units_num[i].item()
+        print('select_units_num_sample units', select_units_num_sample) if debug else None
+
+        for j in range(select_units_num_sample):
+            pred = predict_sample[j].item()
+            gt = ground_truth_new[j].item()
+
+            if gt != AHP.max_entities - 1:
+                gt_num += 1
+                if pred == gt:
+                    correct_num += 1
+
+            pred_num += 1
+
+        all_num += AHP.max_selected
+
+    selected_units_accuracy = correct_num / (gt_num + 1e-9)
+    selected_units_coverage = pred_num / (gt_num + 1e-9)
+
+    print([correct_num, gt_num, pred_num, all_num])
+
+    return [correct_num, gt_num, pred_num, all_num]
+
+
 def get_location_accuracy(ground_truth, predict, device, return_important=False):
     accuracy = 0.
 
@@ -308,7 +345,7 @@ def get_location_accuracy(ground_truth, predict, device, return_important=False)
                 if diff_square == 0:
                     correct_nums += 1
 
-    print([correct_nums, effect_nums, all_nums, distance_loss])
+    print([correct_nums, effect_nums, all_nums, distance_loss]) if debug else None
 
     return [correct_nums, effect_nums, all_nums, distance_loss]
 

@@ -161,10 +161,10 @@ class AlphaStarAgent(RandomAgent):
         state.to(device)
         print("state:", state) if debug else None
 
-        action_logits, action, hidden_state = self.agent_nn.action_logits_by_state(state, single_inference=True,
-                                                                                   hidden_state=last_state)
+        action_logits, action, hidden_state, select_units_num = self.agent_nn.action_logits_by_state(state, single_inference=True,
+                                                                                                     hidden_state=last_state)
 
-        return action, action_logits, hidden_state
+        return action, action_logits, hidden_state, select_units_num
 
     def step(self, obs):
         # note here obs is actually timestep 
@@ -175,13 +175,13 @@ class AlphaStarAgent(RandomAgent):
         if isinstance(obs, E.TimeStep):
             obs = obs.observation
 
-        action, _, self.memory_state = self.step_nn(obs, self.memory_state)
+        action, _, self.memory_state, select_units_num = self.step_nn(obs, self.memory_state)
 
         if actions is not None:
             # we use single_inference here
             #assert len(actions) == 1
             #action = actions[0]
-            func_call = self.agent_nn.action_to_func_call(action, self.action_spec)
+            func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
             return func_call
         else:
             # only return random action
@@ -194,9 +194,9 @@ class AlphaStarAgent(RandomAgent):
         if isinstance(obs, E.TimeStep):
             obs = obs.observation
 
-        action, action_logits, new_state = self.step_nn(observation=obs, last_state=last_state)
+        action, action_logits, new_state, select_units_num = self.step_nn(observation=obs, last_state=last_state)
 
-        func_call = self.agent_nn.action_to_func_call(action, self.action_spec)
+        func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
         return func_call, action, action_logits, new_state
 
     def unroll(self, trajectories):

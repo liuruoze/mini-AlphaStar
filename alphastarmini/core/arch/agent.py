@@ -63,7 +63,7 @@ class Agent(object):
         for traj_step in one_traj:
             (feature, label, is_final) = traj_step
             state = Feature.feature2state(feature)
-            action_logits_prdict, self.hidden_state = self.action_logits_by_state(state, self.hidden_state)
+            action_logits_prdict, self.hidden_state, select_units_num = self.action_logits_by_state(state, self.hidden_state)
             action_output.append(action_logits_prdict)
             if is_final:
                 self.hidden_state = self.init_hidden_state()
@@ -275,11 +275,11 @@ class Agent(object):
         batch_size = 1 if single_inference else None
         sequence_length = 1 if single_inference else None
 
-        action_logits, actions, new_state = self.model.forward(state, batch_size = batch_size,
-                                                               sequence_length = sequence_length,
-                                                               hidden_state = hidden_state, 
-                                                               return_logits = True)
-        return action_logits, actions, new_state
+        action_logits, actions, new_state, select_units_num = self.model.forward(state, batch_size = batch_size,
+                                                                                 sequence_length = sequence_length,
+                                                                                 hidden_state = hidden_state, 
+                                                                                 return_logits = True)
+        return action_logits, actions, new_state, select_units_num
 
     def state_by_obs(self, obs, return_tag_list = False):
         state, tag_list = Agent.preprocess_state_all(obs, return_tag_list)
@@ -301,7 +301,7 @@ class Agent(object):
         print('function value:', func.value) if debug else None
         print('arguments:', args) if debug else None
 
-        args_action = ArgsAction(use_tag = True)
+        args_action = ArgsAction()
         args_action.action_type = func.value
 
         # use a non-smart method to calculate the args of the action
@@ -336,7 +336,7 @@ class Agent(object):
         return args_action
 
     @staticmethod
-    def action_to_func_call(action, action_spec, use_random_args = False):
+    def action_to_func_call(action, select_units_num, action_spec, use_random_args = False):
         # assert the action is single
         print('action:', action) if debug else None
         print('action.get_shape():', action.get_shape()) if debug else None
@@ -352,6 +352,11 @@ class Agent(object):
 
         # we assume single inference
         units = action.units.cpu().detach().reshape(-1).numpy().tolist()
+        print('units:', units) if debug else None
+
+        print('select_units_num:', select_units_num) if debug else None 
+        units_num = select_units_num.item()
+        units = units[:units_num]
         print('units:', units) if debug else None
 
         target_unit = action.target_unit.item()  
@@ -376,7 +381,7 @@ class Agent(object):
                     size = arg.sizes[0]
                     if queue < 0 or queue > size - 1:
                         args.append(rand)
-                        print("argument queue beyond the size!") if debug else None
+                        print("argument queue beyond the size!") if 1 else None
                     else:
                         args.append(to_list(queue))
                 elif arg.name == 'unit_tags':
@@ -384,9 +389,11 @@ class Agent(object):
                     size = arg.sizes[0]
                     units_args = []
                     for unit_index in units:
+                        print('unit_index', unit_index) if debug else None
+                        print('size', size) if debug else None
                         if unit_index < 0 or unit_index > size - 1:
                             units_args.append(np.random.randint(0, size))
-                            print("argument unit_index beyond the size!") if debug else None
+                            print("argument unit_index beyond the size!") if 1 else None
                         else:
                             units_args.append(unit_index)
                     args.append(units_args)
@@ -394,15 +401,17 @@ class Agent(object):
                     size = arg.sizes[0]
                     if target_unit < 0 or target_unit > size - 1:
                         args.append(rand)
-                        print("argument target_unit beyond the size!") if debug else None
+                        print("argument target_unit beyond the size!") if 1 else None
                     else:
                         args.append(to_list(target_unit))
                 elif arg.name == 'world':
                     world_args = []
                     for val, size in zip(target_location, arg.sizes):
                         if val < 0 or val > size - 1:
+                            print('val', val) if debug else None
+                            print('size', size) if debug else None
                             world_args.append(np.random.randint(0, size))
-                            print("argument world beyond the size!") if debug else None
+                            print("argument world beyond the size!") if 1 else None
                         else:
                             world_args.append(val)                        
                     args.append(world_args)
@@ -418,12 +427,12 @@ class Agent(object):
         return func_call
 
     def unroll_traj(self, state_all, initial_state, baseline_state=None, baseline_opponent_state=None):
-        baseline_value_list, action_logits, _, _ = self.model.forward(state_all, batch_size=None, sequence_length=None, 
-                                                                      hidden_state=initial_state, return_logits=True,
-                                                                      baseline_state=baseline_state, 
-                                                                      baseline_opponent_state=baseline_opponent_state,
-                                                                      return_baseline=True)
-        return baseline_value_list, action_logits
+        baseline_value_list, action_logits, _, _, select_units_num = self.model.forward(state_all, batch_size=None, sequence_length=None, 
+                                                                                        hidden_state=initial_state, return_logits=True,
+                                                                                        baseline_state=baseline_state, 
+                                                                                        baseline_opponent_state=baseline_opponent_state,
+                                                                                        return_baseline=True)
+        return baseline_value_list, action_logits, select_units_num
 
     def get_weights(self):
         if self.model is not None:
@@ -519,7 +528,7 @@ def test():
     # action = agent.action_by_state(state)
     # print("action is:", action) if debug else None
 
-    action_logits, actions, hidden_state = agent.action_logits_by_state(state)
+    action_logits, actions, hidden_state, select_units_num = agent.action_logits_by_state(state)
     print("action_logits is:", action_logits) if debug else None
     print("actions is:", actions) if debug else None
 

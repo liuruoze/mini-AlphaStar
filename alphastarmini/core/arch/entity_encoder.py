@@ -787,7 +787,7 @@ class EntityEncoder(nn.Module):
         embedded_entity = F.relu(self.fc1(z))
         print('embedded_entity.shape:', embedded_entity.shape) if debug else None
 
-        return entity_embeddings, embedded_entity
+        return entity_embeddings, embedded_entity, entity_num
 
 
 class Entity(object):
@@ -916,10 +916,11 @@ def test(debug=False):
 
     batch_entities_tensor = batch_entities_tensor.float()
 
-    entity_embeddings, embedded_entity = encoder.forward(batch_entities_tensor)
+    entity_embeddings, embedded_entity, entity_num = encoder.forward(batch_entities_tensor)
 
     print('entity_embeddings.shape:', entity_embeddings.shape) if debug else None
     print('embedded_entity.shape:', embedded_entity.shape) if debug else None
+    print('entity_num.shape:', entity_num.shape) if 1 else None
 
     if debug:
         print("This is a test!")

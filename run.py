@@ -38,25 +38,21 @@ if __name__ == '__main__':
 
     # ------------------------
 
-    # 1. first we transform the replays to pickle
+    # 1. we transform the replays to pickle
     # from alphastarmini.core.sl import transform_replay_data
     # transform_replay_data.test(on_server=P.on_server)
 
-    # # 2.1 second we use pickle to do supervised learning
-    # from alphastarmini.core.sl import sl_train_by_pickle
-    # sl_train_by_pickle.test(on_server=P.on_server)
-
-    # # 2.2 or second we use tensor to do supervised learning
+    # 2. we use tensor to do supervised learning
     # from alphastarmini.core.sl import sl_train_by_tensor
     # sl_train_by_tensor.test(on_server=P.on_server)
 
-    # # 3.1 third we use SL model and replays to do reinforcement learning
-    # from alphastarmini.core.rl import rl_train_with_replay
-    # rl_train_with_replay.test(on_server=P.on_server, replay_path=P.replay_path)
-
-    # # 3.2 third we use SL model to do reinforcement learning against computer
+    # 3. we use SL model to do reinforcement learning against computer
     from alphastarmini.core.rl import rl_vs_computer_wo_replay
     rl_vs_computer_wo_replay.test(on_server=P.on_server, replay_path=P.replay_path)
+
+    # 4. we use SL model and replays to do reinforcement learning
+    # from alphastarmini.core.rl import rl_train_with_replay
+    # rl_train_with_replay.test(on_server=P.on_server, replay_path=P.replay_path)
 
     # ------------------------
     #
@@ -66,12 +62,8 @@ if __name__ == '__main__':
     # from alphastarmini.core.sl import load_pickle
     # load_pickle.test(on_server=False)
 
-    # from alphastarmini.core.sl import analyze_replay_statistic
-    # analyze_replay_statistic.test(on_server=False)
-
-    # from alphastarmini.core.rl import rl_train_wo_replay
-    # rl_train_wo_replay.test(on_server=False)
-
-    # against_computer.test(on_server=False)
+    # we can use pickle to do supervised learning
+    # from alphastarmini.core.sl import sl_train_by_pickle
+    # sl_train_by_pickle.test(on_server=P.on_server)
 
     print('run over')

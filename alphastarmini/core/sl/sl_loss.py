@@ -69,7 +69,7 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     loss_list = [0., 0., 0., 0., 0., 0.]
     acc_num_list = [0., 0., 0., 0., 0., 0.]    
 
-    action_logits_pred, action_pred, _ = model.forward(state, batch_size=batch_size, sequence_length=seq_len, return_logits=True)
+    action_logits_pred, action_pred, _, select_units_num = model.forward(state, batch_size=batch_size, sequence_length=seq_len, return_logits=True)
 
     loss, loss_list = get_classify_loss(action_gt, action_logits_pred, criterion, device, use_mask=use_mask)    
 

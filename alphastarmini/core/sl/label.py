@@ -93,6 +93,7 @@ class Label(object):
         target_location_index = LabelIndex.target_location_encoding
         target_location_encoding = action.target_location
         batch_size = target_location_encoding.shape[0]
+
         print("target_location_encoding.shape before:", target_location_encoding.shape) if debug else None
         target_location_encoding = target_location_encoding.reshape(batch_size, LS[target_location_index])
         print("target_location_encoding.shape after:", target_location_encoding.shape) if debug else None

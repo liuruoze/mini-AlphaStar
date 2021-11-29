@@ -19,6 +19,7 @@ from alphastarmini.lib import utils as L
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import MiniStar_Arch_Hyper_Parameters as MAHP
+from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
 
 import param as P
 
@@ -194,6 +195,10 @@ class SpatialEncoder(nn.Module):
         if entity_pos_list is not None:
             # make the scatter_map has the index of entity in the entity's position (matrix format)      
             for i, (x, y) in enumerate(entity_pos_list):
+                scale_factor = AAIFP.raw_resolution / map_width
+                x = int(x / scale_factor)
+                y = int(y / scale_factor)
+
                 for j in range(cls.scatter_volume):
                     if not scatter_map[0, y, x, j]:
                         scatter_map[0, y, x, j] = min(i + 1, AHP.max_entities - 1)

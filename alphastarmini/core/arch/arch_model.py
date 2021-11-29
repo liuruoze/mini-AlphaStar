@@ -100,7 +100,7 @@ class ArchModel(nn.Module):
                 return_baseline=False, multi_gpu_supvised_learning=False,
                 use_scatter_map=True):
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
-        entity_embeddings, embedded_entity = self.entity_encoder(state.entity_state)   
+        entity_embeddings, embedded_entity, entity_num = self.entity_encoder(state.entity_state)   
 
         if AHP.scatter_channels:
             map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
@@ -118,9 +118,13 @@ class ArchModel(nn.Module):
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
 
-        units_logits, units, autoregressive_embedding = self.selected_units_head(autoregressive_embedding, action_type, entity_embeddings)
+        units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head(autoregressive_embedding, 
+                                                                                                   action_type, 
+                                                                                                   entity_embeddings, 
+                                                                                                   entity_num)
 
-        target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, action_type, entity_embeddings)
+        target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, 
+                                                                action_type, entity_embeddings)
         target_location_logits, target_location = self.location_head(autoregressive_embedding, action_type, map_skip)
 
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
@@ -130,8 +134,8 @@ class ArchModel(nn.Module):
                             units=units, target_unit=target_unit, target_location=target_location)
 
         if multi_gpu_supvised_learning:
-            return action_type, target_location, action_type_logits, delay_logits, queue_logits, \
-                units_logits, target_unit_logits, target_location_logits
+            return action_type, units, target_location, action_type_logits, delay_logits, queue_logits, \
+                units_logits, target_unit_logits, target_location_logits, select_units_num
 
         if return_logits:
 
@@ -145,11 +149,11 @@ class ArchModel(nn.Module):
                 baseline_value_list = [winloss_baseline_value, build_order_baseline_value, built_units_baseline_value,
                                        upgrades_baseline_value, effects_baseline_value]
 
-                return baseline_value_list, action_logits, action, hidden_state
+                return baseline_value_list, action_logits, action, hidden_state, select_units_num
 
-            return action_logits, action, hidden_state
+            return action_logits, action, hidden_state, select_units_num
 
-        return action, hidden_state
+        return action, hidden_state, select_units_num
 
 
 def test():
@@ -253,7 +257,10 @@ def test():
 
     opponenet_scalar_out = scalar_list
 
-    action_logits, action, _ = arch_model.forward(state, batch_size=AHP.batch_size, sequence_length=AHP.sequence_length, return_logits=True)
+    action_logits, action, _, select_units_num = arch_model.forward(state, 
+                                                                    batch_size=AHP.batch_size, 
+                                                                    sequence_length=AHP.sequence_length, 
+                                                                    return_logits=True)
 
     if action.action_type is not None:
         print("action:", action.action_type) if debug else None
@@ -282,10 +289,11 @@ def test():
                 (h, c) = hidden_state
                 hidden_state = (h.detach(), c.detach())
 
-            baseline_value, action_logits, action, new_hidden_state = arch_model.forward(state, hidden_state=hidden_state, 
-                                                                                         return_logits=True, baseline_state=scalar_list, 
-                                                                                         baseline_opponent_state=opponenet_scalar_out, 
-                                                                                         return_baseline=True)
+            baseline_value, action_logits, \
+                action, new_hidden_state, select_units_num = arch_model.forward(state, hidden_state=hidden_state, 
+                                                                                return_logits=True, baseline_state=scalar_list, 
+                                                                                baseline_opponent_state=opponenet_scalar_out, 
+                                                                                return_baseline=True)
             optimizer.zero_grad()
             print("action_logits.action_type:", action_logits.action_type) if debug else None
             print("action_logits.action_type.shape:", action_logits.action_type.shape) if debug else None

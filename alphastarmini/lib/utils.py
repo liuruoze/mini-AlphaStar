@@ -18,6 +18,7 @@ from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
 
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
+from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
 
 import param as P
 
@@ -531,11 +532,13 @@ def get_location_mask(mask):
     map_name = P.map_name
     mask = mask.reshape(mask.shape[0], SCHP.world_size, SCHP.world_size)
 
-    map_size = (256, 256)
-    if map_name == 'Simple64':
-        map_size = (64, 64)
-    elif map_name == 'AbyssalReef':
-        map_size = (152, 136)
+    map_size = (AAIFP.raw_resolution, AAIFP.raw_resolution)
+
+    # map_size = (256, 256)
+    # if map_name == 'Simple64':
+    #     map_size = (64, 64)
+    # elif map_name == 'AbyssalReef':
+    #     map_size = (152, 136)
 
     # for t, ma in enumerate(mask):
     #     for i, row in enumerate(ma):

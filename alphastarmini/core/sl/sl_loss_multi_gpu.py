@@ -77,8 +77,8 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     # This error is strange, so we choose to use a specific loss writing schema for multi-gpu calculation.
     action_pred, target_location, action_type_logits, delay_logits, queue_logits, \
         units_logits, target_unit_logits, \
-        target_location_logits = model.forward(state, batch_size=batch_size, 
-                                               sequence_length=seq_len, multi_gpu_supvised_learning=True)
+        target_location_logits, select_units_num = model.forward(state, batch_size=batch_size, 
+                                                                 sequence_length=seq_len, multi_gpu_supvised_learning=True)
 
     print('action_pred.shape', action_pred.shape) if debug else None   
 
@@ -96,6 +96,7 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
 
 def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=False,
                            return_important=False, only_consider_small=False,
+                           include_selected_units_accuracy=False,
                            include_location_accuracy=False):
 
     criterion = cross_entropy
@@ -131,24 +132,34 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
     # we can't make them all into as a list or into ArgsActionLogits
     # if we do that, the pytorch DDP will cause a runtime error, just like the loss don't include all parameters
     # This error is strange, so we choose to use a specific loss writing schema for multi-gpu calculation.
-    action_pred, target_location, action_type_logits, delay_logits, queue_logits, \
+    action_pred, units, target_location, action_type_logits, \
+        delay_logits, queue_logits, \
         units_logits, target_unit_logits, \
-        target_location_logits = model.forward(state, batch_size=batch_size, 
-                                               sequence_length=seq_len, multi_gpu_supvised_learning=True)
+        target_location_logits, select_units_num = model.forward(state, 
+                                                                 batch_size=batch_size, 
+                                                                 sequence_length=seq_len, 
+                                                                 multi_gpu_supvised_learning=True)
 
     print('action_pred.shape', action_pred.shape) if debug else None   
+    print('select_units_num', select_units_num) if debug else None 
 
     loss, loss_list = get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type_logits,
                                                              delay_logits, queue_logits, units_logits,
-                                                             target_unit_logits, target_location_logits, criterion,
-                                                             device, 
+                                                             target_unit_logits, target_location_logits, 
+                                                             select_units_num, criterion, device, 
                                                              decrease_smart_opertaion=decrease_smart_opertaion,
                                                              only_consider_small=only_consider_small)
-    acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, device, return_important=return_important)
-    location_acc = SU.get_location_accuracy(action_gt.target_location, target_location, device, return_important=return_important)
-
+    acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, 
+                                   device, return_important=return_important)
+    location_acc = SU.get_location_accuracy(action_gt.target_location, target_location, device, 
+                                            return_important=return_important)
+    selected_acc = SU.get_selected_units_accuracy(action_gt.units, units, select_units_num,
+                                                  device, return_important=return_important) 
     if include_location_accuracy:
         acc_num_list.extend(location_acc)
+
+    if include_selected_units_accuracy:
+        acc_num_list.extend(selected_acc)
 
     print('loss', loss) if debug else None
 
@@ -156,7 +167,7 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
 
 
 def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, delay, queue, units,
-                                           target_unit, target_location, 
+                                           target_unit, target_location, select_units_num,
                                            criterion, device, 
                                            decrease_smart_opertaion=False,
                                            only_consider_small=False):
@@ -184,10 +195,12 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
 
     select_size = action_gt.units.shape[1]
     units_size = action_gt.units.shape[-1]
-    units_mask = mask_tensor[:, 3]
-    units_mask = units_mask.repeat(select_size, 1).transpose(1, 0)
+    units_mask = mask_tensor[:, 3]  # selected units is in the fourth position of units_mask
+
+    units_mask = units_mask.unsqueeze(1).repeat(1, select_size)
     units_mask = units_mask.reshape(-1)
 
+    # TODO: change to a proporate calculation of selected units
     units_loss = criterion(action_gt.units.reshape(-1, units_size), units.reshape(-1, units_size), mask=units_mask)
     loss += units_loss
 
@@ -201,29 +214,3 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
     loss += target_location_loss
 
     return loss, [action_type_loss.item(), delay_loss.item(), queue_loss.item(), units_loss.item(), target_unit_loss.item(), target_location_loss.item()]
-
-
-def get_classify_loss_for_multi_gpu(action_gt, action_type, delay, queue, units, target_unit, target_location, criterion):
-    loss = 0.
-
-    action_type_loss = criterion(action_gt.action_type, action_type)
-    loss += action_type_loss
-
-    delay_loss = criterion(action_gt.delay, delay)
-    loss += delay_loss
-
-    queue_loss = criterion(action_gt.queue, queue)
-    loss += queue_loss
-
-    units_size = action_gt.units.shape[-1]
-    units_loss = criterion(action_gt.units.reshape(-1, units_size), units.reshape(-1, units_size))
-    loss += units_loss
-
-    target_unit_loss = criterion(action_gt.target_unit.squeeze(-2), target_unit.squeeze(-2))
-    loss += target_unit_loss
-
-    batch_size = action_gt.target_location.shape[0]
-    target_location_loss = criterion(action_gt.target_location.reshape(batch_size, -1), target_location.reshape(batch_size, -1))
-    loss += target_location_loss
-
-    return loss.item(), [action_type_loss.item(), delay_loss.item(), queue_loss.item(), units_loss.item(), target_unit_loss.item(), target_location_loss.item()]

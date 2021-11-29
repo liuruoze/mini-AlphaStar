@@ -14,6 +14,8 @@ In addition, we have added a lot of comments in the code to ensure that some key
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
+**Warning**: SC2 is extremely difficult and AlphaStar is also very complex. Even our project is a mini-AlphaStar, it has almost the similar technologies as AlphaStar, and the training resource also costs very high. It hardly can be trained on a single laptop or a home-used computer. The recommended way is to use a commercial server to train it. This server should also have a GPU card, along with enough large memory and disk space. For someone who is interesting in this project for the first time, we recommend you to collect this project firstly, and devolve deeply into researching into it when you have training resources and enough free time.
+
 ## Update
 
 This is the "v_1.04" version, and the updates are as follows:

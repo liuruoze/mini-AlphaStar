@@ -34,6 +34,7 @@ packages/
 data/replay_data/*
 data/replay_data_tensor/*
 data/replay_data_tensor_simple/*
+data/replay_data_tensor_new/*
 data/*.zip
 res/paper/
 res/s2clientprotocol/

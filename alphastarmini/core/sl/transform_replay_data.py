@@ -36,6 +36,7 @@ from alphastarmini.core.sl.label import Label
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
+from alphastarmini.lib.hyper_parameters import Label_Size as LS
 
 from alphastarmini.lib import utils as U
 
@@ -51,7 +52,7 @@ flags.DEFINE_bool("realtime", False, "Whether to run in realtime mode.")
 flags.DEFINE_bool("full_screen", False, "Whether to run full screen.")
 
 flags.DEFINE_float("fps", 22.4, "Frames per second to run the game.")
-flags.DEFINE_integer("step_mul", 5, "Game steps per observation.")
+flags.DEFINE_integer("step_mul", 1, "Game steps per observation.")
 flags.DEFINE_bool("render_sync", False, "Turn on sync rendering.")
 flags.DEFINE_integer("screen_resolution", 64,
                      "Resolution for screen feature layers.")
@@ -75,16 +76,24 @@ flags.DEFINE_string("replay_version", "3.16.1", "the replays released by blizzar
 # note, replay path should be absoulte path
 # D:/work/gitproject/mini-AlphaStar/data/Replays/filtered_replays_1/
 # D:/work/gitproject/mini-AlphaStar/data/Replays/small_simple64_replays/
-flags.DEFINE_string("no_server_replay_path", "D:/work/gitproject/mini-AlphaStar/data/Replays/small_simple64_replays/", "path of replay data")
+flags.DEFINE_string("no_server_replay_path", "D:/work/gitproject/mini-AlphaStar/data/Replays/filtered_replays_1/", "path of replay data")
 
 flags.DEFINE_bool("save_data", False, "replays_save data or not")
 flags.DEFINE_string("save_path", "./data/replay_data/", "path to replays_save replay data")
-flags.DEFINE_string("save_path_tensor", "./data/replay_data_tensor_simple/", "path to replays_save replay data tensor")
+flags.DEFINE_string("save_path_tensor", "./data/replay_data_tensor_new/", "path to replays_save replay data tensor")
 FLAGS(sys.argv)
 
 
 RACE = ['Terran', 'Zerg', 'Protoss', 'Random']
 RESULT = ['Victory', 'Defeat', 'Tie']
+
+SIMPLE_TEST = not P.on_server
+if SIMPLE_TEST:
+    DATA_FROM = 0
+    DATA_NUM = 2
+else:
+    DATA_FROM = 0
+    DATA_NUM = 15
 
 
 class SaveType(enum.IntEnum):
@@ -130,7 +139,7 @@ def store_info(replay_info):
             game_duration_seconds]
 
 
-def getFeatureAndLabel_numpy(obs, func_call):
+def getFeatureAndLabel_numpy(obs, func_call, delay=None):
     print("begin s:") if debug else None
     s = Agent.get_state_and_action_from_pickle_numpy(obs)
     feature = Feature.state2feature_numpy(s)
@@ -138,9 +147,14 @@ def getFeatureAndLabel_numpy(obs, func_call):
     print("feature.shape:", feature.shape) if debug else None
 
     print("begin a:") if debug else None
-    action = Agent.func_call_to_action(func_call).toArray()
-    # tag_list = agent.get_tag_list(obs)
-    a = action.toLogits_numpy()
+    print('func_call', func_call) if 1 else None
+    action = Agent.func_call_to_action(func_call)
+    action.delay = min(delay, LS.delay_encoding - 1)
+    print("action:", action) if debug else None
+    action_array = action.toArray()
+    print("action_array:", action_array) if debug else None
+    a = action_array.toLogits_numpy()
+    print("a:", a) if debug else None
     label = Label.action2label_numpy(a)
     print("label:", label) if debug else None
     print("label.shape:", label.shape) if debug else None
@@ -307,7 +321,7 @@ def test(on_server=False):
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
         max_steps_of_replay = 60 * 60 * 22.4
-        max_replays = 15  # 1
+        max_replays = 1  # 1
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)
@@ -353,15 +367,30 @@ def test(on_server=False):
     minimap_resolution.assign_to(interface.feature_layer.minimap_resolution)
 
     agent = Agent()
-    j = 0
+    #j = 0
     replay_length_list = []
     noop_length_list = []
+
+    from_index = DATA_FROM
+    end_index = DATA_FROM + DATA_NUM
+
     with run_config.start(full_screen=False) as controller:
 
-        for replay_file in tqdm(replay_files):
+        for i, replay_file in enumerate(tqdm(replay_files)):
             try:
                 replay_path = REPLAY_PATH + replay_file
                 print('replay_path:', replay_path)
+
+                do_write = False
+                if i >= from_index:
+                    if end_index is None:
+                        do_write = True
+                    elif end_index is not None and i < end_index:
+                        do_write = True
+
+                if not do_write:
+                    continue 
+
                 replay_data = run_config.replay_data(replay_path)
                 replay_info = controller.replay_info(replay_data)
 
@@ -385,25 +414,25 @@ def test(on_server=False):
                 print('observe_id_list', observe_id_list) if debug else None
                 print('observe_result_list', observe_result_list) if debug else None
 
-                need_observe_id = 0
+                win_observe_id = 0
 
                 for i, result in enumerate(observe_result_list):
                     if result == sc_pb.Victory:
-                        need_observe_id = observe_id_list[i]
+                        win_observe_id = observe_id_list[i]
                         break
 
                 # we observe the winning one
-                print('need_observe_id', need_observe_id)
+                print('win_observe_id', win_observe_id)
 
-                if need_observe_id == 0:
-                    print('no need_observe_id found! continue')
+                if win_observe_id == 0:
+                    print('no win_observe_id found! continue')
                     continue
 
                 start_replay = sc_pb.RequestStartReplay(
                     replay_data=replay_data,
                     options=interface,
                     disable_fog=False,  # FLAGS.disable_fog
-                    observed_player_id=need_observe_id,  # random.randint(1, 2),  # 1 or 2, wo random select it. FLAGS.observed_player
+                    observed_player_id=win_observe_id,  # random.randint(1, 2),  # 1 or 2, wo random select it. FLAGS.observed_player
                     map_data=None,
                     realtime=False
                 )
@@ -439,7 +468,7 @@ def test(on_server=False):
                 aif = AgentInterfaceFormat(**AAIFP._asdict())
 
                 feat = F.features_from_game_info(game_info=controller.game_info(),
-                                                 raw_resolution=64, 
+                                                 raw_resolution=AAIFP.raw_resolution, 
                                                  use_feature_units=True, use_raw_units=True,
                                                  use_unit_counts=True, use_raw_actions=True,
                                                  show_cloaked=True, show_burrowed_shadows=True, 
@@ -452,6 +481,7 @@ def test(on_server=False):
                 print("feat action spec:", feat.action_spec()) if debug else None
                 prev_obs = None
                 i = 0
+                record_i = 0
                 save_steps = 0
                 noop_count = 0
                 feature_list, label_list = [], []
@@ -497,8 +527,12 @@ def test(on_server=False):
                                 save_steps += 1
                                 z = [player_bo, player_ucb]
 
+                                delay = i - record_i
+                                print('two action dealy:', delay, 'steps!') if debug else None
+                                record_i = i
+
                                 if SAVE_TYPE == SaveType.torch_tensor:
-                                    feature, label = getFeatureAndLabel_numpy(obs, func_call)
+                                    feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
                                     feature = torch.tensor(feature)
                                     label = torch.tensor(label)
                                     feature_list.append(feature)
@@ -509,7 +543,7 @@ def test(on_server=False):
                                     step_dict[i] = the_dict
 
                                 elif SAVE_TYPE == SaveType.numpy_array:
-                                    feature, label = getFeatureAndLabel_numpy(obs, func_call)
+                                    feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
                                     feature_list.append(feature)
                                     label_list.append(label)
 
@@ -564,16 +598,15 @@ def test(on_server=False):
 
                 print('end save!')
 
-                j += 1
                 replay_length_list.append(save_steps)
                 noop_length_list.append(noop_count)
                 # We only test the first one replay            
             except Exception as inst:
                 traceback.print_exc() 
 
-            if j >= max_replays:  # test the first n frames
-                print("max replays test, break out!")
-                break
+            # if j >= max_replays:  # test the first n frames
+            #     print("max replays test, break out!")
+            #     break
 
     print("end")
     print("replay_length_list:", replay_length_list)

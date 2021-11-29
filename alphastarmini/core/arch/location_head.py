@@ -262,20 +262,6 @@ class LocationHead(nn.Module):
         print('x.shape:', x.shape) if debug else None
         y = x.reshape(batch_size, 1 * self.output_map_size * self.output_map_size)
 
-        if False:
-            # to see it
-            temp = y
-            max_value = torch.max(temp, dim=1)
-
-            max_value_value = max_value.values
-            max_value_index = max_value.indices
-
-            print('max_value_value', max_value_value)
-            print('max_value_value.shape', max_value_value.shape)
-
-            min_value = torch.min(temp, dim=1)
-            print('min_value', min_value)
-
         device = next(self.parameters()).device
 
         print("y:", y) if debug else None
@@ -285,6 +271,9 @@ class LocationHead(nn.Module):
         print("target_location_logits:", target_location_logits) if debug else None
         print("target_location_logits.shape:", target_location_logits.shape) if debug else None
 
+        # AlphaStar: (masking out invalid locations using `action_type`, such as those outside 
+        # the camera for build actions)
+        # TODO: use action to decide the mask
         if True:
             # referenced from lib/utils.py function of masked_softmax()
             mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
@@ -294,21 +283,6 @@ class LocationHead(nn.Module):
             target_location_probs = self.softmax(masked_vector)
         else:
             target_location_probs = self.softmax(target_location_logits)
-
-        # AlphaStar: (masking out invalid locations using `action_type`, such as those outside 
-        # the camera for build actions)
-        # TODO: use action to decide the mask
-        # Note: below lines will cause the torch.multinomial not work right,
-        # becaues multinomial needs the rows of input do not need to sum to one (in which case we use 
-        # the values as weights), but must be non-negative, finite and have a non-zero sum.
-        # if we have zero sum, it will cause a CUDA device error
-        if False:
-            mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
-            print("mask:", mask) if debug else None
-            print("mask.shape:", mask.shape) if debug else None
-
-            mask = L.get_location_mask(mask)
-            target_location_probs = target_location_probs * mask
 
         location_id = torch.multinomial(target_location_probs, num_samples=1, replacement=True)
         print("location_id:", location_id) if debug else None

@@ -190,7 +190,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
 Mini_Scale = P.Mini_Scale  # default is: 16 on laptop and 4 on server
 MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 / Mini_Scale),
                                                      sequence_length=int(32 / Mini_Scale),
-                                                     max_selected=int(16 / Mini_Scale),                                                    
+                                                     max_selected=int(48 / Mini_Scale),                                                    
                                                      max_entities=int(512),
                                                      minimap_size=64,                                               
                                                      embedding_size=1545,
@@ -268,14 +268,14 @@ StarCraftHyperParameters = namedtuple('StarCraftHyperParameters', ['screen_size'
                                                                    'max_buffer_ids',
                                                                    'max_add_on_type'])
 
-StarCraft_Hyper_Parameters = StarCraftHyperParameters(screen_size=64,
-                                                      world_size=256,
+StarCraft_Hyper_Parameters = StarCraftHyperParameters(screen_size=64,  # 128 comsume to much resource, 32 is too small to see
+                                                      world_size=256,  # a SC2 map has most 256x256 size
                                                       max_unit_type=ConstSize.All_Units_Size,
                                                       count_beginning_build_order=20,
                                                       sc2_default_delay=32,
                                                       max_order_ids=ConstSize.Actions_Size,
-                                                      max_buffer_ids=300,  # from 0 to 275
-                                                      max_add_on_type=50)
+                                                      max_buffer_ids=300,  # from 0 to 275 TODO: change to value in static_data
+                                                      max_add_on_type=50)  # TODO: change to value in static_data
 
 Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
                                         home_race=5,
@@ -329,15 +329,17 @@ AgentInterfaceFormatParams = namedtuple('AgentInterfaceFormatParams', ['feature_
 
 AlphaStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dimensions=sc2_env.Dimensions(screen=64, minimap=64),
                                                                      rgb_dimensions=None,
-                                                                     raw_resolution=64,  # 64 or None. Improtant! It will change the value of entity x and y.
-                                                                     # If none, it will use the map size.
+                                                                     raw_resolution=64,  # This value is Improtant! It will affect the value of entity x 
+                                                                     # and y, also change the target_location in the action of replays.
+                                                                     # If none, it will use the map size. Recommand, use 64 or 256.
                                                                      action_space=None,
                                                                      camera_width_world_units=24,
                                                                      use_feature_units=True,
                                                                      use_raw_units=True,
                                                                      use_raw_actions=True,
-                                                                     max_raw_actions=512,
-                                                                     max_selected_units=64,
+                                                                     max_raw_actions=512,  # no usage in pysc2 3.0
+                                                                     max_selected_units=512,  # Improtant!, it will change the unit_tags size in 
+                                                                     # _init_valid_raw_functions in features.py. Default is 30, but recommand 512.
                                                                      use_unit_counts=True,
                                                                      use_camera_position=False,
                                                                      show_cloaked=True,
