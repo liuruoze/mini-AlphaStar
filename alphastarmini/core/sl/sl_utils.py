@@ -141,7 +141,7 @@ def get_one_way_mask_in_SL(action_type_gt, device):
     return mask_tensor
 
 
-def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsion=False):
+def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsion=True):
     # consider the ground truth and the predicted
     ground_truth_raw_action_id = torch.nonzero(action_type_gt, as_tuple=True)[-1]
     action_pred = action_pred.reshape(-1)
@@ -259,93 +259,133 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     return mask_tensor
 
 
-def get_selected_units_accuracy(ground_truth, predict, select_units_num, device, return_important=False):
-    print('ground_truth.shape', ground_truth.shape) if debug else None
-    batch_size = ground_truth.shape[0]
+def get_selected_units_accuracy(ground_truth, predict, select_units_num, action_equal_mask, 
+                                device, strict_comparsion=True, use_strict_order=False):
+    all_num, correct_num, gt_num, pred_num = 0, 0, 1, 0
+    if strict_comparsion:
+        action_equal_index = action_equal_mask.nonzero(as_tuple=True)[0]
+        ground_truth = ground_truth[action_equal_index]
+        predict = predict[action_equal_index]
 
-    all_num, correct_num, gt_num, pred_num = 0, 0, 0, 0
+    if ground_truth.shape[0] > 0:  
+        size = ground_truth.shape[0]
+        NONE_INDEX = AHP.max_entities - 1
 
-    for i in range(batch_size):
-        ground_truth_sample = ground_truth[i]
-        ground_truth_new = torch.nonzero(ground_truth_sample, as_tuple=True)[-1]
-        ground_truth_new = ground_truth_new.to(device)
-        print('ground_truth units', ground_truth_new) if debug else None
+        for i in range(size):
+            ground_truth_sample = ground_truth[i]
+            ground_truth_new = torch.nonzero(ground_truth_sample, as_tuple=True)[-1]
+            ground_truth_new = ground_truth_new.cpu().detach().numpy().tolist()
 
-        predict_sample = predict[i].reshape(-1)
-        print('predict_sample units', predict_sample) if debug else None
+            print('ground_truth units', ground_truth_new) if debug else None
 
-        select_units_num_sample = select_units_num[i].item()
-        print('select_units_num_sample units', select_units_num_sample) if debug else None
+            predict_sample = predict[i].reshape(-1)
+            print('predict_sample units', predict_sample) if debug else None
 
-        for j in range(select_units_num_sample):
-            pred = predict_sample[j].item()
-            gt = ground_truth_new[j].item()
+            select_units_num_sample = select_units_num[i].item()
+            print('select_units_num_sample units', select_units_num_sample) if debug else None
 
-            if gt != AHP.max_entities - 1:
-                gt_num += 1
-                if pred == gt:
-                    correct_num += 1
+            for j in range(select_units_num_sample):
+                pred = predict_sample[j].item()
+                gt = ground_truth_new[j]
+                if gt != NONE_INDEX:  # the last index is the None index
+                    gt_num += 1
+                if use_strict_order:
+                    if pred == gt and pred != NONE_INDEX:
+                        correct_num += 1
+                else:
+                    if pred in ground_truth_new and pred != NONE_INDEX:
+                        correct_num += 1
+                pred_num += 1
 
-            pred_num += 1
+            all_num += AHP.max_selected
 
-        all_num += AHP.max_selected
-
-    selected_units_accuracy = correct_num / (gt_num + 1e-9)
-    selected_units_coverage = pred_num / (gt_num + 1e-9)
-
-    print([correct_num, gt_num, pred_num, all_num])
+    print('get_selected_units_accuracy', [correct_num, gt_num, pred_num, all_num])
 
     return [correct_num, gt_num, pred_num, all_num]
 
 
-def get_location_accuracy(ground_truth, predict, device, return_important=False):
-    accuracy = 0.
+def get_target_unit_accuracy(ground_truth, predict, action_equal_mask, device, 
+                             strict_comparsion=True, remove_none=True):
+    right_num, all_num = 0, 0
 
-    # print('location ground_truth', ground_truth)
-    # print('location ground_truth.shape', ground_truth.shape)
+    if strict_comparsion:
+        action_equal_index = action_equal_mask.nonzero(as_tuple=True)[0]
+        ground_truth = ground_truth[action_equal_index]
+        predict = predict[action_equal_index]
 
-    ground_truth = ground_truth.reshape(ground_truth.shape[0], -1)
-    ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
-    ground_truth_new = ground_truth_new.to(device)
-    print('ground_truth location', ground_truth_new) if debug else None
+    if ground_truth.shape[0] > 0:  
+        print('ground_truth target_unit', ground_truth)
+        ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
+        ground_truth_new = ground_truth_new.to(device)
+        print('ground_truth_new target_unit', ground_truth_new) if debug else None
 
-    output_map_size = SCHP.world_size
+        predict_new = predict.reshape(-1)
+        print('predict_new target_unit', predict_new)
 
+        NONE_ID = AHP.max_entities - 1
+        if remove_none:
+            effect_index = (ground_truth_new != NONE_ID).nonzero(as_tuple=True)[0]
+            ground_truth_new = ground_truth_new[effect_index]
+            predict_new = predict_new[effect_index]
+
+        right_num, all_num = get_right_and_all_num(ground_truth_new, predict_new)
+
+    print('get_target_unit_accuracy', [right_num, all_num])
+
+    return [right_num, all_num]
+
+
+def get_location_accuracy(ground_truth, predict, action_equal_mask, device, strict_comparsion=True):
     all_nums = ground_truth.shape[0]
+
     effect_nums = 0  # when the location argument applied both in ground_truth and predict
     correct_nums = 0
     distance_loss = 0.
 
-    for i, idx in enumerate(ground_truth_new):
-        row_number = idx // output_map_size
-        col_number = idx - output_map_size * row_number
+    if strict_comparsion:
+        action_equal_index = action_equal_mask.nonzero(as_tuple=True)[0]
+        ground_truth = ground_truth[action_equal_index]
+        predict = predict[action_equal_index]
 
-        gt_location_y = row_number
-        gt_location_x = col_number
-        print("gt_location_y, gt_location_x", gt_location_y, gt_location_x) if debug else None
+    if ground_truth.shape[0] > 0:    
 
-        [predict_x, predict_y] = predict[i] 
-        print("predict_x, predict_y", predict_x, predict_y) if debug else None
+        ground_truth = ground_truth.reshape(ground_truth.shape[0], -1)
+        ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
+        ground_truth_new = ground_truth_new.to(device)
+        print('ground_truth location', ground_truth_new) if debug else None
 
-        x_diff_square = (predict_x.item() - gt_location_x.item()) ** 2
-        y_diff_square = (predict_y.item() - gt_location_y.item()) ** 2
+        output_map_size = SCHP.world_size
 
-        print('x_diff_square', x_diff_square) if debug else None
-        print('y_diff_square', y_diff_square) if debug else None
+        for i, idx in enumerate(ground_truth_new):
+            row_number = idx // output_map_size
+            col_number = idx - output_map_size * row_number
 
-        # pos(0, 0) isconsidered a flag meaning this arugment is not applied for this action;
-        # e.g., we hardly will choose or see a point of pos(0, 0)
-        if not (gt_location_y.item() == 0 and gt_location_x.item() == 0):
-            if not (predict_x.item() == 0 and predict_y.item() == 0):
-                effect_nums += 1
+            gt_location_y = row_number
+            gt_location_x = col_number
+            print("gt_location_y, gt_location_x", gt_location_y, gt_location_x) if debug else None
 
-                diff_square = x_diff_square + y_diff_square
-                distance_loss += diff_square
+            [predict_x, predict_y] = predict[i] 
+            print("predict_x, predict_y", predict_x, predict_y) if debug else None
 
-                if diff_square == 0:
-                    correct_nums += 1
+            x_diff_square = (predict_x.item() - gt_location_x.item()) ** 2
+            y_diff_square = (predict_y.item() - gt_location_y.item()) ** 2
 
-    print([correct_nums, effect_nums, all_nums, distance_loss]) if debug else None
+            print('x_diff_square', x_diff_square) if debug else None
+            print('y_diff_square', y_diff_square) if debug else None
+
+            # pos(output_map_size-1, output_map_size-1) isconsidered a flag meaning this arugment is not applied for this action;
+            # e.g., we hardly will choose or see a point of pos(output_map_size-1, output_map_size-1)
+            if not (gt_location_y.item() == output_map_size - 1 and gt_location_x.item() == output_map_size - 1):  # the last index is the None index
+                if not (predict_x.item() == 0 and predict_y.item() == 0):
+                    effect_nums += 1
+
+                    diff_square = x_diff_square + y_diff_square
+                    distance_loss += diff_square
+
+                    if diff_square == 0:
+                        correct_nums += 1
+
+    print('get_location_accuracy', [correct_nums, effect_nums, all_nums, distance_loss]) if debug else None
 
     return [correct_nums, effect_nums, all_nums, distance_loss]
 
@@ -359,6 +399,9 @@ def get_accuracy(ground_truth, predict, device, return_important=False):
 
     predict_new = predict.reshape(-1)
     print('predict_new', predict_new) if debug else None  
+
+    # shape: [batch_size]
+    action_equal_mask = (ground_truth_new == predict_new)
 
     # calculate how many move_camera? the id is 168 in raw_action
     MOVE_CAMERA_ID = 168
@@ -398,11 +441,10 @@ def get_accuracy(ground_truth, predict, device, return_important=False):
     short_important_predict_new = predict_new[short_important_index]
     short_important_right_num, short_important_all_num = get_right_and_all_num(short_important_ground_truth_new, short_important_predict_new)
 
-    if return_important:
-        return [right_num, all_num, camera_right_num, camera_all_num,
-                non_camera_right_num, non_camera_all_num, short_important_right_num, short_important_all_num]
+    acc_list = [right_num, all_num, camera_right_num, camera_all_num, non_camera_right_num, 
+                non_camera_all_num, short_important_right_num, short_important_all_num]
 
-    return [right_num, all_num, camera_right_num, camera_all_num, non_camera_right_num, non_camera_all_num]
+    return acc_list, action_equal_mask
 
 
 def get_right_and_all_num(gt, pred):

@@ -100,7 +100,7 @@ class ArchModel(nn.Module):
                 return_baseline=False, multi_gpu_supvised_learning=False,
                 use_scatter_map=True):
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
-        entity_embeddings, embedded_entity, entity_num = self.entity_encoder(state.entity_state)   
+        entity_embeddings, embedded_entity, entity_nums = self.entity_encoder(state.entity_state)   
 
         if AHP.scatter_channels:
             map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
@@ -121,10 +121,10 @@ class ArchModel(nn.Module):
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head(autoregressive_embedding, 
                                                                                                    action_type, 
                                                                                                    entity_embeddings, 
-                                                                                                   entity_num)
+                                                                                                   entity_nums)
 
         target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, 
-                                                                action_type, entity_embeddings)
+                                                                action_type, entity_embeddings, entity_nums)
         target_location_logits, target_location = self.location_head(autoregressive_embedding, action_type, map_skip)
 
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
@@ -134,7 +134,7 @@ class ArchModel(nn.Module):
                             units=units, target_unit=target_unit, target_location=target_location)
 
         if multi_gpu_supvised_learning:
-            return action_type, units, target_location, action_type_logits, delay_logits, queue_logits, \
+            return action_type, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \
                 units_logits, target_unit_logits, target_location_logits, select_units_num
 
         if return_logits:

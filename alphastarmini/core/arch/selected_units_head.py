@@ -250,6 +250,7 @@ class SelectedUnitsHead(nn.Module):
         units = torch.cat(units, dim=1)
 
         # we use zero padding to make units_logits has the size of [batch_size x max_selected x entity_size]
+        # TODO: change the padding
         padding_size = self.max_selected - units_logits.shape[1]
         if padding_size > 0:
             pad_units_logits = torch.zeros(units_logits.shape[0], padding_size, units_logits.shape[2],
@@ -258,6 +259,7 @@ class SelectedUnitsHead(nn.Module):
 
             pad_units = torch.zeros(units.shape[0], padding_size, units.shape[2],
                                     dtype=units.dtype, device=units.device)
+            pad_units[:, :, 0] = entity_size - 1  # None index, the same as -1
             units = torch.cat([units, pad_units], dim=1)
 
         # AlphaStar: If `action_type` does not involve selecting units, this head is ignored.
@@ -271,6 +273,8 @@ class SelectedUnitsHead(nn.Module):
 
         select_units_num[no_select_units_index] = 0
         autoregressive_embedding[no_select_units_index] = original_ae[no_select_units_index]
+        units_logits[no_select_units_index] = 0.  # a magic number
+        units[no_select_units_index, :, 0] = entity_size - 1  # None index, the same as -1
 
         print("select_units_num:", select_units_num) if debug else None
         print("autoregressive_embedding:", autoregressive_embedding) if debug else None

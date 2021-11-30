@@ -26,15 +26,57 @@ debug = False
 # due to CrossEntropyLoss only accepts loss with lables.shape = [N]
 # we define a loss accept soft_target, which label.shape = [N, C]
 # for some rows, it should not be added to loss, so we also need a mask one
-def cross_entropy(soft_targets, pred, mask=None):
+def cross_entropy(soft_targets, pred, mask=None, debug=False, outlier_remove=True):
     # class is always in the last dim
     logsoftmax = nn.LogSoftmax(dim=-1)
     x_1 = - soft_targets * logsoftmax(pred)
+
+    if debug:
+        for i, (t, p) in enumerate(zip(soft_targets, logsoftmax(pred))):
+            # print('t', t)
+            # print('t.shape', t.shape)
+            # print('p', p)
+            # print('p.shape', p.shape)
+            value = - t * logsoftmax(p)
+            # print('value', value)
+            # print('value.shape', value.shape)
+            m = mask[i].item()
+            if value.sum() > 1e6 and m != 0:
+                print('find value large than 1e6')
+                print('t', t)
+                z = torch.nonzero(t, as_tuple=True)[-1]
+                print('z', z)
+                idx = z.item()
+                print('p', p)
+                q = p[idx]
+                print('q', q)
+                print('value', value)
+                print('m', m)
+                stop()
+
+    print('x_1:', x_1) if debug else None
+    print('x_1.shape:', x_1.shape) if debug else None
+
     x_2 = torch.sum(x_1, -1)
+    print('x_2:', x_2) if debug else None
+    print('x_2.shape:', x_2.shape) if debug else None
+
     # This mask is for each item's mask
     if mask is not None:
         x_2 = x_2 * mask
+
+        if outlier_remove:
+            outlier_mask = (x_2 >= 1e6)
+            x_2 = x_2 * ~outlier_mask
+        else:
+            outlier_mask = (x_2 >= 1e6)
+            if outlier_mask.any() > 0:
+                stop()
+
     x_4 = torch.mean(x_2)
+    print('x_4:', x_4) if debug else None
+    print('x_4.shape:', x_4.shape) if debug else None
+
     return x_4
 
 
@@ -96,8 +138,7 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
 
 def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=False,
                            return_important=False, only_consider_small=False,
-                           include_selected_units_accuracy=False,
-                           include_location_accuracy=False):
+                           ):
 
     criterion = cross_entropy
 
@@ -132,7 +173,7 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
     # we can't make them all into as a list or into ArgsActionLogits
     # if we do that, the pytorch DDP will cause a runtime error, just like the loss don't include all parameters
     # This error is strange, so we choose to use a specific loss writing schema for multi-gpu calculation.
-    action_pred, units, target_location, action_type_logits, \
+    action_pred, units, target_unit, target_location, action_type_logits, \
         delay_logits, queue_logits, \
         units_logits, target_unit_logits, \
         target_location_logits, select_units_num = model.forward(state, 
@@ -148,18 +189,20 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
                                                              target_unit_logits, target_location_logits, 
                                                              select_units_num, criterion, device, 
                                                              decrease_smart_opertaion=decrease_smart_opertaion,
-                                                             only_consider_small=only_consider_small)
-    acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, 
-                                   device, return_important=return_important)
-    location_acc = SU.get_location_accuracy(action_gt.target_location, target_location, device, 
-                                            return_important=return_important)
-    selected_acc = SU.get_selected_units_accuracy(action_gt.units, units, select_units_num,
-                                                  device, return_important=return_important) 
-    if include_location_accuracy:
-        acc_num_list.extend(location_acc)
+                                                             only_consider_small=only_consider_small)  
+    acc_num_list, action_equal_mask = SU.get_accuracy(action_gt.action_type, action_pred, 
+                                                      device, return_important=return_important)
 
-    if include_selected_units_accuracy:
-        acc_num_list.extend(selected_acc)
+    location_acc = SU.get_location_accuracy(action_gt.target_location, target_location, action_equal_mask, device, 
+                                            strict_comparsion=True)
+    selected_acc = SU.get_selected_units_accuracy(action_gt.units, units, select_units_num, action_equal_mask,
+                                                  device, strict_comparsion=True)
+    targeted_acc = SU.get_target_unit_accuracy(action_gt.target_unit, target_unit, action_equal_mask,
+                                               device, strict_comparsion=True)
+
+    acc_num_list.extend(location_acc)
+    acc_num_list.extend(selected_acc)
+    acc_num_list.extend(targeted_acc)
 
     print('loss', loss) if debug else None
 
@@ -170,7 +213,8 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
                                            target_unit, target_location, select_units_num,
                                            criterion, device, 
                                            decrease_smart_opertaion=False,
-                                           only_consider_small=False):
+                                           only_consider_small=False,
+                                           strict_comparsion=True, remove_none=True):
     loss = 0.
 
     # consider using move camera weight
@@ -221,14 +265,17 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
     print('all_units_mask', all_units_mask) if debug else None
 
     # TODO: change to a proporate calculation of selected units
-    units_loss = criterion(action_gt.units.reshape(-1, units_size), units.reshape(-1, units_size), mask=all_units_mask)
+    selected_units_weight = 10.
+    units_loss = selected_units_weight * criterion(action_gt.units.reshape(-1, units_size), units.reshape(-1, units_size), mask=all_units_mask, debug=False)
     loss += units_loss
 
-    target_unit_loss = criterion(action_gt.target_unit.squeeze(-2), target_unit.squeeze(-2), mask=mask_tensor[:, 4].reshape(-1))
+    target_unit_weight = 5.
+    target_unit_loss = target_unit_weight * criterion(action_gt.target_unit.squeeze(-2), target_unit.squeeze(-2), 
+                                                      mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=True)
     loss += target_unit_loss
 
     batch_size = action_gt.target_location.shape[0]
-    location_weight = 10.
+    location_weight = 1.
     target_location_loss = location_weight * criterion(action_gt.target_location.reshape(batch_size, -1),
                                                        target_location.reshape(batch_size, -1), mask=mask_tensor[:, 5].reshape(-1))
     loss += target_location_loss

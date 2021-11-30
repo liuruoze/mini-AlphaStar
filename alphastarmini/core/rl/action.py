@@ -150,23 +150,23 @@ class ArgsAction(object):
         # for tensor action to tensor action with one-hot embedding
         batch_size = self.action_type.shape[0]
 
-        action_type_encoding = L.to_one_hot(self.action_type, self.max_actions).squeeze(-2)
+        action_type_encoding = L.tensor_one_hot(self.action_type, self.max_actions).squeeze(-2)
         print('self.action_type:', self.action_type) if debug else None
         print('action_type_encoding:', action_type_encoding) if debug else None
 
-        delay_encoding = L.to_one_hot(self.delay, self.max_delay).squeeze(-2)
+        delay_encoding = L.tensor_one_hot(self.delay, self.max_delay).squeeze(-2)
         print('self.delay:', self.delay) if debug else None
         print('delay_encoding:', delay_encoding) if debug else None
 
-        queue_encoding = L.to_one_hot(self.queue, self.max_queue).squeeze(-2)
+        queue_encoding = L.tensor_one_hot(self.queue, self.max_queue).squeeze(-2)
         print('self.queue:', self.queue) if debug else None
         print('queue_encoding:', queue_encoding) if debug else None
 
         print('self.units_index:', self.units) if debug else None
-        select_units_encoding = L.to_one_hot(self.units, self.max_units).squeeze(-2)
+        select_units_encoding = L.tensor_one_hot(self.units, self.max_units).squeeze(-2)
         print('select_units_encoding:', select_units_encoding) if debug else None
 
-        target_unit_encoding = L.to_one_hot(self.target_unit, self.max_units).squeeze(-2)
+        target_unit_encoding = L.tensor_one_hot(self.target_unit, self.max_units).squeeze(-2)
         print('self.target_unit_index:', self.target_unit) if debug else None
         print('target_unit_encoding:', target_unit_encoding) if debug else None
 

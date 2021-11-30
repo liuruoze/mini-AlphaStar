@@ -174,7 +174,7 @@ class ActionTypeHead(nn.Module):
             print('get_cuda_device:', get_cuda_device) if debug else None
 
         # change action_type to one_hot version
-        action_type_one_hot = L.to_one_hot(action_type, self.max_action_num)
+        action_type_one_hot = L.tensor_one_hot(action_type, self.max_action_num)
         print('action_type_one_hot.shape:', action_type_one_hot.shape) if debug else None
         # to make the dim of delay_one_hot as delay
         action_type_one_hot = action_type_one_hot.squeeze(-2)

@@ -61,14 +61,14 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-28_21-48-54.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-29_19-35-12.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     TRAIN_FROM = 0
-    TRAIN_NUM = 2
+    TRAIN_NUM = 1
 
-    VAL_FROM = 0
+    VAL_FROM = 1
     VAL_NUM = 1
 else:
     TRAIN_FROM = 0
@@ -206,9 +206,8 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
                                                            labels_tensor, net, 
                                                            decrease_smart_opertaion=True,
                                                            return_important=True,
-                                                           only_consider_small=False,
-                                                           include_location_accuracy=True,
-                                                           include_selected_units_accuracy=True)
+                                                           only_consider_small=False
+                                                           )
             del feature_tensor, labels_tensor
 
             optimizer.zero_grad()
@@ -235,6 +234,8 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             selected_units_accuracy = acc_num_list[12] / (acc_num_list[13] + 1e-9)
             selected_units_coverage = acc_num_list[14] / (acc_num_list[13] + 1e-9)
 
+            target_unit_accuracy = acc_num_list[16] / (acc_num_list[17] + 1e-9)
+
             batch_time = time.time() - start
 
             batch_iter += 1
@@ -251,7 +252,7 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             write(writer, loss_value, loss_list, action_accuracy, 
                   move_camera_accuracy, non_camera_accuracy, short_important_accuracy,
                   location_accuracy, location_distance, selected_units_accuracy,
-                  selected_units_coverage,
+                  selected_units_coverage, target_unit_accuracy,
                   batch_iter)
 
             gc.collect()
@@ -281,6 +282,9 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             writer.add_scalar('Val/selected_units_accuracy Acc', val_acc[6], batch_iter)
             print("Val selected_units_coverage acc: {:.6f}.".format(val_acc[7]))
             writer.add_scalar('Val/selected_units_coverage Acc', val_acc[7], batch_iter)
+            print("Val target_unit_accuracy acc: {:.6f}.".format(val_acc[8]))
+            writer.add_scalar('Val/target_unit_accuracy Acc', val_acc[8], batch_iter)            
+
             del val_loss, val_acc
 
             gc.collect()
@@ -317,6 +321,8 @@ def eval(model, val_set, val_loader, device):
 
     selected_units_correct_num, selected_units_gt_num, selected_units_pred_num = 0, 0, 0
 
+    target_unit_correct_num, target_unit_all_num = 0, 0
+
     for i, (features, labels) in enumerate(val_loader):
 
         if False and i > EVAL_NUM:
@@ -331,9 +337,7 @@ def eval(model, val_set, val_loader, device):
                                                                 labels_tensor, model, 
                                                                 decrease_smart_opertaion=True,
                                                                 return_important=True,
-                                                                only_consider_small=False,
-                                                                include_location_accuracy=True,
-                                                                include_selected_units_accuracy=True)
+                                                                only_consider_small=False)
             del feature_tensor, labels_tensor
 
         print('eval i', i, 'loss', loss) if debug else None
@@ -360,6 +364,9 @@ def eval(model, val_set, val_loader, device):
         selected_units_gt_num += acc_num_list[13]
         selected_units_pred_num += acc_num_list[14]
 
+        target_unit_correct_num += acc_num_list[16]
+        target_unit_all_num += acc_num_list[17]
+
         del loss, acc_num_list
 
         gc.collect()
@@ -377,15 +384,17 @@ def eval(model, val_set, val_loader, device):
     selected_units_accuracy = selected_units_correct_num / (selected_units_gt_num + 1e-9)
     selected_units_coverage = selected_units_pred_num / (selected_units_gt_num + 1e-9)
 
+    target_unit_accuracy = target_unit_correct_num / (target_unit_all_num + 1e-9)
+
     return val_loss, [action_accuracy, move_camera_accuracy, non_camera_accuracy, 
                       short_important_accuracy, location_accuracy, location_distance,
-                      selected_units_accuracy, selected_units_coverage]
+                      selected_units_accuracy, selected_units_coverage, target_unit_accuracy]
 
 
 def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy, 
           non_camera_accuracy, short_important_accuracy, 
           location_accuracy, location_distance, 
-          selected_units_accuracy, selected_units_coverage,
+          selected_units_accuracy, selected_units_coverage, target_unit_accuracy,
           batch_iter):
 
     print("One batch loss: {:.6f}.".format(loss))
@@ -433,6 +442,9 @@ def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy,
 
         print("One batch selected_units_coverage: {:.6f}.".format(selected_units_coverage))
         writer.add_scalar('OneBatch/selected_units_coverage', selected_units_coverage, batch_iter)
+
+        print("One batch target_unit_accuracy: {:.6f}.".format(target_unit_accuracy))
+        writer.add_scalar('OneBatch/target_unit_accuracy', target_unit_accuracy, batch_iter)
 
 
 def test(on_server):
