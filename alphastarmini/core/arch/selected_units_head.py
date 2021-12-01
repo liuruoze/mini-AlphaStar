@@ -281,6 +281,190 @@ class SelectedUnitsHead(nn.Module):
 
         return units_logits, units, autoregressive_embedding, select_units_num
 
+    def forward_sl(self, autoregressive_embedding, action_type, entity_embeddings, entity_num, units, select_units_num):
+        '''
+        Inputs:
+            autoregressive_embedding: [batch_size x autoregressive_embedding_size]
+            action_type: [batch_size x 1]
+            entity_embeddings: [batch_size x entity_size x embedding_size]
+            entity_num: [batch_size]
+        Output:
+            units_logits: [batch_size x max_selected x entity_size]
+            units: [batch_size x max_selected x 1]
+            autoregressive_embedding: [batch_size x autoregressive_embedding_size]
+        '''
+        batch_size = entity_embeddings.shape[0]
+        entity_size = entity_embeddings.shape[-2]
+        device = next(self.parameters()).device
+        key_size = self.new_variable.shape[0]
+        original_ae = autoregressive_embedding
+
+        # AlphaStar: If applicable, Selected Units Head first determines which entity types can accept `action_type`,
+        # creates a one-hot of that type with maximum equal to the number of unit types,
+        # and passes it through a linear of size 256 and a ReLU. This will be referred to in this head as `func_embed`.
+        # QUESTION: one unit type or serveral unit types?
+        # ANSWER: serveral unit types, each for one-hot
+        # This is some places which introduce much human knowledge
+        unit_types_one_hot = L.action_can_apply_to_entity_types_mask(action_type).to(device)
+
+        # the_func_embed shape: [batch_size x 256]
+        the_func_embed = F.relu(self.func_embed(unit_types_one_hot))  
+
+        # AlphaStar: It also computes a mask of which units can be selected, initialised to allow selecting all entities 
+        # that exist (including enemy units).
+        # generate the length mask for all entities
+        mask = torch.arange(entity_size, device=device).float()
+        mask = mask.repeat(batch_size, 1)
+
+        # now the entity nums should be added 1 (including the EOF)
+        # this is because we also want to compute the mean including key value of the EOF
+        added_entity_num = entity_num + 1
+
+        # mask: [batch_size, entity_size]
+        mask = mask < added_entity_num.unsqueeze(dim=1)
+        print("mask:", mask) if debug else None
+        print("mask.shape:", mask.shape) if debug else None
+
+        # AlphaStar: It then computes a key corresponding to each entity by feeding `entity_embeddings`
+        # through a 1D convolution with 32 channels and kernel size 1,
+        # and creates a new variable corresponding to ending unit selection.
+
+        # input: [batch_size x entity_size x embedding_size]
+        # output: [batch_size x entity_size x key_size], note key_size = 32
+        key = self.conv_1(entity_embeddings.transpose(-1, -2)).transpose(-1, -2)
+
+        # end index should be the same to the entity_num
+        end_index = entity_num
+
+        # replace the EOF with the new_variable 
+        # TODO: use calculation to achieve it
+        key[torch.arange(batch_size), end_index] = self.new_variable
+
+        # calculate the average of keys (consider the entity_num)
+        key_mask = mask.unsqueeze(dim=2).repeat(1, 1, key.shape[-1])
+        key_avg = torch.sum(key * key_mask, dim=1) / entity_num.reshape(batch_size, 1)
+        print("key_avg:", key_avg) if debug else None
+        print("key_avg.shape:", key_avg.shape) if debug else None
+
+        # TODO: creates a new variable corresponding to ending unit selection.
+        # QUESTION: how to do that?
+        # ANSWER: referred by the DI-star project, please see self.new_variable in init() method
+        units_logits = []
+        hidden = None
+
+        # designed with reference to DI-star
+        max_seq_len = select_units_num.max()
+
+        # for select_units_num
+        select_mask = torch.arange(entity_size, device=device).float()
+        select_mask = select_mask.repeat(batch_size, 1)
+
+        # mask: [batch_size, entity_size]
+        select_mask = select_mask < select_units_num.unsqueeze(dim=1)
+
+        # in the first selection, we should not select the end_index
+        mask[torch.arange(batch_size), end_index] = 0
+
+        # designed with reference to DI-star
+        for i in range(max_seq_len):
+            if i != 0:
+                # in the second selection, we can select the EOF
+                if i == 1:
+                    mask[torch.arange(batch_size), end_index] = 1
+
+            # AlphaStar: the network passes `autoregressive_embedding` through a linear of size 256,
+            # autoregressive_embedding shape: [batch_size x autoregressive_embedding_size]
+            # x shape: [batch_size x 256]
+            x = self.fc_1(autoregressive_embedding)
+
+            # AlphaStar: adds `func_embed`, and passes the combination through a ReLU and a linear of size 32.
+            # x shape: [batch_size x seq_len x 32], note seq_len = 1
+            x = self.fc_2(F.relu(x + the_func_embed)).unsqueeze(dim=1)
+
+            # AlphaStar: The result is fed into a LSTM with size 32 and zero initial state to get a query.
+            query, hidden = self.small_lstm(x, hidden)
+
+            # AlphaStar: The entity keys are multiplied by the query, and are sampled using the mask and temperature 0.8 
+            # to decide which entity to select.
+            # key_shape: [batch_size x entity_size x key_size], note key_size = 32
+            # query_shape: [batch_size x seq_len x hidden_size], note hidden_size is also 32, seq_len = 1
+            # y shape: [batch_size x entity_size]
+            y = torch.sum(query * key, dim=-1)
+
+            # original mask usage is wrong, we should not let 0 * logits, zero value logit is still large! 
+            # we use a very big negetive value replaced by logits, like -1e9
+            # y shape: [batch_size x entity_size]
+            y = y.masked_fill(~mask, -1e9)
+
+            # entity_logits shape: [batch_size x entity_size]
+            entity_logits = y.div(self.temperature)
+            # note, we add a dimension where is in the seq_one to help
+            # we concat to the one : [batch_size x max_selected x ?]
+            units_logits.append(entity_logits.unsqueeze(-2))
+
+            # Wenhai: If this entity_id is a EOF, end the selection
+            # Implemented in 1.05 version
+            entity_id = units[:, i]
+            print('entity_id', entity_id) if debug else None
+            print('entity_id.shape', entity_id.shape) if debug else None
+
+            # AlphaStar: That entity is masked out so that it cannot be selected in future iterations.
+            mask[torch.arange(batch_size), entity_id.squeeze(dim=1)] = 0
+
+            # whether we select the EOF
+            # note last_index should be bool type to make sure it is a right whether mask 
+            last_index = (entity_id.squeeze(dim=1) == end_index)
+
+            # AlphaStar: The one-hot position of the selected entity is multiplied by the keys, 
+            # reduced by the mean across the entities, passed through a linear layer of size 1024, 
+            # and added to `autoregressive_embedding` for subsequent iterations. 
+            entity_one_hot = L.tensor_one_hot(entity_id, entity_size).squeeze(-2)
+            entity_one_hot_unsqueeze = entity_one_hot.unsqueeze(-2) 
+
+            # entity_one_hot_unsqueeze shape: [batch_size x seq_len x entity_size], note seq_len =1 
+            # key_shape: [batch_size x entity_size x key_size], note key_size = 32
+            out = torch.bmm(entity_one_hot_unsqueeze, key).squeeze(-2)
+
+            # AlphaStar: reduced by the mean across the entities,
+            # Wenhai: should be key mean
+            # Ruo-Ze: should be out mean
+            # New: it seems that it should be the key mean
+            # key_avg shape: [batch_size x key_size]
+            out = out - key_avg
+
+            # t shape: [batch_size, autoregressive_embedding_size]
+            t = self.project(out)
+
+            # AlphaStar: and added to `autoregressive_embedding` for subsequent iterations.
+            # autoregressive_embedding: [batch_size x autoregressive_embedding_size]
+            autoregressive_embedding = autoregressive_embedding + t * ~select_mask[:, i + 1].unsqueeze(dim=1)
+            print("autoregressive_embedding:", autoregressive_embedding) if debug else None
+
+        # units_logits: [batch_size x select_units x entity_size]
+        units_logits = torch.cat(units_logits, dim=1)
+
+        # we use zero padding to make units_logits has the size of [batch_size x max_selected x entity_size]
+        # TODO: change the padding
+        padding_size = self.max_selected - units_logits.shape[1]
+        if padding_size > 0:
+            pad_units_logits = torch.zeros(units_logits.shape[0], padding_size, units_logits.shape[2],
+                                           dtype=units_logits.dtype, device=units_logits.device)
+            units_logits = torch.cat([units_logits, pad_units_logits], dim=1)
+
+        # AlphaStar: If `action_type` does not involve selecting units, this head is ignored.
+
+        # select_unit_mask: [batch_size x 1]
+        # note select_unit_mask should be bool type to make sure it is a right whether mask 
+        select_unit_mask = L.action_involve_selecting_units_mask(action_type).bool()
+
+        no_select_units_index = ~select_unit_mask.squeeze(dim=1)
+        print("no_select_units_index:", no_select_units_index) if debug else None
+
+        autoregressive_embedding[no_select_units_index] = original_ae[no_select_units_index]
+        units_logits[no_select_units_index] = 0.  # a magic number
+
+        return units_logits, None, autoregressive_embedding, select_units_num
+
 
 def test():
     batch_size = 4
@@ -289,7 +473,7 @@ def test():
     action_type[0, 0] = 0  # no-op
     action_type[3, 0] = 168  # move-camera
     entity_embeddings = torch.randn(batch_size, AHP.max_entities, AHP.entity_embedding_size)
-    entity_num = torch.tensor([1, 1, 1, 1])
+    entity_num = torch.tensor([1, 2, 3, 12])
 
     selected_units_head = SelectedUnitsHead()
 
@@ -315,6 +499,16 @@ def test():
         print("units is None!")
 
     print("units_num:", units_num) if debug else None
+
+    units_logits, _, autoregressive_embedding, _ = \
+        selected_units_head.forward_sl(
+            autoregressive_embedding, action_type, entity_embeddings, entity_num, units, units_num)
+
+    if units_logits is not None:
+        print("units_logits:", units_logits) if debug else None
+        print("units_logits.shape:", units_logits.shape) if debug else None
+    else:
+        print("units_logits is None!")
 
     print("autoregressive_embedding:",
           autoregressive_embedding) if debug else None

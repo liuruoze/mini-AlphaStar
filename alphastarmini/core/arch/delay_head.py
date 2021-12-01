@@ -48,46 +48,34 @@ class DelayHead(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, autoregressive_embedding):
-        checkNaNandInf(autoregressive_embedding, 'autoregressive_embedding')
-
+    def forward(self, autoregressive_embedding, delay=None):
         # AlphaStar: `autoregressive_embedding` is decoded using a 2-layer (each with size 256) 
-        # AlphaStar: linear network with ReLUs,
+        # linear network with ReLUs,
         x = F.relu(self.fc_1(autoregressive_embedding))
-        print("x.shape:", x.shape) if debug else None
-        checkNaNandInf(x, 'x')
         x = F.relu(self.fc_2(x))
-        checkNaNandInf(x, 'x')
 
         # AlphaStar: before being embedded into `delay_logits` that has size 128 (one for each 
-        # AlphaStar: possible requested delay in game steps).
+        # possible requested delay in game steps).
         # note: no temperature used here
         delay_logits = self.embed_fc(x)
-        checkNaNandInf(delay_logits, 'delay_logits')
 
         # AlphaStar: `delay` is sampled from `delay_logits` using a multinomial, though unlike all other arguments,
-        # AlphaStar: no temperature is applied to `delay_logits` before sampling.
-        delay_probs = self.softmax(delay_logits)
-        delay = torch.multinomial(delay_probs, 1)
-        checkNaNandInf(delay, 'delay')
-        print("delay:", delay) if debug else None
+        # no temperature is applied to `delay_logits` before sampling.
+        if delay is None:
+            delay_probs = self.softmax(delay_logits)        
+            delay = torch.multinomial(delay_probs, 1)
 
         # AlphaStar: Similar to `action_type`, `delay` is projected to a 1D tensor of size 1024 through 
-        # AlphaStar: a 2-layer (each with size 256) linear network with ReLUs, and added to `autoregressive_embedding`
+        # a 2-layer (each with size 256) linear network with ReLUs, and added to `autoregressive_embedding`
         # similar to action_type here, change it to one_hot version
         delay_one_hot = L.tensor_one_hot(delay, self.max_delay)
-        # to make the dim of delay_one_hot as delay
         delay_one_hot = delay_one_hot.squeeze(-2)
-        print("delay_one_hot:", delay_one_hot) if debug else None
-        print("delay_one_hot.shape:", delay_one_hot.shape) if debug else None
         z = F.relu(self.fc_3(delay_one_hot))
         z = F.relu(self.fc_4(z))
         t = self.project(z)
+
         # the operation may auto broadcasting, so we need a test
-        y = autoregressive_embedding + t
-        # make sure autoregressive_embedding has the same shape as y, prevent the auto broadcasting
-        assert autoregressive_embedding.shape == y.shape
-        autoregressive_embedding = y
+        autoregressive_embedding = autoregressive_embedding + t
 
         return delay_logits, delay, autoregressive_embedding
 

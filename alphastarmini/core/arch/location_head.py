@@ -172,10 +172,16 @@ class LocationHead(nn.Module):
         # note: in mAS, we add a upsampling layer to transfer from 8x8 to 256x256
         self.us_5 = nn.ConvTranspose2d(int(mmc / 16), 1, kernel_size=4, stride=2,
                                        padding=1, bias=True)
+
+        # note: when SCHP.world_size=64, we add a new upsampling layer
+        self.us_6 = nn.ConvTranspose2d(int(mmc / 4), 1, kernel_size=4, stride=2,
+                                       padding=1, bias=True)
+
         self.output_map_size = output_map_size
+
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, autoregressive_embedding, action_type, map_skip):    
+    def forward(self, autoregressive_embedding, action_type, map_skip, target_location=None):    
         '''
         Inputs:
             autoregressive_embedding: [batch_size x autoregressive_embedding_size]
@@ -192,8 +198,6 @@ class LocationHead(nn.Module):
         # sc2_imitation_learning: inputs, map_skip = map_skip[0], map_skip[1:]
         map_skip = list(reversed(map_skip))
         x, map_skip = map_skip[0], map_skip[1:]
-
-        print("x.shape:", map_skip.shape) if debug else None
         batch_size = x.shape[0]
 
         assert autoregressive_embedding.shape[0] == action_type.shape[0]
@@ -201,8 +205,6 @@ class LocationHead(nn.Module):
 
         reshap_size = x.shape[-1]
         reshape_channels = int(AHP.autoregressive_embedding_size / (reshap_size * reshap_size))
-
-        print("autoregressive_embedding.shape:", autoregressive_embedding.shape) if debug else None
         ar_map = autoregressive_embedding.reshape(batch_size, -1, reshap_size, reshap_size)
         print("ar_map.shape:", ar_map.shape) if debug else None
 
@@ -244,28 +246,28 @@ class LocationHead(nn.Module):
         # AlphaStar: (upsampled beyond the 128x128 input to 256x256 target location selection).
         x = F.relu(self.us_1(x))
         x = F.relu(self.us_2(x))
-        x = F.relu(self.us_3(x))
 
-        if AHP == MAHP:
-            x = F.relu(self.us_4(x))
-            # only in mAS, we need one more upsample step
-            # x = F.relu(self.us_5(x))
-            # Note: in the final layer, we don't use relu
-            x = self.us_5(x)
+        if SCHP.world_size == 64:
+            # if world_size is (64, 64), we can make the output size to be 64 x 64
+            x = self.us_6(x)
         else:
-            x = self.us_4_original(x)
+            x = F.relu(self.us_3(x))
+            if AHP == MAHP:
+                x = F.relu(self.us_4(x))
+                # only in mAS, we need one more upsample step
+                # x = F.relu(self.us_5(x))
+                # Note: in the final layer, we don't use relu
+                x = self.us_5(x)
+            else:
+                x = self.us_4_original(x)
 
         # AlphaStar: Those final logits are flattened and sampled (masking out invalid locations using `action_type`, 
         # AlphaStar: such as those outside the camera for build actions) with temperature 0.8 
         # AlphaStar: to get the actual target position.
         # x shape: (-1, 1, 256, 256)
-        print('x.shape:', x.shape) if debug else None
         y = x.reshape(batch_size, 1 * self.output_map_size * self.output_map_size)
 
         device = next(self.parameters()).device
-
-        print("y:", y) if debug else None
-        print("y_.shape:", y.shape) if debug else None
 
         target_location_logits = y.div(self.temperature)
         print("target_location_logits:", target_location_logits) if debug else None
@@ -274,54 +276,43 @@ class LocationHead(nn.Module):
         # AlphaStar: (masking out invalid locations using `action_type`, such as those outside 
         # the camera for build actions)
         # TODO: use action to decide the mask
-        if True:
-            # referenced from lib/utils.py function of masked_softmax()
-            mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
-            mask = L.get_location_mask(mask)
-            mask_fill_value = -1e32  # a very small number
-            masked_vector = target_location_logits.masked_fill((1 - mask).bool(), mask_fill_value)
-            target_location_probs = self.softmax(masked_vector)
-        else:
-            target_location_probs = self.softmax(target_location_logits)
-
+        # referenced from lib/utils.py function of masked_softmax()
+        mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
+        mask = L.get_location_mask(mask)
+        mask_fill_value = -1e32  # a very small number
+        masked_vector = target_location_logits.masked_fill((1 - mask).bool(), mask_fill_value)
+        target_location_probs = self.softmax(masked_vector)
         location_id = torch.multinomial(target_location_probs, num_samples=1, replacement=True)
-        print("location_id:", location_id) if debug else None
-        print("location_id.shape:", location_id.shape) if debug else None
 
-        location_out = location_id.squeeze(-1).cpu().numpy().tolist()
-        print("location_out:", location_out) if debug else None
-        # print("location_out.shape:", location_out.shape) if debug else None
+        if target_location is None:
+            target_location = np.zeros([batch_size, 2])
+            for i, idx in enumerate(location_id):
+                row_number = idx // self.output_map_size
+                col_number = idx - self.output_map_size * row_number
 
-        for i, idx in enumerate(location_id):
-            row_number = idx // self.output_map_size
-            col_number = idx - self.output_map_size * row_number
+                target_location_y = row_number
+                target_location_x = col_number
+                print("target_location_x, target_location_y", target_location_x, target_location_y) if debug else None
+                # note! sc2 and pysc2 all accept the position as [x, y], so x be the first, y be the last!
+                # below is right! so the location point map to the point in the matrix!
+                target_location[i] = np.array([target_location_x.item(), target_location_y.item()])
 
-            target_location_y = row_number
-            target_location_x = col_number
-            print("target_location_y, target_location_x", target_location_y, target_location_x) if debug else None
-            # note! sc2 and pysc2 all accept the position as [x, y], so x be the first, y be the last!
-            # this is not right : location_out[i] = [target_location_y.item(), target_location_x.item()]
-            # below is right! so the location point map to the point in the matrix!
-            location_out[i] = [target_location_x.item(), target_location_y.item()]
+            target_location = torch.tensor(target_location, device=device)
+        print('target_location', target_location) if debug else None
+        print('target_location.shape', target_location.shape) if debug else None
 
         # AlphaStar: If `action_type` does not involve targetting location, this head is ignored.
         target_location_mask = L.action_involve_targeting_location_mask(action_type)
-        # target_location_mask: [batch_size x 1]
-        print("target_location_mask:", target_location_mask) if debug else None
-
-        print("location_out:", location_out) if debug else None
-        location_out = np.array(location_out)
-        print("location_out:", location_out) if debug else None
-        location_out = torch.tensor(location_out, device=device)
-        print("location_out:", location_out) if debug else None
-        print("location_out.shape:", location_out.shape) if debug else None
 
         target_location_logits = target_location_logits.reshape(-1, self.output_map_size, self.output_map_size)
         target_location_logits = target_location_logits * target_location_mask.float().unsqueeze(-1)
-        location_out = location_out * target_location_mask.long()
-        location_out = location_out
 
-        return target_location_logits, location_out
+        no_target_location_mask = ~target_location_mask.squeeze(dim=1)
+        #target_location = target_location * target_location_mask.long()
+        target_location = target_location.long()
+        target_location[no_target_location_mask] = torch.tensor([self.output_map_size - 1, self.output_map_size - 1], device=device)
+
+        return target_location_logits, target_location
 
 
 def test():

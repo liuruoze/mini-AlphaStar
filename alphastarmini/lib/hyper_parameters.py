@@ -191,7 +191,8 @@ Mini_Scale = P.Mini_Scale  # default is: 16 on laptop and 4 on server
 MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 / Mini_Scale),
                                                      sequence_length=int(32 / Mini_Scale),
                                                      max_selected=int(48 / Mini_Scale),                                                    
-                                                     max_entities=int(512),
+                                                     max_entities=int(512),  # this value can not be downscaled, 
+                                                     # if downscaled, we will miss many units.
                                                      minimap_size=64,                                               
                                                      embedding_size=1545,
                                                      map_channels=24,
@@ -258,51 +259,6 @@ RL_Training_Hyper_Parameters = RLTrainingHyperParameters(learning_rate=1e-5,  # 
                                                          clip=0.5,
                                                          seed=1)
 
-# for the starcraft parameters, like screen size
-StarCraftHyperParameters = namedtuple('StarCraftHyperParameters', ['screen_size', 
-                                                                   'world_size',
-                                                                   'max_unit_type', 
-                                                                   'count_beginning_build_order',
-                                                                   'sc2_default_delay',
-                                                                   'max_order_ids',
-                                                                   'max_buffer_ids',
-                                                                   'max_add_on_type'])
-
-StarCraft_Hyper_Parameters = StarCraftHyperParameters(screen_size=64,  # 128 comsume to much resource, 32 is too small to see
-                                                      world_size=256,  # a SC2 map has most 256x256 size
-                                                      max_unit_type=ConstSize.All_Units_Size,
-                                                      count_beginning_build_order=20,
-                                                      sc2_default_delay=32,
-                                                      max_order_ids=ConstSize.Actions_Size,
-                                                      max_buffer_ids=300,  # from 0 to 275 TODO: change to value in static_data
-                                                      max_add_on_type=50)  # TODO: change to value in static_data
-
-Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
-                                        home_race=5,
-                                        away_race=5,
-                                        upgrades=ConstSize.Upgrades_Size,
-                                        enemy_upgrades=ConstSize.Upgrades_Size,
-                                        time=64,
-                                        available_actions=ConstSize.Actions_Size,                                      
-                                        unit_counts_bow=ConstSize.All_Units_Size, 
-                                        mmr=7,
-                                        units_buildings=ConstSize.All_Units_Size,
-                                        effects=ConstSize.Effects_Size,
-                                        upgrade=ConstSize.Upgrades_Size,
-                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order *
-                                        ConstSize.All_Units_Size,
-                                        last_delay=128,
-                                        last_action_type=ConstSize.Actions_Size,
-                                        last_repeat_queued=2)
-
-Label_Size = LabelSize(action_type_encoding=Scalar_Feature_Size.available_actions,
-                       delay_encoding=Scalar_Feature_Size.last_delay,
-                       queue_encoding=Scalar_Feature_Size.last_repeat_queued,
-                       select_units_encoding=Arch_Hyper_Parameters.max_entities * Arch_Hyper_Parameters.max_selected,
-                       target_unit_encoding=Arch_Hyper_Parameters.max_entities * 1,
-                       target_location_encoding=StarCraft_Hyper_Parameters.world_size ** 2)
-
-
 # for the params passed to the sc2_env creation
 AgentInterfaceFormatParams = namedtuple('AgentInterfaceFormatParams', ['feature_dimensions',
                                                                        'rgb_dimensions',
@@ -345,7 +301,7 @@ AlphaStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dim
                                                                      show_cloaked=True,
                                                                      show_burrowed_shadows=True,
                                                                      show_placeholders=True,
-                                                                     hide_specific_actions=True,
+                                                                     hide_specific_actions=True,  # use this to reduce the action space
                                                                      action_delay_fn=None,
                                                                      send_observation_proto=False,
                                                                      crop_to_playable_area=False,
@@ -353,33 +309,48 @@ AlphaStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dim
                                                                      allow_cheating_layers=False,
                                                                      add_cargo_to_units=False)
 
-# actually not used
-# MiniStar_Agent_Interface_Format_Params = AgentInterfaceFormatParams(feature_dimensions=sc2_env.Dimensions(screen=64, minimap=32),
-#                                                                     rgb_dimensions=None,
-#                                                                     raw_resolution=None,
-#                                                                     action_space=None,
-#                                                                     camera_width_world_units=16,
-#                                                                     use_feature_units=True,
-#                                                                     use_raw_units=True,
-#                                                                     use_raw_actions=True,
-#                                                                     max_raw_actions=512,
-#                                                                     max_selected_units=32,
-#                                                                     use_unit_counts=True,
-#                                                                     use_camera_position=False,
-#                                                                     show_cloaked=True,
-#                                                                     show_burrowed_shadows=True,
-#                                                                     show_placeholders=True,
-#                                                                     hide_specific_actions=True,
-#                                                                     action_delay_fn=None,
-#                                                                     send_observation_proto=False,
-#                                                                     crop_to_playable_area=False,
-#                                                                     raw_crop_to_playable_area=False,
-#                                                                     allow_cheating_layers=False,
-#                                                                     add_cargo_to_units=False)
 
-# if THE_PROJECT_TYPE == ProjectType.MiniStar:
-#     Agent_Interface_Format_Params = MiniStar_Agent_Interface_Format_Params
-# elif THE_PROJECT_TYPE == ProjectType.AlphaStar:
-#     Agent_Interface_Format_Params = AlphaStar_Agent_Interface_Format_Params
-# else:
-#     Agent_Interface_Format_Params = MiniStar_Agent_Interface_Format_Params
+# for the starcraft parameters, like screen size
+StarCraftHyperParameters = namedtuple('StarCraftHyperParameters', ['screen_size', 
+                                                                   'world_size',
+                                                                   'max_unit_type', 
+                                                                   'count_beginning_build_order',
+                                                                   'sc2_default_delay',
+                                                                   'max_order_ids',
+                                                                   'max_buffer_ids',
+                                                                   'max_add_on_type'])
+
+StarCraft_Hyper_Parameters = StarCraftHyperParameters(screen_size=64,  # 128 comsume to much resource, 32 is too small to see
+                                                      world_size=AlphaStar_Agent_Interface_Format_Params.raw_resolution,  
+                                                      # world_size is original 256, a SC2 map has most 256x256 size, but we can use raw_resolution to make it down to 64
+                                                      max_unit_type=ConstSize.All_Units_Size,
+                                                      count_beginning_build_order=20,
+                                                      sc2_default_delay=32,
+                                                      max_order_ids=ConstSize.Actions_Size,
+                                                      max_buffer_ids=300,  # from 0 to 275 TODO: change to value in static_data
+                                                      max_add_on_type=50)  # TODO: change to value in static_data
+
+Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
+                                        home_race=5,
+                                        away_race=5,
+                                        upgrades=ConstSize.Upgrades_Size,
+                                        enemy_upgrades=ConstSize.Upgrades_Size,
+                                        time=64,
+                                        available_actions=ConstSize.Actions_Size,                                      
+                                        unit_counts_bow=ConstSize.All_Units_Size, 
+                                        mmr=7,
+                                        units_buildings=ConstSize.All_Units_Size,
+                                        effects=ConstSize.Effects_Size,
+                                        upgrade=ConstSize.Upgrades_Size,
+                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order
+                                        * ConstSize.All_Units_Size,
+                                        last_delay=128,
+                                        last_action_type=ConstSize.Actions_Size,
+                                        last_repeat_queued=2)
+
+Label_Size = LabelSize(action_type_encoding=Scalar_Feature_Size.available_actions,
+                       delay_encoding=Scalar_Feature_Size.last_delay,
+                       queue_encoding=Scalar_Feature_Size.last_repeat_queued,
+                       select_units_encoding=Arch_Hyper_Parameters.max_entities * Arch_Hyper_Parameters.max_selected,
+                       target_unit_encoding=Arch_Hyper_Parameters.max_entities * 1,
+                       target_location_encoding=StarCraft_Hyper_Parameters.world_size ** 2)

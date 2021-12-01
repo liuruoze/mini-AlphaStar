@@ -170,6 +170,8 @@ class Agent(object):
         # TODO-QUICK: add a qucik verion without Entity()
 
         raw_units = obs["raw_units"]
+        print('len(raw_units)', len(raw_units)) if debug else None
+
         e_list = []
         for i, raw_unit in enumerate(raw_units):
             unit_type = raw_unit.unit_type
@@ -239,6 +241,8 @@ class Agent(object):
                 # thus we only need to append index, not sc2 tags          
             else:
                 break
+
+        print('len(e_list)', len(e_list)) if debug else None
 
         entities_array, entity_pos = ArchModel.preprocess_entity_numpy(e_list, 
                                                                        return_entity_pos=return_entity_pos)

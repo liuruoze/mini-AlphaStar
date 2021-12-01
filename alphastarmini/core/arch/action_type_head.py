@@ -71,7 +71,7 @@ class ActionTypeHead(nn.Module):
     def set_rl_training(self, staus):
         self.is_rl_training = staus
 
-    def forward(self, lstm_output, scalar_context):
+    def forward(self, lstm_output, scalar_context, action_type=None):
         batch_size = lstm_output.shape[0]
         #seq_size = lstm_output.shape[1]
 
@@ -88,29 +88,19 @@ class ActionTypeHead(nn.Module):
         # input shape is [batch_size x seq_size x embedding_size]
         # note that embedding_size is equal to channel_size in conv1d
         # we change this to [batch_size x embedding_size x seq_size]
-        #x = x.transpose(1, 2)
         x = x.unsqueeze(-1)
         for resblock in self.resblock_stack:
             x = resblock(x)
         x = F.relu(x)
-        #x = transpose(1, 2)
         x = x.squeeze(-1)
-        print('x is nan:', torch.isnan(x).any()) if debug else None
-        print('x.shape:', x.shape) if debug else None
-        print('scalar_context.shape:', scalar_context.shape) if debug else None
-        print('scalar_context is nan:', torch.isnan(scalar_context).any()) if debug else None
 
         # AlphaStar: The output is converted to a tensor with one logit for each possible 
-        # AlphaStar: action type through a `GLU` gated by `scalar_context`.
+        # action type through a `GLU` gated by `scalar_context`.
         action_type_logits = self.glu_1(x, scalar_context)
-        print('action_type_logits is nan:', torch.isnan(action_type_logits).any()) if debug else None
-
-        print('action_type_logits:', action_type_logits) if debug else None
-        print('action_type_logits.shape:', action_type_logits.shape) if debug else None
 
         # AlphaStar: `action_type` is sampled from these logits using a multinomial with temperature 0.8. 
-        # AlphaStar: Note that during supervised learning, `action_type` will be the ground truth human action 
-        # AlphaStar: type, and temperature is 1.0 (and similarly for all other arguments).
+        # Note that during supervised learning, `action_type` will be the ground truth human action 
+        # type, and temperature is 1.0 (and similarly for all other arguments).
         action_type_logits = action_type_logits / self.temperature
         print('action_type_logits after temperature:', action_type_logits) if debug else None
 
@@ -122,85 +112,29 @@ class ActionTypeHead(nn.Module):
                 if random.random() < 0.1:
                     action_type_logits[:] = 0.  # equal random select
 
-        action_type_probs = self.softmax(action_type_logits)
-        print('action_type_probs:', action_type_probs) if debug else None
-        print('action_type_probs.shape:', action_type_probs.shape) if debug else None
-
-        device = next(self.parameters()).device
-        print('ActionTypeHead device:', device) if debug else None
-        print('self.max_action_num:', self.max_action_num) if debug else None
-
-        if self.is_rl_training or self.use_action_type_mask:
-            action_type_mask = torch.zeros(self.max_action_num, device=device)
-            print('action_type_mask:', action_type_mask) if debug else None
-            print('action_type_mask.shape:', action_type_mask.shape) if debug else None
-
-            action_type_mask[RAMP.SMALL_LIST] = 1.
-
-            # action_type_mask[RAW_FUNCTIONS.no_op.id.value] = 1.
-            # action_type_mask[RAW_FUNCTIONS.Build_Pylon_pt.id.value] = 1.
-            # action_type_mask[RAW_FUNCTIONS.Train_Probe_quick.id.value] = 1.
-            # action_type_mask[RAW_FUNCTIONS.Build_Gateway_pt.id.value] = 1.
-            # action_type_mask[RAW_FUNCTIONS.Train_Zealot_quick.id.value] = 1.
-            # action_type_mask[RAW_FUNCTIONS.Harvest_Gather_unit.id.value] = 1.
-            # action_type_mask[RAW_FUNCTIONS.Attack_pt.id.value] = 1.
-
-            print('right action_type_mask:', action_type_mask) if debug else None
-            print('right action_type_mask.shape:', action_type_mask.shape) if debug else None
-
-            action_type_probs = action_type_probs * action_type_mask
-            print('masked action_type_probs:', action_type_probs) if debug else None
-            print('masked action_type_probs.shape:', action_type_probs.shape) if debug else None
-
         # note, torch.multinomial need samples to non-negative, finite and have a non-zero sum
         # which is different with tf.multinomial which can accept negative values like log(action_type_probs)
-        action_type = torch.multinomial(action_type_probs.reshape(batch_size, -1), 1)
-
-        print('stable action_type:', action_type) if debug else None
-        print('action_type.shape:', action_type.shape) if debug else None
-
-        action_type = action_type.reshape(batch_size, -1)
-        print('action_type.shape:', action_type.shape) if debug else None
-
-        ''' # below code may cause unstable problem
-            action_type_sample = action_type_logits.div(self.temperature).exp()
-            action_type = torch.multinomial(action_type_sample, 1)
-        '''
-
-        cuda_check = action_type.is_cuda
-        print('cuda_check:', cuda_check) if debug else None
-        if cuda_check:
-            get_cuda_device = action_type.get_device()
-            print('get_cuda_device:', get_cuda_device) if debug else None
+        if action_type is None:
+            action_type_probs = self.softmax(action_type_logits)
+            action_type = torch.multinomial(action_type_probs.reshape(batch_size, -1), 1)
+            action_type = action_type.reshape(batch_size, -1)
 
         # change action_type to one_hot version
         action_type_one_hot = L.tensor_one_hot(action_type, self.max_action_num)
-        print('action_type_one_hot.shape:', action_type_one_hot.shape) if debug else None
-        # to make the dim of delay_one_hot as delay
         action_type_one_hot = action_type_one_hot.squeeze(-2)
 
-        cuda_check = action_type_one_hot.is_cuda
-        print('cuda_check:', cuda_check) if debug else None
-        if cuda_check:
-            get_cuda_device = action_type_one_hot.get_device()
-            print('get_cuda_device:', get_cuda_device) if debug else None
-
         # AlphaStar: `autoregressive_embedding` is then generated by first applying a ReLU 
-        # AlphaStar: and linear layer of size 256 to the one-hot version of `action_type`
+        # and linear layer of size 256 to the one-hot version of `action_type`
         z = F.relu(self.fc_1(action_type_one_hot))
+
         # AlphaStar: and projecting it to a 1D tensor of size 1024 through a `GLU` gated by `scalar_context`.
-        print('z.shape:', z.shape) if debug else None
-        print('scalar_context.shape:', scalar_context.shape) if debug else None
         z = self.glu_2(z, scalar_context)
+
         # AlphaStar: That projection is added to another projection of `lstm_output` into a 1D tensor of size 
-        # AlphaStar: 1024 gated by `scalar_context` to yield `autoregressive_embedding`.
-        #lstm_output = lstm_output.reshape(-1, lstm_output.shape[-1])
-        print('lstm_output.shape:', lstm_output.shape) if debug else None
-        print('scalar_context.shape:', scalar_context.shape) if debug else None
+        # 1024 gated by `scalar_context` to yield `autoregressive_embedding`.
         t = self.glu_3(lstm_output, scalar_context)
+
         # the add operation may auto broadcasting, so we need an assert test
-        print("z.shape:", z.shape) if debug else None
-        print("t.shape:", t.shape) if debug else None
         assert z.shape == t.shape
         autoregressive_embedding = z + t
 

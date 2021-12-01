@@ -44,7 +44,7 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-p", "--path", default="./data/replay_data_tensor_new/", help="The path where data stored")
+parser.add_argument("-p", "--path", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
 parser.add_argument('--num_workers', type=int, default=1, help='')
@@ -61,7 +61,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-29_19-35-12.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-11-30_22-55-15.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
@@ -72,10 +72,10 @@ if SIMPLE_TEST:
     VAL_NUM = 1
 else:
     TRAIN_FROM = 0
-    TRAIN_NUM = 12
+    TRAIN_NUM = 14
 
-    VAL_FROM = 12
-    VAL_NUM = 3
+    VAL_FROM = 14
+    VAL_NUM = 1
 
 
 # hyper paramerters
@@ -206,8 +206,8 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
                                                            labels_tensor, net, 
                                                            decrease_smart_opertaion=True,
                                                            return_important=True,
-                                                           only_consider_small=False
-                                                           )
+                                                           only_consider_small=False,
+                                                           train=True)
             del feature_tensor, labels_tensor
 
             optimizer.zero_grad()
@@ -337,7 +337,8 @@ def eval(model, val_set, val_loader, device):
                                                                 labels_tensor, model, 
                                                                 decrease_smart_opertaion=True,
                                                                 return_important=True,
-                                                                only_consider_small=False)
+                                                                only_consider_small=False,
+                                                                train=False)
             del feature_tensor, labels_tensor
 
         print('eval i', i, 'loss', loss) if debug else None

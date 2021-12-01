@@ -54,7 +54,7 @@ class TargetUnitHead(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num):
+    def forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num, target_unit=None):
         '''
         Inputs:
             autoregressive_embedding: [batch_size x autoregressive_embedding_size]
@@ -107,65 +107,32 @@ class TargetUnitHead(nn.Module):
         print("key:", key) if debug else None
         print("key.shape:", key.shape) if debug else None
 
-        target_unit_logits_list = []
-        target_unit_list = []
-        hidden = None
+        # AlphaStar: The query is then passed through a ReLU and a linear of size 32, 
+        # and the query is applied to the keys which are created the same way as in 
+        # the Selected Units head to get `target_unit_logits`.
+        x = self.fc_1(autoregressive_embedding)
+        x = the_func_embed + x
+        query = self.fc_2(x).unsqueeze(1)
 
-        # note: repeated for selecting up to one unit
-        max_selected = self.max_selected
-        for i in range(max_selected):
-            # AlphaStar: The query is then passed through a ReLU and a linear of size 32, 
-            # and the query is applied to the keys which are created the same way as in 
-            # the Selected Units head to get `target_unit_logits`.
-            x = self.fc_1(autoregressive_embedding)
-            x = the_func_embed + x
-            query = self.fc_2(x).unsqueeze(1)
+        # below is matrix multiply
+        # key_shape: [batch_size x entity_size x key_size], note key_size = 32
+        # query_shape: [batch_size x seq_len x hidden_size], note hidden_size is also 32, seq_len = 1
+        y = torch.bmm(key, query.transpose(-1, -2))
 
-            # we don't need a lstm now
-            # query, hidden = self.small_lstm(x)
+        # new y shape: [batch_size x entity_size]
+        y = y.squeeze(-1)
 
-            # below is matrix multiply
-            # key_shape: [batch_size x entity_size x key_size], note key_size = 32
-            # query_shape: [batch_size x seq_len x hidden_size], note hidden_size is also 32, seq_len = 1
-            y = torch.bmm(key, query.transpose(-1, -2))
+        # fill the entity which should be selected a very large negetive value 
+        y = y.masked_fill(~mask, -1e9)
 
-            # new y shape: [batch_size x entity_size]
-            y = y.squeeze(-1)
+        # target_unit_logits shape: [batch_size x entity_size]
+        target_unit_logits = y.div(self.temperature)
+        print("target_unit_logits:", target_unit_logits) if debug else None
+        print("target_unit_logits.shape:", target_unit_logits.shape) if debug else None
 
-            # fill the entity which should be selected a very large negetive value 
-            y = y.masked_fill(~mask, -1e9)
-
-            # target_unit_logits shape: [batch_size x entity_size]
-            target_unit_logits = y.div(self.temperature)
-            print("target_unit_logits:", target_unit_logits) if debug else None
-            print("target_unit_logits.shape:", target_unit_logits.shape) if debug else None
-
-            # target_unit_probs shape: [batch_size x entity_size]
+        if target_unit is None:
             target_unit_probs = self.softmax(target_unit_logits)
-            print("target_unit_probs:", target_unit_probs) if debug else None
-            print("target_unit_probs.shape:", target_unit_probs.shape) if debug else None
-
-            # AlphaStar: `target_unit` is sampled from `target_unit_logits` using a multinomial with temperature 0.8.
-            # target_unit_id shape: [batch_size x 1]
-            target_unit_id = torch.multinomial(target_unit_probs, 1)    
-            print("target_unit_id:", target_unit_id) if debug else None
-            print("target_unit_id.shape:", target_unit_id.shape) if debug else None
-
-            # note, we add a dimension where is in the seq_one to help
-            # we concat to the one : [batch_size x max_selected x ?]
-            target_unit_logits_list.append(target_unit_logits.unsqueeze(-2))
-            target_unit_list.append(target_unit_id.unsqueeze(-2))
-
-            # Note that since this is one of the two terminal arguments (along 
-            # with Location Head, since no action has both a target unit and a 
-            # target location), it does not return `autoregressive_embedding`.
-
-        # note: we only select one unit, so return the first one
-        # target_unit_logits: [batch_size x max_selected x entity_size]
-        target_unit_logits_all = torch.cat(target_unit_logits_list, dim=1)
-
-        # target_units: [batch_size x max_selected x 1]
-        target_unit_all = torch.cat(target_unit_list, dim=1)
+            target_unit = torch.multinomial(target_unit_probs, 1)    
 
         # AlphaStar: If `action_type` does not involve targetting units, this head is ignored.
         # target_unit_mask: [batch_size x 1]
@@ -176,13 +143,17 @@ class TargetUnitHead(nn.Module):
         no_target_unit_mask = ~target_unit_mask.squeeze(dim=1)
         print("no_target_unit_mask:", no_target_unit_mask) if debug else None
 
-        target_unit_logits_all[no_target_unit_mask] = 0.  # a magic number
-        target_unit_all[no_target_unit_mask] = entity_size - 1  # None index, the same as -1
+        target_unit_logits = target_unit_logits.unsqueeze(dim=1)
+        print("target_unit_logits.shape:", target_unit_logits.shape) if debug else None
 
-        print("target_unit_logits_all:", target_unit_logits_all) if debug else None
-        print("target_unit_all:", target_unit_all) if debug else None
+        target_unit = target_unit.unsqueeze(dim=1)
+        print("target_unit.shape:", target_unit.shape) if debug else None
 
-        return target_unit_logits_all, target_unit_all
+        target_unit_logits[no_target_unit_mask] = 0.  # a magic number
+        target_unit[no_target_unit_mask, 0] = entity_size - 1  # None index, the same as -1
+        print("target_unit:", target_unit) if debug else None
+
+        return target_unit_logits, target_unit
 
 
 def test():

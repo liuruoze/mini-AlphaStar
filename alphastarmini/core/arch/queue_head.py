@@ -49,48 +49,44 @@ class QueueHead(nn.Module):
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=-1)
 
-    # QUESTION: It is similar to delay head. But how did it use the embedded_entity?
-    def forward(self, autoregressive_embedding, action_type, embedded_entity=None):
+    def forward(self, autoregressive_embedding, action_type, embedded_entity=None, queue=None):
         # AlphaStar: Queued Head is similar to the delay head except a temperature of 0.8 
         # AlphaStar: is applied to the logits before sampling,
         x = self.fc_1(autoregressive_embedding)
-        print("x.shape:", x.shape) if debug else None
         x = self.relu(x)
         x = self.fc_2(x)
         x = self.relu(x)
+
         # note: temperature is used here, compared to delay head
-        queue_logits = self.embed_fc(x).div(self.temperature)
-        queue_probs = self.softmax(queue_logits)
         # AlphaStar: the size of `queued_logits` is 2 (for queueing and not queueing),
-        queue = torch.multinomial(queue_probs, 1)
+        queue_logits = self.embed_fc(x).div(self.temperature)
+
+        if queue is None:
+            queue_probs = self.softmax(queue_logits) 
+            queue = torch.multinomial(queue_probs, 1)
 
         # similar to action_type here, change it to one_hot version
         queue_one_hot = L.tensor_one_hot(queue, self.max_queue)
+
         # to make the dim of queue_one_hot as queue
         queue_one_hot = queue_one_hot.squeeze(-2)
 
         z = self.relu(self.fc_3(queue_one_hot))
         z = self.relu(self.fc_4(z))
         t = self.project(z)
+
         # make sure autoregressive_embedding has the same shape as y, prevent the auto broadcasting
         assert autoregressive_embedding.shape == t.shape
 
         # AlphaStar: and the projected `queued` is not added to `autoregressive_embedding` 
-        # AlphaStar: if queuing is not possible for the chosen `action_type`
+        # if queuing is not possible for the chosen `action_type`
         # note: projected `queued` is not added to `autoregressive_embedding` if queuing is not 
         # possible for the chosen `action_type`
-
         assert action_type.shape[0] == autoregressive_embedding.shape[0]
-        mask = L.action_can_be_queued_mask(action_type).float()
-        print("mask:", mask) if debug else None
-        autoregressive_embedding = autoregressive_embedding + mask * t
 
-        ''' # below code only consider the cases when action_type is scalar
-        if L.action_can_be_queued(action_type):
-            autoregressive_embedding = autoregressive_embedding + t
-        else:
-            print("None add to autoregressive_embedding!") if debug else None
-        '''
+        mask = L.action_can_be_queued_mask(action_type).float()
+
+        autoregressive_embedding = autoregressive_embedding + mask * t
 
         return queue_logits, queue, autoregressive_embedding
 

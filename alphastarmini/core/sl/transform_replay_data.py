@@ -23,6 +23,7 @@ from tqdm import tqdm
 from pysc2.lib import point
 from pysc2.lib import features as F
 from pysc2.lib import actions as A
+from pysc2.lib.actions import RAW_FUNCTIONS
 from pysc2.lib import units as Unit
 from pysc2 import run_configs
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat
@@ -65,7 +66,15 @@ flags.DEFINE_integer("max_episode_steps", 0, "Total game steps per episode.")
 flags.DEFINE_integer("max_replays", 100, "Max replays to save.")
 flags.DEFINE_integer("max_steps_of_replay", int(22.4 * 60 * 60), "Max game steps of a replay, max for 1 hour of game.")
 flags.DEFINE_integer("small_max_steps_of_replay", 256, "Max game steps of a replay when debug.")
-flags.DEFINE_float("no_op_threshold", 0.005, "The threshold to save no op operations.")  # 0.05 is about 1/4, so we choose 0.01
+
+# no_op_threshold = (22.4 * 60 - 150) / 150 * len(RAW_FUNCTIONS) * scale_factor
+flags.DEFINE_float("no_op_threshold", 0.005, "The threshold to save no op operations.")  
+
+# move_camera_threshold = (50 / 1) * len(RAW_FUNCTIONS) * scale_factor_2
+flags.DEFINE_float("move_camera_threshold", 0.05, "The threshold to save move_camera operations.")  # 
+flags.DEFINE_float("Smart_pt_threshold", 0.3, "The threshold to save no op operations.")  # 
+flags.DEFINE_float("Smart_unit_threshold", 0.3, "The threshold to save no op operations.")  #
+
 
 flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
 flags.DEFINE_integer("observed_player", 1, "Which player to observe. For 2 player game, this can be 1 or 2.")
@@ -80,7 +89,7 @@ flags.DEFINE_string("no_server_replay_path", "D:/work/gitproject/mini-AlphaStar/
 
 flags.DEFINE_bool("save_data", False, "replays_save data or not")
 flags.DEFINE_string("save_path", "./data/replay_data/", "path to replays_save replay data")
-flags.DEFINE_string("save_path_tensor", "./data/replay_data_tensor_new/", "path to replays_save replay data tensor")
+flags.DEFINE_string("save_path_tensor", "./data/replay_data_tensor_new_small/", "path to replays_save replay data tensor")
 FLAGS(sys.argv)
 
 
@@ -92,7 +101,7 @@ if SIMPLE_TEST:
     DATA_FROM = 0
     DATA_NUM = 2
 else:
-    DATA_FROM = 0
+    DATA_FROM = 30
     DATA_NUM = 15
 
 
@@ -213,6 +222,7 @@ def getObsAndFunc(obs, func_call, z):
     feature_minimap = obs["feature_minimap"]
 
     height_map = feature_minimap["height_map"]
+    camera = feature_minimap["camera"]
     visibility_map = feature_minimap["visibility_map"]
     creep = feature_minimap["creep"]
     player_relative = feature_minimap["player_relative"]
@@ -230,6 +240,7 @@ def getObsAndFunc(obs, func_call, z):
                  'raw_effects': raw_effects,
 
                  'height_map': height_map,
+                 'camera': camera,
                  'visibility_map': visibility_map,
                  'creep': creep,
                  'player_relative': player_relative,
@@ -247,14 +258,17 @@ def getObsAndFunc(obs, func_call, z):
     return step_dict
 
 
-def getFuncCall(o, feat, prev_obs, use_raw=True):
+def getFuncCall(o, feat, obs, prev_obs, use_raw=True):
     func_call = None
 
     if use_raw:
-        if prev_obs is None:
-            raise ValueError("use raw function call must input prev_obs")
+        # if prev_obs is None:
+        #     raise ValueError("use raw function call must input prev_obs")
 
-        raw_func_call = feat.reverse_raw_action(o.actions[0], prev_obs)
+        # becareful, though here recommand using prev_obs,
+        # we should use obs instead. If not it will get the unit index of the last obs, not this one! 
+        # not used: raw_func_call = feat.reverse_raw_action(o.actions[0], prev_obs)
+        raw_func_call = feat.reverse_raw_action(o.actions[0], obs)
 
         if raw_func_call.function.value == 0:
             # no op
@@ -266,6 +280,7 @@ def getFuncCall(o, feat, prev_obs, use_raw=True):
             # smart screen
             pass        
         else:
+            # for testing
             print('expert raw func_call: ', raw_func_call) if debug else None
             action = o.actions[0]
 
@@ -320,7 +335,7 @@ def test(on_server=False):
         REPLAY_PATH = FLAGS.no_server_replay_path
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 60 * 60 * 22.4
+        max_steps_of_replay = 1000  # 60 * 60 * 22.4
         max_replays = 1  # 1
 
     run_config = run_configs.get(version=FLAGS.replay_version)
@@ -469,6 +484,7 @@ def test(on_server=False):
 
                 feat = F.features_from_game_info(game_info=controller.game_info(),
                                                  raw_resolution=AAIFP.raw_resolution, 
+                                                 hide_specific_actions=AAIFP.hide_specific_actions,
                                                  use_feature_units=True, use_raw_units=True,
                                                  use_unit_counts=True, use_raw_actions=True,
                                                  show_cloaked=True, show_burrowed_shadows=True, 
@@ -484,6 +500,7 @@ def test(on_server=False):
                 record_i = 0
                 save_steps = 0
                 noop_count = 0
+                obs_list, func_call_list, z_list, delay_list = [], [], [], [] 
                 feature_list, label_list = [], []
                 step_dict = {}
 
@@ -509,10 +526,19 @@ def test(on_server=False):
                             func_call = None
                             no_op = False
                             if o.actions and prev_obs:
-                                func_call = getFuncCall(o, feat, prev_obs)
+                                func_call = getFuncCall(o, feat, obs, prev_obs)
                                 if func_call.function.value == 0:
                                     no_op = True
                                     func_call = None
+                                elif func_call.function.value == RAW_FUNCTIONS.raw_move_camera.id.value:  # raw_move_camera
+                                    if random.uniform(0, 1) > FLAGS.move_camera_threshold:
+                                        func_call = None
+                                elif func_call.function.value == RAW_FUNCTIONS.Smart_pt.id.value:  # Smart_pt
+                                    if random.uniform(0, 1) > FLAGS.Smart_pt_threshold:
+                                        func_call = None
+                                elif func_call.function.value == RAW_FUNCTIONS.Smart_unit.id.value:  # Smart_unit
+                                    if random.uniform(0, 1) > FLAGS.Smart_unit_threshold:
+                                        func_call = None
                             else:
                                 no_op = True
 
@@ -531,21 +557,27 @@ def test(on_server=False):
                                 print('two action dealy:', delay, 'steps!') if debug else None
                                 record_i = i
 
-                                if SAVE_TYPE == SaveType.torch_tensor:
-                                    feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
-                                    feature = torch.tensor(feature)
-                                    label = torch.tensor(label)
-                                    feature_list.append(feature)
-                                    label_list.append(label)
+                                obs_list.append(obs)
+                                func_call_list.append(func_call)
+                                delay_list.append(delay)
+                                z_list.append(z)
 
-                                elif SAVE_TYPE == SaveType.python_pickle:
-                                    the_dict = getObsAndFunc(obs, func_call, z)
-                                    step_dict[i] = the_dict
+                                # move to the end to process
+                                # if SAVE_TYPE == SaveType.torch_tensor:
+                                #     feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
+                                #     feature = torch.tensor(feature)
+                                #     label = torch.tensor(label)
+                                #     feature_list.append(feature)
+                                #     label_list.append(label)
 
-                                elif SAVE_TYPE == SaveType.numpy_array:
-                                    feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
-                                    feature_list.append(feature)
-                                    label_list.append(label)
+                                # elif SAVE_TYPE == SaveType.python_pickle:
+                                #     the_dict = getObsAndFunc(obs, func_call, z)
+                                #     step_dict[i] = the_dict
+
+                                # elif SAVE_TYPE == SaveType.numpy_array:
+                                #     feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
+                                #     feature_list.append(feature)
+                                #     label_list.append(label)
 
                         except Exception as e:
                             traceback.print_exc()
@@ -566,6 +598,41 @@ def test(on_server=False):
                     i += 1
 
                 print('begin save!')
+
+                # the last delay is 0
+                delay_list.append(0)
+                if SAVE_TYPE == SaveType.torch_tensor:
+                    length = len(obs_list)
+                    for i in range(length):
+                        obs = obs_list[i]
+                        func_call = func_call_list[i]
+                        # delay should be the next,
+                        # means when should we issue the next command from the time we give this command
+                        delay = delay_list[i - 1]
+                        feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
+                        feature = torch.tensor(feature)
+                        label = torch.tensor(label)
+                        feature_list.append(feature)
+                        label_list.append(label)
+
+                elif SAVE_TYPE == SaveType.python_pickle:
+                    length = len(obs_list)
+                    for i in range(length):
+                        obs = obs_list[i]
+                        func_call = func_call_list[i]
+                        delay = delay_list[i - 1]
+                        the_dict = getObsAndFunc(obs, func_call, z)
+                        step_dict[i] = the_dict
+
+                elif SAVE_TYPE == SaveType.numpy_array:
+                    length = len(obs_list)
+                    for i in range(length):
+                        obs = obs_list[i]
+                        func_call = func_call_list[i]
+                        delay = delay_list[i - 1]             
+                        feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
+                        feature_list.append(feature)
+                        label_list.append(label)
 
                 if SAVE_TYPE == SaveType.torch_tensor:
                     features = torch.cat(feature_list, dim=0)
@@ -604,6 +671,7 @@ def test(on_server=False):
             except Exception as inst:
                 traceback.print_exc() 
 
+            # not used
             # if j >= max_replays:  # test the first n frames
             #     print("max replays test, break out!")
             #     break

@@ -314,13 +314,14 @@ def get_target_unit_accuracy(ground_truth, predict, action_equal_mask, device,
         predict = predict[action_equal_index]
 
     if ground_truth.shape[0] > 0:  
-        print('ground_truth target_unit', ground_truth)
+        print('ground_truth target_unit', ground_truth) if debug else None
+
         ground_truth_new = torch.nonzero(ground_truth, as_tuple=True)[-1]
         ground_truth_new = ground_truth_new.to(device)
         print('ground_truth_new target_unit', ground_truth_new) if debug else None
 
         predict_new = predict.reshape(-1)
-        print('predict_new target_unit', predict_new)
+        print('predict_new target_unit', predict_new) if debug else None
 
         NONE_ID = AHP.max_entities - 1
         if remove_none:

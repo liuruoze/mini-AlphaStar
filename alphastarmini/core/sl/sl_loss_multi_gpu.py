@@ -26,7 +26,8 @@ debug = False
 # due to CrossEntropyLoss only accepts loss with lables.shape = [N]
 # we define a loss accept soft_target, which label.shape = [N, C]
 # for some rows, it should not be added to loss, so we also need a mask one
-def cross_entropy(soft_targets, pred, mask=None, debug=False, outlier_remove=True):
+def cross_entropy(soft_targets, pred, mask=None, 
+                  debug=False, outlier_remove=True, entity_nums=None):
     # class is always in the last dim
     logsoftmax = nn.LogSoftmax(dim=-1)
     x_1 = - soft_targets * logsoftmax(pred)
@@ -42,6 +43,9 @@ def cross_entropy(soft_targets, pred, mask=None, debug=False, outlier_remove=Tru
             # print('value.shape', value.shape)
             m = mask[i].item()
             if value.sum() > 1e6 and m != 0:
+                print('i', i)
+                if entity_nums is not None:
+                    print('entity_nums[i]', entity_nums[i])
                 print('find value large than 1e6')
                 print('t', t)
                 z = torch.nonzero(t, as_tuple=True)[-1]
@@ -117,17 +121,18 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     # we can't make them all into as a list or into ArgsActionLogits
     # if we do that, the pytorch DDP will cause a runtime error, just like the loss don't include all parameters
     # This error is strange, so we choose to use a specific loss writing schema for multi-gpu calculation.
-    action_pred, target_location, action_type_logits, delay_logits, queue_logits, \
+    action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
+        delay_logits, queue_logits, \
         units_logits, target_unit_logits, \
         target_location_logits, select_units_num = model.forward(state, batch_size=batch_size, 
                                                                  sequence_length=seq_len, multi_gpu_supvised_learning=True)
 
     print('action_pred.shape', action_pred.shape) if debug else None   
 
-    loss, loss_list = get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type_logits,
+    loss, loss_list = get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, action_type_logits,
                                                              delay_logits, queue_logits, units_logits,
-                                                             target_unit_logits, target_location_logits, criterion,
-                                                             device)
+                                                             target_unit_logits, target_location_logits, 
+                                                             select_units_num, criterion, device)
 
     acc_num_list = SU.get_accuracy(action_gt.action_type, action_pred, device)
 
@@ -138,7 +143,7 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
 
 def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=False,
                            return_important=False, only_consider_small=False,
-                           ):
+                           train=True, use_masked_loss=True):
 
     criterion = cross_entropy
 
@@ -173,43 +178,68 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
     # we can't make them all into as a list or into ArgsActionLogits
     # if we do that, the pytorch DDP will cause a runtime error, just like the loss don't include all parameters
     # This error is strange, so we choose to use a specific loss writing schema for multi-gpu calculation.
-    action_pred, units, target_unit, target_location, action_type_logits, \
-        delay_logits, queue_logits, \
-        units_logits, target_unit_logits, \
-        target_location_logits, select_units_num = model.forward(state, 
-                                                                 batch_size=batch_size, 
-                                                                 sequence_length=seq_len, 
-                                                                 multi_gpu_supvised_learning=True)
+    if train:
+        gt_units = action_gt.units
+        units_size = gt_units.shape[-1]
+        bias_action_gt = torch.zeros(1, 1, units_size, device=device).float()
+        bias_action_gt[0, 0, -1] = 1
+        gt_select_units_num = (~(action_gt.units == bias_action_gt).all(dim=-1)).sum(dim=-1)
 
-    print('action_pred.shape', action_pred.shape) if debug else None   
-    print('select_units_num', select_units_num) if debug else None 
+        print('gt_select_units_num', gt_select_units_num) if debug else None
+        print('gt_select_units_num.shape', gt_select_units_num.shape) if debug else None
 
-    loss, loss_list = get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type_logits,
-                                                             delay_logits, queue_logits, units_logits,
-                                                             target_unit_logits, target_location_logits, 
-                                                             select_units_num, criterion, device, 
-                                                             decrease_smart_opertaion=decrease_smart_opertaion,
-                                                             only_consider_small=only_consider_small)  
-    acc_num_list, action_equal_mask = SU.get_accuracy(action_gt.action_type, action_pred, 
-                                                      device, return_important=return_important)
+        action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
+            delay_logits, queue_logits, \
+            units_logits, target_unit_logits, \
+            target_location_logits, select_units_num = model.sl_forward(state, 
+                                                                        action_gt, 
+                                                                        gt_select_units_num,
+                                                                        batch_size=batch_size, 
+                                                                        sequence_length=seq_len, 
+                                                                        multi_gpu_supvised_learning=True)
 
-    location_acc = SU.get_location_accuracy(action_gt.target_location, target_location, action_equal_mask, device, 
-                                            strict_comparsion=True)
-    selected_acc = SU.get_selected_units_accuracy(action_gt.units, units, select_units_num, action_equal_mask,
-                                                  device, strict_comparsion=True)
-    targeted_acc = SU.get_target_unit_accuracy(action_gt.target_unit, target_unit, action_equal_mask,
-                                               device, strict_comparsion=True)
+        if use_masked_loss:
+            # masked loss
+            loss, loss_list = get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, action_type_logits,
+                                                                     delay_logits, queue_logits, units_logits,
+                                                                     target_unit_logits, target_location_logits, 
+                                                                     select_units_num, criterion, device, 
+                                                                     decrease_smart_opertaion=decrease_smart_opertaion,
+                                                                     only_consider_small=only_consider_small)    
+        else:
+            # noraml loss
+            loss, loss_list = get_classify_loss_for_multi_gpu(action_gt, action_type_logits,
+                                                              delay_logits, queue_logits, units_logits,
+                                                              target_unit_logits, target_location_logits, 
+                                                              criterion)
 
-    acc_num_list.extend(location_acc)
-    acc_num_list.extend(selected_acc)
-    acc_num_list.extend(targeted_acc)
+    if True:
+        action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
+            delay_logits, queue_logits, \
+            units_logits, target_unit_logits, \
+            target_location_logits, select_units_num = model.forward(state, 
+                                                                     batch_size=batch_size, 
+                                                                     sequence_length=seq_len, 
+                                                                     multi_gpu_supvised_learning=True)
 
-    print('loss', loss) if debug else None
+        acc_num_list, action_equal_mask = SU.get_accuracy(action_gt.action_type, action_pred, 
+                                                          device, return_important=return_important)
+
+        location_acc = SU.get_location_accuracy(action_gt.target_location, target_location, action_equal_mask, device, 
+                                                strict_comparsion=True)
+        selected_acc = SU.get_selected_units_accuracy(action_gt.units, units, select_units_num, action_equal_mask,
+                                                      device, strict_comparsion=True)
+        targeted_acc = SU.get_target_unit_accuracy(action_gt.target_unit, target_unit, action_equal_mask,
+                                                   device, strict_comparsion=True)
+
+        acc_num_list.extend(location_acc)
+        acc_num_list.extend(selected_acc)
+        acc_num_list.extend(targeted_acc)
 
     return loss, loss_list, acc_num_list
 
 
-def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, delay, queue, units,
+def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, action_type, delay, queue, units,
                                            target_unit, target_location, select_units_num,
                                            criterion, device, 
                                            decrease_smart_opertaion=False,
@@ -230,9 +260,9 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
     #mask_tensor = get_one_way_mask_in_SL(action_gt.action_type, device)
     mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=True)
 
-    # we don't consider delay loss now
+    # we begin to consider delay loss now
     delay_loss = criterion(action_gt.delay, delay)
-    loss += delay_loss * 0
+    loss += delay_loss
 
     queue_loss = criterion(action_gt.queue, queue, mask=mask_tensor[:, 2].reshape(-1))
     loss += queue_loss
@@ -240,6 +270,10 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
     batch_size = action_gt.units.shape[0]
     select_size = action_gt.units.shape[1]
     units_size = action_gt.units.shape[-1]
+
+    entity_nums = entity_nums
+    print('entity_nums', entity_nums) if debug else None
+    print('entity_nums.shape', entity_nums.shape) if debug else None
 
     units_mask = mask_tensor[:, 3]  # selected units is in the fourth position of units_mask
     units_mask = units_mask.unsqueeze(1).repeat(1, select_size)
@@ -271,13 +305,39 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, action_type, 
 
     target_unit_weight = 5.
     target_unit_loss = target_unit_weight * criterion(action_gt.target_unit.squeeze(-2), target_unit.squeeze(-2), 
-                                                      mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=True)
+                                                      mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=True, entity_nums=entity_nums)
     loss += target_unit_loss
 
     batch_size = action_gt.target_location.shape[0]
     location_weight = 1.
     target_location_loss = location_weight * criterion(action_gt.target_location.reshape(batch_size, -1),
                                                        target_location.reshape(batch_size, -1), mask=mask_tensor[:, 5].reshape(-1))
+    loss += target_location_loss
+
+    return loss, [action_type_loss.item(), delay_loss.item(), queue_loss.item(), units_loss.item(), target_unit_loss.item(), target_location_loss.item()]
+
+
+def get_classify_loss_for_multi_gpu(action_gt, action_type, delay, queue, units, target_unit, target_location, criterion):
+    loss = 0.
+
+    action_type_loss = criterion(action_gt.action_type, action_type)
+    loss += action_type_loss
+
+    delay_loss = criterion(action_gt.delay, delay)
+    loss += delay_loss
+
+    queue_loss = criterion(action_gt.queue, queue)
+    loss += queue_loss
+
+    units_size = action_gt.units.shape[-1]
+    units_loss = criterion(action_gt.units.reshape(-1, units_size), units.reshape(-1, units_size))
+    loss += units_loss
+
+    target_unit_loss = criterion(action_gt.target_unit.squeeze(-2), target_unit.squeeze(-2))
+    loss += target_unit_loss
+
+    batch_size = action_gt.target_location.shape[0]
+    target_location_loss = criterion(action_gt.target_location.reshape(batch_size, -1), target_location.reshape(batch_size, -1))
     loss += target_location_loss
 
     return loss, [action_type_loss.item(), delay_loss.item(), queue_loss.item(), units_loss.item(), target_unit_loss.item(), target_location_loss.item()]
