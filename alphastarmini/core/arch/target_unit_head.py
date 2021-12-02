@@ -130,28 +130,25 @@ class TargetUnitHead(nn.Module):
         print("target_unit_logits:", target_unit_logits) if debug else None
         print("target_unit_logits.shape:", target_unit_logits.shape) if debug else None
 
+        # AlphaStar: If `action_type` does not involve targetting units, this head is ignored.
+        target_unit_mask = L.action_involve_targeting_units_mask(action_type).bool()
+        assert len(action_type.shape) == 2  
+
+        no_target_unit_mask = ~target_unit_mask.squeeze(dim=1)
+
         if target_unit is None:
             target_unit_probs = self.softmax(target_unit_logits)
             target_unit = torch.multinomial(target_unit_probs, 1)    
+            target_unit = target_unit.unsqueeze(dim=1)
+            print("target_unit.shape:", target_unit.shape) if debug else None
 
-        # AlphaStar: If `action_type` does not involve targetting units, this head is ignored.
-        # target_unit_mask: [batch_size x 1]
-        target_unit_mask = L.action_involve_targeting_units_mask(action_type).bool()
-        print("target_unit_mask:", target_unit_mask) if debug else None
-        print("target_unit_mask.shape:", target_unit_mask.shape) if debug else None
-
-        no_target_unit_mask = ~target_unit_mask.squeeze(dim=1)
-        print("no_target_unit_mask:", no_target_unit_mask) if debug else None
+            target_unit[no_target_unit_mask, 0] = entity_size - 1  # None index, the same as -1
+            print("target_unit:", target_unit) if debug else None
 
         target_unit_logits = target_unit_logits.unsqueeze(dim=1)
         print("target_unit_logits.shape:", target_unit_logits.shape) if debug else None
 
-        target_unit = target_unit.unsqueeze(dim=1)
-        print("target_unit.shape:", target_unit.shape) if debug else None
-
         target_unit_logits[no_target_unit_mask] = 0.  # a magic number
-        target_unit[no_target_unit_mask, 0] = entity_size - 1  # None index, the same as -1
-        print("target_unit:", target_unit) if debug else None
 
         return target_unit_logits, target_unit
 

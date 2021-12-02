@@ -534,19 +534,6 @@ def get_location_mask(mask):
 
     map_size = (AAIFP.raw_resolution, AAIFP.raw_resolution)
 
-    # map_size = (256, 256)
-    # if map_name == 'Simple64':
-    #     map_size = (64, 64)
-    # elif map_name == 'AbyssalReef':
-    #     map_size = (152, 136)
-
-    # for t, ma in enumerate(mask):
-    #     for i, row in enumerate(ma):
-    #         for j, col in enumerate(row):
-    #             # note, i is row number, compare to y
-    #             if i >= map_size[1] or j >= map_size[0]:
-    #                 mask[t][i][j] = 0.
-
     mask[:, :map_size[1], :map_size[0]] = 1. 
     print('mask[0]', mask[0]) if debug else None 
     print('mask[0].sum()', mask[0].sum()) if debug else None

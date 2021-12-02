@@ -217,26 +217,27 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
 
     for raw_action_id in ground_truth_raw_action_id:
         aid = raw_action_id.item()
+        mask_list.append([1.])  
 
-        if not only_consider_small:
-            if aid == MOVE_CAMERA_ID:
-                mask_list.append([MOVE_CAMERA_WEIGHT])
-            elif aid == Smart_pt_id:
-                mask_list.append([SMART_WEIGHT])
-            elif aid == Smart_unit_id:
-                mask_list.append([SMART_WEIGHT])
-            else:
-                # func_name = F[aid].name
-                # select, _, _ = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])  
-                if aid in RAMP.SMALL_LIST:
-                    mask_list.append([SMALL_IMPORTANT_WEIGHT])
-                else:
-                    mask_list.append([NON_MOVE_CAMERA_WEIGHT])
-        else:
-            if aid in RAMP.SMALL_LIST:
-                mask_list.append([SMALL_IMPORTANT_WEIGHT])
-            else:
-                mask_list.append([1.])                
+        # if not only_consider_small:
+        #     if aid == MOVE_CAMERA_ID:
+        #         mask_list.append([MOVE_CAMERA_WEIGHT])
+        #     elif aid == Smart_pt_id:
+        #         mask_list.append([SMART_WEIGHT])
+        #     elif aid == Smart_unit_id:
+        #         mask_list.append([SMART_WEIGHT])
+        #     else:
+        #         # func_name = F[aid].name
+        #         # select, _, _ = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])  
+        #         if aid in RAMP.SMALL_LIST:
+        #             mask_list.append([SMALL_IMPORTANT_WEIGHT])
+        #         else:
+        #             mask_list.append([NON_MOVE_CAMERA_WEIGHT])
+        # else:
+        #     if aid in RAMP.SMALL_LIST:
+        #         mask_list.append([SMALL_IMPORTANT_WEIGHT])
+        #     else:
+        #         mask_list.append([1.])                
 
     mask_tensor = torch.tensor(mask_list)
 

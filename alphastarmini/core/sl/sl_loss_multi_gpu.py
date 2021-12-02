@@ -260,9 +260,9 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     #mask_tensor = get_one_way_mask_in_SL(action_gt.action_type, device)
     mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=True)
 
-    # we begin to consider delay loss now
+    # we don't consider delay loss now
     delay_loss = criterion(action_gt.delay, delay)
-    loss += delay_loss
+    loss += delay_loss * 0
 
     queue_loss = criterion(action_gt.queue, queue, mask=mask_tensor[:, 2].reshape(-1))
     loss += queue_loss
@@ -299,11 +299,11 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     print('all_units_mask', all_units_mask) if debug else None
 
     # TODO: change to a proporate calculation of selected units
-    selected_units_weight = 10.
+    selected_units_weight = 1.
     units_loss = selected_units_weight * criterion(action_gt.units.reshape(-1, units_size), units.reshape(-1, units_size), mask=all_units_mask, debug=False)
     loss += units_loss
 
-    target_unit_weight = 5.
+    target_unit_weight = 1.
     target_unit_loss = target_unit_weight * criterion(action_gt.target_unit.squeeze(-2), target_unit.squeeze(-2), 
                                                       mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=True, entity_nums=entity_nums)
     loss += target_unit_loss

@@ -454,13 +454,14 @@ class SelectedUnitsHead(nn.Module):
         # AlphaStar: If `action_type` does not involve selecting units, this head is ignored.
 
         # select_unit_mask: [batch_size x 1]
-        # note select_unit_mask should be bool type to make sure it is a right whether mask 
+        # note select_unit_mask should be bool type to make sure it is a right whether mask
+        assert len(action_type.shape) == 2  
         select_unit_mask = L.action_involve_selecting_units_mask(action_type).bool()
 
         no_select_units_index = ~select_unit_mask.squeeze(dim=1)
         print("no_select_units_index:", no_select_units_index) if debug else None
 
-        autoregressive_embedding[no_select_units_index] = original_ae[no_select_units_index]
+        #autoregressive_embedding[no_select_units_index] = original_ae[no_select_units_index]
         units_logits[no_select_units_index] = 0.  # a magic number
 
         return units_logits, None, autoregressive_embedding, select_units_num

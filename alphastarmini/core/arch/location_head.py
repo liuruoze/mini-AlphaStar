@@ -273,6 +273,10 @@ class LocationHead(nn.Module):
         print("target_location_logits:", target_location_logits) if debug else None
         print("target_location_logits.shape:", target_location_logits.shape) if debug else None
 
+        # AlphaStar: If `action_type` does not involve targetting location, this head is ignored.
+        target_location_mask = L.action_involve_targeting_location_mask(action_type)
+        no_target_location_mask = ~target_location_mask.squeeze(dim=1)
+
         # AlphaStar: (masking out invalid locations using `action_type`, such as those outside 
         # the camera for build actions)
         # TODO: use action to decide the mask
@@ -280,11 +284,12 @@ class LocationHead(nn.Module):
         mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
         mask = L.get_location_mask(mask)
         mask_fill_value = -1e32  # a very small number
-        masked_vector = target_location_logits.masked_fill((1 - mask).bool(), mask_fill_value)
-        target_location_probs = self.softmax(masked_vector)
-        location_id = torch.multinomial(target_location_probs, num_samples=1, replacement=True)
+        target_location_logits = target_location_logits.masked_fill((1 - mask).bool(), mask_fill_value)
 
         if target_location is None:
+            target_location_probs = self.softmax(target_location_logits)
+            location_id = torch.multinomial(target_location_probs, num_samples=1, replacement=True)
+
             target_location = np.zeros([batch_size, 2])
             for i, idx in enumerate(location_id):
                 row_number = idx // self.output_map_size
@@ -297,20 +302,14 @@ class LocationHead(nn.Module):
                 # below is right! so the location point map to the point in the matrix!
                 target_location[i] = np.array([target_location_x.item(), target_location_y.item()])
 
-            target_location = torch.tensor(target_location, device=device)
-        print('target_location', target_location) if debug else None
-        print('target_location.shape', target_location.shape) if debug else None
+            target_location = torch.tensor(target_location, device=device).long()
+            target_location[no_target_location_mask] = torch.tensor([self.output_map_size - 1, self.output_map_size - 1], device=device)
 
-        # AlphaStar: If `action_type` does not involve targetting location, this head is ignored.
-        target_location_mask = L.action_involve_targeting_location_mask(action_type)
+            print('target_location', target_location) if debug else None
+            print('target_location.shape', target_location.shape) if debug else None
 
         target_location_logits = target_location_logits.reshape(-1, self.output_map_size, self.output_map_size)
         target_location_logits = target_location_logits * target_location_mask.float().unsqueeze(-1)
-
-        no_target_location_mask = ~target_location_mask.squeeze(dim=1)
-        #target_location = target_location * target_location_mask.long()
-        target_location = target_location.long()
-        target_location[no_target_location_mask] = torch.tensor([self.output_map_size - 1, self.output_map_size - 1], device=device)
 
         return target_location_logits, target_location
 
