@@ -250,16 +250,16 @@ class LocationHead(nn.Module):
         if SCHP.world_size == 64:
             # if world_size is (64, 64), we can make the output size to be 64 x 64
             x = self.us_6(x)
-        else:
-            x = F.relu(self.us_3(x))
-            if AHP == MAHP:
-                x = F.relu(self.us_4(x))
-                # only in mAS, we need one more upsample step
-                # x = F.relu(self.us_5(x))
-                # Note: in the final layer, we don't use relu
-                x = self.us_5(x)
-            else:
-                x = self.us_4_original(x)
+        # else:
+        #     x = F.relu(self.us_3(x))
+        #     if AHP == MAHP:
+        #         x = F.relu(self.us_4(x))
+        #         # only in mAS, we need one more upsample step
+        #         # x = F.relu(self.us_5(x))
+        #         # Note: in the final layer, we don't use relu
+        #         x = self.us_5(x)
+        #     else:
+        #         x = self.us_4_original(x)
 
         # AlphaStar: Those final logits are flattened and sampled (masking out invalid locations using `action_type`, 
         # AlphaStar: such as those outside the camera for build actions) with temperature 0.8 
@@ -281,10 +281,11 @@ class LocationHead(nn.Module):
         # the camera for build actions)
         # TODO: use action to decide the mask
         # referenced from lib/utils.py function of masked_softmax()
-        mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
-        mask = L.get_location_mask(mask)
-        mask_fill_value = -1e32  # a very small number
-        target_location_logits = target_location_logits.masked_fill((1 - mask).bool(), mask_fill_value)
+
+        # mask = torch.zeros(batch_size, 1 * self.output_map_size * self.output_map_size, device=device)
+        # mask = L.get_location_mask(mask)
+        # mask_fill_value = -1e32  # a very small number
+        # target_location_logits = target_location_logits.masked_fill((1 - mask).bool(), mask_fill_value)
 
         if target_location is None:
             target_location_probs = self.softmax(target_location_logits)
@@ -300,6 +301,7 @@ class LocationHead(nn.Module):
                 print("target_location_x, target_location_y", target_location_x, target_location_y) if debug else None
                 # note! sc2 and pysc2 all accept the position as [x, y], so x be the first, y be the last!
                 # below is right! so the location point map to the point in the matrix!
+                # target_location[i] = np.array([target_location_x.item(), target_location_y.item()])
                 target_location[i] = np.array([target_location_x.item(), target_location_y.item()])
 
             target_location = torch.tensor(target_location, device=device).long()
