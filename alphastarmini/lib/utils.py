@@ -281,6 +281,19 @@ def np_one_hot(targets, nb_classes):
     return res.reshape(list(targets.shape) + [nb_classes])
 
 
+def np_one_hot_fast(targets, nb_classes):
+    """
+
+    """
+
+    print('nb_classes', nb_classes) if debug else None
+    print('targets', targets) if debug else None
+
+    res = np.eye(nb_classes)[np.array(targets).reshape(-1)]
+
+    return res.reshape(list(targets.shape) + [nb_classes])
+
+
 def tensor_one_hot(labels, num_classes):
     """Embedding labels to one-hot form.
 

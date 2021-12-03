@@ -33,6 +33,8 @@ import param as P
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+speed = False
+
 
 MAX_EPISODES = 25
 IS_TRAINING = True
@@ -171,9 +173,16 @@ class ActorVSComputer:
                             total_frames += 1
                             episode_frames += 1
 
-                            player_step = self.player.agent.step_logits(home_obs, player_memory)
+                            t = time()
+
+                            state = self.player.agent.preprocess_state_all(home_obs)
+
+                            player_step = self.player.agent.step_from_state(state, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory = player_step
                             print("player_function_call:", player_function_call) if debug else None
+
+                            print('run_loop, t1', time() - t) if speed else None
+                            t = time()
 
                             # don't use the blow line, may cause in-place error in PyTorch 1.5.
                             # teacher_logits = player_logits
@@ -182,13 +191,12 @@ class ActorVSComputer:
                             # may change implemention of teacher_logits
                             # teacher_logits = self.teacher(home_obs, player_action, teacher_memory)
 
-                            teacher_step = self.teacher.step_logits(home_obs, teacher_memory)
+                            teacher_step = self.teacher.step_from_state(state, teacher_memory)
                             teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
                             print("teacher_function_call:", teacher_function_call) if debug else None
 
-                            # for testining
-                            #   sc2_pb_actions = injected_function_call(home_obs, env, player_function_call)
-                            #   env_actions = [sc2_pb_actions]
+                            print('run_loop, t2', time() - t) if speed else None
+                            t = time()
 
                             env_actions = [player_function_call]
 
@@ -196,10 +204,16 @@ class ActorVSComputer:
                             action_masks = RU.get_mask(player_action, player_action_spec)
                             z = None
 
+                            print('run_loop, t3', time() - t) if speed else None
+                            t = time()
+
                             timesteps = env.step(env_actions)
                             [home_next_obs] = timesteps
                             reward = home_next_obs.reward
                             print("reward: ", reward) if 0 else None
+
+                            print('run_loop, t4', time() - t) if speed else None
+                            t = time()
 
                             is_final = home_next_obs.last()
 
@@ -207,9 +221,15 @@ class ActorVSComputer:
                             player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
                             print("player build order:", player_bo) if debug else None
 
+                            print('run_loop, t5', time() - t) if speed else None
+                            t = time()
+
                             # calculate the unit counts of bag
                             player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
                             print("player unit count of bow:", sum(player_ucb)) if debug else None
+
+                            print('run_loop, t6', time() - t) if speed else None
+                            t = time()
 
                             game_loop = home_obs.observation.game_loop[0]
                             print("game_loop", game_loop)

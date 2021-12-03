@@ -5,8 +5,9 @@
 
 # modified from pysc2 code
 
-import numpy as np
+from time import clock
 
+import numpy as np
 import torch
 
 from pysc2.lib import actions
@@ -21,6 +22,7 @@ from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+speed = False
 
 
 class BaseAgent(object):
@@ -151,18 +153,34 @@ class AlphaStarAgent(RandomAgent):
 
         return self.steps
 
+    def preprocess_state_all(self, obs):
+        if isinstance(obs, E.TimeStep):
+            obs = obs.observation
+
+        state = Agent.preprocess_state_all(obs=obs)
+
+        return state
+
     def step_nn(self, observation, last_state):
         """Performs inference on the observation, given hidden state last_state."""
-        state = Agent.preprocess_state_all(obs=observation)
-        device = self.agent_nn.device()
 
-        print("step_nn device:", device) if debug else None
-        print("state:", state) if debug else None
+        t = clock()
+
+        state = Agent.preprocess_state_all(obs=observation)
+
+        print('step_nn, t1', clock() - t) if speed else None
+        t = clock()
+
+        device = self.agent_nn.device()
         state.to(device)
-        print("state:", state) if debug else None
+
+        print('step_nn, t2', clock() - t) if speed else None
+        t = clock()
 
         action_logits, action, hidden_state, select_units_num = self.agent_nn.action_logits_by_state(state, single_inference=True,
                                                                                                      hidden_state=last_state)
+        print('step_nn, t3', clock() - t) if speed else None
+        t = clock()
 
         return action, action_logits, hidden_state, select_units_num
 
@@ -194,10 +212,30 @@ class AlphaStarAgent(RandomAgent):
         if isinstance(obs, E.TimeStep):
             obs = obs.observation
 
+        t = clock()    
+
         action, action_logits, new_state, select_units_num = self.step_nn(observation=obs, last_state=last_state)
 
+        print('step_logits, t1', clock() - t) if speed else None
+        t = clock()
+
         func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
+
+        print('step_logits, t2', clock() - t) if speed else None
+        t = clock()
+
         return func_call, action, action_logits, new_state
+
+    def step_from_state(self, state, hidden_state):       
+        device = self.agent_nn.device()
+        state.to(device)
+
+        action_logits, action, hidden_state, select_units_num = self.agent_nn.action_logits_by_state(state, 
+                                                                                                     single_inference=True,
+                                                                                                     hidden_state=hidden_state)
+        func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
+
+        return func_call, action, action_logits, hidden_state
 
     def unroll(self, trajectories):
         """Unrolls the network over the trajectory.

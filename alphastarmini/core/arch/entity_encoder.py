@@ -3,7 +3,7 @@
 
 " Entity Encoder."
 
-import time
+from time import time, clock
 import datetime
 
 import numpy as np
@@ -23,6 +23,7 @@ from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCH
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+speed = False
 
 
 class EntityEncoder(nn.Module):
@@ -103,6 +104,288 @@ class EntityEncoder(nn.Module):
 
     @classmethod
     def preprocess_numpy(cls, entity_list, return_entity_pos=False, debug=False):
+        entity_array_list, entity_pos_list = [], []
+
+        t = clock()
+        for i, entity in enumerate(entity_list):
+            if i >= cls.max_entities:
+                break
+
+            field_encoding_list = []
+            unit_type = entity.unit_type
+
+            unit_type_index = L.unit_tpye_to_unit_type_index(unit_type)
+
+            unit_type_encoding = unit_type_index
+            field_encoding_list.append(unit_type_encoding)
+
+            unit_attributes_encoding = [0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]
+            field_encoding_list.extend(unit_attributes_encoding)
+
+            alliance_encoding = entity.alliance
+            field_encoding_list.append(alliance_encoding)
+
+            display_type_encoding = entity.display_type
+            field_encoding_list.append(display_type_encoding)
+
+            x_encoding = entity.x
+            field_encoding_list.append(x_encoding)
+
+            y_encoding = entity.y
+            field_encoding_list.append(y_encoding)
+
+            entity_pos_list.append([entity.x, entity.y])
+
+            current_health_encoding = int(min(entity.health, cls.max_health) ** 0.5)
+            field_encoding_list.append(current_health_encoding)
+
+            current_shield_encoding = int(min(entity.shield, cls.max_shield) ** 0.5)
+            field_encoding_list.append(current_shield_encoding)
+
+            current_energy_encoding = int(min(entity.energy, cls.max_energy) ** 0.5)
+            field_encoding_list.append(current_energy_encoding)
+
+            cargo_space_used_encoding = entity.cargo_space_taken
+            field_encoding_list.append(cargo_space_used_encoding)
+
+            cargo_space_maximum_encoding = entity.cargo_space_max
+            field_encoding_list.append(cargo_space_maximum_encoding)
+
+            build_progress_encoding = entity.build_progress / 100.
+            field_encoding_list.append(build_progress_encoding)
+
+            current_health_ratio_encoding = entity.health_ratio / 255.
+            field_encoding_list.append(current_health_ratio_encoding)
+
+            current_shield_ratio_encoding = entity.shield_ratio / 255.
+            field_encoding_list.append(current_shield_ratio_encoding)
+
+            current_energy_ratio_encoding = entity.energy_ratio / 255.
+            field_encoding_list.append(current_energy_ratio_encoding)
+
+            cloakState_encoding = entity.cloak
+            field_encoding_list.append(cloakState_encoding)
+
+            is_powered_encoding = int(entity.is_powered)
+            field_encoding_list.append(is_powered_encoding)
+
+            is_hallucination_encoding = int(entity.hallucination)
+            field_encoding_list.append(is_hallucination_encoding)
+
+            is_active_encoding = int(entity.active)
+            field_encoding_list.append(is_active_encoding)
+
+            is_on_screen_encoding = int(entity.is_on_screen)
+            field_encoding_list.append(is_on_screen_encoding)
+
+            is_in_cargo_encoding = int(entity.is_in_cargo)
+            field_encoding_list.append(is_in_cargo_encoding)
+
+            current_minerals_encoding = int(entity.mineral_contents / 100.)
+            field_encoding_list.append(current_minerals_encoding)
+
+            current_vespene_encoding = int(entity.vespene_contents / 100.)
+            field_encoding_list.append(current_vespene_encoding)
+
+            mined_minerals_encoding = int(min(500, cls.max_mined_minerals) ** 0.5)
+            field_encoding_list.append(mined_minerals_encoding)
+
+            mined_vespene_encoding = int(min(300, cls.max_mined_vespene) ** 0.5)
+            field_encoding_list.append(mined_vespene_encoding)
+
+            assigned_harvesters_encoding = min(entity.assigned_harvesters, 24)
+            field_encoding_list.append(assigned_harvesters_encoding)
+
+            ideal_harvesters_encoding = entity.ideal_harvesters
+            field_encoding_list.append(ideal_harvesters_encoding)
+
+            weapon_cooldown_encoding = min(int(entity.weapon_cooldown), 31)
+            field_encoding_list.append(weapon_cooldown_encoding)
+
+            order_queue_length_encoding = min(entity.order_length, 8)
+            field_encoding_list.append(order_queue_length_encoding)
+
+            order_0_encoding = entity.order_id_0
+            field_encoding_list.append(order_0_encoding)
+
+            buff_id_0_encoding = entity.buff_id_0
+            field_encoding_list.append(buff_id_0_encoding)            
+
+            order_progress_0_encoding = 0
+            order_progress_0_encoding_onehot = 0
+            if entity.order_progress_0 is not None:
+                order_progress_0_encoding = entity.order_progress_0 / 100.
+                order_progress_0_encoding_onehot = int(entity.order_progress_0 / 10)
+
+            field_encoding_list.append(order_progress_0_encoding)
+            field_encoding_list.append(order_progress_0_encoding_onehot)
+
+            order_progress_1_encoding = 0
+            order_progress_1_encoding_onehot = 0
+            if entity.order_progress_1 is not None:
+                order_progress_1_encoding = entity.order_progress_1 / 100.
+                order_progress_1_encoding_onehot = int(entity.order_progress_1 / 10)
+
+            field_encoding_list.append(order_progress_1_encoding)
+            field_encoding_list.append(order_progress_1_encoding_onehot)
+
+            weapon_upgrades_encoding = entity.attack_upgrade_level
+            field_encoding_list.append(weapon_upgrades_encoding)
+
+            armor_upgrades_encoding = entity.armor_upgrade_level
+            field_encoding_list.append(armor_upgrades_encoding)
+
+            shield_upgrades_encoding = entity.shield_upgrade_level
+            field_encoding_list.append(shield_upgrades_encoding)
+
+            was_selected_encoding = int(entity.is_selected)
+            field_encoding_list.append(was_selected_encoding)
+
+            was_targeted_encoding = 0
+            field_encoding_list.append(was_targeted_encoding)
+
+            entity_array_list.append(field_encoding_list)
+
+        print('preprocess_numpy, t1', clock() - t) if speed else None
+        t = clock()
+
+        entities_array = np.array(entity_array_list)
+        field_encoding_list = []
+
+        unit_type_encoding = L.np_one_hot(entities_array[:, 0].astype(np.int32), cls.max_unit_type)
+        field_encoding_list.append(unit_type_encoding)
+
+        unit_attributes_encoding = entities_array[:, 1:14]
+        field_encoding_list.append(unit_attributes_encoding)
+
+        alliance_encoding = L.np_one_hot(entities_array[:, 14].astype(np.int32), cls.max_alliance)
+        field_encoding_list.append(alliance_encoding)
+
+        display_type_encoding = L.np_one_hot(entities_array[:, 15].astype(np.int32), cls.max_display_type)
+        field_encoding_list.append(display_type_encoding)
+
+        x_encoding = np.unpackbits(entities_array[:, 16].astype(np.uint8)).reshape(entities_array.shape[0], -1)
+        field_encoding_list.append(x_encoding)
+
+        y_encoding = np.unpackbits(entities_array[:, 17:18].astype(np.uint8), axis=1)
+        field_encoding_list.append(y_encoding)
+
+        current_health_encoding = L.np_one_hot(entities_array[:, 18].astype(np.int32), int(cls.max_health ** 0.5) + 1)
+        field_encoding_list.append(current_health_encoding)
+
+        current_shield_encoding = L.np_one_hot(entities_array[:, 19].astype(np.int32), int(cls.max_shield ** 0.5) + 1)
+        field_encoding_list.append(current_shield_encoding)   
+
+        current_energy_encoding = L.np_one_hot(entities_array[:, 20].astype(np.int32), int(cls.max_energy ** 0.5) + 1)
+        field_encoding_list.append(current_energy_encoding)
+
+        cargo_space_used_encoding = L.np_one_hot(entities_array[:, 21].astype(np.int32), cls.max_cargo_space_used)
+        field_encoding_list.append(cargo_space_used_encoding)
+
+        cargo_space_maximum_encoding = L.np_one_hot(entities_array[:, 22].astype(np.int32), cls.max_cargo_space_maximum)
+        field_encoding_list.append(cargo_space_maximum_encoding)
+
+        build_progress_to_energy_ratio = entities_array[:, 23:27]
+        field_encoding_list.append(build_progress_to_energy_ratio)
+
+        cloakState_encoding = L.np_one_hot(entities_array[:, 27].astype(np.int32), cls.max_cloakState)
+        field_encoding_list.append(cloakState_encoding)
+
+        is_powered_encoding = L.np_one_hot(entities_array[:, 28].astype(np.int32), cls.max_is_powered)
+        field_encoding_list.append(is_powered_encoding)
+
+        is_hallucination_encoding = L.np_one_hot(entities_array[:, 29].astype(np.int32), cls.max_is_hallucination)
+        field_encoding_list.append(is_hallucination_encoding)
+
+        is_active_encoding = L.np_one_hot(entities_array[:, 30].astype(np.int32), cls.max_is_active)
+        field_encoding_list.append(is_active_encoding)
+
+        is_on_screen_encoding = L.np_one_hot(entities_array[:, 31].astype(np.int32), cls.max_is_on_screen)
+        field_encoding_list.append(is_on_screen_encoding)
+
+        is_in_cargo_encoding = L.np_one_hot(entities_array[:, 32].astype(np.int32), cls.max_is_in_cargo)
+        field_encoding_list.append(is_in_cargo_encoding)
+
+        current_minerals_encoding = L.np_one_hot(entities_array[:, 33].astype(np.int32), cls.max_current_minerals)
+        field_encoding_list.append(current_minerals_encoding)
+
+        current_vespene_encoding = L.np_one_hot(entities_array[:, 34].astype(np.int32), cls.max_current_vespene)
+        field_encoding_list.append(current_vespene_encoding)
+
+        mined_minerals_encoding = L.np_one_hot(entities_array[:, 35].astype(np.int32), int(cls.max_mined_minerals ** 0.5) + 1)
+        field_encoding_list.append(mined_minerals_encoding)
+
+        mined_vespene_encoding = L.np_one_hot(entities_array[:, 36].astype(np.int32), int(cls.max_mined_vespene ** 0.5) + 1)
+        field_encoding_list.append(mined_vespene_encoding)
+
+        assigned_harvesters_encoding = L.np_one_hot(entities_array[:, 37].astype(np.int32), cls.max_assigned_harvesters)
+        field_encoding_list.append(assigned_harvesters_encoding)
+
+        ideal_harvesters_encoding = L.np_one_hot(entities_array[:, 38].astype(np.int32), cls.max_ideal_harvesters)
+        field_encoding_list.append(ideal_harvesters_encoding)
+
+        weapon_cooldown_encoding = L.np_one_hot(entities_array[:, 39].astype(np.int32), cls.max_weapon_cooldown)
+        field_encoding_list.append(weapon_cooldown_encoding)
+
+        order_queue_length_encoding = L.np_one_hot(entities_array[:, 40].astype(np.int32), cls.max_order_queue_length)
+        field_encoding_list.append(order_queue_length_encoding)
+
+        order_id_0_encoding = L.np_one_hot(entities_array[:, 41].astype(np.int32), cls.max_order_ids)
+        field_encoding_list.append(order_id_0_encoding)
+
+        buff_id_0_encoding = L.np_one_hot(entities_array[:, 42].astype(np.int32), cls.max_buffer_ids)
+        field_encoding_list.append(buff_id_0_encoding)     
+
+        order_progress_0_encoding = entities_array[:, 43:44]
+        order_progress_0_encoding_onehot = L.np_one_hot(entities_array[:, 44].astype(np.int32), cls.max_order_progress)
+
+        field_encoding_list.append(order_progress_0_encoding)
+        field_encoding_list.append(order_progress_0_encoding_onehot)
+
+        order_progress_1_encoding = entities_array[:, 45:46]
+        order_progress_1_encoding_onehot = L.np_one_hot(entities_array[:, 46].astype(np.int32), cls.max_order_progress)
+
+        field_encoding_list.append(order_progress_1_encoding)
+        field_encoding_list.append(order_progress_1_encoding_onehot)
+
+        weapon_upgrades_encoding = L.np_one_hot(entities_array[:, 47].astype(np.int32), cls.max_weapon_upgrades)
+        field_encoding_list.append(weapon_upgrades_encoding)
+
+        armor_upgrades_encoding = L.np_one_hot(entities_array[:, 48].astype(np.int32), cls.max_armor_upgrades)
+        field_encoding_list.append(armor_upgrades_encoding)
+
+        shield_upgrades_encoding = L.np_one_hot(entities_array[:, 49].astype(np.int32), cls.max_shield_upgrades)
+        field_encoding_list.append(shield_upgrades_encoding)
+
+        was_selected_encoding = L.np_one_hot(entities_array[:, 50].astype(np.int32), cls.max_was_selected)
+        field_encoding_list.append(was_selected_encoding)
+
+        was_targeted_encoding = L.np_one_hot(entities_array[:, 51].astype(np.int32), cls.max_was_targeted)
+        field_encoding_list.append(was_targeted_encoding)
+
+        all_entities_array = np.concatenate(field_encoding_list, axis=1)
+        # count how many real entities we have
+        real_entities_size = all_entities_array.shape[0]
+
+        # we use a bias of -1e9 for any of the 512 entries that doesn't refer to an entity.
+        # TODO: make it better
+        if all_entities_array.shape[0] < cls.max_entities:
+            bias_length = cls.max_entities - all_entities_array.shape[0]
+            bias = np.zeros((bias_length, AHP.embedding_size))
+            bias[:, :] = cls.bias_value
+            all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
+
+        all_entities_array = all_entities_array.astype(np.float32)
+        print('preprocess_numpy, all_entities_array', clock() - t) if speed else None
+        t = clock()
+
+        if return_entity_pos:
+            return all_entities_array, entity_pos_list
+
+        return all_entities_array
+
+    @classmethod
+    def preprocess_numpy_1(cls, entity_list, return_entity_pos=False, debug=False):
         entity_array_list = []
 
         # add in mAS 1.05
@@ -115,6 +398,8 @@ class EntityEncoder(nn.Module):
         # raw_resolution a value of None. The raw_resolution will be about 152 x 132, so the (x, y) of
         # each entity will be much larger than 64.
         entity_pos_list = []
+
+        t = clock()
 
         index = 0
         for entity in entity_list:
@@ -695,6 +980,9 @@ class EntityEncoder(nn.Module):
                 break
             index = index + 1
 
+        print('preprocess_numpy, t1', clock() - t) if speed else None
+        t = clock()
+
         all_entities_array = np.concatenate(entity_array_list, axis=0)
 
         # count how many real entities we have
@@ -709,6 +997,9 @@ class EntityEncoder(nn.Module):
             all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
 
         all_entities_array = all_entities_array.astype(np.float32)
+
+        print('preprocess_numpy, t2', clock() - t) if speed else None
+        t = clock()
 
         if return_entity_pos:
             return all_entities_array, entity_pos_list
@@ -859,22 +1150,22 @@ class Entity(object):
 
 def benchmark(e_list):
     # benchmark test
-    benchmark_start = time.time()
+    benchmark_start = clock()
 
     for i in range(1000):
         entities_tensor = torch.tensor(EntityEncoder.preprocess_numpy(e_list))
 
-    elapse_time = time.time() - benchmark_start
+    elapse_time = clock() - benchmark_start
     elapse_time = datetime.timedelta(seconds=elapse_time)
     print("Preprocess time {}".format(elapse_time))
 
     # benchmark test
-    benchmark_start = time.time()
+    benchmark_start = clock()
 
     # for i in range(1000):
     #     entities_tensor = EntityEncoder.preprocess_in_tensor(e_list)
 
-    elapse_time = time.time() - benchmark_start
+    elapse_time = clock() - benchmark_start
     elapse_time = datetime.timedelta(seconds=elapse_time)
     print("Preprocess time {}".format(elapse_time))
 
