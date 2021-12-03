@@ -266,10 +266,10 @@ class AlphaStarAgent(RandomAgent):
         baseline_state_op_all = [l.to(device) for l in baseline_state_op_all]
 
         # shape [batch_seq_size, embedding_size]
-        baseline_list, policy_logits = self.agent_nn.unroll_traj(state_all=state_all, 
-                                                                 initial_state=initial_memory_state, 
-                                                                 baseline_state=baseline_state_all, 
-                                                                 baseline_opponent_state=baseline_state_op_all)
+        baseline_list, policy_logits, select_units_num = self.agent_nn.unroll_traj(state_all=state_all, 
+                                                                                   initial_state=initial_memory_state, 
+                                                                                   baseline_state=baseline_state_all, 
+                                                                                   baseline_opponent_state=baseline_state_op_all)
         winloss_baseline = baseline_list[0]
         print("winloss_baseline:", winloss_baseline) if debug else None
         print("winloss_baseline.shape:", winloss_baseline.shape) if debug else None
@@ -278,19 +278,15 @@ class AlphaStarAgent(RandomAgent):
         # note that shape is [T, B]
         seq_size = AHP.sequence_length
         batch_size = AHP.batch_size
-        size = (seq_size, batch_size)
 
         # shape [batch_size x seq_size x 1]
         winloss_baseline = winloss_baseline.reshape(AHP.batch_size, AHP.sequence_length)
-        # shape [batch_size x seq_size]
-        # winloss_baseline = winloss_baseline.squeeze(-1)
+
         # shape [seq_size x batch_size]
         winloss_baseline = torch.transpose(winloss_baseline, 0, 1)
-
         print("winloss_baseline:", winloss_baseline) if debug else None
         print("winloss_baseline.shape:", winloss_baseline.shape) if debug else None
 
-        # we now only use zero baseline for the other four baselines
         build_order_baseline = baseline_list[1].reshape(winloss_baseline.shape)  # np.zeros(size)
         built_units_baseline = baseline_list[2].reshape(winloss_baseline.shape)  # np.zeros(size)
         upgrades_baseline = baseline_list[3].reshape(winloss_baseline.shape)  # np.zeros(size)
@@ -298,4 +294,4 @@ class AlphaStarAgent(RandomAgent):
 
         baselines = [winloss_baseline, build_order_baseline, built_units_baseline, upgrades_baseline, effects_baseline]
 
-        return policy_logits, baselines
+        return policy_logits, baselines, select_units_num

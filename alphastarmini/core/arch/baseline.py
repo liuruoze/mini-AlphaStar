@@ -93,6 +93,7 @@ class Baseline(nn.Module):
             if torch.isnan(the_log_statistics).any():
                 print('Find NAN the_log_statistics !', the_log_statistics)
                 the_log_statistics = torch.ones_like(agent_statistics, device=device)
+
         x = F.relu(self.statistics_fc(the_log_statistics))
         embedded_scalar_list.append(x)
 
@@ -145,8 +146,8 @@ class Baseline(nn.Module):
         x = x.reshape(x.shape[0], SCHP.count_beginning_build_order * 16)
         print("x:", x) if debug else None
         print("x.shape:", x.shape) if debug else None
-        embedded_scalar_list.append(x)
 
+        embedded_scalar_list.append(x)
         embedded_scalar = torch.cat(embedded_scalar_list, dim=1)
 
         print("self.baseline_type:", self.baseline_type) if debug else None
@@ -155,7 +156,9 @@ class Baseline(nn.Module):
         return embedded_scalar
 
     def forward(self, lstm_output, various_observations, opponent_observations):
+        # TODO: check and improve it
         player_scalar_out = self.preprocess(various_observations)
+
         # AlphaStar: The baseline extracts those same observations from `opponent_observations`.
         opponenet_scalar_out = self.preprocess(opponent_observations)
 

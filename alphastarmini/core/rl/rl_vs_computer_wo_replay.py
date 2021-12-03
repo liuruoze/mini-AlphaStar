@@ -186,12 +186,11 @@ class ActorVSComputer:
                             teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
                             print("teacher_function_call:", teacher_function_call) if debug else None
 
-                            if player_function_call.function == 168:
-                                sc2_pb_actions = sc2_actions.FunctionCall(0, [])
-                            else:
-                                sc2_pb_actions = injected_function_call(home_obs, env, player_function_call)
+                            # for testining
+                            #   sc2_pb_actions = injected_function_call(home_obs, env, player_function_call)
+                            #   env_actions = [sc2_pb_actions]
 
-                            env_actions = [sc2_pb_actions]  # [player_function_call]
+                            env_actions = [player_function_call]
 
                             player_action_spec = action_spec[0]
                             action_masks = RU.get_mask(player_action, player_action_spec)
@@ -320,6 +319,8 @@ class ActorVSComputer:
 
 
 def injected_function_call(home_obs, env, function_call):
+    # for testing
+
     obs = home_obs.observation
     raw_units = obs["raw_units"]
 
@@ -403,100 +404,6 @@ def injected_function_call(home_obs, env, function_call):
                 else:                        # attack point
                     twsp.x = 50
                     twsp.y = 22                 
-
-    print("sc2_action after transformed:", sc2_action) if debug else None
-
-    return sc2_action
-
-
-def some_change(home_obs, env, function_call):
-    obs = home_obs.observation
-
-    print('type(observation)', type(home_obs.observation))
-
-    raw_units = obs["raw_units"]
-
-    our_unit_list = []
-    mineral_unit_list = []
-    nexus_list = []
-    probe_list = []
-    idle_probe_list = []
-    for u in raw_units:
-        # only include the units we have
-        if u.alliance == 1:
-            print('u.tag', u.tag, 'u.unit_type', u.unit_type)
-            # our_unit_list.append(u)
-            if u.unit_type == 59:
-                #print('nexus tag', u.tag)
-                nexus_list.append(u)
-            if u.unit_type == 84:
-                #print('probe tag', u.tag)
-                probe_list.append(u)
-                if u.order_length == 0:
-                    idle_probe_list.append(u)
-        # include the units of Neutral   
-        if u.alliance == 3:
-            if u.display_type == 1:
-                if u.x < 40 and u.y < 50:
-                    if u.mineral_contents > 0:
-                        mineral_unit_list.append(u)
-
-    our_unit_list.extend(nexus_list)
-
-    def myFunc(e):
-        return e.tag
-    probe_list.sort(reverse=False, key=myFunc)
-    our_unit_list.extend(probe_list)
-
-    random_index = random.randint(0, len(our_unit_list) - 1)
-
-    if len(mineral_unit_list) > 0:
-        max_mineral_contents = mineral_unit_list[0].mineral_contents
-        max_mineral_tag = mineral_unit_list[0].tag
-
-        for u in mineral_unit_list:
-            if u.mineral_contents > max_mineral_contents:
-                max_mineral_contents = u.mineral_contents
-                max_mineral_tag = u.tag
-
-    unit_index = random_index
-
-    the_tag = our_unit_list[unit_index].tag
-
-    # we change pysc2 action to sc2 action, for replace the unit tag
-    sc2_action = env._features[0].transform_action(obs, function_call)                         
-    print("sc2_action before transformed:", sc2_action) if debug else None
-
-    if len(nexus_list) > 0:
-        nexus_tag = nexus_list[0].tag
-        print("nexus_tag", nexus_tag) if debug else None
-        if function_call.function == 64:
-            the_tag = nexus_tag
-
-    # if len(idle_probe_list) > 0:
-    #     idle_probe_tag = idle_probe_list[0].tag
-    #     print("idle_probe_tag", idle_probe_tag) if debug else None
-    #     if function_call.function == 35:
-    #         the_tag = idle_probe_tag
-    # elif len(probe_list) > 0:
-    #     probe_tag = probe_list[0].tag
-    #     print("probe_tag", probe_tag) if debug else None
-    #     if function_call.function == 35:
-    #         the_tag = probe_tag
-
-    if sc2_action.HasField("action_raw"):
-        raw_act = sc2_action.action_raw
-        if raw_act.HasField("unit_command"):
-            uc = raw_act.unit_command
-            # to judge a repteated field whether has 
-            # use the following way
-            if len(uc.unit_tags) != 0:
-                # can not assign, must use unit_tags[:]=[xx tag]
-                print("the_tag", the_tag) if debug else None
-                uc.unit_tags[:] = [the_tag]
-            # we use fixed target unit tag only for Harvest_Gather_unit action
-            if uc.HasField("target_unit_tag"):
-                uc.target_unit_tag = max_mineral_tag
 
     print("sc2_action after transformed:", sc2_action) if debug else None
 

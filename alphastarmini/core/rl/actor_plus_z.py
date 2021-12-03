@@ -50,7 +50,7 @@ ON_GPU = torch.cuda.is_available()
 DEVICE = torch.device("cuda:0" if ON_GPU else "cpu")
 
 # TODO: remove this line
-torch.backends.cudnn.enabled = False
+# torch.backends.cudnn.enabled = False
 
 
 class ActorLoopPlusZ:

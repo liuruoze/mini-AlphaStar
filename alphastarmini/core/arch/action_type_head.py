@@ -105,12 +105,13 @@ class ActionTypeHead(nn.Module):
         print('action_type_logits after temperature:', action_type_logits) if debug else None
 
         # use frame-skipping and eplison random search in RL
-        if self.is_rl_training:
-            if random.random() < 0.8:
-                action_type_logits[:, 0] = 1e9  # no-op
-            else:
-                if random.random() < 0.1:
-                    action_type_logits[:] = 0.  # equal random select
+        # not used because it will acffect the calculation of RL loss
+        # if self.is_rl_training:
+        #     if random.random() < 0.8:
+        #         action_type_logits[:, 0] = 1e9  # no-op
+        #     else:
+        #         if random.random() < 0.1:
+        #             action_type_logits[:] = 0.  # equal random select
 
         # note, torch.multinomial need samples to non-negative, finite and have a non-zero sum
         # which is different with tf.multinomial which can accept negative values like log(action_type_probs)
