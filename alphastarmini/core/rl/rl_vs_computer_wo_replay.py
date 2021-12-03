@@ -65,7 +65,7 @@ class ActorVSComputer:
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, coordinator, max_time_for_training = 60 * 60 * 24,
+    def __init__(self, player, coordinator, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING):

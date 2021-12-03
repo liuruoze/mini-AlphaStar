@@ -131,7 +131,7 @@ class TargetUnitHead(nn.Module):
         print("target_unit_logits.shape:", target_unit_logits.shape) if debug else None
 
         # AlphaStar: If `action_type` does not involve targetting units, this head is ignored.
-        target_unit_mask = L.action_involve_targeting_units_mask(action_type).bool()
+        target_unit_mask = L.action_involve_targeting_unit_mask(action_type).bool()
         assert len(action_type.shape) == 2  
 
         no_target_unit_mask = ~target_unit_mask.squeeze(dim=1)

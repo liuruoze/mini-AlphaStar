@@ -85,6 +85,7 @@ class QueueHead(nn.Module):
         assert action_type.shape[0] == autoregressive_embedding.shape[0]
 
         mask = L.action_can_be_queued_mask(action_type).float()
+        assert len(action_type.shape) == 2 
 
         autoregressive_embedding = autoregressive_embedding + mask * t
 

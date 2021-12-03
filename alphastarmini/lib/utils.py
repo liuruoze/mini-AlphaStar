@@ -351,13 +351,124 @@ def action_can_be_queued_mask(action_types):
     Inputs: action_types
     Outputs: mask
     """
-    mask = torch.zeros_like(action_types)
+    mask = torch.zeros_like(action_types).bool()
     action_types = action_types.cpu().detach().numpy()
 
     for i, action_type in enumerate(action_types):
         action_type_index = action_type.item()
         print('i:', i, 'action_type_index:', action_type_index) if debug else None
         mask[i] = action_can_be_queued(action_type_index)
+
+    return mask
+
+
+def action_involve_selecting_units(action_type):
+    """
+    test the action_type whether involve selecting units
+
+    Inputs: action_type
+    Outputs: true or false
+    """
+
+    need_args = actions.RAW_FUNCTIONS[action_type].args
+    result = False
+    for arg in need_args:
+        if arg.name == 'unit_tags':
+            result = True
+            break
+    return result 
+
+
+def action_involve_selecting_units_mask(action_types):
+    """
+    test the action_type whether involve selecting units
+
+    Inputs: batch action_types
+    Outputs: mask
+    """
+
+    mask = torch.zeros_like(action_types).bool()
+    action_types = action_types.cpu().detach().numpy()
+
+    for i, action_type in enumerate(action_types):
+        action_type_index = action_type.item()
+
+        print('i:', i, 'action_type_index:', action_type_index) if debug else None
+
+        mask[i] = action_involve_selecting_units(action_type_index)
+
+    return mask
+
+
+def action_involve_targeting_unit(action_type):
+    """
+    test the action_type whether involve targeting units
+
+    Inputs: action_type
+    Outputs: true or false
+    """
+    need_args = actions.RAW_FUNCTIONS[action_type].args
+    result = False
+    for arg in need_args:
+        if arg.name == 'target_unit_tag':
+            result = True
+            break
+    return result 
+
+
+def action_involve_targeting_unit_mask(action_types):
+    """
+    test the action_type whether involve targeting units
+
+    Inputs: batch action_types
+    Outputs: mask
+    """
+
+    mask = torch.zeros_like(action_types).bool()
+    action_types = action_types.cpu().detach().numpy()
+
+    for i, action_type in enumerate(action_types):
+        action_type_index = action_type.item()
+
+        print('i:', i, 'action_type_index:', action_type_index) if debug else None
+
+        mask[i] = action_involve_targeting_unit(action_type_index)
+
+    return mask
+
+
+def action_involve_targeting_location(action_type):
+    """
+    test the action_type whether involve targeting location
+    Inputs: action_type
+    Outputs: true or false
+    """
+    need_args = actions.RAW_FUNCTIONS[action_type].args
+    result = False
+    for arg in need_args:
+        if arg.name == 'world':
+            result = True
+            break
+    return result 
+
+
+def action_involve_targeting_location_mask(action_types):
+    """
+    test the action_type whether involve targeting location
+
+    Inputs: batch action_types
+    Outputs: mask
+    """
+
+    mask = torch.zeros_like(action_types).bool()
+    action_types = action_types.cpu().detach().numpy()
+
+    for i, action_type in enumerate(action_types):
+        action_type_index = action_type.item()
+
+        print('i:', i, 'action_type_index:', action_type_index) if debug else None
+
+        mask[i] = action_involve_targeting_location(action_type_index)
 
     return mask
 
@@ -416,117 +527,6 @@ def action_can_apply_to_entity(action_type):
         return [1, 3, 7, 11]
 
 
-def action_involve_selecting_units(action_type):
-    """
-    test the action_type whether involve selecting units
-
-    Inputs: action_type
-    Outputs: true or false
-    """
-
-    need_args = actions.RAW_FUNCTIONS[action_type].args
-    result = False
-    for arg in need_args:
-        if arg.name == 'unit_tags':
-            result = True
-            break
-    return result 
-
-
-def action_involve_selecting_units_mask(action_types):
-    """
-    test the action_type whether involve selecting units
-
-    Inputs: batch action_types
-    Outputs: mask
-    """
-
-    mask = torch.zeros_like(action_types)
-    action_types = action_types.cpu().detach().numpy()
-
-    for i, action_type in enumerate(action_types):
-        action_type_index = action_type.item()
-
-        print('i:', i, 'action_type_index:', action_type_index) if debug else None
-
-        mask[i] = action_involve_selecting_units(action_type_index)
-
-    return mask
-
-
-def action_involve_targeting_units(action_type):
-    """
-    test the action_type whether involve targeting units
-
-    Inputs: action_type
-    Outputs: true or false
-    """
-    need_args = actions.RAW_FUNCTIONS[action_type].args
-    result = False
-    for arg in need_args:
-        if arg.name == 'target_unit_tag':
-            result = True
-            break
-    return result 
-
-
-def action_involve_targeting_units_mask(action_types):
-    """
-    test the action_type whether involve targeting units
-
-    Inputs: batch action_types
-    Outputs: mask
-    """
-
-    mask = torch.zeros_like(action_types)
-    action_types = action_types.cpu().detach().numpy()
-
-    for i, action_type in enumerate(action_types):
-        action_type_index = action_type.item()
-
-        print('i:', i, 'action_type_index:', action_type_index) if debug else None
-
-        mask[i] = action_involve_targeting_units(action_type_index)
-
-    return mask
-
-
-def action_involve_targeting_location(action_type):
-    """
-    test the action_type whether involve targeting location
-    Inputs: action_type
-    Outputs: true or false
-    """
-    need_args = actions.RAW_FUNCTIONS[action_type].args
-    result = False
-    for arg in need_args:
-        if arg.name == 'world':
-            result = True
-            break
-    return result 
-
-
-def action_involve_targeting_location_mask(action_types):
-    """
-    test the action_type whether involve targeting location
-
-    Inputs: batch action_types
-    Outputs: mask
-    """
-
-    mask = torch.zeros_like(action_types)
-    action_types = action_types.cpu().detach().numpy()
-
-    for i, action_type in enumerate(action_types):
-        action_type_index = action_type.item()
-
-        print('i:', i, 'action_type_index:', action_type_index) if debug else None
-
-        mask[i] = action_involve_targeting_location(action_type_index)
-
-    return mask
-
-
 def get_location_mask(mask):
     # mask shape [batch_size, output_map_size x output_map_size]
     map_name = P.map_name
@@ -537,6 +537,7 @@ def get_location_mask(mask):
     mask[:, :map_size[1], :map_size[0]] = 1. 
     print('mask[0]', mask[0]) if debug else None 
     print('mask[0].sum()', mask[0].sum()) if debug else None
+
     mask = mask.reshape(mask.shape[0], -1)
 
     return mask

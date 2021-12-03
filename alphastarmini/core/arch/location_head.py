@@ -250,16 +250,16 @@ class LocationHead(nn.Module):
         if SCHP.world_size == 64:
             # if world_size is (64, 64), we can make the output size to be 64 x 64
             x = self.us_6(x)
-        # else:
-        #     x = F.relu(self.us_3(x))
-        #     if AHP == MAHP:
-        #         x = F.relu(self.us_4(x))
-        #         # only in mAS, we need one more upsample step
-        #         # x = F.relu(self.us_5(x))
-        #         # Note: in the final layer, we don't use relu
-        #         x = self.us_5(x)
-        #     else:
-        #         x = self.us_4_original(x)
+        else:
+            x = F.relu(self.us_3(x))
+            if AHP == MAHP:
+                x = F.relu(self.us_4(x))
+                # only in mAS, we need one more upsample step
+                # x = F.relu(self.us_5(x))
+                # Note: in the final layer, we don't use relu
+                x = self.us_5(x)
+            else:
+                x = self.us_4_original(x)
 
         # AlphaStar: Those final logits are flattened and sampled (masking out invalid locations using `action_type`, 
         # AlphaStar: such as those outside the camera for build actions) with temperature 0.8 
@@ -274,7 +274,8 @@ class LocationHead(nn.Module):
         print("target_location_logits.shape:", target_location_logits.shape) if debug else None
 
         # AlphaStar: If `action_type` does not involve targetting location, this head is ignored.
-        target_location_mask = L.action_involve_targeting_location_mask(action_type)
+        # Note, maks sure the mask should be booll type, otherwise ~target_location_mask will output -2 when mask is 1.
+        target_location_mask = L.action_involve_targeting_location_mask(action_type).bool()
         no_target_location_mask = ~target_location_mask.squeeze(dim=1)
 
         # AlphaStar: (masking out invalid locations using `action_type`, such as those outside 
