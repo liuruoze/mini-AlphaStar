@@ -17,8 +17,9 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 TRAJECTORY_FIELDS = [
-    'observation',  # Player observation.
-    'opponent_observation',  # Opponent observation, used for value network.
+    'state',  # Player observation.
+    'baseline_state',  # Opponent observation, used for value network.
+    'baseline_state_op',
     'memory',  # State of the agent (used for initial LSTM state).
     'z',  # Conditioning information for the policy.
     'is_final',  # If this is the last step.

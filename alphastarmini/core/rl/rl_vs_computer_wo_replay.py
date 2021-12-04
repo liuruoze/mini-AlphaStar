@@ -175,7 +175,8 @@ class ActorVSComputer:
 
                             t = time()
 
-                            state = self.player.agent.preprocess_state_all(home_obs)
+                            state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, build_order=player_bo)
+                            baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, build_order=player_bo)
 
                             player_step = self.player.agent.step_from_state(state, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory = player_step
@@ -232,13 +233,14 @@ class ActorVSComputer:
                             t = time()
 
                             game_loop = home_obs.observation.game_loop[0]
-                            print("game_loop", game_loop)
+                            print("game_loop", game_loop) if debug else None
 
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
                             # them here
                             traj_step = Trajectory(
-                                observation=home_obs.observation,
-                                opponent_observation=home_obs.observation,
+                                state=state,
+                                baseline_state=baseline_state,
+                                baseline_state_op=baseline_state,  # when fighting with computer, we don't use opponent state
                                 memory=player_memory,
                                 z=z,
                                 masks=action_masks,

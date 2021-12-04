@@ -24,6 +24,8 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+RESTORE = False
+
 
 def test(on_server=False, replay_path=None):
     # model path
@@ -33,7 +35,7 @@ def test(on_server=False, replay_path=None):
 
     league = League(
         initial_agents={
-            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=True)
+            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)
             for race in [Race.protoss]
         },
         main_players=1, 

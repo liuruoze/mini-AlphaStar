@@ -5,6 +5,8 @@
 
 import os
 
+from time import time, clock
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -25,17 +27,14 @@ import param as P
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+speed = True
 
 
 def unit_tpye_to_unit_type_index(unit_type):
     ''' 
     transform unique unit type in SC2 to unit index in one hot represent in mAS.
     '''
-    unit_tpye_name, race = get_unit_tpye_name_and_race(unit_type)
-    print('unit_tpye_name, race:', unit_tpye_name, race) if debug else None   
-
-    unit_type_index = get_unit_tpye_index(unit_tpye_name, race)
-    print('unit_type_index:', unit_type_index) if debug else None
+    unit_type_index = get_unit_tpye_index_fast(unit_type)
 
     return unit_type_index
 
@@ -48,21 +47,21 @@ def get_unit_tpye_name_and_race(unit_type):
             pass  # Wrong race.
 
 
-def get_unit_tpye_index(unit_type_name, race):
-    begin_index = 0
-    if race == Neutral:
-        begin_index = 0
-    elif race == Protoss:
-        begin_index = len(Neutral)
-    elif race == Terran:
-        begin_index = len(Neutral) + len(Protoss)
-    elif race == Zerg:
-        begin_index = len(Neutral) + len(Protoss) + len(Terran)
+n = [item.value for item in Neutral]
+p = [item.value for item in Protoss]
+t = [item.value for item in Terran]
+z = [item.value for item in Zerg]
 
-    for i, e in enumerate(list(race)):
-        if e == unit_type_name:
-            return i + begin_index
-    return -1
+all_list = n + p + t + z
+all_dict = dict(zip(all_list, range(0, len(all_list))))
+
+
+def get_unit_tpye_index_fast(item):
+    index = all_dict[item]
+
+    #index = all_list.index(item)
+
+    return index
 
 
 def unpackbits_for_largenumber(x, num_bits):

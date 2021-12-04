@@ -11,6 +11,9 @@ import threading
 import torch
 from torch.optim import Adam
 
+from s2clientprotocol import sc2api_pb2 as sc_pb
+from s2clientprotocol import common_pb2 as com_pb
+
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race
 
 from alphastarmini.core.rl.env_utils import SC2Environment, get_env_outcome
@@ -34,7 +37,6 @@ import random
 from pysc2.lib import point
 from pysc2.lib import features as F
 from pysc2 import run_configs
-from s2clientprotocol import sc2api_pb2 as sc_pb
 
 
 __author__ = "Ruo-Ze Liu"
@@ -45,12 +47,21 @@ STEP_MUL = 8   # 1
 GAME_STEPS_PER_EPISODE = 18000    # 9000
 MAX_EPISODES = 1000      # 100   
 
+RANDOM_SEED = 2
+VERSION = '4.10.0'
+REPLAY_VERIOSN = '3.16.1'
+REPLAY_PATH = "data/Replays/filtered_replays_1/"
+
+RESTORE = False
+
 # gpu setting
 ON_GPU = torch.cuda.is_available()
 DEVICE = torch.device("cuda:0" if ON_GPU else "cpu")
-
-# TODO: remove this line
-# torch.backends.cudnn.enabled = False
+if torch.backends.cudnn.is_available():
+    print('cudnn available')
+    print('cudnn version', torch.backends.cudnn.version())
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = True
 
 
 class ActorLoopPlusZ:
@@ -64,14 +75,14 @@ class ActorLoopPlusZ:
                  max_time_per_one_opponent=60 * 60 * 2,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, use_replay_expert_reward=True,
-                 replay_path="data/Replays/filtered_replays_1/", replay_version='3.16.1'):
+                 replay_path=REPLAY_PATH, replay_version=REPLAY_VERIOSN):
 
         self.player = player
         self.player.add_actor(self)
         if ON_GPU:
             self.player.agent.agent_nn.to(DEVICE)
 
-        self.teacher = get_supervised_agent(player.race, model_type="sl")
+        self.teacher = get_supervised_agent(player.race, model_type="sl", restore=RESTORE)
         if ON_GPU:
             self.teacher.agent_nn.to(DEVICE)
 
@@ -192,18 +203,40 @@ class ActorLoopPlusZ:
                             replay_path = self.replay_path + replay_files[0]
                             print('replay_path:', replay_path)
                             replay_data = run_config.replay_data(replay_path)
+                            replay_info = controller.replay_info(replay_data)
+                            infos = replay_info.player_info
+
+                            observe_id_list = []
+                            observe_result_list = []
+                            for info in infos:
+                                print('info：', info) if debug else None
+                                player_info = info.player_info
+                                result = info.player_result.result
+                                print('player_info', player_info) if debug else None
+                                if player_info.race_actual == com_pb.Protoss:
+                                    observe_id_list.append(player_info.player_id)
+                                    observe_result_list.append(result)
+
+                            win_observe_id = 0
+
+                            for i, result in enumerate(observe_result_list):
+                                if result == sc_pb.Victory:
+                                    win_observe_id = observe_id_list[i]
+                                    break
 
                             start_replay = sc_pb.RequestStartReplay(
                                 replay_data=replay_data,
                                 options=interface,
                                 disable_fog=False,  # FLAGS.disable_fog
-                                observed_player_id=1,  # FLAGS.observed_player
+                                observed_player_id=win_observe_id,  # FLAGS.observed_player
                                 map_data=None,
                                 realtime=False
                             )
 
                             controller.start_replay(start_replay)
                             feat = F.features_from_game_info(game_info=controller.game_info(), 
+                                                             raw_resolution=AAIFP.raw_resolution, 
+                                                             hide_specific_actions=AAIFP.hide_specific_actions,
                                                              use_feature_units=True, use_raw_units=True,
                                                              use_unit_counts=True, use_raw_actions=True,
                                                              show_cloaked=True, show_burrowed_shadows=True, 
@@ -238,18 +271,23 @@ class ActorLoopPlusZ:
                                 total_frames += 1
                                 episode_frames += 1
 
-                                # run_loop: actions = [agent.step(timestep) for agent, timestep in zip(agents, timesteps)]
-                                player_step = self.player.agent.step_logits(home_obs, player_memory)
+                                state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, build_order=player_bo)
+                                state_op = self.player.agent.agent_nn.preprocess_state_all(away_obs.observation)
+
+                                baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, build_order=player_bo)
+                                baseline_state_op = self.player.agent.agent_nn.get_scalar_list(away_obs.observation)
+
+                                player_step = self.player.agent.step_from_state(state, player_memory)
                                 player_function_call, player_action, player_logits, player_new_memory = player_step
                                 print("player_function_call:", player_function_call) if debug else None
 
-                                opponent_step = self.opponent.agent.step_logits(away_obs, opponent_memory)
+                                opponent_step = self.opponent.agent.step_from_state(state_op, opponent_memory)
                                 opponent_function_call, opponent_action, opponent_logits, opponent_new_memory = opponent_step
 
                                 # Q: how to do it ?
                                 # teacher_logits = self.teacher(home_obs, player_action, teacher_memory)
                                 # may change implemention of teacher_logits
-                                teacher_step = self.teacher.step_logits(home_obs, teacher_memory)
+                                teacher_step = self.teacher.step_from_state(state, teacher_memory)
                                 teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
                                 print("teacher_function_call:", teacher_function_call) if debug else None
 
@@ -294,13 +332,14 @@ class ActorLoopPlusZ:
                                 # end replay_reward
 
                                 game_loop = home_obs.observation.game_loop[0]
-                                print("game_loop", game_loop)
+                                print("game_loop", game_loop) if debug else None 
 
                                 # note, original AlphaStar pseudo-code has some mistakes, we modified 
                                 # them here
                                 traj_step = Trajectory(
-                                    observation=home_obs.observation,
-                                    opponent_observation=away_obs.observation,
+                                    state=state,
+                                    baseline_state=baseline_state,
+                                    baseline_state_op=baseline_state_op,  
                                     memory=player_memory,
                                     z=z,
                                     masks=action_masks,
@@ -384,9 +423,9 @@ class ActorLoopPlusZ:
 
     # create env function
     def create_env(self, player, opponent, game_steps_per_episode=GAME_STEPS_PER_EPISODE, 
-                   step_mul=STEP_MUL, version=None, 
+                   step_mul=STEP_MUL, version=VERSION, 
                    # the map should be the same as in the expert replay
-                   map_name="AbyssalReef", random_seed=1):
+                   map_name="AbyssalReef", random_seed=RANDOM_SEED):
 
         player_aif = AgentInterfaceFormat(**AAIFP._asdict())
         opponent_aif = AgentInterfaceFormat(**AAIFP._asdict())

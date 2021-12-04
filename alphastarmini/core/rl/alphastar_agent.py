@@ -249,29 +249,23 @@ class AlphaStarAgent(RandomAgent):
         baselines = None
 
         initial_memory_list = []
-        state_traj = []
 
-        baseline_state_traj = []
-        baseline_state_op_traj = []
+        state_traj = []  # traj.state
+        baseline_state_traj = []  # traj.baseline_state
+        baseline_state_op_traj = []  # traj.baseline_state_op
+
+        # TODO: improve it
         for i, traj in enumerate(trajectories):
             # add the initial memory state          
             memory_seq = traj.memory
             initial_memory = memory_seq[0]
             initial_memory_list.append(initial_memory)
 
+            state_traj.extend(traj.state)
+            baseline_state_traj.extend(traj.baseline_state)
+            baseline_state_op_traj.extend(traj.baseline_state_op)
+
             # add the state
-            home_obs_seq = traj.observation
-            bo_seq = traj.build_order
-            for j, home_obs in enumerate(home_obs_seq):
-                state = Agent.preprocess_state_all(obs=home_obs, build_order=bo_seq[j])
-                state_traj.append(state)
-
-            away_obs_seq = traj.opponent_observation
-            for j, away_obs in enumerate(away_obs_seq):
-                state, op_state = self.agent_nn.preprocess_baseline_state(home_obs_seq[j], away_obs, build_order=bo_seq[j])
-                baseline_state_traj.append(state)
-                baseline_state_op_traj.append(op_state)
-
         entity_state_list = []
         statistical_state_list = []
         map_state_list = []
@@ -308,28 +302,7 @@ class AlphaStarAgent(RandomAgent):
                                                                                    initial_state=initial_memory_state, 
                                                                                    baseline_state=baseline_state_all, 
                                                                                    baseline_opponent_state=baseline_state_op_all)
-        winloss_baseline = baseline_list[0]
-        print("winloss_baseline:", winloss_baseline) if debug else None
-        print("winloss_baseline.shape:", winloss_baseline.shape) if debug else None
 
-        # calculate the baselines
-        # note that shape is [T, B]
-        seq_size = AHP.sequence_length
-        batch_size = AHP.batch_size
-
-        # shape [batch_size x seq_size x 1]
-        winloss_baseline = winloss_baseline.reshape(AHP.batch_size, AHP.sequence_length)
-
-        # shape [seq_size x batch_size]
-        winloss_baseline = torch.transpose(winloss_baseline, 0, 1)
-        print("winloss_baseline:", winloss_baseline) if debug else None
-        print("winloss_baseline.shape:", winloss_baseline.shape) if debug else None
-
-        build_order_baseline = baseline_list[1].reshape(winloss_baseline.shape)  # np.zeros(size)
-        built_units_baseline = baseline_list[2].reshape(winloss_baseline.shape)  # np.zeros(size)
-        upgrades_baseline = baseline_list[3].reshape(winloss_baseline.shape)  # np.zeros(size)
-        effects_baseline = baseline_list[4].reshape(winloss_baseline.shape)  # np.zeros(size)
-
-        baselines = [winloss_baseline, build_order_baseline, built_units_baseline, upgrades_baseline, effects_baseline]
+        baselines = [baseline.reshape(AHP.batch_size, AHP.sequence_length).transpose(0, 1) for baseline in baseline_list]
 
         return policy_logits, baselines, select_units_num
