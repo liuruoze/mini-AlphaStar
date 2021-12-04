@@ -4,26 +4,30 @@
 
 We release mini-AlphaStar (mAS), which is a **mini-scale** version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2). 
 
-"mini-scale" means that we make the original AS's hyper-parameters **adjustable** so that mAS can be training and running on a **small** scale (e.g., in a single common commercial machine).
+"mini-scale" means that we make the original AS's hyper-parameters **adjustable** so that mAS can be training and running on a **small** scale (e.g., in a single commercial server machine).
 
-When designing the mAS, we referred to the "Occam's Razor Principle", **simple** is good. Therefore, we build mAS from scratch. Unless the function has a great impact on speed and performance, we shall omit it. 
+When designing the mAS, we referred to the "Occam's Razor Principle": **simple** is good. Therefore, we build mAS from scratch. Unless the function has a great impact on speed and performance, we shall omit it. 
 
-At the same time, we also try not to use too many dependency packages, so that mAS should only depend on PyTorch (at most specify the version). In this way, we greatly simplify the learning cost of mAS and make the architecture and code of mAS relatively **easy** to read. 
-
-In addition, we have added a lot of comments in the code to ensure that some key designs can be conveyed to the readers.
+Meanwhile, we also try not to use too many dependency packages, so that mAS should only depend on PyTorch. In this way, we simplify the learning cost of mAS and make the architecture of mAS relatively **easy** to read. 
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
-**Warning**: SC2 is extremely difficult and AlphaStar is also very complex. Even our project is a mini-AlphaStar, it has almost the similar technologies as AlphaStar, and the training resource also costs very high. It hardly can be trained on a single laptop or a home-used computer. The recommended way is to use a commercial server to train it. This server should also have a GPU card, along with enough large memory and disk space. For someone who is interesting in this project for the first time, we recommend you to collect this project firstly, and devolve deeply into researching into it when you have training resources and enough free time.
-
 ## Update
 
-This is the "v_1.04" version, and the updates are as follows:
+This is the "v_1.05" version. In this one, we refactor most of the codes, making the performance has gained a big boost.
+ 
+* We refactor most of the codes, from transforming replays to reinforcement learning;
+* Through new architecture, the transformed replay tensor files have saved 70% disk space now;
+* Memory usage is also optimized. Now the number of processing replays in SL are 3 times or more than before; 
+* With the new tensor replay files, training speed of supervised learning is much faster, about 10x faster than before;
+* Using weighted loss for SL makes results of SL significantly increased. The accuracy of action type rises to above 90%;
+* By a new SL traing pattern, the accuracy of the action arguments improved, e.g., selected units improved from 0.05 to 0.95;
+* Tbe loss of RL calculations are refactored, making the readability improved;
+* Due to optimized algorithm, sampling speed of RL is now 10x faster than before. 
 
-* Add mask for supervised learning loss calculation;
-* Add camera and non-camera accuracy for evaluation;
-* Refactor most code for multi-GPU training;
-* Add support for multi-GPU supervised training;
+## Hints
+
+**Warning**: SC2 is extremely difficult and AlphaStar is also very complex. Even our project is a mini-AlphaStar, it has almost the similar technologies as AlphaStar, and the training resource also costs very high. It hardly can be trained on a single laptop or a home-used computer. The recommended way is to use a commercial server to train it. This server should also have a GPU card, along with enough large memory and disk space. For someone who is interesting in this project for the first time, we recommend you to collect (star) this project firstly, and devolve deeply into researching into it when you have training resources and enough free time.
 
 ## Location
 
