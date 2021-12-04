@@ -18,12 +18,12 @@ This is the "v_1.05" version. In this one, we refactor most of the codes, making
  
 * We refactor most of the codes, from transforming replays to reinforcement learning;
 * Through new architecture, the transformed replay tensor files have saved 70% disk space now;
-* Memory usage is also optimized. Now the number of processing replays in SL are 3 times or more than before; 
-* With the new tensor replay files, training speed of SL is much faster, about 10x faster than before;
-* Using weighted loss makes results of SL significantly increased. The accuracy of action rises to above 90%;
-* By a new SL traing pattern, the accuracy of action arguments rises, e.g., selected units from 0.05 to 0.95;
-* Tbe loss of RL calculations are refactored, making the readability improved;
-* Due to optimized algorithm, sampling speed of RL is now 10x faster than before. 
+* Memory usage is also optimized. Now the number of processing replays in SL is 3 times or more than before; 
+* With the new tensor replay files, the training speed of SL is much faster, about 10x faster than before;
+* Using weighted loss makes results of SL significantly increased. The accuracy of actions rises to above 90%;
+* By a new SL training pattern, the accuracy of the action arguments like units improved from 0.05 to 0.95;
+* The loss of RL calculations are refactored, making the readability improved;
+* Due to the optimized algorithm, the sampling speed of RL is now 10x faster than before. 
 
 ## Hints
 
