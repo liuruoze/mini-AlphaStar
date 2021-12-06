@@ -320,6 +320,9 @@ def vtrace_from_importance_weights(
         a_ = initial_value.clone().detach()
         res.append(foo(a_, x[0]).unsqueeze(0))
 
+        # should not miss this line
+        a_ = foo(a_, x[0])
+
         for i in range(1, len(x)):
             res.append(foo(a_, x[i]).unsqueeze(0))
             a_ = foo(a_, x[i])
