@@ -21,6 +21,7 @@ from alphastarmini.core.rl import env_utils
 from alphastarmini.core.rl import actor
 from alphastarmini.core.rl import against_computer
 from alphastarmini.core.rl import pseudo_reward
+from alphastarmini.core.rl import rl_algo
 
 if __name__ == '__main__':
     # if we don't add this line, it may cause running time error while in Windows
@@ -28,22 +29,23 @@ if __name__ == '__main__':
 
     print("test init")
 
-    entity_encoder.test()
-    scalar_encoder.test()
-    spatial_encoder.test()
+    # entity_encoder.test()
+    # scalar_encoder.test()
+    # spatial_encoder.test()
 
-    action_type_head.test()
-    delay_head.test()
-    queue_head.test()
-    selected_units_head.test()
-    target_unit_head.test()
-    location_head.test()
+    # action_type_head.test()
+    # delay_head.test()
+    # queue_head.test()
+    # selected_units_head.test()
+    # target_unit_head.test()
+    # location_head.test()
 
-    action.test()
-    pseudo_reward.test()
-    baseline.test()
+    # action.test()
+    # pseudo_reward.test()
+    # baseline.test()
 
-    arch_model.test()
-    agent.test()
+    # arch_model.test()
+    # agent.test()
+    rl_algo.test()
 
     print('test over')

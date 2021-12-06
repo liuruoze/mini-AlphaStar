@@ -223,7 +223,7 @@ def human_policy_kl_loss(student_logits, teacher_logits, action_type_kl_cost):
 
 
 def td_lambda_loss(baselines, rewards, trajectories): 
-    discounts = ~np.array(trajectories.is_final[:-1])
+    discounts = ~np.array(trajectories.is_final[:-1], dtype=np.bool)
     discounts = torch.tensor(discounts, device=device)
 
     baselines = baselines
@@ -352,7 +352,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     print("clipped_rhos", clipped_rhos) if debug else None
     print("clipped_rhos.shape", clipped_rhos.shape) if debug else None
 
-    discounts = ~np.array(trajectories.is_final)
+    discounts = ~np.array(trajectories.is_final, dtype=np.bool)
     discounts = torch.tensor(discounts, dtype=torch.float32, device=device)
 
     # we implement the vtrace_advantages
@@ -449,7 +449,7 @@ def split_upgo_loss(target_logits, baselines, trajectories):
     # returns = upgo_returns(values.detach().numpy(), np.array(trajectories.reward), ~np.array(trajectories.is_final), 
     # baselines[-1].detach().numpy())
     reward_tensor = torch.tensor(np.array(trajectories.reward), device=device)
-    discounts = torch.tensor(~np.array(trajectories.is_final), dtype=torch.float32, device=device)
+    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
     returns = RA.upgo_returns(values, reward_tensor, discounts, baselines[-1])
 
     # shape: list of [seq_size x batch_size]

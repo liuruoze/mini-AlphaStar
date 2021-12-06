@@ -290,8 +290,9 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
 
     bias_action_gt = torch.zeros(1, 1, units_size, device=device).float()
     bias_action_gt[0, 0, -1] = 1
-    gt_units_mask = ~(action_gt.units == bias_action_gt).all(dim=-1)
-    gt_units_mask = gt_units_mask.reshape(-1)
+    gt_units_mask = (action_gt.units == bias_action_gt).all(dim=-1)
+    gt_units_mask = ~gt_units_mask.reshape(-1)
+    assert gt_units_mask.dtype == torch.bool
     print('gt_units_mask', gt_units_mask) if debug else None
     print('gt_units_mask.shape', gt_units_mask.shape) if debug else None
 

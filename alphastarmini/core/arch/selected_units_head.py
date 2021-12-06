@@ -107,6 +107,8 @@ class SelectedUnitsHead(nn.Module):
         print("mask:", mask) if debug else None
         print("mask.shape:", mask.shape) if debug else None
 
+        assert mask.dtype == torch.bool
+
         # AlphaStar: It then computes a key corresponding to each entity by feeding `entity_embeddings`
         # through a 1D convolution with 32 channels and kernel size 1,
         # and creates a new variable corresponding to ending unit selection.
@@ -141,7 +143,7 @@ class SelectedUnitsHead(nn.Module):
         is_end = torch.zeros(batch_size, device=device).bool()
 
         # in the first selection, we should not select the end_index
-        mask[torch.arange(batch_size), end_index] = 0
+        mask[torch.arange(batch_size), end_index] = False
 
         # if we stop selection early, we should record in each sample we select how many items
         select_units_num = torch.ones(batch_size, dtype=torch.long, device=device) * self.max_selected
@@ -151,7 +153,7 @@ class SelectedUnitsHead(nn.Module):
 
             # in the second selection, we can select the EOF
             if i == 1:
-                mask[torch.arange(batch_size), end_index] = 1
+                mask[torch.arange(batch_size), end_index] = True
 
             # AlphaStar: the network passes `autoregressive_embedding` through a linear of size 256,
             # autoregressive_embedding shape: [batch_size x autoregressive_embedding_size]
@@ -197,7 +199,7 @@ class SelectedUnitsHead(nn.Module):
             units.append(entity_id.unsqueeze(-2))
 
             # AlphaStar: That entity is masked out so that it cannot be selected in future iterations.
-            mask[torch.arange(batch_size), entity_id.squeeze(dim=1)] = 0
+            mask[torch.arange(batch_size), entity_id.squeeze(dim=1)] = False
 
             # whether we select the EOF
             # note last_index should be bool type to make sure it is a right whether mask 
@@ -325,6 +327,8 @@ class SelectedUnitsHead(nn.Module):
         print("mask:", mask) if debug else None
         print("mask.shape:", mask.shape) if debug else None
 
+        assert mask.dtype == torch.bool
+
         # AlphaStar: It then computes a key corresponding to each entity by feeding `entity_embeddings`
         # through a 1D convolution with 32 channels and kernel size 1,
         # and creates a new variable corresponding to ending unit selection.
@@ -361,16 +365,17 @@ class SelectedUnitsHead(nn.Module):
 
         # mask: [batch_size, entity_size]
         select_mask = select_mask < select_units_num.unsqueeze(dim=1)
+        assert select_mask.dtype == torch.bool
 
         # in the first selection, we should not select the end_index
-        mask[torch.arange(batch_size), end_index] = 0
+        mask[torch.arange(batch_size), end_index] = False
 
         # designed with reference to DI-star
         for i in range(max_seq_len):
             if i != 0:
                 # in the second selection, we can select the EOF
                 if i == 1:
-                    mask[torch.arange(batch_size), end_index] = 1
+                    mask[torch.arange(batch_size), end_index] = True
 
             # AlphaStar: the network passes `autoregressive_embedding` through a linear of size 256,
             # autoregressive_embedding shape: [batch_size x autoregressive_embedding_size]
@@ -409,7 +414,7 @@ class SelectedUnitsHead(nn.Module):
             print('entity_id.shape', entity_id.shape) if debug else None
 
             # AlphaStar: That entity is masked out so that it cannot be selected in future iterations.
-            mask[torch.arange(batch_size), entity_id.squeeze(dim=1)] = 0
+            mask[torch.arange(batch_size), entity_id.squeeze(dim=1)] = False
 
             # whether we select the EOF
             # note last_index should be bool type to make sure it is a right whether mask 
@@ -456,8 +461,8 @@ class SelectedUnitsHead(nn.Module):
         # select_unit_mask: [batch_size x 1]
         # note select_unit_mask should be bool type to make sure it is a right whether mask
         assert len(action_type.shape) == 2  
-        select_unit_mask = L.action_involve_selecting_units_mask(action_type).bool()
 
+        select_unit_mask = L.action_involve_selecting_units_mask(action_type).bool()
         no_select_units_index = ~select_unit_mask.squeeze(dim=1)
         print("no_select_units_index:", no_select_units_index) if debug else None
 

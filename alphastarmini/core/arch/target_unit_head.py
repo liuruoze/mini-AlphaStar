@@ -95,6 +95,8 @@ class TargetUnitHead(nn.Module):
         print("mask:", mask) if debug else None
         print("mask.shape:", mask.shape) if debug else None
 
+        assert mask.dtype == torch.bool
+
         # Because we mostly target one unit, we don't need a mask.
 
         # The query is then passed through a ReLU and a linear of size 32, 
@@ -133,7 +135,7 @@ class TargetUnitHead(nn.Module):
         # AlphaStar: If `action_type` does not involve targetting units, this head is ignored.
         target_unit_mask = L.action_involve_targeting_unit_mask(action_type).bool()
         assert len(action_type.shape) == 2  
-
+        assert target_unit_mask.dtype == torch.bool  
         no_target_unit_mask = ~target_unit_mask.squeeze(dim=1)
 
         if target_unit is None:

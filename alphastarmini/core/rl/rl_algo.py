@@ -63,7 +63,7 @@ def lambda_returns(values_tp1, rewards, discounts, lambdas=0.8):
 
 
 def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
-                           back_prop=True, sequence_lengths=None,
+                           back_prop=True, 
                            name="multistep_forward_view_op"):
     """Evaluates complex backups (forward view of eligibility traces).
       ```python
@@ -82,8 +82,6 @@ def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
           The parameter can either be a scalar or a Tensor of shape `[T, B]`
           if mixing is a function of state.
       back_prop: Whether to backpropagate.
-      sequence_lengths: Tensor of shape `[B]` containing sequence lengths to be
-        (reversed and then) summed, same as in `scan_discounted_sum`.
       name: Sets the name_scope for this op.
     Returns:
         Tensor of shape `[T, B]` containing multistep returns.
@@ -116,21 +114,25 @@ def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
     # This matches the form of scan_discounted_sum:
     #   result = scan_sum_with_discount(sequence, discount,
     #                                   initial_value = state_values[last])  
+
     sequence = rewards + pcontinues * state_values * (1 - lambda_)
-    print("sequence", sequence) if debug else None
+    print("sequence", sequence) if 1 else None
     print("sequence.shape", sequence.shape) if debug else None
 
     discount = pcontinues * lambda_
-    print("discount", discount) if debug else None
+    print("discount", discount) if 1 else None
     print("discount.shape", discount.shape) if debug else None
 
-    return scan_discounted_sum(sequence, discount, state_values[-1],
-                               reverse=True, sequence_lengths=sequence_lengths,
+    initial_value = state_values[-1]
+    print("initial_value", initial_value) if debug else None
+
+    return scan_discounted_sum(sequence, discount, initial_value,
+                               reverse=True, 
                                back_prop=back_prop)
 
 
 def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
-                        sequence_lengths=None, back_prop=True,
+                        back_prop=True,
                         name="scan_discounted_sum"):
     """Evaluates a cumulative discounted sum along dimension 0.
       ```python
@@ -143,41 +145,27 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
       ```
     Respective dimensions T, B and ... have to be the same for all input tensors.
     T: temporal dimension of the sequence; B: batch dimension of the sequence.
-      if sequence_lengths is set then x1 and x2 below are equivalent:
-      ```python
-      x1 = zero_pad_to_length(
-        scan_discounted_sum(
-            sequence[:length], decays[:length], **kwargs), length=T)
-      x2 = scan_discounted_sum(sequence, decays,
-                               sequence_lengths=[length], **kwargs)
-      ```
     Args:
       sequence: Tensor of shape `[T, B, ...]` containing values to be summed.
       decay: Tensor of shape `[T, B, ...]` containing decays/discounts.
       initial_value: Tensor of shape `[B, ...]` containing initial value.
       reverse: Whether to process the sum in a reverse order.
-      sequence_lengths: Tensor of shape `[B]` containing sequence lengths to be
-        (reversed and then) summed.
       back_prop: Whether to backpropagate.
       name: Sets the name_scope for this op.
     Returns:
       Cumulative sum with discount. Same shape and type as `sequence`.
     """
-    # Note this can be implemented in terms of cumprod and cumsum,
-    # approximately as (ignoring boundary issues and initial_value):
-    #
-    # cumsum(decay_prods * sequence) / decay_prods
-    # where decay_prods = reverse_cumprod(decay)
-    #
-    # One reason this hasn't been done is that multiplying then dividing again by
-    # products of decays isn't ideal numerically, in particular if any of the
-    # decays are zero it results in NaNs.
-    if sequence_lengths is not None:
-        raise NotImplementedError
 
     elems = [sequence, decay]
     if reverse:
-        elems = [reverse_seq(s, sequence_lengths) for s in elems]
+        elems = [reverse_seq(s) for s in elems]
+        [sequence, decay] = elems
+
+    # another implementions
+    # result = torch.empty_like(sequence)
+    # result[0] = sequence[0] + decay[0] * initial_value
+    # for i in range(len(result) - 1):
+    #     result[i + 1] = sequence[i + 1] + decay[i + 1] * result[i]
 
     elems = [s.unsqueeze(0) for s in elems]
     elems = torch.cat(elems, dim=0) 
@@ -185,7 +173,6 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
     print("elems", elems) if debug else None
     print("elems.shape", elems.shape) if debug else None
 
-    # we change it to a pytorch version
     def scan(foo, x, initial_value, debug=False):
         res = []
         a_ = initial_value.clone().detach()
@@ -195,6 +182,8 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
         res.append(foo(a_, x[0]).unsqueeze(0))
         print("res", res) if debug else None
         print("len(x)", len(x)) if debug else None
+
+        a_ = foo(a_, x[0])
 
         for i in range(1, len(x)):
             print("i", i) if debug else None
@@ -207,19 +196,15 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
 
         return torch.cat(res)
 
-    # summed = tf.scan(lambda a, x: x[0] + x[1] * a,
-    #                 elems,
-    #                 initializer=tf.convert_to_tensor(initial_value),
-    #                 parallel_iterations=1,
-    #                 back_prop=back_prop)
-    summed = scan(lambda a, x: x[0] + x[1] * a, elems, initial_value=initial_value)
-    print("summed", summed) if debug else None
-    print("summed.shape", summed.shape) if debug else None   
+    result = scan(lambda a, x: x[0] + x[1] * a, elems, initial_value=initial_value)
 
     if reverse:
-        summed = reverse_seq(summed, sequence_lengths)
+        result = reverse_seq(result)
 
-    return summed
+    print("result", result) if 1 else None
+    print("result.shape", result.shape) if 1 else None 
+
+    return result
 
 
 def vtrace_advantages(clipped_rhos, rewards, discounts, values, bootstrap_value):
@@ -342,15 +327,6 @@ def vtrace_from_importance_weights(
 
     vs_minus_v_xs = scan(foo=scanfunc, x=sequences, initial_value=initial_values)
 
-    '''
-    # the original tensorflow code
-    vs_minus_v_xs = tf.scan(
-        fn=scanfunc,
-        elems=sequences,
-        initializer=initial_values,
-        parallel_iterations=1,
-        back_prop=False)
-        '''
     # Reverse the results back to original order.
     vs_minus_v_xs = torch.flip(vs_minus_v_xs, dims=[0])
 
@@ -561,3 +537,58 @@ def log_prob(actions, logits, reduction="none"):
     the_log_prob = - loss_result
 
     return the_log_prob
+
+
+def test():
+    if True:
+        batch_size = 2
+        seq_len = 4
+
+        device = 'cpu'
+
+        is_final = [[0, 0], [0, 0], [0, 0], [0, 0]]
+        baselines = [[2, 1], [3, 4], [0, 5], [2, 7]]
+        rewards = [[0, 0], [0, 0], [0, 1], [-1, 0]]
+
+        baselines = torch.tensor(baselines, dtype=torch.float, device=device)
+        rewards = torch.tensor(rewards, dtype=torch.float, device=device)
+
+        discounts = ~np.array(is_final[:-1], dtype=np.bool)  # don't forget dtype=np.bool!, or '~' ouput -1 instead of 1
+        discounts = torch.tensor(discounts, dtype=torch.float, device=device)
+
+        print("discounts:", discounts) if 1 else None
+
+        boostrapvales = baselines[1:]
+        rewards_short = rewards[:-1]
+
+        if 1:
+            # The baseline is then updated using TDLambda, with relative weighting 10.0 and lambda 0.8.
+            returns = lambda_returns(boostrapvales, rewards_short, discounts, lambdas=0.8)
+
+            # returns = stop_gradient(returns)
+            returns = returns.detach()
+            print("returns:", returns) if debug else None
+
+            result = returns - baselines[:-1]
+            print("result:", result) if debug else None
+
+            # change to pytorch version
+            td_lambda_loss = 0.5 * torch.mean(torch.square(result))
+            print('td_lambda_loss', td_lambda_loss)
+
+        if 2:
+            lambdas = 0.8
+
+            returns = torch.empty_like(rewards_short)
+
+            returns[-1, :] = rewards_short[-1, :] + boostrapvales[-1, :]
+            for t in reversed(range(rewards_short.shape[0] - 1)):
+                returns[t, :] = rewards_short[t, :] + lambdas * returns[t + 1, :] \
+                    + (1 - lambdas) * boostrapvales[t, :]
+            print("returns:", returns) if debug else None
+
+            result = returns.detach() - baselines[:-1]
+            print("result:", result) if debug else None
+
+            td_lambda_loss_2 = 0.5 * torch.pow(result, 2).mean()
+            print('td_lambda_loss_2', td_lambda_loss_2)
