@@ -223,11 +223,13 @@ def human_policy_kl_loss(student_logits, teacher_logits, action_type_kl_cost):
 
 
 def td_lambda_loss(baselines, rewards, trajectories): 
+    # note, use '~' must ensure the type is bool
     discounts = ~np.array(trajectories.is_final[:-1], dtype=np.bool)
     discounts = torch.tensor(discounts, device=device)
 
     baselines = baselines
-    rewards = rewards[1:]
+    # rewards should be T_0 -> T_{n-1}
+    rewards = rewards[:-1]
 
     # The baseline is then updated using TDLambda, with relative weighting 10.0 and lambda 0.8.
     returns = RA.lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
@@ -317,8 +319,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
         target_logits = target_logits.reshape(-1, target_logits.shape[-1])
         behavior_logits = behavior_logits.reshape(-1, behavior_logits.shape[-1])
         actions = actions.reshape(-1, actions.shape[-1])
-
-    if action_fields == 'target_location':
+    elif action_fields == 'target_location':
         target_logits = target_logits.reshape(target_logits.shape[0], -1)
         behavior_logits = behavior_logits.reshape(behavior_logits.shape[0], -1)
 
@@ -427,7 +428,7 @@ def split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories):
         loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_unit')
         loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_location')
 
-    return loss.sum()
+    return loss.mean()
 
 
 def split_upgo_loss(target_logits, baselines, trajectories):
@@ -477,7 +478,7 @@ def sum_upgo_loss(target_logits, values, trajectories, returns):
     loss += upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'target_unit')
     loss += upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'target_location')
 
-    return loss.sum()
+    return loss.mean()
 
 
 def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_fields):

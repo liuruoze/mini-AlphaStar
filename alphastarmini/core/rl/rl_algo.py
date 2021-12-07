@@ -46,7 +46,7 @@ def lambda_returns(values_tp1, rewards, discounts, lambdas=0.8):
     https://github.com/deepmind/trfl/blob/2c07ac22512a16715cc759f0072be43a5d12ae45/trfl/value_ops.py#L74
     """
 
-    # we only implment the lambda return version in AlphaStar when lambdas=0.8
+    # mAS: we only implment the lambda return version in AlphaStar when lambdas=0.8
     # assert lambdas != 1
 
     # assert v_tp1 = torch.concat([values[1:, :], torch.unsqueeze(bootstrap_value, 0)], axis=0)
@@ -116,11 +116,11 @@ def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
     #                                   initial_value = state_values[last])  
 
     sequence = rewards + pcontinues * state_values * (1 - lambda_)
-    print("sequence", sequence) if 1 else None
+    print("sequence", sequence) if debug else None
     print("sequence.shape", sequence.shape) if debug else None
 
     discount = pcontinues * lambda_
-    print("discount", discount) if 1 else None
+    print("discount", discount) if debug else None
     print("discount.shape", discount.shape) if debug else None
 
     initial_value = state_values[-1]
@@ -201,8 +201,8 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
     if reverse:
         result = reverse_seq(result)
 
-    print("result", result) if 1 else None
-    print("result.shape", result.shape) if 1 else None 
+    print("result", result) if debug else None
+    print("result.shape", result.shape) if debug else None 
 
     return result
 
@@ -366,12 +366,13 @@ def upgo_returns(values, rewards, discounts, bootstrap):
 
     # we change it to pytorch version
     # next_values = np.concatenate((values[1:], np.expand_dims(bootstrap, axis=0)), axis=0)
-    next_values = torch.cat([values[1:], bootstrap.unsqueeze(0)], dim=0)
+    # next_values. Shape [T, B].
+    next_values = torch.cat([values[1:], bootstrap.unsqueeze(dim=0)], dim=0)
     print("next_values", next_values) if debug else None
     print("next_values.shape", next_values.shape) if debug else None
 
     # Upgo can be viewed as a lambda return! The trace continues (i.e. lambda =
-    # 1.0) if r_t + V_tp1 > V_t.
+    # 1.0) if r_t + V_tp1 > V_t. original G_t = r_t +  
     lambdas = (rewards + discounts * next_values) >= values
     print("lambdas", lambdas) if debug else None
     print("lambdas.shape", lambdas.shape) if debug else None
@@ -543,7 +544,10 @@ def log_prob(actions, logits, reduction="none"):
 
 
 def test():
-    if True:
+
+    test_td_lamda_loss = True
+
+    if test_td_lamda_loss:
         batch_size = 2
         seq_len = 4
 
