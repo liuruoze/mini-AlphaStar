@@ -15,6 +15,7 @@ import torch.nn as nn
 
 from alphastarmini.core.rl.rl_utils import Trajectory
 from alphastarmini.core.rl.action import ArgsActionLogits
+from alphastarmini.core.rl.action import ArgsAction
 
 from alphastarmini.core.rl import rl_algo as RA
 from alphastarmini.core.rl import rl_utils as RU
@@ -22,6 +23,9 @@ from alphastarmini.core.rl import pseudo_reward as PR
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
+from alphastarmini.lib.hyper_parameters import Label_Size as LS
+from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
+
 
 __author__ = "Ruo-Ze Liu"
 
@@ -46,23 +50,7 @@ Mask = collections.namedtuple('Mask', ACTION_FIELDS)
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-def is_sampled(z):
-    """Takes a tensor of zs. Returns a mask indicating which z's are sampled."""
-    return True
-
-
 def filter_by(action_fields, target):
-    """Returns the subset of `target` corresponding to `action_fields`.
-
-    Autoregressive actions are composed of many logits.  We often want to select a
-    subset of these logits.
-
-    Args:
-      action_fields: One of 'action_type', 'delay', or 'arguments'.
-      target: A ArgsActionLogits tensor.
-    Returns:
-      A tensor
-    """
     if action_fields == 'action_type':
         return target.action_type
     elif action_fields == 'delay':
@@ -78,34 +66,11 @@ def filter_by(action_fields, target):
 
 
 def filter_by_for_lists(action_fields, target_list):
-    """Returns the subset of `target` corresponding to `action_fields`.
 
-    Autoregressive actions are composed of many logits.  We often want to select a
-    subset of these logits.
-
-    Args:
-      action_fields: One of 'action_type', 'delay', or 'arguments'.
-      target: A list of tensors corresponding to the SC2 action spec. [T x B x S]
-    Returns:
-      A tensor corresponding to a subset of `target`, with only the tensors relevant
-      to `action_fields`.
-    """
     return torch.cat([getattr(b, action_fields) for a in target_list for b in a], dim=0)
 
 
 def filter_by_for_masks(action_fields, target_mask):
-    """Returns the subset of `mask` corresponding to `action_fields`.
-
-    Autoregressive actions are composed of many logits.  We often want to select a
-    subset of these logits.
-
-    Args:
-      action_fields: One of 'action_type', 'delay', or 'arguments'.
-      target_mask: A list of tensors corresponding to the masks. [T x B x 1]
-    Returns:
-      A tensor corresponding to a subset of `target`, with only the tensors relevant
-      to `action_fields`.
-    """
     index_list = ['action_type', 'delay', 'queue', 'units', 'target_unit', 'target_location']
     index = index_list.index(action_fields)
 
@@ -274,12 +239,13 @@ def policy_gradient_loss(logits, actions, advantages, mask):
 
 def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
                    action_fields):
-    """Computes v-trace policy gradient loss. Helper for split_vtrace_pg_loss."""
     # Remove last timestep from trajectories and baselines.
-    # 
     print("action_fields", action_fields) if debug else None
 
     trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
+
+    sequence_length = rewards.shape[0]
+    batch_size = rewards.shape[1]
 
     rewards = rewards[:-1]
     values = baselines[:-1]
@@ -294,7 +260,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     action_size = tuple(list(target_logits.shape[1:]))  # from the 3rd dim, it is action dim, may be [S] or [C, S] or [H, W]
 
     # shape: [batch_size x seq_size x action_size]
-    split_target_logits = split_target_logits.reshape(AHP.batch_size, AHP.sequence_length, *action_size)
+    split_target_logits = split_target_logits.reshape(batch_size, sequence_length, *action_size)
     # shape: [seq_size x batch_size x action_size]
     split_target_logits = torch.transpose(split_target_logits, 0, 1)
     # shape: [new_seq_size x batch_size x action_size]
@@ -373,14 +339,14 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
 
     # here we should reshape the target_logits and actions back to [T-1, B, C] size for computing policy gradient
     if action_fields == 'units':
-        target_logits = target_logits.reshape(AHP.sequence_length - 1, AHP.batch_size * AHP.max_selected, -1)
-        actions = actions.reshape(AHP.sequence_length - 1, AHP.batch_size * AHP.max_selected, -1)
+        target_logits = target_logits.reshape(sequence_length - 1, batch_size * AHP.max_selected, -1)
+        actions = actions.reshape(sequence_length - 1, batch_size * AHP.max_selected, -1)
 
         weighted_advantage = torch.cat([weighted_advantage] * AHP.max_selected, dim=1)
         masks = torch.cat([masks] * AHP.max_selected, dim=1)
     else:
-        target_logits = target_logits.reshape(AHP.sequence_length - 1, AHP.batch_size, -1)
-        actions = actions.reshape(AHP.sequence_length - 1, AHP.batch_size, -1)
+        target_logits = target_logits.reshape(sequence_length - 1, batch_size, -1)
+        actions = actions.reshape(sequence_length - 1, batch_size, -1)
 
     result = compute_over_actions(policy_gradient_loss, target_logits,
                                   actions, weighted_advantage, masks)
@@ -732,3 +698,93 @@ def loss_function(agent, trajectories):
     print("loss_all:", loss_all) if 1 else None
 
     return loss_all
+
+
+def test():
+
+    test_split_vtrace_pg_loss = True
+
+    if test_split_vtrace_pg_loss:
+        batch_size = 2
+        seq_len = 4
+
+        device = 'cpu'
+
+        is_final = [[0, 0], [0, 0], [0, 0], [0, 0]]
+        baselines = [[2, 1], [3, 4], [0, 5], [2, 7]]
+        rewards = [[0, 0], [0, 0], [0, 1], [-1, 0]]
+
+        baselines = torch.tensor(baselines, dtype=torch.float, device=device)
+        rewards = torch.tensor(rewards, dtype=torch.float, device=device)
+
+        action_type_logits = torch.randn(batch_size * seq_len, LS.action_type_encoding, dtype=torch.float, device=device)
+        delay_logits = torch.randn(batch_size * seq_len, SFS.last_delay, dtype=torch.float, device=device)
+        queue_logits = torch.randn(batch_size * seq_len, SFS.last_repeat_queued, dtype=torch.float, device=device)
+        units_logits = torch.randn(batch_size * seq_len, AHP.max_selected, AHP.max_entities, dtype=torch.float, device=device)
+        target_unit_logits = torch.randn(batch_size * seq_len, 1, AHP.max_entities, dtype=torch.float, device=device)
+        target_location_logits = torch.randn(batch_size * seq_len, SCHP.world_size, SCHP.world_size, dtype=torch.float, device=device)
+
+        target_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
+                                         units=units_logits, target_unit=target_unit_logits, 
+                                         target_location=target_location_logits)
+        behavior_logitss = []
+        actionss = []
+        maskss = []
+        for i in range(seq_len):
+            behavior_logits = []
+            actions = []
+            masks = []
+            for j in range(batch_size):              
+                action_type_logits = torch.randn(1, LS.action_type_encoding, dtype=torch.float, device=device)
+                delay_logits = torch.randn(1, SFS.last_delay, dtype=torch.float, device=device)
+                queue_logits = torch.randn(1, SFS.last_repeat_queued, dtype=torch.float, device=device)
+                units_logits = torch.randn(1, AHP.max_selected, AHP.max_entities, dtype=torch.float, device=device)
+                target_unit_logits = torch.randn(1, 1, AHP.max_entities, dtype=torch.float, device=device)
+                target_location_logits = torch.randn(1, SCHP.world_size, SCHP.world_size, dtype=torch.float, device=device)
+
+                behavior_logit = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
+                                                  units=units_logits, target_unit=target_unit_logits, 
+                                                  target_location=target_location_logits)
+                behavior_logits.append(behavior_logit)
+
+                mask = [1, 1, 1, 1, 1, 1]
+                masks.append(mask)
+
+                action_type = torch.ones(1, 1, dtype=torch.long, device=device)
+                delay = torch.ones(1, 1, dtype=torch.long, device=device)
+                queue = torch.ones(1, 1, dtype=torch.long, device=device)
+                units = torch.ones(1, AHP.max_selected, 1, dtype=torch.long, device=device)
+                target_unit = torch.ones(1, 1, 1, dtype=torch.long, device=device)
+                target_location = torch.ones(1, 2, dtype=torch.long, device=device)
+                action = ArgsAction(action_type=action_type, delay=delay, queue=queue,
+                                    units=units, target_unit=target_unit, target_location=target_location)
+
+                actions.append(action)
+
+            behavior_logitss.append(behavior_logits)
+            maskss.append(masks)
+            actionss.append(actions)
+
+        trajectories = Trajectory(
+            state=[[0, 0], [0, 0], [0, 0], [0, 0]],
+            baseline_state=[[0, 0], [0, 0], [0, 0], [0, 0]],
+            baseline_state_op=[[0, 0], [0, 0], [0, 0], [0, 0]],  # when fighting with computer, we don't use opponent state
+            memory=[[0, 0], [0, 0], [0, 0], [0, 0]],
+            z=[[0, 0], [0, 0], [0, 0], [0, 0]],
+            masks=maskss,
+            action=actionss,
+            behavior_logits=behavior_logitss,
+            teacher_logits=[[0, 0], [0, 0], [0, 0], [0, 0]],      
+            is_final=is_final,                                          
+            reward=rewards,
+
+            build_order=[[0, 0], [0, 0], [0, 0], [0, 0]],
+            z_build_order=[[0, 0], [0, 0], [0, 0], [0, 0]],  # we change it to the sampled build order
+            unit_counts=[[0, 0], [0, 0], [0, 0], [0, 0]],
+            z_unit_counts=[[0, 0], [0, 0], [0, 0], [0, 0]],  # we change it to the sampled unit counts
+            game_loop=[[0, 0], [0, 0], [0, 0], [0, 0]],
+        )
+
+        pg_loss = split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories)
+
+        print('pg_loss', pg_loss)
