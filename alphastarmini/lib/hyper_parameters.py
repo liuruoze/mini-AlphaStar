@@ -345,8 +345,8 @@ Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
                                         units_buildings=ConstSize.All_Units_Size,
                                         effects=ConstSize.Effects_Size,
                                         upgrade=ConstSize.Upgrades_Size,
-                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order
-                                        * ConstSize.All_Units_Size,
+                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order *
+                                        ConstSize.All_Units_Size,
                                         last_delay=128,
                                         last_action_type=ConstSize.Actions_Size,
                                         last_repeat_queued=2)

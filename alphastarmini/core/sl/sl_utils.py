@@ -217,7 +217,10 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
 
     for raw_action_id in ground_truth_raw_action_id:
         aid = raw_action_id.item()
-        mask_list.append([1.])  
+        if aid == Smart_unit_id:
+            mask_list.append([2.])
+        else:
+            mask_list.append([1.])  
 
         # if not only_consider_small:
         #     if aid == MOVE_CAMERA_ID:

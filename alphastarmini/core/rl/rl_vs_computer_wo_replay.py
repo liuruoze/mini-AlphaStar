@@ -75,7 +75,10 @@ class ActorVSComputer:
 
         print('initialed player')
         self.player.add_actor(self)
-        self.player.agent.set_rl_training(True)
+        self.player.agent.set_rl_training(is_training)
+
+        #model.load_state_dict(torch.load(model_path, map_location=device), strict=False) 
+
         if ON_GPU:
             self.player.agent.agent_nn.to(DEVICE)
 

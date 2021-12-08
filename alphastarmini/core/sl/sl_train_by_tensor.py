@@ -61,15 +61,15 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-12-02_15-16-07.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-12-08_17-12-37.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    TRAIN_FROM = 0
-    TRAIN_NUM = 1
+    TRAIN_FROM = 2
+    TRAIN_NUM = 13
 
-    VAL_FROM = 1
-    VAL_NUM = 1
+    VAL_FROM = 0
+    VAL_NUM = 2
 else:
     TRAIN_FROM = 0
     TRAIN_NUM = 14

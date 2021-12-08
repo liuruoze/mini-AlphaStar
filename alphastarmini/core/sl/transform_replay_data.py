@@ -73,7 +73,7 @@ flags.DEFINE_float("no_op_threshold", 0.000, "The threshold to save no op operat
 # move_camera_threshold = (50 / 1) * len(RAW_FUNCTIONS) * scale_factor_2
 flags.DEFINE_float("move_camera_threshold", 0.00, "The threshold to save move_camera operations.")  # 0.05
 flags.DEFINE_float("Smart_pt_threshold", 0.0, "The threshold to save no op operations.")  # 0.3
-flags.DEFINE_float("Smart_unit_threshold", 0.0, "The threshold to save no op operations.")  # 0.3
+flags.DEFINE_float("Smart_unit_threshold", 1.0, "The threshold to save no op operations.")  # 0.3
 
 
 flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
