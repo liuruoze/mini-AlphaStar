@@ -22,6 +22,7 @@ from alphastarmini.core.rl import actor
 from alphastarmini.core.rl import against_computer
 from alphastarmini.core.rl import pseudo_reward
 from alphastarmini.core.rl import rl_algo
+from alphastarmini.core.rl import rl_loss
 
 if __name__ == '__main__':
     # if we don't add this line, it may cause running time error while in Windows
@@ -46,6 +47,7 @@ if __name__ == '__main__':
 
     # arch_model.test()
     # agent.test()
-    rl_algo.test()
+    # rl_algo.test()
+    rl_loss.test()
 
     print('test over')

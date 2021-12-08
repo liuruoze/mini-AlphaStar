@@ -18,6 +18,8 @@ from alphastarmini.core.rl.action import ArgsActionLogits
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
+from alphastarmini.lib.hyper_parameters import Label_Size as LS
+from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
 __author__ = "Ruo-Ze Liu"
 
@@ -545,7 +547,7 @@ def log_prob(actions, logits, reduction="none"):
 
 def test():
 
-    test_td_lamda_loss = True
+    test_td_lamda_loss = False
 
     if test_td_lamda_loss:
         batch_size = 2
