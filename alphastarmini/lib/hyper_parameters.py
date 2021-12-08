@@ -126,7 +126,8 @@ ArchHyperParameters = namedtuple('ArchHyperParameters', ['batch_size',
                                                          'minimap_size', 'embedding_size', 
                                                          'map_channels',
                                                          'scatter_channels',
-                                                         'init_net_params', 
+                                                         'init_net_params',
+                                                         'positional_encoding_time', 
                                                          'scalar_encoder_fc1_input', 
                                                          'scalar_encoder_fc2_input',
                                                          'scalar_feature_size',
@@ -162,6 +163,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       map_channels=24,
                                                       scatter_channels=1,  # 0 or 1
                                                       init_net_params=1,
+                                                      positional_encoding_time=0,
                                                       scalar_encoder_fc1_input=1504,
                                                       scalar_encoder_fc2_input=544,
                                                       scalar_feature_size=7327,  # Deprecated
@@ -198,6 +200,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 * 3 / Min
                                                      map_channels=24,
                                                      scatter_channels=1,  # 0 or 1
                                                      init_net_params=1,
+                                                     positional_encoding_time=0,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
                                                      scalar_feature_size=7327,  # Deprecated

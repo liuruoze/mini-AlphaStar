@@ -16,7 +16,7 @@ from pysc2.lib import actions as A
 from alphastarmini.core.arch.arch_model import ArchModel
 from alphastarmini.core.arch.entity_encoder import EntityEncoder, Entity
 
-from alphastarmini.core.rl.action import ArgsAction
+from alphastarmini.core.rl.action import ArgsAction, ArgsActionLogits
 from alphastarmini.core.rl.state import MsState
 
 from alphastarmini.core.sl.feature import Feature
@@ -329,6 +329,28 @@ class Agent(object):
                                                                                  hidden_state = hidden_state, 
                                                                                  return_logits = True)
         return action_logits, actions, new_state, select_units_num
+
+    def action_logits_based_on_actions(self, state, action_gt, gt_select_units_num, hidden_state = None, single_inference = False):
+        batch_size = 1 if single_inference else None
+        sequence_length = 1 if single_inference else None
+
+        action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
+            delay_logits, queue_logits, \
+            units_logits, target_unit_logits, \
+            target_location_logits, select_units_num, new_state = self.model.sl_forward(state, 
+                                                                                        action_gt, 
+                                                                                        gt_select_units_num,
+                                                                                        gt_is_one_hot=False,
+                                                                                        batch_size=batch_size, 
+                                                                                        sequence_length=sequence_length, 
+                                                                                        hidden_state = hidden_state,
+                                                                                        multi_gpu_supvised_learning=True)
+
+        action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
+                                         units=units_logits, target_unit=target_unit_logits, 
+                                         target_location=target_location_logits)
+
+        return action_logits, select_units_num, new_state
 
     def state_by_obs(self, obs, return_tag_list = False):
         state, tag_list = Agent.preprocess_state_all(obs, return_tag_list)

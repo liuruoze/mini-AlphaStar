@@ -17,4 +17,4 @@ Mini_Scale = 16
 
 '''The training and tesing map for current setting, affecting the location head mask '''
 # map_name = 'Simple64'
-map_name = 'AbyssalReef'
+map_name = 'Simple64'

@@ -155,42 +155,51 @@ class ArchModel(nn.Module):
 
         return action, hidden_state, select_units_num
 
+    def sl_forward(self, state, gt_action, gt_select_units_num, 
+                   gt_is_one_hot=True, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None):
+        '''
         # inspired by the DI-star project
         # injected the args of ground truth into the forward calculation
         # to make sure the forward follow the right direction
-    def sl_forward(self, state, gt_action, gt_select_units_num, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None):
+        '''
+
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
         entity_embeddings, embedded_entity, entity_nums = self.entity_encoder(state.entity_state)   
-
         map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
-
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
-
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
                                               batch_size, sequence_length, hidden_state)
 
-        # TODO: remove these unzero
-        gt_action_type = torch.nonzero(gt_action.action_type.long(), as_tuple=True)[-1].unsqueeze(dim=1)
-        print('gt_action_type.shape', gt_action_type.shape) if debug else None
-        gt_delay = torch.nonzero(gt_action.delay.long(), as_tuple=True)[-1].unsqueeze(dim=1)
-        print('gt_delay.shape', gt_delay.shape) if debug else None
-        gt_queue = torch.nonzero(gt_action.queue.long(), as_tuple=True)[-1].unsqueeze(dim=1)
-        print('gt_queue.shape', gt_queue.shape) if debug else None
+        if gt_is_one_hot:
+            # TODO: remove these unzero
+            gt_action_type = torch.nonzero(gt_action.action_type.long(), as_tuple=True)[-1].unsqueeze(dim=1)
+            print('gt_action_type.shape', gt_action_type.shape) if debug else None
+            gt_delay = torch.nonzero(gt_action.delay.long(), as_tuple=True)[-1].unsqueeze(dim=1)
+            print('gt_delay.shape', gt_delay.shape) if debug else None
+            gt_queue = torch.nonzero(gt_action.queue.long(), as_tuple=True)[-1].unsqueeze(dim=1)
+            print('gt_queue.shape', gt_queue.shape) if debug else None
 
-        gt_units = gt_action.units.long()
-        batch_size = gt_units.shape[0]
-        select_size = gt_units.shape[1]
-        gt_units = gt_units.reshape(-1, gt_units.shape[-1])
-        print('gt_units.shape', gt_units.shape) if debug else None
-        gt_units = torch.nonzero(gt_units, as_tuple=True)[-1]
-        gt_units = gt_units.reshape(batch_size, select_size, 1)
-        print('gt_units.shape', gt_units.shape) if debug else None
+            gt_units = gt_action.units.long()
+            batch_size = gt_units.shape[0]
+            select_size = gt_units.shape[1]
+            gt_units = gt_units.reshape(-1, gt_units.shape[-1])
+            print('gt_units.shape', gt_units.shape) if debug else None
 
-        gt_target_unit = gt_action.target_unit.long()
-        gt_target_unit = gt_target_unit.reshape(-1, gt_target_unit.shape[-1])
-        gt_target_unit = torch.nonzero(gt_target_unit, as_tuple=True)[-1]
-        print('gt_target_unit.shape', gt_target_unit.shape) if debug else None
-        gt_target_unit = gt_target_unit.reshape(batch_size, 1, 1)
+            gt_units = torch.nonzero(gt_units, as_tuple=True)[-1]
+            gt_units = gt_units.reshape(batch_size, select_size, 1)
+            print('gt_units.shape', gt_units.shape) if debug else None
+
+            gt_target_unit = gt_action.target_unit.long()
+            gt_target_unit = gt_target_unit.reshape(-1, gt_target_unit.shape[-1])
+            gt_target_unit = torch.nonzero(gt_target_unit, as_tuple=True)[-1]
+            print('gt_target_unit.shape', gt_target_unit.shape) if debug else None
+            gt_target_unit = gt_target_unit.reshape(batch_size, 1, 1)
+        else:
+            gt_action_type = gt_action.action_type
+            gt_delay = gt_action.delay
+            gt_queue = gt_action.queue
+            gt_units = gt_action.units
+            gt_target_unit = gt_action.target_unit
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, gt_action_type)
         delay_logits, _, autoregressive_embedding = self.delay_head(autoregressive_embedding, gt_delay)
@@ -214,7 +223,7 @@ class ArchModel(nn.Module):
 
         if multi_gpu_supvised_learning:
             return action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \
-                units_logits, target_unit_logits, target_location_logits, select_units_num
+                units_logits, target_unit_logits, target_location_logits, select_units_num, hidden_state
 
         return action_type_logits, delay_logits, queue_logits, \
             units_logits, target_unit_logits, target_location_logits
@@ -372,12 +381,6 @@ def test():
 
             loss.backward()
             optimizer.step()
-
-            # action_type_logits, delay_logits, queue_logits, \
-            #     units_logits, target_unit_logits, target_location_logits = arch_model.sl_forward(state, 
-            #                                                                                      gt_action=action, 
-            #                                                                                      gt_select_units_num=select_units_num,
-            #                                                                                      hidden_state=hidden_state)
 
             hidden_state = new_hidden_state
 

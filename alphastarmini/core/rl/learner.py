@@ -34,7 +34,7 @@ SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S",
 class Learner:
     """Learner worker that updates agent parameters based on trajectories."""
 
-    def __init__(self, player, max_time_for_training=60 * 3):
+    def __init__(self, player, max_time_for_training=60 * 3, is_training=True):
         self.player = player
         self.player.set_learner(self)
 
@@ -54,7 +54,7 @@ class Learner:
         self.max_time_for_training = max_time_for_training
         self.is_running = False
 
-        self.is_rl_training = True
+        self.is_rl_training = is_training
 
     def get_parameters(self):
         return self.player.agent.get_parameters()
@@ -88,8 +88,8 @@ class Learner:
             if agent.steps % (10 * AHP.batch_size * AHP.sequence_length) == 0:
                 torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
-            agent.steps += AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
-            # self.player.agent.set_weights(self.optimizer.minimize(loss))
+        agent.steps += AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
+        # self.player.agent.set_weights(self.optimizer.minimize(loss))
 
     def start(self):
         self.thread.start()

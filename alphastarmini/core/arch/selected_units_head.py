@@ -353,7 +353,7 @@ class SelectedUnitsHead(nn.Module):
         # TODO: creates a new variable corresponding to ending unit selection.
         # QUESTION: how to do that?
         # ANSWER: referred by the DI-star project, please see self.new_variable in init() method
-        units_logits = []
+        units_logits_list = []
         hidden = None
 
         # designed with reference to DI-star
@@ -405,7 +405,7 @@ class SelectedUnitsHead(nn.Module):
             entity_logits = y.div(self.temperature)
             # note, we add a dimension where is in the seq_one to help
             # we concat to the one : [batch_size x max_selected x ?]
-            units_logits.append(entity_logits.unsqueeze(-2))
+            units_logits_list.append(entity_logits.unsqueeze(-2))
 
             # Wenhai: If this entity_id is a EOF, end the selection
             # Implemented in 1.05 version
@@ -446,15 +446,19 @@ class SelectedUnitsHead(nn.Module):
             print("autoregressive_embedding:", autoregressive_embedding) if debug else None
 
         # units_logits: [batch_size x select_units x entity_size]
-        units_logits = torch.cat(units_logits, dim=1)
 
-        # we use zero padding to make units_logits has the size of [batch_size x max_selected x entity_size]
-        # TODO: change the padding
-        padding_size = self.max_selected - units_logits.shape[1]
-        if padding_size > 0:
-            pad_units_logits = torch.zeros(units_logits.shape[0], padding_size, units_logits.shape[2],
-                                           dtype=units_logits.dtype, device=units_logits.device)
-            units_logits = torch.cat([units_logits, pad_units_logits], dim=1)
+        if len(units_logits_list) > 0:
+            units_logits = torch.cat(units_logits_list, dim=1)
+            # we use zero padding to make units_logits has the size of [batch_size x max_selected x entity_size]
+            # TODO: change the padding
+            padding_size = self.max_selected - units_logits.shape[1]
+            if padding_size > 0:
+                pad_units_logits = torch.zeros(units_logits.shape[0], padding_size, units_logits.shape[2],
+                                               dtype=units_logits.dtype, device=units_logits.device)
+                units_logits = torch.cat([units_logits, pad_units_logits], dim=1)
+        else:
+            units_logits = torch.zeros(batch_size, self.max_selected, entity_size,
+                                       dtype=action_type.dtype, device=action_type.device)
 
         # AlphaStar: If `action_type` does not involve selecting units, this head is ignored.
 

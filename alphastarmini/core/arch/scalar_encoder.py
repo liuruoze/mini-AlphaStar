@@ -30,6 +30,13 @@ class ScalarEncoder(nn.Module):
         scalar_context - A 1D tensor of certain scalar features we want to use as context for gating later
     '''
 
+    # assume we have most for some minutes game
+    use_positional_encoding_for_time = AHP.positional_encoding_time
+
+    if use_positional_encoding_for_time:
+        max_game_seconds = 30 * 60
+        time_encoding_all = L.positional_encoding(max_position=max_game_seconds, embedding_size=64, add_batch_dim=False)
+
     def __init__(self, n_statistics=10, n_upgrades=SFS.upgrades, 
                  n_action_num=SFS.available_actions, n_units_buildings=SFS.unit_counts_bow, 
                  n_effects=SFS.effects, n_upgrade=SFS.upgrade,
@@ -282,10 +289,18 @@ class ScalarEncoder(nn.Module):
         game_loop = obs["game_loop"]
         print('game_loop:', game_loop) if debug else None
 
-        time_encoding = L.unpackbits_for_largenumber(game_loop, num_bits=64).astype(np.float32).reshape(1, -1)
-        print('time_encoding:', time_encoding) if debug else None 
-        # note, we use binary encoding here for time
-        time = time_encoding
+        if not cls.use_positional_encoding_for_time:
+            time_encoding = L.unpackbits_for_largenumber(game_loop, num_bits=64).astype(np.float32).reshape(1, -1)
+            print('time_encoding:', time_encoding) if debug else None 
+            # note, we use binary encoding here for time
+            time = time_encoding
+        else:
+            seconds = int(game_loop / 22.4)
+            seconds = min(cls.max_game_seconds - 1, seconds)
+            time_encoding_2 = (cls.time_encoding_all[seconds]).astype(np.float32).reshape(1, -1)
+            print('time_encoding_2:', time_encoding_2) if debug else None 
+            time = time_encoding_2
+
         #time[0, 0] = game_loop
 
         # TODO: implement the available_actions

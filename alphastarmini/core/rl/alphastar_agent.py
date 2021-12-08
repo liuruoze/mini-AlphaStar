@@ -235,7 +235,16 @@ class AlphaStarAgent(RandomAgent):
                                                                                                      hidden_state=hidden_state)
         func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
 
-        return func_call, action, action_logits, hidden_state
+        return func_call, action, action_logits, hidden_state, select_units_num
+
+    def step_based_on_actions(self, state, hidden_state, action_gt, gt_select_units_num):  
+        action_logits, select_units_num, hidden_state = self.agent_nn.action_logits_based_on_actions(state, 
+                                                                                                     action_gt=action_gt, 
+                                                                                                     gt_select_units_num=gt_select_units_num, 
+                                                                                                     single_inference=True,
+                                                                                                     hidden_state=hidden_state)
+
+        return action_logits, select_units_num, hidden_state
 
     def unroll(self, trajectories):
         """Unrolls the network over the trajectory.

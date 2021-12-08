@@ -37,16 +37,16 @@ speed = False
 
 
 MAX_EPISODES = 25
-IS_TRAINING = True
+IS_TRAINING = False
 MAP_NAME = P.map_name  # "Simple64" "AbyssalReef"
 STEP_MUL = 8
 GAME_STEPS_PER_EPISODE = 24000    # 9000
 
 DIFFICULTY = 1
-RANDOM_SEED = 2
-VERSION = '4.10.0'
+RANDOM_SEED = 1
+VERSION = '3.16.1'
 
-RESTORE = False
+RESTORE = True
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -179,8 +179,10 @@ class ActorVSComputer:
                             baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, build_order=player_bo)
 
                             player_step = self.player.agent.step_from_state(state, player_memory)
-                            player_function_call, player_action, player_logits, player_new_memory = player_step
-                            print("player_function_call:", player_function_call) if debug else None
+                            player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
+                            print("player_function_call:", player_function_call) if 1 else None
+                            print("player_action:", player_action) if debug else None
+                            print("player_select_units_num:", player_select_units_num) if debug else None
 
                             print('run_loop, t1', time() - t) if speed else None
                             t = time()
@@ -192,9 +194,16 @@ class ActorVSComputer:
                             # may change implemention of teacher_logits
                             # teacher_logits = self.teacher(home_obs, player_action, teacher_memory)
 
-                            teacher_step = self.teacher.step_from_state(state, teacher_memory)
-                            teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
-                            print("teacher_function_call:", teacher_function_call) if debug else None
+                            # teacher_step = self.teacher.step_from_state(state, teacher_memory)
+                            # teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
+                            # print("teacher_function_call:", teacher_function_call) if debug else None
+
+                            if False:
+                                teacher_step = self.teacher.step_based_on_actions(state, teacher_memory, player_action, player_select_units_num)
+                                teacher_logits, teacher_select_units_num, teacher_new_memory = teacher_step
+                                print("teacher_logits:", teacher_logits) if debug else None
+                            else:
+                                teacher_logits = None
 
                             print('run_loop, t2', time() - t) if speed else None
                             t = time()
@@ -453,7 +462,7 @@ def test(on_server=False, replay_path=None):
 
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
-        learner = Learner(player, max_time_for_training=60 * 60 * 24)
+        learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING)
         learners.append(learner)
         actors.extend([ActorVSComputer(player, coordinator) for _ in range(ACTOR_NUMS)])
 

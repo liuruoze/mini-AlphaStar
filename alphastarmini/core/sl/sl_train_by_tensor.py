@@ -61,7 +61,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-11-30_22-55-15.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-12-02_15-16-07.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:

@@ -68,12 +68,12 @@ flags.DEFINE_integer("max_steps_of_replay", int(22.4 * 60 * 60), "Max game steps
 flags.DEFINE_integer("small_max_steps_of_replay", 256, "Max game steps of a replay when debug.")
 
 # no_op_threshold = (22.4 * 60 - 150) / 150 * len(RAW_FUNCTIONS) * scale_factor
-flags.DEFINE_float("no_op_threshold", 0.005, "The threshold to save no op operations.")  
+flags.DEFINE_float("no_op_threshold", 0.000, "The threshold to save no op operations.")  # 0.005
 
 # move_camera_threshold = (50 / 1) * len(RAW_FUNCTIONS) * scale_factor_2
-flags.DEFINE_float("move_camera_threshold", 0.05, "The threshold to save move_camera operations.")  # 
-flags.DEFINE_float("Smart_pt_threshold", 0.3, "The threshold to save no op operations.")  # 
-flags.DEFINE_float("Smart_unit_threshold", 0.3, "The threshold to save no op operations.")  #
+flags.DEFINE_float("move_camera_threshold", 0.00, "The threshold to save move_camera operations.")  # 0.05
+flags.DEFINE_float("Smart_pt_threshold", 0.0, "The threshold to save no op operations.")  # 0.3
+flags.DEFINE_float("Smart_unit_threshold", 0.0, "The threshold to save no op operations.")  # 0.3
 
 
 flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
@@ -85,7 +85,7 @@ flags.DEFINE_string("replay_version", "3.16.1", "the replays released by blizzar
 # note, replay path should be absoulte path
 # D:/work/gitproject/mini-AlphaStar/data/Replays/filtered_replays_1/
 # D:/work/gitproject/mini-AlphaStar/data/Replays/small_simple64_replays/
-flags.DEFINE_string("no_server_replay_path", "D:/work/gitproject/mini-AlphaStar/data/Replays/filtered_replays_1/", "path of replay data")
+flags.DEFINE_string("no_server_replay_path", "D:/work/gitproject/mini-AlphaStar/data/Replays/small_simple64_replays/", "path of replay data")
 
 flags.DEFINE_bool("save_data", False, "replays_save data or not")
 flags.DEFINE_string("save_path", "./data/replay_data/", "path to replays_save replay data")
@@ -99,7 +99,7 @@ RESULT = ['Victory', 'Defeat', 'Tie']
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     DATA_FROM = 0
-    DATA_NUM = 2
+    DATA_NUM = 15
 else:
     DATA_FROM = 30
     DATA_NUM = 15
@@ -335,8 +335,8 @@ def test(on_server=False):
         REPLAY_PATH = FLAGS.no_server_replay_path
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 1000  # 60 * 60 * 22.4
-        max_replays = 1  # 1
+        max_steps_of_replay = 60 * 60 * 22.4  # 60 * 60 * 22.4
+        max_replays = 1  # not used
 
     run_config = run_configs.get(version=FLAGS.replay_version)
     print('REPLAY_PATH:', REPLAY_PATH)

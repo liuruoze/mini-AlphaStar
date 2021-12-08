@@ -47,12 +47,12 @@ if __name__ == '__main__':
     # sl_train_by_tensor.test(on_server=P.on_server)
 
     # 3. we use SL model to do reinforcement learning against computer
-    # from alphastarmini.core.rl import rl_vs_computer_wo_replay
-    # rl_vs_computer_wo_replay.test(on_server=P.on_server, replay_path=P.replay_path)
+    from alphastarmini.core.rl import rl_vs_computer_wo_replay
+    rl_vs_computer_wo_replay.test(on_server=P.on_server, replay_path=P.replay_path)
 
     # 4. we use SL model and replays to do reinforcement learning
-    from alphastarmini.core.rl import rl_train_with_replay
-    rl_train_with_replay.test(on_server=P.on_server, replay_path=P.replay_path)
+    # from alphastarmini.core.rl import rl_train_with_replay
+    # rl_train_with_replay.test(on_server=P.on_server, replay_path=P.replay_path)
 
     # ------------------------
     #
