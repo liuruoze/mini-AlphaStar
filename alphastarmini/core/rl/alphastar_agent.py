@@ -5,7 +5,7 @@
 
 # modified from pysc2 code
 
-from time import clock
+from time import time
 
 import numpy as np
 import torch
@@ -164,23 +164,23 @@ class AlphaStarAgent(RandomAgent):
     def step_nn(self, observation, last_state):
         """Performs inference on the observation, given hidden state last_state."""
 
-        t = clock()
+        t = time()
 
         state = Agent.preprocess_state_all(obs=observation)
 
-        print('step_nn, t1', clock() - t) if speed else None
-        t = clock()
+        print('step_nn, t1', time() - t) if speed else None
+        t = time()
 
         device = self.agent_nn.device()
         state.to(device)
 
-        print('step_nn, t2', clock() - t) if speed else None
-        t = clock()
+        print('step_nn, t2', time() - t) if speed else None
+        t = time()
 
         action_logits, action, hidden_state, select_units_num = self.agent_nn.action_logits_by_state(state, single_inference=True,
                                                                                                      hidden_state=last_state)
-        print('step_nn, t3', clock() - t) if speed else None
-        t = clock()
+        print('step_nn, t3', time() - t) if speed else None
+        t = time()
 
         return action, action_logits, hidden_state, select_units_num
 
@@ -212,17 +212,17 @@ class AlphaStarAgent(RandomAgent):
         if isinstance(obs, E.TimeStep):
             obs = obs.observation
 
-        t = clock()    
+        t = time()    
 
         action, action_logits, new_state, select_units_num = self.step_nn(observation=obs, last_state=last_state)
 
-        print('step_logits, t1', clock() - t) if speed else None
-        t = clock()
+        print('step_logits, t1', time() - t) if speed else None
+        t = time()
 
         func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
 
-        print('step_logits, t2', clock() - t) if speed else None
-        t = clock()
+        print('step_logits, t2', time() - t) if speed else None
+        t = time()
 
         return func_call, action, action_logits, new_state
 

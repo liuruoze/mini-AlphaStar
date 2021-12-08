@@ -3,7 +3,7 @@
 
 " Entity Encoder."
 
-from time import time, clock
+from time import time
 import datetime
 
 import numpy as np
@@ -106,7 +106,7 @@ class EntityEncoder(nn.Module):
     def preprocess_numpy(cls, entity_list, return_entity_pos=False, debug=False):
         entity_array_list, entity_pos_list = [], []
 
-        t = clock()
+        t = time()
         for i, entity in enumerate(entity_list):
             if i >= cls.max_entities:
                 break
@@ -200,8 +200,8 @@ class EntityEncoder(nn.Module):
 
             entity_array_list.append(field_encoding_list)
 
-        print('preprocess_numpy, t1', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_numpy, t1', time() - t) if speed else None
+        t = time()
 
         entities_array = np.array(entity_array_list)
 
@@ -335,8 +335,8 @@ class EntityEncoder(nn.Module):
             all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
 
         all_entities_array = all_entities_array.astype(np.float32)
-        print('preprocess_numpy, all_entities_array', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_numpy, all_entities_array', time() - t) if speed else None
+        t = time()
 
         if return_entity_pos:
             return all_entities_array, entity_pos_list
@@ -487,22 +487,22 @@ class Entity(object):
 
 def benchmark(e_list):
     # benchmark test
-    benchmark_start = clock()
+    benchmark_start = time()
 
     for i in range(1000):
         entities_tensor = torch.tensor(EntityEncoder.preprocess_numpy(e_list))
 
-    elapse_time = clock() - benchmark_start
+    elapse_time = time() - benchmark_start
     elapse_time = datetime.timedelta(seconds=elapse_time)
     print("Preprocess time {}".format(elapse_time))
 
     # benchmark test
-    benchmark_start = clock()
+    benchmark_start = time()
 
     # for i in range(1000):
     #     entities_tensor = EntityEncoder.preprocess_in_tensor(e_list)
 
-    elapse_time = clock() - benchmark_start
+    elapse_time = time() - benchmark_start
     elapse_time = datetime.timedelta(seconds=elapse_time)
     print("Preprocess time {}".format(elapse_time))
 

@@ -3,7 +3,7 @@
 
 " Agent."
 
-from time import clock
+from time import time
 
 import numpy as np
 
@@ -170,7 +170,7 @@ class Agent(object):
 
     @staticmethod
     def preprocess_state_entity_numpy(obs, return_entity_pos=False):
-        t = clock()
+        t = time()
 
         raw_units = obs["raw_units"]
 
@@ -179,8 +179,8 @@ class Agent(object):
 
         batch_entities_array = np.expand_dims(entities_array, axis=0) 
 
-        print('preprocess_state_entity_numpy, t1', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_state_entity_numpy, t1', time() - t) if speed else None
+        t = time()
 
         if return_entity_pos:
             return batch_entities_array, entity_pos
@@ -189,7 +189,7 @@ class Agent(object):
 
     @staticmethod
     def preprocess_state_entity_numpy_1(obs, return_entity_pos=False):      
-        t = clock()
+        t = time()
 
         raw_units = obs["raw_units"]
         print('len(raw_units)', len(raw_units)) if debug else None
@@ -270,8 +270,8 @@ class Agent(object):
                                                                        return_entity_pos=return_entity_pos)
         batch_entities_array = np.expand_dims(entities_array, axis=0) 
 
-        print('preprocess_state_entity_numpy, t1', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_state_entity_numpy, t1', time() - t) if speed else None
+        t = time()
 
         if return_entity_pos:
             return batch_entities_array, entity_pos
@@ -288,35 +288,35 @@ class Agent(object):
     @staticmethod
     def preprocess_state_all(obs, build_order=None):
 
-        t = clock()
+        t = time()
 
         batch_entities_tensor, entity_pos = Agent.preprocess_state_entity_numpy(obs, return_entity_pos=True)
 
-        print('preprocess_state_all, t1', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_state_all, t1', time() - t) if speed else None
+        t = time()
 
         map_data = Agent.preprocess_state_spatial_numpy(obs, entity_pos_list=entity_pos)
 
-        print('preprocess_state_all, t2', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_state_all, t2', time() - t) if speed else None
+        t = time()
 
         scalar_list = Agent.preprocess_state_scalar_numpy(obs, build_order=build_order)
 
-        print('preprocess_state_all, t3', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_state_all, t3', time() - t) if speed else None
+        t = time()
 
         batch_entities_tensor = torch.tensor(batch_entities_tensor)
         scalar_list = [torch.tensor(s) for s in scalar_list]
         map_data = torch.tensor(map_data)
 
-        print('preprocess_state_all, t4', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_state_all, t4', time() - t) if speed else None
+        t = time()
 
         state = MsState(entity_state=batch_entities_tensor, 
                         statistical_state=scalar_list, map_state=map_data)
 
-        print('preprocess_state_all, t5', clock() - t) if speed else None
-        t = clock()
+        print('preprocess_state_all, t5', time() - t) if speed else None
+        t = time()
 
         return state
 
