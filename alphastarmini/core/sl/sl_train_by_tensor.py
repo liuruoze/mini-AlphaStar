@@ -47,7 +47,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--path", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
-parser.add_argument('--num_workers', type=int, default=1, help='')
+parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
+parser.add_argument('--num_workers', type=int, default=2, help='')
 
 
 args = parser.parse_args()
@@ -56,12 +57,13 @@ args = parser.parse_args()
 PATH = args.path
 MODEL = args.model
 RESTORE = args.restore
+CLIP = args.clip
 NUM_WORKERS = args.num_workers
 
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-12-08_17-12-37.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-12-09_19-00-03.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
@@ -72,10 +74,10 @@ if SIMPLE_TEST:
     VAL_NUM = 2
 else:
     TRAIN_FROM = 0
-    TRAIN_NUM = 14
+    TRAIN_NUM = 25
 
-    VAL_FROM = 14
-    VAL_NUM = 1
+    VAL_FROM = 25
+    VAL_NUM = 5
 
 
 # hyper paramerters
@@ -84,19 +86,11 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 100  # SLTHP.num_epochs
+NUM_EPOCHS = 10  # SLTHP.num_epochs
 LEARNING_RATE = 1e-3  # SLTHP.learning_rate
 WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
-CLIP = 0.5  # SLTHP.clip
-
-NUM_ITERS = 100  # 100
-
-# use too many Files may cause the following problem: 
-# ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
-FILE_SIZE = 25  # 100
-
+CLIP_VALUE = 0.5  # SLTHP.clip
 EVAL_INTERFEVL = 200
-EVAL_NUM = 50
 
 # set random seed
 # is is actually effective
@@ -215,8 +209,9 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             optimizer.step()
 
             # add a grad clip
-            parameters = [p for p in net.parameters() if p is not None and p.requires_grad]
-            torch.nn.utils.clip_grad_norm_(parameters, CLIP)
+            if CLIP:
+                parameters = [p for p in net.parameters() if p is not None and p.requires_grad]
+                torch.nn.utils.clip_grad_norm_(parameters, CLIP_VALUE)
 
             loss_value = float(loss.item())
 
@@ -324,9 +319,6 @@ def eval(model, val_set, val_loader, device):
     target_unit_correct_num, target_unit_all_num = 0, 0
 
     for i, (features, labels) in enumerate(val_loader):
-
-        if False and i > EVAL_NUM:
-            break
 
         feature_tensor = features.to(device).float()
         labels_tensor = labels.to(device).float()

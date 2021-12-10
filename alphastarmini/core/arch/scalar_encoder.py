@@ -227,7 +227,7 @@ class ScalarEncoder(nn.Module):
         return scalar_list
 
     @classmethod
-    def preprocess_numpy(cls, obs, build_order=None):
+    def preprocess_numpy(cls, obs, build_order=None, last_list=None):
         scalar_list = []
 
         player = obs["player"]
@@ -351,13 +351,25 @@ class ScalarEncoder(nn.Module):
             upgrade[0, u] = 1
 
         last_delay = np.zeros((1, SFS.last_delay))
+        last_action_type = np.zeros((1, SFS.last_action_type))
+        last_repeat_queued = np.zeros((1, SFS.last_repeat_queued))
+
+        if last_list is not None:
+            [last_delay_value, last_action_type_value, last_repeat_queued_value] = last_list
+            last_delay_value = min(SFS.last_delay - 1, last_delay_value)
+            last_delay[0, last_delay_value] = 1
+            assert last_action_type_value < SFS.last_action_type
+            last_action_type[0, last_action_type_value] = 1
+            last_repeat_queued[0, last_repeat_queued_value] = 1
+
+            print('last_delay', last_delay) if debug else None
+            print('last_action_type', last_action_type) if debug else None
+            print('last_repeat_queued', last_repeat_queued) if debug else None
 
         # TODO: implement the last action
         # note: if we use raw action, this property is always empty
         last_actions = obs["last_actions"]
         print('last_actions:', last_actions) if debug else None
-        last_action_type = np.zeros((1, SFS.last_action_type))
-        last_repeat_queued = np.zeros((1, SFS.last_repeat_queued))
 
         scalar_list.append(agent_statistics)
         scalar_list.append(home_race)

@@ -99,10 +99,11 @@ RESULT = ['Victory', 'Defeat', 'Tie']
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     DATA_FROM = 0
-    DATA_NUM = 15
+    DATA_NUM = 1
 else:
-    DATA_FROM = 30
-    DATA_NUM = 15
+    DATA_FROM = 0
+    DATA_NUM = 30
+SMALL_MAX_STEPS = 1000  # 60 * 60 * 22.4 
 
 
 class SaveType(enum.IntEnum):
@@ -148,20 +149,24 @@ def store_info(replay_info):
             game_duration_seconds]
 
 
-def getFeatureAndLabel_numpy(obs, func_call, delay=None):
+def getFeatureAndLabel_numpy(obs, func_call, delay=None, last_list=None):
     print("begin s:") if debug else None
-    s = Agent.get_state_and_action_from_pickle_numpy(obs)
+
+    s = Agent.get_state_and_action_from_pickle_numpy(obs, last_list=last_list)
+
     feature = Feature.state2feature_numpy(s)
     print("feature:", feature) if debug else None
     print("feature.shape:", feature.shape) if debug else None
 
     print("begin a:") if debug else None
-    print('func_call', func_call) if 1 else None
+    print('func_call', func_call) if debug else None
     action = Agent.func_call_to_action(func_call)
     action.delay = min(delay, LS.delay_encoding - 1)
+
     print("action:", action) if debug else None
     action_array = action.toArray()
     print("action_array:", action_array) if debug else None
+
     a = action_array.toLogits_numpy()
     print("a:", a) if debug else None
     label = Label.action2label_numpy(a)
@@ -335,7 +340,7 @@ def test(on_server=False):
         REPLAY_PATH = FLAGS.no_server_replay_path
         COPY_PATH = None
         SAVE_PATH = "./result.csv"
-        max_steps_of_replay = 60 * 60 * 22.4  # 60 * 60 * 22.4
+        max_steps_of_replay = SMALL_MAX_STEPS  # 60 * 60 * 22.4  # 60 * 60 * 22.4
         max_replays = 1  # not used
 
     run_config = run_configs.get(version=FLAGS.replay_version)
@@ -357,6 +362,7 @@ def test(on_server=False):
 
     # Changes the coordinates in raw.proto to be relative to the playable area.
     # The map_size and playable_area will be the diagonal of the real playable area.
+    crop_to_playable_area = False
     raw_crop_to_playable_area = False
 
     interface = sc_pb.InterfaceOptions(
@@ -380,6 +386,7 @@ def test(on_server=False):
 
     screen_resolution.assign_to(interface.feature_layer.resolution)
     minimap_resolution.assign_to(interface.feature_layer.minimap_resolution)
+    interface.feature_layer.crop_to_playable_area = crop_to_playable_area
 
     agent = Agent()
     #j = 0
@@ -484,6 +491,8 @@ def test(on_server=False):
 
                 feat = F.features_from_game_info(game_info=controller.game_info(),
                                                  raw_resolution=AAIFP.raw_resolution, 
+                                                 crop_to_playable_area=crop_to_playable_area,
+                                                 raw_crop_to_playable_area=raw_crop_to_playable_area,
                                                  hide_specific_actions=AAIFP.hide_specific_actions,
                                                  use_feature_units=True, use_raw_units=True,
                                                  use_unit_counts=True, use_raw_actions=True,
@@ -496,6 +505,7 @@ def test(on_server=False):
                 print("feat obs spec:", feat.observation_spec()) if debug else None
                 print("feat action spec:", feat.action_spec()) if debug else None
                 prev_obs = None
+                prev_function = None
                 i = 0
                 record_i = 0
                 save_steps = 0
@@ -513,7 +523,7 @@ def test(on_server=False):
                     try:
                         obs = feat.transform_obs(o)
 
-                        if prev_obs is not None:
+                        if False and prev_obs is not None:
                             # calculate the build order
                             player_bo = U.calculate_build_order(player_bo, prev_obs, obs)
                             print("player build order:", player_bo) if debug else None
@@ -551,7 +561,7 @@ def test(on_server=False):
 
                             if func_call is not None:
                                 save_steps += 1
-                                z = [player_bo, player_ucb]
+                                #z = [player_bo, player_ucb]
 
                                 delay = i - record_i
                                 print('two action dealy:', delay, 'steps!') if debug else None
@@ -560,24 +570,8 @@ def test(on_server=False):
                                 obs_list.append(obs)
                                 func_call_list.append(func_call)
                                 delay_list.append(delay)
-                                z_list.append(z)
 
-                                # move to the end to process
-                                # if SAVE_TYPE == SaveType.torch_tensor:
-                                #     feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
-                                #     feature = torch.tensor(feature)
-                                #     label = torch.tensor(label)
-                                #     feature_list.append(feature)
-                                #     label_list.append(label)
-
-                                # elif SAVE_TYPE == SaveType.python_pickle:
-                                #     the_dict = getObsAndFunc(obs, func_call, z)
-                                #     step_dict[i] = the_dict
-
-                                # elif SAVE_TYPE == SaveType.numpy_array:
-                                #     feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
-                                #     feature_list.append(feature)
-                                #     label_list.append(label)
+                                # z_list.append(z)
 
                         except Exception as e:
                             traceback.print_exc()
@@ -595,12 +589,15 @@ def test(on_server=False):
 
                     controller.step()
                     prev_obs = obs
+
                     i += 1
 
                 print('begin save!')
 
                 # the last delay is 0
                 delay_list.append(0)
+                func_call_list.append(A.FunctionCall.init_with_validation("no_op", [], raw=True))
+
                 if SAVE_TYPE == SaveType.torch_tensor:
                     length = len(obs_list)
                     for i in range(length):
@@ -608,8 +605,34 @@ def test(on_server=False):
                         func_call = func_call_list[i]
                         # delay should be the next,
                         # means when should we issue the next command from the time we give this command
-                        delay = delay_list[i - 1]
-                        feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
+                        last_delay = delay_list[i]
+                        last_func_call = func_call_list[i - 1]
+                        last_action_type = last_func_call.function.value
+                        action_can_be_queued = U.action_can_be_queued(last_action_type)
+                        last_repeat_queued = None
+                        last_action_arguments = None
+                        if action_can_be_queued:
+                            last_action_arguments = last_func_call.arguments
+                            last_repeat_queued = last_action_arguments[0][0].value  # the first argument is alway queue
+                        else:
+                            last_repeat_queued = 0
+
+                        delay = delay_list[i + 1]
+
+                        print('last_func_call', last_func_call) if debug else None
+                        print('last_action_type', last_action_type) if debug else None
+                        print('last_action_can_be_queued', action_can_be_queued) if debug else None
+                        print('last_action_arguments', last_action_arguments) if debug else None
+                        print('last_repeat_queued', last_repeat_queued) if debug else None
+                        print('last_delay', last_delay) if debug else None
+
+                        print('func_call', func_call) if debug else None
+                        print('delay', delay) if debug else None
+
+                        last_list = [last_delay, last_action_type, last_repeat_queued]
+
+                        feature, label = getFeatureAndLabel_numpy(obs, func_call, delay, last_list)
+
                         feature = torch.tensor(feature)
                         label = torch.tensor(label)
                         feature_list.append(feature)
@@ -620,19 +643,12 @@ def test(on_server=False):
                     for i in range(length):
                         obs = obs_list[i]
                         func_call = func_call_list[i]
-                        delay = delay_list[i - 1]
+                        delay = delay_list[i + 1]
                         the_dict = getObsAndFunc(obs, func_call, z)
                         step_dict[i] = the_dict
 
                 elif SAVE_TYPE == SaveType.numpy_array:
-                    length = len(obs_list)
-                    for i in range(length):
-                        obs = obs_list[i]
-                        func_call = func_call_list[i]
-                        delay = delay_list[i - 1]             
-                        feature, label = getFeatureAndLabel_numpy(obs, func_call, delay)
-                        feature_list.append(feature)
-                        label_list.append(label)
+                    pass
 
                 if SAVE_TYPE == SaveType.torch_tensor:
                     features = torch.cat(feature_list, dim=0)
@@ -653,15 +669,7 @@ def test(on_server=False):
                         pickle.dump(step_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
                 elif SAVE_TYPE == SaveType.numpy_array:
-                    features = np.concatenate(feature_list, axis=0)
-                    labels = np.concatenate(label_list, axis=0)
-                    print('features.shape:', features.shape) if debug else None
-                    print('labels.shape:', labels.shape) if debug else None
-                    m = (features, labels)
-                    if not os.path.exists(FLAGS.save_path_tensor):
-                        os.mkdir(FLAGS.save_path_tensor)
-                    file_name = FLAGS.save_path_tensor + replay_file.replace('.SC2Replay', '') + '.npy'
-                    np.save(m, file_name)    
+                    pass    
 
                 print('end save!')
 

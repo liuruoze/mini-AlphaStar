@@ -74,7 +74,7 @@ class Agent(object):
         return action_output
 
     @staticmethod
-    def get_state_and_action_from_pickle_numpy(obs):
+    def get_state_and_action_from_pickle_numpy(obs, last_list=None):
         # batch_entities_tensor = Agent.preprocess_state_entity_numpy(obs)
         # scalar_list = Agent.preprocess_state_scalar_numpy(obs)
         # map_data = Agent.preprocess_state_spatial_numpy(obs)
@@ -83,7 +83,7 @@ class Agent(object):
 
         batch_entities_tensor, entity_pos = Agent.preprocess_state_entity_numpy(obs, return_entity_pos=True)
         map_data = Agent.preprocess_state_spatial_numpy(obs, entity_pos_list=entity_pos)
-        scalar_list = Agent.preprocess_state_scalar_numpy(obs, build_order=None)
+        scalar_list = Agent.preprocess_state_scalar_numpy(obs, build_order=None, last_list=last_list)
 
         batch_entities_tensor = torch.tensor(batch_entities_tensor)
         scalar_list = [torch.tensor(s) for s in scalar_list]
@@ -278,15 +278,15 @@ class Agent(object):
         return batch_entities_array
 
     @staticmethod
-    def preprocess_state_scalar_numpy(obs, build_order=None):
-        return ArchModel.preprocess_scalar_numpy(obs, build_order=build_order)
+    def preprocess_state_scalar_numpy(obs, build_order=None, last_list=None):
+        return ArchModel.preprocess_scalar_numpy(obs, build_order=build_order, last_list=last_list)
 
     @staticmethod
     def preprocess_state_spatial_numpy(obs, entity_pos_list=None):
         return ArchModel.preprocess_spatial_numpy(obs, entity_pos_list=entity_pos_list)
 
     @staticmethod
-    def preprocess_state_all(obs, build_order=None):
+    def preprocess_state_all(obs, build_order=None, last_list=None):
 
         t = time()
 
@@ -300,7 +300,7 @@ class Agent(object):
         print('preprocess_state_all, t2', time() - t) if speed else None
         t = time()
 
-        scalar_list = Agent.preprocess_state_scalar_numpy(obs, build_order=build_order)
+        scalar_list = Agent.preprocess_state_scalar_numpy(obs, build_order=build_order, last_list=last_list)
 
         print('preprocess_state_all, t3', time() - t) if speed else None
         t = time()

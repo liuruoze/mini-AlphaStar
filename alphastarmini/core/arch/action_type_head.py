@@ -42,7 +42,9 @@ class ActionTypeHead(nn.Module):
                  use_action_type_mask=False, is_rl_training=False):
         super().__init__()
         # TODO: make is_sl_training effective 
-        self.is_sl_training = is_sl_training
+        self.is_rl_training = is_rl_training
+        self.is_sl_training = not self.is_rl_training
+
         if not self.is_sl_training:
             self.temperature = temperature
         else:
@@ -65,8 +67,6 @@ class ActionTypeHead(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
         self.use_action_type_mask = use_action_type_mask
-
-        self.is_rl_training = is_rl_training
 
     def set_rl_training(self, staus):
         self.is_rl_training = staus
@@ -117,6 +117,8 @@ class ActionTypeHead(nn.Module):
         # which is different with tf.multinomial which can accept negative values like log(action_type_probs)
         if action_type is None:
             action_type_probs = self.softmax(action_type_logits)
+            print('action_type_probs', action_type_probs) if debug else None
+
             action_type = torch.multinomial(action_type_probs.reshape(batch_size, -1), 1)
             action_type = action_type.reshape(batch_size, -1)
 

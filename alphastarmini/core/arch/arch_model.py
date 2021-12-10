@@ -85,8 +85,8 @@ class ArchModel(nn.Module):
         return EntityEncoder.preprocess_numpy(e_list, return_entity_pos=return_entity_pos)
 
     @staticmethod    
-    def preprocess_scalar_numpy(obs, build_order=None):
-        return ScalarEncoder.preprocess_numpy(obs, build_order=build_order)
+    def preprocess_scalar_numpy(obs, build_order=None, last_list=None):
+        return ScalarEncoder.preprocess_numpy(obs, build_order=build_order, last_list=last_list)
 
     @staticmethod    
     def preprocess_spatial_numpy(obs, entity_pos_list=None):

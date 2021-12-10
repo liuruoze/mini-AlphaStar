@@ -35,6 +35,7 @@ TRAJECTORY_FIELDS = [
     'unit_counts',  # unit_counts
     'z_unit_counts',  # the unit_counts for the sampled replay
     'game_loop',  # seconds = int(game_loop / 22.4) 
+    'last_list',  # [last_delay, last_action_type, last_repeat_queued]
 ]
 
 Trajectory = collections.namedtuple('Trajectory', TRAJECTORY_FIELDS)

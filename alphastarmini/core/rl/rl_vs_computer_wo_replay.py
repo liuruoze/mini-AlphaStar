@@ -13,6 +13,7 @@ import torch
 
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
 from pysc2.lib import actions as sc2_actions
+from pysc2.lib import units as sc2_units
 
 from alphastarmini.core.rl.rl_utils import Trajectory, get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
@@ -167,6 +168,9 @@ class ActorVSComputer:
                         # default outcome is 0 (means draw)
                         outcome = 0
 
+                        # initial last list
+                        last_list = [0, 0, 0]
+
                         # in one episode (game)
                         # 
                         start_episode_time = time()  # in seconds.
@@ -178,14 +182,22 @@ class ActorVSComputer:
 
                             t = time()
 
-                            state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, build_order=player_bo)
+                            state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, build_order=player_bo, last_list=last_list)
                             baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, build_order=player_bo)
 
                             player_step = self.player.agent.step_from_state(state, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
+
                             print("player_function_call:", player_function_call) if 1 else None
                             print("player_action:", player_action) if debug else None
-                            print("player_select_units_num:", player_select_units_num) if debug else None
+                            print("player_action.delay:", player_action.delay) if debug else None
+                            print("player_select_units_num:", player_select_units_num) if 1 else None
+
+                            show_sth(home_obs, player_action)
+
+                            expected_delay = player_action.delay.item()
+                            step_mul = max(1, expected_delay)
+                            print("step_mul:", step_mul) if 1 else None
 
                             print('run_loop, t1', time() - t) if speed else None
                             t = time()
@@ -220,7 +232,7 @@ class ActorVSComputer:
                             print('run_loop, t3', time() - t) if speed else None
                             t = time()
 
-                            timesteps = env.step(env_actions)
+                            timesteps = env.step(env_actions, step_mul=step_mul)
                             [home_next_obs] = timesteps
                             reward = home_next_obs.reward
                             print("reward: ", reward) if 0 else None
@@ -267,28 +279,33 @@ class ActorVSComputer:
                                 unit_counts=player_ucb,
                                 z_unit_counts=player_ucb,  # we change it to the sampled unit counts
                                 game_loop=game_loop,
+                                last_list=last_list,
                             )
-                            trajectory.append(traj_step)
+                            if self.is_training:
+                                trajectory.append(traj_step)
 
                             player_memory = tuple(h.detach() for h in player_new_memory)
-
                             home_obs = home_next_obs
+                            last_delay = expected_delay
+                            last_action_type = player_action.action_type.item()
+                            last_repeat_queued = player_action.queue.item()
+                            last_list = [last_delay, last_action_type, last_repeat_queued]
 
                             if is_final:
                                 outcome = reward
                                 print("outcome: ", outcome) if debug else None
                                 results[outcome + 1] += 1
 
-                            if len(trajectory) >= AHP.sequence_length:                    
+                            if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = RU.stack_namedtuple(trajectory)
 
                                 if self.player.learner is not None:
                                     if self.player.learner.is_running:
-                                        if self.is_training:
-                                            print("Learner send_trajectory!") if debug else None
 
-                                            self.player.learner.send_trajectory(trajectories)
-                                            trajectory = []
+                                        print("Learner send_trajectory!") if debug else None
+
+                                        self.player.learner.send_trajectory(trajectories)
+                                        trajectory = []
                                     else:
                                         print("Learner stops!")
 
@@ -350,6 +367,28 @@ class ActorVSComputer:
                      random_seed=random_seed)
 
         return env
+
+
+def show_sth(home_obs, player_action):
+    obs = home_obs.observation
+    raw_units = obs["raw_units"]
+
+    selected_units = player_action.units.reshape(-1)
+
+    selected_units = selected_units.detach().cpu().numpy().tolist()
+    print('selected_units', selected_units) if debug else None
+
+    unit_type_list = []
+    for i in selected_units:
+        if i < len(raw_units):
+            u = raw_units[i]
+            unit_type = u.unit_type
+            unit_type_name = sc2_units.get_unit_type(unit_type).name
+            unit_type_list.append(unit_type_name)
+        else:
+            print('find a EOF!')     
+
+    print('unit_type_list', unit_type_list) if 1 else None     
 
 
 def injected_function_call(home_obs, env, function_call):

@@ -260,9 +260,9 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     #mask_tensor = get_one_way_mask_in_SL(action_gt.action_type, device)
     mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=True)
 
-    # we don't consider delay loss now
+    # we now onsider delay loss
     delay_loss = criterion(action_gt.delay, delay)
-    loss += delay_loss * 0
+    loss += delay_loss
 
     queue_loss = criterion(action_gt.queue, queue, mask=mask_tensor[:, 2].reshape(-1))
     loss += queue_loss

@@ -23,19 +23,14 @@ SMALL_MAPPING = {
     "Attack_pt": [[Protoss.Zealot, Protoss.Stalker], None, 24],
 }
 
-SMALL_LIST = [
-    F.no_op.id.value,
-    F.Smart_pt.id.value,
-    F.raw_move_camera.id.value,    
+SMALL_LIST = [   
     F.Train_Probe_quick.id.value,
-    F.Build_Pylon_pt.id.value,
-    F.Build_Gateway_pt.id.value,
-    F.Build_Assimilator_unit.id.value,
-    F.Build_CyberneticsCore_pt.id.value,
+    # F.Build_Pylon_pt.id.value,
+    # F.Build_Gateway_pt.id.value,
+    # F.Build_Assimilator_unit.id.value,
+    # F.Build_CyberneticsCore_pt.id.value,
     F.Train_Zealot_quick.id.value,
     F.Train_Stalker_quick.id.value,
-    F.Harvest_Gather_unit.id.value,
-    F.Attack_pt.id.value,
 ]
 
 

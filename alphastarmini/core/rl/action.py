@@ -24,6 +24,15 @@ class ArgsAction(object):
     '''
     For the action with arguments, to be different with action which has only scalar value
     '''
+    __slots__ = ('action_type', 'delay', 'queue', 'units', 'target_unit', 'target_location')
+
+    max_actions = LS.action_type_encoding
+    max_delay = LS.delay_encoding
+    max_queue = LS.queue_encoding
+
+    max_units = AHP.max_entities
+    max_selected = AHP.max_selected
+    output_map_size = SCHP.world_size
 
     def __init__(self, action_type=-1, delay=SCHP.sc2_default_delay, queue=None, 
                  units=None, target_unit=None, 
@@ -34,20 +43,7 @@ class ArgsAction(object):
         self.queue = queue
         self.units = units 
         self.target_unit = target_unit
-
         self.target_location = target_location
-
-        self.max_actions = LS.action_type_encoding
-        self.max_delay = LS.delay_encoding
-        self.max_queue = LS.queue_encoding
-
-        self.max_units = AHP.max_entities
-        self.max_selected = AHP.max_selected
-        self.output_map_size = SCHP.world_size
-
-        # not used
-        self.max_target_unit = 1
-        self.max_target_location = 1
 
     def toTenser(self):
         # for numpy or int object to tensor
@@ -242,6 +238,7 @@ class ArgsActionLogits(object):
     '''
     For the action with arguments and using logits
     '''
+    __slots__ = ('action_type', 'delay', 'queue', 'units', 'target_unit', 'target_location')
 
     def __init__(self, action_type, delay, queue, units, 
                  target_unit, target_location):
@@ -252,17 +249,6 @@ class ArgsActionLogits(object):
         self.units = units
         self.target_unit = target_unit
         self.target_location = target_location
-
-        self.max_actions = LS.action_type_encoding
-        self.max_delay = LS.delay_encoding
-        self.max_queue = LS.queue_encoding
-
-        self.max_units = AHP.max_entities
-        self.output_map_size = SCHP.world_size
-
-        # not used
-        self.max_target_unit = 1
-        self.max_target_location = 1
 
     def toList(self):
         return [self.action_type, self.delay, self.queue, self.units, 

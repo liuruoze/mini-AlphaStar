@@ -129,6 +129,8 @@ class EntityEncoder(nn.Module):
 
             entity_pos_list.append([entity.x, entity.y])
 
+            # print('entity.x, entity.y', entity.x, entity.y)
+
             field_encoding_list.append(entity.health)
 
             field_encoding_list.append(entity.shield)

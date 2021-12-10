@@ -39,13 +39,13 @@ data/replay_data_tensor_new_small/*
 data/*.zip
 res/paper/
 res/s2clientprotocol/
-model/*.pkl
-model/*.pth
+model/*
 *.SC2Replay
 data/experiment.txt
 tmp/*
 log/*
 archive/*
+show/*
 cameras.txt
 cameras.csv
 /scripts/download_replay/third/download/*
