@@ -76,96 +76,67 @@ def unpackbits_for_largenumber(x, num_bits):
 def calculate_unit_counts_bow(obs):
     unit_counts = obs["unit_counts"] 
     print('unit_counts:', unit_counts) if debug else None
+
     unit_counts_bow = torch.zeros(1, SFS.unit_counts_bow)
     for u_c in unit_counts:
         unit_type = u_c[0]
         unit_count = u_c[1]
-        assert unit_type >= 0
-        # the unit_count can not be negetive number
-        assert unit_count >= 0
+        print('unit_type', unit_type) if debug else None
 
-        # the unit_type should not be more than the SFS.unit_counts_bow
-        # if it is, make it to be 0 now. (0 means nothing now)
-        # the most impact one is ShieldBattery = 1910        
-        # find a better way to do it: transform it to unit_type_index!
         unit_type_index = unit_tpye_to_unit_type_index(unit_type)
+        print('unit_type_index', unit_type_index) if debug else None
+
         if unit_type_index >= SFS.unit_counts_bow:
             unit_type_index = 0
 
         unit_counts_bow[0, unit_type_index] = unit_count
+
     return unit_counts_bow
 
 
 def calculate_unit_counts_bow_numpy(obs):
-    unit_counts = obs["unit_counts"] 
-    print('unit_counts:', unit_counts) if debug else None
-    unit_counts_bow = np.zeros((1, SFS.unit_counts_bow))
-    for u_c in unit_counts:
-        unit_type = u_c[0]
-        unit_count = u_c[1]
-        assert unit_type >= 0
-        # the unit_count can not be negetive number
-        assert unit_count >= 0
+    ret = calculate_unit_counts_bow(obs)
+    ret = ret.detach().cpu().numpy()
+    return ret
 
-        # the unit_type should not be more than the SFS.unit_counts_bow
-        # if it is, make it to be 0 now. (0 means nothing now)
-        # the most impact one is ShieldBattery = 1910        
-        # find a better way to do it: transform it to unit_type_index!
-        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
-        if unit_type_index >= SFS.unit_counts_bow:
-            unit_type_index = 0
 
-        unit_counts_bow[0, unit_type_index] = unit_count
-    return unit_counts_bow
+# the probe, drone, and SCV are not counted in build order
+# the pylon, drone, and supplypot are not counted in build order
+outer_type_list = [84, 104, 45, 60, 106, 19] 
+outer_type_index_list = [unit_tpye_to_unit_type_index(i) for i in outer_type_list]
 
 
 def calculate_build_order(previous_bo, obs, next_obs):
     # calculate the build order
     ucb = calculate_unit_counts_bow(obs)
-    next_ucb = calculate_unit_counts_bow(next_obs)
-    diff = next_ucb - ucb
+    print("ucb:", ucb) if debug else None
 
-    # the probe, drone, and SCV are not counted in build order
-    worker_type_list = [84, 104, 45] 
-    # the pylon, drone, and supplypot are not counted in build order
-    supply_type_list = [60, 106, 19] 
-    diff[0, worker_type_list] = 0
-    diff[0, supply_type_list] = 0
+    next_ucb = calculate_unit_counts_bow(next_obs)
+    print("next_ucb:", next_ucb) if debug else None
+
+    diff = next_ucb - ucb
+    print("diff:", diff) if debug else None
+
+    # remove types that should not be considered
+    # diff[0, outer_type_index_list] = 0
 
     diff_count = torch.sum(diff).item()
     print("diff between unit_counts_bow", diff_count) if debug else None
-    if diff_count == 1.0:
-        diff_numpy = diff.numpy()
-        index_list = np.where(diff_numpy >= 1.0)
-        print("index_list:", index_list) if debug else None
-        index = index_list[1][0]
-        if index not in worker_type_list and index not in supply_type_list:
-            previous_bo.append(index)
+
+    if diff_count >= 1.0:
+        print("diff:", diff) if debug else None
+
+        index = torch.nonzero(diff, as_tuple=True)[-1]
+        print("index:", index) if debug else None
+
+        index = index.detach().cpu().numpy().tolist()
+        previous_bo.extend(index)
 
     return previous_bo
 
 
 def calculate_build_order_numpy(previous_bo, obs, next_obs):
-    # calculate the build order
-    ucb = calculate_unit_counts_bow_numpy(obs)
-    next_ucb = calculate_unit_counts_bow_numpy(next_obs)
-    diff = next_ucb - ucb
-
-    # the probe, drone, and SCV are not counted in build order
-    worker_type_list = [84, 104, 45] 
-    # the pylon, drone, and supplypot are not counted in build order
-    supply_type_list = [60, 106, 19] 
-    diff[0, worker_type_list] = 0
-    diff[0, supply_type_list] = 0
-
-    diff_count = np.sum(diff).item()
-    print("diff between unit_counts_bow", diff_count) if debug else None
-    if diff_count == 1.0:
-        index_list = np.where(diff >= 1.0)
-        print("index_list:", index_list) if debug else None
-        index = index_list[1][0]
-        if index not in worker_type_list and index not in supply_type_list:
-            previous_bo.append(index)
+    previous_bo = calculate_build_order(previous_bo, obs, next_obs)
 
     return previous_bo
 

@@ -65,8 +65,11 @@ class ScalarEncoder(nn.Module):
         self.effects_fc = nn.Linear(n_effects, original_32)  # with relu, also goto scalar_context
         self.upgrade_fc = nn.Linear(n_upgrade, original_32)  # with relu, also goto scalar_context. What is the difference with upgrades_fc?
 
-        self.before_beginning_build_order = nn.Linear(n_units_buildings, 16)  # without relu
-        self.beginning_build_order_transformer = Transformer(d_model=16, d_inner=32,
+        self.build_order_model_size = 16
+        self.before_beginning_build_order = nn.Linear(n_units_buildings + SCHP.count_beginning_build_order, 
+                                                      self.build_order_model_size)  # without relu  
+        self.beginning_build_order_transformer = Transformer(d_model=self.build_order_model_size, 
+                                                             d_inner=self.build_order_model_size * 2,
                                                              n_layers=3, n_head=2, 
                                                              d_k=8, d_v=8, 
                                                              dropout=0.)  # make dropout=0 to make training and testing consistent
@@ -81,152 +84,6 @@ class ScalarEncoder(nn.Module):
         self.relu = nn.ReLU()
 
     @classmethod
-    def preprocess_tensor(cls, obs, build_order=None):
-        scalar_list = []
-
-        player = obs["player"]
-        print('player:', player) if debug else None
-
-        # The first is player_id, so we don't need it.
-        player_statistics = player[1:]
-        print('player_statistics:', player_statistics) if debug else None
-
-        # player_statistics = np.log(player_statistics + 1)
-        # print('player_statistics:', player_statistics)
-
-        # agent_statistics = torch.ones(1, 10)
-        agent_statistics = torch.tensor(player_statistics, dtype=torch.float).reshape(1, -1)
-        print('player_statistics:', agent_statistics) if debug else None
-
-        home_race = torch.zeros(1, 5)
-        if "home_race_requested" in obs:
-            home_race_requested = obs["home_race_requested"].item()
-            print('home_race_requested:', home_race_requested) if debug else None
-        else:
-            home_race_requested = 0
-        assert home_race_requested >= 0 and home_race_requested <= 4
-        home_race[0, home_race_requested] = 1
-        print('home_race:', home_race) if debug else None
-
-        away_race = torch.zeros(1, 5)
-        if "away_race_requested" in obs:
-            away_race_requested = obs["away_race_requested"].item()
-            print('away_race_requested:', away_race_requested) if debug else None
-        else:
-            away_race_requested = 0
-        assert away_race_requested >= 0 and away_race_requested <= 4
-        away_race[0, away_race_requested] = 1
-        print('away_race:', away_race) if debug else None
-
-        if "action_result" in obs:
-            action_result = obs["action_result"]
-            print('action_result:', action_result) if debug else None
-
-        if "alerts" in obs:
-            alerts = obs["alerts"]
-            print('alerts:', alerts) if debug else None
-
-        # implement the upgrades
-        upgrades = torch.zeros(1, SFS.upgrades)
-        obs_upgrades = obs["upgrades"]
-        print('obs_upgrades:', obs_upgrades) if debug else None
-        for u in obs_upgrades:
-            assert u >= 0 
-            assert u < SFS.upgrades
-            upgrades[0, u] = 1
-
-        # question: how to know enemy's upgrades?
-        enemy_upgrades = torch.zeros(1, SFS.upgrades)
-
-        # time conver to gameloop
-        time = torch.zeros(1, SFS.time)
-        game_loop = obs["game_loop"]
-        print('game_loop:', game_loop) if debug else None
-
-        time_encoding = torch.tensor(L.unpackbits_for_largenumber(game_loop, num_bits=64), dtype = torch.float).reshape(1, -1)
-        print('time_encoding:', time_encoding) if debug else None 
-        # note, we use binary encoding here for time
-        time = time_encoding
-        #time[0, 0] = game_loop
-
-        # implement the available_actions
-        # note: if we use raw action, this key doesn't exist
-        # the_available_actions = obs["available_actions"] 
-        available_actions = torch.zeros(1, SFS.available_actions)
-
-        # implement the unit_counts_bow
-        unit_counts_bow = L.calculate_unit_counts_bow(obs)
-        print('unit_counts_bow:', unit_counts_bow) if debug else None
-        print('torch.sum(unit_counts_bow):', torch.sum(unit_counts_bow)) if debug else None
-
-        # implement the build order
-        beginning_build_order = torch.zeros(1, SCHP.count_beginning_build_order, int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
-        print('beginning_build_order.shape:', beginning_build_order.shape) if debug else None
-        if build_order is not None:
-            # implement the beginning_build_order               
-            for i, bo in enumerate(build_order):
-                if i < 20:
-                    assert bo < SFS.unit_counts_bow
-                    beginning_build_order[0, i, bo] = 1
-            print("beginning_build_order:", beginning_build_order) if debug else None
-            print("sum(beginning_build_order):", torch.sum(beginning_build_order).item()) if debug else None
-
-        mmr = torch.zeros(1, SFS.mmr)
-        units_buildings = torch.zeros(1, SFS.units_buildings)
-
-        # implement the effects
-        effects = torch.zeros(1, SFS.effects)
-        # we now use feature_effects to represent it
-        feature_effects = obs["feature_effects"]
-        print('feature_effects:', feature_effects) if debug else None
-        for effect in feature_effects:
-            e = effect.effect_id
-            assert e >= 0 
-            assert e < SFS.effects
-            effects[0, e] = 1
-        # the raw effects are reserved for use
-        raw_effects = obs["raw_effects"]
-        print('raw_effects:', raw_effects) if debug else None
-
-        # implement the upgrade
-        upgrade = torch.zeros(1, SFS.upgrades)
-        for u in obs_upgrades:
-            assert u >= 0 
-            assert u < SFS.upgrades
-            upgrade[0, u] = 1
-
-        last_delay = torch.zeros(1, SFS.last_delay)
-
-        # implement the last action
-        # note: if we use raw action, this property is always empty
-        last_actions = obs["last_actions"]
-        print('last_actions:', last_actions) if debug else None
-        last_action_type = torch.zeros(1, SFS.last_action_type)
-
-        last_repeat_queued = torch.zeros(1, SFS.last_repeat_queued)
-
-        scalar_list.append(agent_statistics)
-        scalar_list.append(home_race)
-        scalar_list.append(away_race)
-        scalar_list.append(upgrades)
-        scalar_list.append(enemy_upgrades)
-        scalar_list.append(time)
-
-        scalar_list.append(available_actions)
-        scalar_list.append(unit_counts_bow)
-        scalar_list.append(mmr)
-        scalar_list.append(units_buildings)
-        scalar_list.append(effects)
-        scalar_list.append(upgrade)
-
-        scalar_list.append(beginning_build_order)
-        scalar_list.append(last_delay)
-        scalar_list.append(last_action_type)
-        scalar_list.append(last_repeat_queued)
-
-        return scalar_list
-
-    @classmethod
     def preprocess_numpy(cls, obs, build_order=None, last_list=None):
         scalar_list = []
 
@@ -237,12 +94,8 @@ class ScalarEncoder(nn.Module):
         player_statistics = player[1:]
         print('player_statistics:', player_statistics) if debug else None
 
-        # player_statistics = np.log(player_statistics + 1)
-        # print('player_statistics:', player_statistics)
-
-        # agent_statistics = torch.ones(1, 10)
         agent_statistics = np.array(player_statistics, dtype=np.float32).reshape(1, -1)
-        print('player_statistics:', agent_statistics) if debug else None
+        print('agent_statistics:', agent_statistics) if debug else None
 
         home_race = np.zeros((1, 5))
         if "home_race_requested" in obs:
@@ -276,6 +129,7 @@ class ScalarEncoder(nn.Module):
         upgrades = np.zeros((1, SFS.upgrades))
         obs_upgrades = obs["upgrades"]
         print('obs_upgrades:', obs_upgrades) if debug else None
+
         for u in obs_upgrades:
             assert u >= 0 
             assert u < SFS.upgrades
@@ -315,22 +169,31 @@ class ScalarEncoder(nn.Module):
         print('torch.sum(unit_counts_bow):', np.sum(unit_counts_bow)) if debug else None
 
         # implement the build order
-        beginning_build_order = np.zeros((1, SCHP.count_beginning_build_order, int(SFS.beginning_build_order / SCHP.count_beginning_build_order)))
+        beginning_build_order = np.zeros((1, SCHP.count_beginning_build_order, 
+                                          int(SFS.beginning_build_order / SCHP.count_beginning_build_order)))
         print('beginning_build_order.shape:', beginning_build_order.shape) if debug else None
+
         if build_order is not None:
-            # implement the beginning_build_order               
+            # implement the beginning_build_order       
+            # TODO: add the entities pos        
             for i, bo in enumerate(build_order):
-                if i < 20:
+                if i < SCHP.count_beginning_build_order:
                     assert bo < SFS.unit_counts_bow
                     beginning_build_order[0, i, bo] = 1
+                else:
+                    break
+
             print("beginning_build_order:", beginning_build_order) if debug else None
             print("sum(beginning_build_order):", np.sum(beginning_build_order).item()) if debug else None
 
         mmr = np.zeros((1, SFS.mmr))
+
+        # TODO: implment it
         units_buildings = np.zeros((1, SFS.units_buildings))
 
         # implement the effects
         effects = np.zeros((1, SFS.effects))
+
         # we now use feature_effects to represent it
         feature_effects = obs["feature_effects"]
         print('feature_effects:', feature_effects) if debug else None
@@ -339,6 +202,7 @@ class ScalarEncoder(nn.Module):
             assert e >= 0 
             assert e < SFS.effects
             effects[0, e] = 1
+
         # the raw effects are reserved for use
         raw_effects = obs["raw_effects"]
         print('raw_effects:', raw_effects) if debug else None
@@ -358,7 +222,9 @@ class ScalarEncoder(nn.Module):
             [last_delay_value, last_action_type_value, last_repeat_queued_value] = last_list
             last_delay_value = min(SFS.last_delay - 1, last_delay_value)
             last_delay[0, last_delay_value] = 1
+
             assert last_action_type_value < SFS.last_action_type
+
             last_action_type[0, last_action_type_value] = 1
             last_repeat_queued[0, last_repeat_queued_value] = 1
 
@@ -366,7 +232,6 @@ class ScalarEncoder(nn.Module):
             print('last_action_type', last_action_type) if debug else None
             print('last_repeat_queued', last_repeat_queued) if debug else None
 
-        # TODO: implement the last action
         # note: if we use raw action, this property is always empty
         last_actions = obs["last_actions"]
         print('last_actions:', last_actions) if debug else None
@@ -401,20 +266,7 @@ class ScalarEncoder(nn.Module):
         scalar_context_list = []
 
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
-
-        print('agent_statistics:', agent_statistics) if debug else None
-        print('agent_statistics+1:', agent_statistics + 1) if debug else None
-        print('torch.log(agent_statistics + 1):', torch.log(agent_statistics + 1)) if debug else None
-
         the_log_statistics = torch.log(agent_statistics + 1)
-        if torch.isnan(the_log_statistics).any():
-            print('Find NAN the_log_statistics !', the_log_statistics)
-            eps = 1e-9
-            the_log_statistics = torch.log(self.relu(agent_statistics + 1) + eps)
-
-            if torch.isnan(the_log_statistics).any():
-                print('Find NAN the_log_statistics !', the_log_statistics)
-                the_log_statistics = torch.ones_like(agent_statistics)
 
         x = F.relu(self.statistics_fc(the_log_statistics))
         embedded_scalar_list.append(x)
@@ -457,6 +309,7 @@ class ScalarEncoder(nn.Module):
 
         # unit_counts_bow: A bag-of-words unit count from `entity_list`. 
         # The unit count vector is embedded by square rooting, passing through a linear layer, and passing through a ReLU
+        unit_counts_bow = torch.square(unit_counts_bow)
         x = F.relu(self.unit_counts_bow_fc(unit_counts_bow))
         embedded_scalar_list.append(x)
 
@@ -491,11 +344,68 @@ class ScalarEncoder(nn.Module):
         print("beginning_build_order:", beginning_build_order) if debug else None
         print("beginning_build_order.shape:", beginning_build_order.shape) if debug else None
 
-        x = self.beginning_build_order_transformer(self.before_beginning_build_order(beginning_build_order))
+        batch_size = beginning_build_order.shape[0]
+
+        # TODO: add the seq info
+        seq = torch.arange(SCHP.count_beginning_build_order)
+        print("seq:", seq) if debug else None
+        print("seq.shape:", seq.shape) if debug else None
+
+        seq = L.tensor_one_hot(seq, SCHP.count_beginning_build_order)
+        print("seq:", seq) if debug else None
+        print("seq.shape:", seq.shape) if debug else None
+
+        seq = seq.unsqueeze(0).repeat(batch_size, 1, 1).to(beginning_build_order.device)
+        print("seq:", seq) if debug else None
+        print("seq.shape:", seq.shape) if debug else None
+
+        bo_sum = beginning_build_order.sum(dim=-1, keepdim=False)
+        print("bo_sum:", bo_sum) if debug else None
+        print("bo_sum.shape:", bo_sum.shape) if debug else None
+
+        bo_sum = bo_sum.sum(dim=-1, keepdim=False)
+        print("bo_sum:", bo_sum) if debug else None
+        print("bo_sum.shape:", bo_sum.shape) if debug else None
+
+        bo_sum = bo_sum.unsqueeze(1)
+        print("bo_sum:", bo_sum) if debug else None
+        print("bo_sum.shape:", bo_sum.shape) if debug else None
+
+        bo_sum = bo_sum.repeat(1, SCHP.count_beginning_build_order)
+        print("bo_sum:", bo_sum) if debug else None
+        print("bo_sum.shape:", bo_sum.shape) if debug else None
+
+        mask = torch.arange(SCHP.count_beginning_build_order)
+        print("mask:", mask) if debug else None
+        print("mask.shape:", mask.shape) if debug else None
+
+        mask = mask.unsqueeze(0).repeat(batch_size, 1).to(bo_sum.device)
+        print("mask:", mask) if debug else None
+        print("mask.shape:", mask.shape) if debug else None
+
+        mask = mask < bo_sum
+        print("mask:", mask) if debug else None
+        print("mask.shape:", mask.shape) if debug else None
+
+        mask = mask.unsqueeze(2).repeat(1, 1, SCHP.count_beginning_build_order)
+        print("mask:", mask) if debug else None
+        print("mask.shape:", mask.shape) if debug else None
+
+        # add the seq info, referenced by the processing way of DI-star
+        x = torch.cat([beginning_build_order, seq], dim=2)
         print("x:", x) if debug else None
         print("x.shape:", x.shape) if debug else None
 
-        x = x.reshape(x.shape[0], SCHP.count_beginning_build_order * 16)
+        x = self.before_beginning_build_order(x)
+        print("x:", x) if debug else None
+        print("x.shape:", x.shape) if debug else None
+
+        # like in entity encoder, we add a sequence mask
+        x = self.beginning_build_order_transformer(x, mask=mask)
+        print("x:", x) if debug else None
+        print("x.shape:", x.shape) if debug else None
+
+        x = x.reshape(x.shape[0], SCHP.count_beginning_build_order * self.build_order_model_size)
         print("x:", x) if debug else None
         print("x.shape:", x.shape) if debug else None
 

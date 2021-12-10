@@ -46,7 +46,7 @@ debug = False
 parser = argparse.ArgumentParser()
 parser.add_argument("-p", "--path", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
-parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
+parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
 parser.add_argument('--num_workers', type=int, default=2, help='')
 
@@ -67,11 +67,11 @@ RESTORE_PATH = MODEL_PATH + 'sl_21-12-09_19-00-03.pth'
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    TRAIN_FROM = 2
-    TRAIN_NUM = 13
+    TRAIN_FROM = 0
+    TRAIN_NUM = 1
 
-    VAL_FROM = 0
-    VAL_NUM = 2
+    VAL_FROM = 1
+    VAL_NUM = 1
 else:
     TRAIN_FROM = 0
     TRAIN_NUM = 25
@@ -86,7 +86,7 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 10  # SLTHP.num_epochs
+NUM_EPOCHS = 30  # SLTHP.num_epochs
 LEARNING_RATE = 1e-3  # SLTHP.learning_rate
 WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
 CLIP_VALUE = 0.5  # SLTHP.clip
@@ -228,8 +228,9 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
 
             selected_units_accuracy = acc_num_list[12] / (acc_num_list[13] + 1e-9)
             selected_units_coverage = acc_num_list[14] / (acc_num_list[13] + 1e-9)
+            selected_units_num_right = acc_num_list[16] / (acc_num_list[17] + 1e-9)
 
-            target_unit_accuracy = acc_num_list[16] / (acc_num_list[17] + 1e-9)
+            target_unit_accuracy = acc_num_list[18] / (acc_num_list[19] + 1e-9)
 
             batch_time = time.time() - start
 
@@ -247,7 +248,7 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             write(writer, loss_value, loss_list, action_accuracy, 
                   move_camera_accuracy, non_camera_accuracy, short_important_accuracy,
                   location_accuracy, location_distance, selected_units_accuracy,
-                  selected_units_coverage, target_unit_accuracy,
+                  selected_units_coverage, selected_units_num_right, target_unit_accuracy,
                   batch_iter)
 
             gc.collect()
@@ -277,8 +278,10 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             writer.add_scalar('Val/selected_units_accuracy Acc', val_acc[6], batch_iter)
             print("Val selected_units_coverage acc: {:.6f}.".format(val_acc[7]))
             writer.add_scalar('Val/selected_units_coverage Acc', val_acc[7], batch_iter)
-            print("Val target_unit_accuracy acc: {:.6f}.".format(val_acc[8]))
-            writer.add_scalar('Val/target_unit_accuracy Acc', val_acc[8], batch_iter)            
+            print("Val selected_units_num_right acc: {:.6f}.".format(val_acc[8]))
+            writer.add_scalar('Val/selected_units_num_right Acc', val_acc[8], batch_iter)
+            print("Val target_unit_accuracy acc: {:.6f}.".format(val_acc[9]))
+            writer.add_scalar('Val/target_unit_accuracy Acc', val_acc[9], batch_iter)            
 
             del val_loss, val_acc
 
@@ -315,6 +318,7 @@ def eval(model, val_set, val_loader, device):
     location_dist = 0.
 
     selected_units_correct_num, selected_units_gt_num, selected_units_pred_num = 0, 0, 0
+    selected_units_nums_equal, selected_units_batch_size = 0, 0
 
     target_unit_correct_num, target_unit_all_num = 0, 0
 
@@ -357,8 +361,11 @@ def eval(model, val_set, val_loader, device):
         selected_units_gt_num += acc_num_list[13]
         selected_units_pred_num += acc_num_list[14]
 
-        target_unit_correct_num += acc_num_list[16]
-        target_unit_all_num += acc_num_list[17]
+        selected_units_nums_equal += acc_num_list[16]
+        selected_units_batch_size += acc_num_list[17]
+
+        target_unit_correct_num += acc_num_list[18]
+        target_unit_all_num += acc_num_list[19]
 
         del loss, acc_num_list
 
@@ -376,18 +383,19 @@ def eval(model, val_set, val_loader, device):
 
     selected_units_accuracy = selected_units_correct_num / (selected_units_gt_num + 1e-9)
     selected_units_coverage = selected_units_pred_num / (selected_units_gt_num + 1e-9)
+    selected_units_num_right = selected_units_nums_equal / (selected_units_batch_size + 1e-9)
 
     target_unit_accuracy = target_unit_correct_num / (target_unit_all_num + 1e-9)
 
     return val_loss, [action_accuracy, move_camera_accuracy, non_camera_accuracy, 
                       short_important_accuracy, location_accuracy, location_distance,
-                      selected_units_accuracy, selected_units_coverage, target_unit_accuracy]
+                      selected_units_accuracy, selected_units_coverage, selected_units_num_right, target_unit_accuracy]
 
 
 def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy, 
           non_camera_accuracy, short_important_accuracy, 
           location_accuracy, location_distance, 
-          selected_units_accuracy, selected_units_coverage, target_unit_accuracy,
+          selected_units_accuracy, selected_units_coverage, selected_units_num_right, target_unit_accuracy,
           batch_iter):
 
     print("One batch loss: {:.6f}.".format(loss))
@@ -435,6 +443,9 @@ def write(writer, loss, loss_list, action_accuracy, move_camera_accuracy,
 
         print("One batch selected_units_coverage: {:.6f}.".format(selected_units_coverage))
         writer.add_scalar('OneBatch/selected_units_coverage', selected_units_coverage, batch_iter)
+
+        print("One batch selected_units_num_right: {:.6f}.".format(selected_units_num_right))
+        writer.add_scalar('OneBatch/selected_units_num_right', selected_units_num_right, batch_iter)
 
         print("One batch target_unit_accuracy: {:.6f}.".format(target_unit_accuracy))
         writer.add_scalar('OneBatch/target_unit_accuracy', target_unit_accuracy, batch_iter)

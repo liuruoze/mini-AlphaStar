@@ -47,7 +47,7 @@ DIFFICULTY = 1
 RANDOM_SEED = 1
 VERSION = '3.16.1'
 
-RESTORE = True
+RESTORE = False
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -58,9 +58,6 @@ if torch.backends.cudnn.is_available():
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
 
-
-# TODO: solve following exception
-# The game didn't advance to the expected game loop. Expected: 4544, got: 4539
 
 class ActorVSComputer:
     """A single actor loop that generates trajectories by playing with built-in AI (computer).
@@ -79,12 +76,12 @@ class ActorVSComputer:
         self.player.agent.set_rl_training(is_training)
 
         #model.load_state_dict(torch.load(model_path, map_location=device), strict=False) 
-
         if ON_GPU:
             self.player.agent.agent_nn.to(DEVICE)
 
         self.teacher = get_supervised_agent(player.race, model_type="sl", restore=RESTORE)
         print('initialed teacher')
+
         if ON_GPU:
             self.teacher.agent_nn.to(DEVICE)
 
@@ -172,7 +169,6 @@ class ActorVSComputer:
                         last_list = [0, 0, 0]
 
                         # in one episode (game)
-                        # 
                         start_episode_time = time()  # in seconds.
                         print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
 
@@ -183,35 +179,26 @@ class ActorVSComputer:
                             t = time()
 
                             state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, build_order=player_bo, last_list=last_list)
+                            # TODO, implement baseline process in preprocess_state_all_plus_baseline (a new function)
                             baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, build_order=player_bo)
 
                             player_step = self.player.agent.step_from_state(state, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
 
-                            print("player_function_call:", player_function_call) if 1 else None
+                            print("player_function_call:", player_function_call) if debug else None
                             print("player_action:", player_action) if debug else None
                             print("player_action.delay:", player_action.delay) if debug else None
-                            print("player_select_units_num:", player_select_units_num) if 1 else None
+                            print("player_select_units_num:", player_select_units_num) if debug else None
 
-                            show_sth(home_obs, player_action)
+                            if False:
+                                show_sth(home_obs, player_action)
 
                             expected_delay = player_action.delay.item()
                             step_mul = max(1, expected_delay)
-                            print("step_mul:", step_mul) if 1 else None
+                            print("step_mul:", step_mul) if debug else None
 
                             print('run_loop, t1', time() - t) if speed else None
                             t = time()
-
-                            # don't use the blow line, may cause in-place error in PyTorch 1.5.
-                            # teacher_logits = player_logits
-
-                            # Q: how to do it ?
-                            # may change implemention of teacher_logits
-                            # teacher_logits = self.teacher(home_obs, player_action, teacher_memory)
-
-                            # teacher_step = self.teacher.step_from_state(state, teacher_memory)
-                            # teacher_function_call, teacher_action, teacher_logits, teacher_new_memory = teacher_step
-                            # print("teacher_function_call:", teacher_function_call) if debug else None
 
                             if False:
                                 teacher_step = self.teacher.step_based_on_actions(state, teacher_memory, player_action, player_select_units_num)
@@ -244,14 +231,14 @@ class ActorVSComputer:
 
                             # calculate the build order
                             player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
-                            print("player build order:", player_bo) if debug else None
+                            print("player build order:", player_bo) if 1 else None
 
                             print('run_loop, t5', time() - t) if speed else None
                             t = time()
 
                             # calculate the unit counts of bag
-                            player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
-                            print("player unit count of bow:", sum(player_ucb)) if debug else None
+                            # player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
+                            # print("player unit count of bow:", sum(player_ucb)) if debug else None
 
                             print('run_loop, t6', time() - t) if speed else None
                             t = time()
@@ -276,8 +263,8 @@ class ActorVSComputer:
 
                                 build_order=player_bo,
                                 z_build_order=player_bo,  # we change it to the sampled build order
-                                unit_counts=player_ucb,
-                                z_unit_counts=player_ucb,  # we change it to the sampled unit counts
+                                unit_counts=[],  # player_ucb,
+                                z_unit_counts=[],  # player_ucb,  # we change it to the sampled unit counts
                                 game_loop=game_loop,
                                 last_list=last_list,
                             )

@@ -11,6 +11,7 @@ import traceback
 import random
 import pickle
 import enum
+import copy
 
 import numpy as np
 
@@ -99,11 +100,11 @@ RESULT = ['Victory', 'Defeat', 'Tie']
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     DATA_FROM = 0
-    DATA_NUM = 1
+    DATA_NUM = 2
 else:
     DATA_FROM = 0
     DATA_NUM = 30
-SMALL_MAX_STEPS = 1000  # 60 * 60 * 22.4 
+SMALL_MAX_STEPS = 5000  # 60 * 60 * 22.4 
 
 
 class SaveType(enum.IntEnum):
@@ -149,10 +150,10 @@ def store_info(replay_info):
             game_duration_seconds]
 
 
-def getFeatureAndLabel_numpy(obs, func_call, delay=None, last_list=None):
+def getFeatureAndLabel_numpy(obs, func_call, delay=None, last_list=None, build_order=None):
     print("begin s:") if debug else None
 
-    s = Agent.get_state_and_action_from_pickle_numpy(obs, last_list=last_list)
+    s = Agent.get_state_and_action_from_pickle_numpy(obs, build_order=build_order, last_list=last_list)
 
     feature = Feature.state2feature_numpy(s)
     print("feature:", feature) if debug else None
@@ -263,13 +264,10 @@ def getObsAndFunc(obs, func_call, z):
     return step_dict
 
 
-def getFuncCall(o, feat, obs, prev_obs, use_raw=True):
+def getFuncCall(o, feat, obs, use_raw=True):
     func_call = None
 
     if use_raw:
-        # if prev_obs is None:
-        #     raise ValueError("use raw function call must input prev_obs")
-
         # becareful, though here recommand using prev_obs,
         # we should use obs instead. If not it will get the unit index of the last obs, not this one! 
         # not used: raw_func_call = feat.reverse_raw_action(o.actions[0], prev_obs)
@@ -285,37 +283,7 @@ def getFuncCall(o, feat, obs, prev_obs, use_raw=True):
             # smart screen
             pass        
         else:
-            # for testing
-            print('expert raw func_call: ', raw_func_call) if debug else None
-            action = o.actions[0]
-
-            raw_tags = prev_obs["raw_units"][:, 29]  # 29 is FeatureUnit.tag
-            raw_unit_type = prev_obs["raw_units"][:, 0]  # 0 is FeatureUnit.unit_type
-
-            #print('raw_tags:', raw_tags)
-            #print('len(raw_tags):', len(raw_tags))
-
-            def find_tag_position(original_tag):
-                for i, tag in enumerate(raw_tags):
-                    if tag == original_tag:
-                        return i
-                #logging.warning("Not found tag! %s", original_tag)
-                return -1
-
-            if action.HasField("action_raw"):
-                raw_act = action.action_raw
-                if raw_act.HasField("unit_command"):
-                    uc = raw_act.unit_command
-                    ability_id = uc.ability_id
-                    queue_command = uc.queue_command
-                    unit_tags = (find_tag_position(t) for t in uc.unit_tags)
-                    unit_tags = [t for t in unit_tags if t != -1]
-                    unit_index = unit_tags[0]
-                    print('unit_index:', unit_index) if debug else None
-                    print('unit_tag:', raw_tags[unit_index]) if debug else None
-                    unit_type_id = raw_unit_type[unit_index]
-                    unit_type_name = Unit.Protoss(unit_type_id)
-                    print('Protoss unit_type:', unit_type_name) if debug else None
+            pass
 
         func_call = raw_func_call
     else:
@@ -517,26 +485,18 @@ def test(on_server=False):
                 # initial build order
                 player_bo = []
                 player_ucb = []
+                bo_list = []
 
                 while True:
                     o = controller.observe()
                     try:
                         obs = feat.transform_obs(o)
 
-                        if False and prev_obs is not None:
-                            # calculate the build order
-                            player_bo = U.calculate_build_order(player_bo, prev_obs, obs)
-                            print("player build order:", player_bo) if debug else None
-
-                            # calculate the unit counts of bag
-                            player_ucb = U.calculate_unit_counts_bow(prev_obs).reshape(-1).numpy().tolist()
-                            print("player unit count of bow:", sum(player_ucb)) if debug else None
-
                         try:
                             func_call = None
                             no_op = False
-                            if o.actions and prev_obs:
-                                func_call = getFuncCall(o, feat, obs, prev_obs)
+                            if o.actions:
+                                func_call = getFuncCall(o, feat, obs)
                                 if func_call.function.value == 0:
                                     no_op = True
                                     func_call = None
@@ -569,9 +529,16 @@ def test(on_server=False):
 
                                 obs_list.append(obs)
                                 func_call_list.append(func_call)
+
                                 delay_list.append(delay)
 
-                                # z_list.append(z)
+                                if prev_obs is not None:
+                                    # calculate the build order
+                                    player_bo = U.calculate_build_order(player_bo, prev_obs, obs)
+                                    print("player build order:", player_bo) if debug else None
+
+                                bo_list.append(copy.deepcopy(player_bo))
+                                prev_obs = obs
 
                         except Exception as e:
                             traceback.print_exc()
@@ -588,7 +555,6 @@ def test(on_server=False):
                         traceback.print_exc() 
 
                     controller.step()
-                    prev_obs = obs
 
                     i += 1
 
@@ -603,6 +569,8 @@ def test(on_server=False):
                     for i in range(length):
                         obs = obs_list[i]
                         func_call = func_call_list[i]
+                        bo = bo_list[i]
+
                         # delay should be the next,
                         # means when should we issue the next command from the time we give this command
                         last_delay = delay_list[i]
@@ -631,7 +599,7 @@ def test(on_server=False):
 
                         last_list = [last_delay, last_action_type, last_repeat_queued]
 
-                        feature, label = getFeatureAndLabel_numpy(obs, func_call, delay, last_list)
+                        feature, label = getFeatureAndLabel_numpy(obs, func_call, delay, last_list, bo)
 
                         feature = torch.tensor(feature)
                         label = torch.tensor(label)

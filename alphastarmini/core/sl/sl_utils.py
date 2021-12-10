@@ -266,33 +266,43 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
 
 
 def get_selected_units_accuracy(ground_truth, predict, select_units_num, action_equal_mask, 
-                                device, strict_comparsion=True, use_strict_order=False):
+                                device, strict_comparsion=True, use_strict_order=True):
     all_num, correct_num, gt_num, pred_num = 0, 0, 1, 0
     if strict_comparsion:
         action_equal_index = action_equal_mask.nonzero(as_tuple=True)[0]
         ground_truth = ground_truth[action_equal_index]
         predict = predict[action_equal_index]
 
+    units_nums_equal = 0
+    batch_size = 0
     if ground_truth.shape[0] > 0:  
-        size = ground_truth.shape[0]
+        batch_size = ground_truth.shape[0]
         NONE_INDEX = AHP.max_entities - 1
 
-        for i in range(size):
+        for i in range(batch_size):
             ground_truth_sample = ground_truth[i]
-            ground_truth_new = torch.nonzero(ground_truth_sample, as_tuple=True)[-1]
-            ground_truth_new = ground_truth_new.cpu().detach().numpy().tolist()
-
-            print('ground_truth units', ground_truth_new) if debug else None
+            ground_truth_sample = torch.nonzero(ground_truth_sample, as_tuple=True)[-1]
+            ground_truth_sample = ground_truth_sample.cpu().detach().numpy().tolist()
+            print('ground_truth_sample', ground_truth_sample) if debug else None
 
             predict_sample = predict[i].reshape(-1)
             print('predict_sample units', predict_sample) if debug else None
 
-            select_units_num_sample = select_units_num[i].item()
-            print('select_units_num_sample units', select_units_num_sample) if debug else None
+            ground_truth_units_num_i = 0
+            for gt in ground_truth_sample:
+                if gt != NONE_INDEX:  # the last index is the None index
+                    ground_truth_units_num_i += 1
+            print('ground_truth_units_num_i', ground_truth_units_num_i) if 1 else None         
 
-            for j in range(select_units_num_sample):
+            select_units_num_i = select_units_num[i].item()
+            print('select_units_num_i', select_units_num_i) if 1 else None
+
+            if ground_truth_units_num_i == select_units_num_i:
+                units_nums_equal += 1
+
+            for j in range(select_units_num_i):
                 pred = predict_sample[j].item()
-                gt = ground_truth_new[j]
+                gt = ground_truth_sample[j]
                 if gt != NONE_INDEX:  # the last index is the None index
                     gt_num += 1
                 if use_strict_order:
@@ -305,9 +315,17 @@ def get_selected_units_accuracy(ground_truth, predict, select_units_num, action_
 
             all_num += AHP.max_selected
 
-    print('get_selected_units_accuracy', [correct_num, gt_num, pred_num, all_num])
+    ret = {}
+    ret['correct_num'] = correct_num
+    ret['gt_num'] = gt_num
+    ret['pred_num'] = pred_num
+    ret['all_num'] = all_num
+    ret['units_nums_equal'] = units_nums_equal
+    ret['batch_size'] = batch_size
 
-    return [correct_num, gt_num, pred_num, all_num]
+    print('get_selected_units_accuracy', [correct_num, gt_num, pred_num, all_num, units_nums_equal, batch_size])
+
+    return [correct_num, gt_num, pred_num, all_num, units_nums_equal, batch_size]
 
 
 def get_target_unit_accuracy(ground_truth, predict, action_equal_mask, device, 
