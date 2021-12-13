@@ -164,7 +164,8 @@ class ArchModel(nn.Module):
         '''
 
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
-        entity_embeddings, embedded_entity, entity_nums = self.entity_encoder(state.entity_state)   
+        entity_embeddings, embedded_entity, entity_nums, unit_types_one = self.entity_encoder(state.entity_state,
+                                                                                              return_unit_types=True)   
         map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
@@ -182,11 +183,54 @@ class ArchModel(nn.Module):
             gt_units = gt_action.units.long()
             batch_size = gt_units.shape[0]
             select_size = gt_units.shape[1]
-            gt_units = gt_units.reshape(-1, gt_units.shape[-1])
+            units_size = gt_units.shape[2]
+
+            # gt_units[torch.arange(batch_size), gt_select_units_num] = torch.tensor(L.np_one_hot(entity_nums, units_size), 
+            #                                                                        device=gt_units.device,
+            #                                                                        dtype=gt_units.dtype)
+
+            # print('gt_select_units_num.shape', gt_select_units_num.shape) if 1 else None
+            # print('gt_select_units_num', gt_select_units_num) if 1 else None
+
+            # print('entity_nums.shape', entity_nums.shape) if 1 else None
+            # print('entity_nums', entity_nums) if 1 else None
+
+            # gt_max_mask = gt_select_units_num == select_size
+            # print('gt_max_mask.shape', gt_max_mask.shape) if 1 else None
+            # print('gt_max_mask', gt_max_mask) if 1 else None
+
+            # gt_select_units_num_max = gt_select_units_num * gt_max_mask
+            # print('gt_select_units_num_max.shape', gt_select_units_num_max.shape) if 1 else None
+            # print('gt_select_units_num_max', gt_select_units_num_max) if 1 else None            
+
+            # gt_select_units_num_non_max = gt_select_units_num * ~gt_max_mask
+            # print('gt_select_units_num_non_max.shape', gt_select_units_num_non_max.shape) if 1 else None
+            # print('gt_select_units_num_non_max', gt_select_units_num_non_max) if 1 else None  
+
+            # gt_units_max = gt_units * gt_max_mask
+            # print('gt_units_max.shape', gt_units_max.shape) if 1 else None
+            # print('gt_units_max', gt_units_max) if 1 else None
+
+            # gt_units_non_max = gt_units * ~gt_max_mask
+
+            # print('gt_select_units_num_non_max.shape', gt_select_units_num_non_max.shape) if 1 else None
+            # print('gt_select_units_num_non_max', gt_select_units_num_non_max) if 1 else None
+
+            # gt_units[torch.arange(batch_size), gt_select_units_num] = L.tensor_one_hot(entity_nums, units_size).long()
+
+            for i in range(batch_size):
+                j = gt_select_units_num[i]
+                if j < select_size:
+                    nums = min(units_size - 1, entity_nums[i].item())
+                    nums = torch.tensor(nums, dtype=entity_nums.dtype, device=entity_nums.device)
+                    gt_units[i, j] = L.tensor_one_hot(nums, units_size).long()
+
+            gt_units = gt_units.reshape(-1, units_size)
             print('gt_units.shape', gt_units.shape) if debug else None
 
             gt_units = torch.nonzero(gt_units, as_tuple=True)[-1]
             gt_units = gt_units.reshape(batch_size, select_size, 1)
+            print('gt_units', gt_units) if debug else None
             print('gt_units.shape', gt_units.shape) if debug else None
 
             gt_target_unit = gt_action.target_unit.long()
@@ -206,7 +250,7 @@ class ArchModel(nn.Module):
         queue_logits, _, autoregressive_embedding = self.queue_head(autoregressive_embedding, gt_action_type, embedded_entity, gt_queue)
 
         # selected_units_head is special, we use forward_sl function
-        units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head.forward_sl(autoregressive_embedding, 
+        units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head.sl_forward(autoregressive_embedding, 
                                                                                                               gt_action_type, 
                                                                                                               entity_embeddings, 
                                                                                                               entity_nums,
@@ -223,7 +267,7 @@ class ArchModel(nn.Module):
 
         if multi_gpu_supvised_learning:
             return action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \
-                units_logits, target_unit_logits, target_location_logits, select_units_num, hidden_state
+                units_logits, target_unit_logits, target_location_logits, select_units_num, hidden_state, unit_types_one
 
         return action_type_logits, delay_logits, queue_logits, \
             units_logits, target_unit_logits, target_location_logits

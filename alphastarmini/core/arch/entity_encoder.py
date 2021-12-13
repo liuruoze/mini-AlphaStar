@@ -345,10 +345,11 @@ class EntityEncoder(nn.Module):
 
         return all_entities_array
 
-    def forward(self, x, debug=False):
+    def forward(self, x, debug=False, return_unit_types=False):
         # refactor by reference mostly to https://github.com/opendilab/DI-star
         # some mistakes for transformer are fixed
         batch_size = x.shape[0]
+        entities_size = x.shape[1]
 
         # calculate there are how many real entities in each batch
         # tmp_x: [batch_seq_size x entities_size]
@@ -359,6 +360,10 @@ class EntityEncoder(nn.Module):
 
         # entity_num: [batch_seq_size]
         entity_num = torch.sum(tmp_y, dim=1, keepdim=False)
+
+        # make sure we can have max to AHP.max_entities - 1
+        entity_num_numpy = np.minimum(AHP.max_entities - 1, entity_num.cpu().numpy())
+        entity_num = torch.tensor(entity_num_numpy, dtype=entity_num.dtype, device=entity_num.device)
 
         # this means for each batch, there are how many real enetities
         print('entity_num:', entity_num) if debug else None
@@ -374,6 +379,27 @@ class EntityEncoder(nn.Module):
         mask = mask < entity_num.unsqueeze(dim=1)
         print('mask:', mask) if debug else None
         print('mask.shape:', mask.shape) if debug else None
+
+        masked_x = x * mask.unsqueeze(-1)
+        unit_types = masked_x[:, :, :SCHP.max_unit_type]
+        print('unit_types:', unit_types) if debug else None
+        print('unit_types.shape:', unit_types.shape) if debug else None
+
+        unit_types_one_list = []
+        for i, batch in enumerate(unit_types):
+            unit_types_one = torch.nonzero(batch, as_tuple=True)[-1]
+            # unit_types_real = [L.get_unit_tpye_from_index(j.item()) for j in unit_types_one]
+            # print('unit_types_real:', unit_types_real) if debug else None
+
+            unit_types_one = unit_types_one.reshape(1, -1)
+            placeholder = torch.ones(entities_size - entity_num[i], dtype=unit_types_one.dtype)
+            placeholder = (placeholder * SCHP.max_unit_type).to(device).reshape(1, -1)
+            unit_types_one = torch.cat([unit_types_one, placeholder], dim=1)
+            unit_types_one_list.append(unit_types_one)
+
+        unit_types_one = torch.cat(unit_types_one_list, dim=0)
+        print('unit_types_one:', unit_types_one) if debug else None
+        print('unit_types_one.shape:', unit_types_one.shape) if debug else None
 
         # assert the input shape is : batch_seq_size x entities_size x embeding_size
         # note: because the feature size of entity is not equal to 256, so it can not fed into transformer directly.
@@ -416,6 +442,9 @@ class EntityEncoder(nn.Module):
         # embedded_entity: [batch_size, fc1_output_size]
         embedded_entity = F.relu(self.fc1(z))
         print('embedded_entity.shape:', embedded_entity.shape) if debug else None
+
+        if return_unit_types:
+            return entity_embeddings, embedded_entity, entity_num, unit_types_one
 
         return entity_embeddings, embedded_entity, entity_num
 

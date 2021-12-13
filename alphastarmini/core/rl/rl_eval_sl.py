@@ -9,6 +9,8 @@ import traceback
 from time import time, sleep, strftime, localtime
 import threading
 
+import numpy as np
+
 import torch
 
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
@@ -37,11 +39,11 @@ debug = False
 speed = False
 
 
-MAX_EPISODES = 3
+MAX_EPISODES = 5
 IS_TRAINING = False
 MAP_NAME = P.map_name  # "Simple64" "AbyssalReef"
 STEP_MUL = 8
-GAME_STEPS_PER_EPISODE = 18000    # 9000
+GAME_STEPS_PER_EPISODE = 12000    # 9000
 
 DIFFICULTY = 1
 RANDOM_SEED = 1
@@ -49,6 +51,7 @@ VERSION = '3.16.1'
 
 RESTORE = True
 SAVE_REPLAY = True
+SAVE_STATISTIC = True
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -60,7 +63,7 @@ if torch.backends.cudnn.is_available():
     torch.backends.cudnn.benchmark = True
 
 
-class ActorVSComputer:
+class ActorEval:
     """A single actor loop that generates trajectories by playing with built-in AI (computer).
 
     We don't use batched inference here, but it was used in practice.
@@ -118,6 +121,9 @@ class ActorVSComputer:
 
             # the total numberv_for_all_episodes as [loss, draw, win]
             results = [0, 0, 0]
+
+            # statistic list
+            food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, seconds_list = [], [], [], [], [], []
 
             start_time = time()
             print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_time)))
@@ -288,32 +294,82 @@ class ActorVSComputer:
                             if is_final:
                                 outcome = reward
                                 print("outcome: ", outcome) if debug else None
+
                                 results[outcome + 1] += 1
 
                                 if SAVE_REPLAY:
                                     env.save_replay(self.replay_dir)
 
+                                if SAVE_STATISTIC:
+                                    o = home_next_obs.observation
+                                    p = o['player']
+
+                                    food_used = p['food_used']
+                                    army_count = p['army_count']
+
+                                    print('food_used', food_used)
+                                    print('army_count', army_count)
+
+                                    collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
+                                    collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
+
+                                    print('collected_minerals', collected_minerals)
+                                    print('collected_vespene', collected_vespene)
+
+                                    collected_points = collected_minerals + collected_vespene
+
+                                    used_minerals = np.sum(o['score_by_category']['used_minerals'])
+                                    used_vespene = np.sum(o['score_by_category']['used_vespene'])
+
+                                    print('used_minerals', used_minerals)
+                                    print('used_vespene', used_vespene)
+
+                                    used_points = used_minerals + used_vespene
+
+                                    killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
+                                    killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
+
+                                    print('killed_minerals', killed_minerals)
+                                    print('killed_vespene', killed_vespene)
+
+                                    killed_points = killed_minerals + killed_vespene
+
+                                    seconds = game_loop / 22.4
+
+                                    food_used_list.append(food_used)
+                                    army_count_list.append(army_count)
+                                    collected_points_list.append(collected_points)
+                                    used_points_list.append(used_points)
+                                    killed_points_list.append(killed_points)
+                                    seconds_list.append(seconds)
+
+                                    with open('./output/eval_sl.txt', 'a') as file:
+                                        statistic = 'Episode: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | time: {:.3f}s \n'.format(
+                                            total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, seconds)
+
+                                        file.write(statistic)
+
                             if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = RU.stack_namedtuple(trajectory)
 
                                 if self.player.learner is not None:
-                                    if self.player.learner.is_running:
 
+                                    if self.player.learner.is_running:
+                                        self.player.learner.send_trajectory(trajectories)                                     
                                         print("Learner send_trajectory!") if debug else None
 
-                                        self.player.learner.send_trajectory(trajectories)
                                         trajectory = []
                                     else:
                                         print("Learner stops!")
 
                                         print("Actor also stops!")
-                                        return
+                                        raise Exception
 
                             # use max_frames to end the loop
                             # whether to stop the run
                             if self.max_frames and total_frames >= self.max_frames:
                                 print("Beyond the max_frames, return!")
-                                return
+                                raise Exception
 
                             # use max_frames_per_episode to end the episode
                             if self.max_frames_per_episode and episode_frames >= self.max_frames_per_episode:
@@ -325,15 +381,24 @@ class ActorVSComputer:
                         # use max_frames_per_episode to end the episode
                         if self.max_episodes and total_episodes >= self.max_episodes:
                             print("Beyond the max_episodes, return!")
-                            return
+                            raise Exception
 
         except Exception as e:
             print("ActorLoop.run() Exception cause return, Detials of the Exception:", e)
             print(traceback.format_exc())
 
         finally:
-            print("results: ", results) if debug else None
-            print("win rate: ", results[2] / (1e-9 + sum(results))) if debug else None
+            print("results: ", results) if 1 else None
+            print("win rate: ", results[2] / (1e-9 + sum(results))) if 1 else None
+
+            with open('./output/eval_sl.txt', 'a') as file:
+                statistic = 'Avg: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | time: {:.3f}s \n'.format(
+                    total_episodes, MAX_EPISODES, np.mean(food_used_list), np.mean(army_count_list), np.mean(collected_points_list),
+                    np.mean(used_points_list), np.mean(killed_points_list), np.mean(seconds_list))
+
+                print("statistic: ", statistic) if 1 else None
+
+                file.write(statistic)
 
             self.is_running = False
 
@@ -503,7 +568,7 @@ def test(on_server=False, replay_path=None):
         player = league.get_learning_player(idx)
         learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING)
         learners.append(learner)
-        actors.extend([ActorVSComputer(player, coordinator) for _ in range(ACTOR_NUMS)])
+        actors.extend([ActorEval(player, coordinator) for _ in range(ACTOR_NUMS)])
 
     threads = []
     for l in learners:

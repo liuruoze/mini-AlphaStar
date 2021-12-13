@@ -21,6 +21,8 @@ from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCH
 from alphastarmini.lib.hyper_parameters import Label_Size as LS
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 
+from alphastarmini.lib import utils as L
+
 from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
 debug = False
@@ -218,31 +220,11 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     for raw_action_id in ground_truth_raw_action_id:
         aid = raw_action_id.item()
         if aid == Smart_unit_id:
-            mask_list.append([0.5])
+            mask_list.append([1])
         elif aid in RAMP.SMALL_LIST:
-            mask_list.append([2])
+            mask_list.append([1])
         else:
             mask_list.append([1])
-
-        # if not only_consider_small:
-        #     if aid == MOVE_CAMERA_ID:
-        #         mask_list.append([MOVE_CAMERA_WEIGHT])
-        #     elif aid == Smart_pt_id:
-        #         mask_list.append([SMART_WEIGHT])
-        #     elif aid == Smart_unit_id:
-        #         mask_list.append([SMART_WEIGHT])
-        #     else:
-        #         # func_name = F[aid].name
-        #         # select, _, _ = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])  
-        #         if aid in RAMP.SMALL_LIST:
-        #             mask_list.append([SMALL_IMPORTANT_WEIGHT])
-        #         else:
-        #             mask_list.append([NON_MOVE_CAMERA_WEIGHT])
-        # else:
-        #     if aid in RAMP.SMALL_LIST:
-        #         mask_list.append([SMALL_IMPORTANT_WEIGHT])
-        #     else:
-        #         mask_list.append([1.])                
 
     mask_tensor = torch.tensor(mask_list)
 
@@ -265,13 +247,25 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     return mask_tensor
 
 
-def get_selected_units_accuracy(ground_truth, predict, select_units_num, action_equal_mask, 
-                                device, strict_comparsion=True, use_strict_order=True):
-    all_num, correct_num, gt_num, pred_num = 0, 0, 1, 0
+def get_selected_units_accuracy(ground_truth, predict, gt_action_type, pred_action_type,
+                                select_units_num, action_equal_mask, 
+                                device, unit_types_one=None, entity_nums=None,
+                                strict_comparsion=True, use_strict_order=True):
+    all_num, correct_num, gt_num, pred_num, type_correct_num = 0, 0, 1, 0, 0
+
+    gt_action_type = torch.nonzero(gt_action_type.long(), as_tuple=True)[-1].unsqueeze(dim=1)
+    print('gt_action_type.shape', gt_action_type.shape) if debug else None
+
     if strict_comparsion:
         action_equal_index = action_equal_mask.nonzero(as_tuple=True)[0]
         ground_truth = ground_truth[action_equal_index]
         predict = predict[action_equal_index]
+        if unit_types_one is not None:
+            unit_types_one = unit_types_one[action_equal_index]
+        entity_nums = entity_nums[action_equal_index]
+
+        gt_action_type = gt_action_type[action_equal_index]
+        pred_action_type = pred_action_type[action_equal_index]
 
     units_nums_equal = 0
     batch_size = 0
@@ -288,23 +282,52 @@ def get_selected_units_accuracy(ground_truth, predict, select_units_num, action_
             predict_sample = predict[i].reshape(-1)
             print('predict_sample units', predict_sample) if debug else None
 
+            if unit_types_one is not None:
+                unit_types_one_sample = unit_types_one[i].reshape(-1)
+                print('unit_types_one_sample', unit_types_one_sample) if debug else None
+
+            entity_num = entity_nums[i].reshape(-1)
+
             ground_truth_units_num_i = 0
             for gt in ground_truth_sample:
-                if gt != NONE_INDEX:  # the last index is the None index
+                if gt != NONE_INDEX and gt != entity_num.item():  # the last index is the None index
                     ground_truth_units_num_i += 1
-            print('ground_truth_units_num_i', ground_truth_units_num_i) if 1 else None         
+            print('ground_truth_units_num_i', ground_truth_units_num_i) if debug else None         
 
             select_units_num_i = select_units_num[i].item()
-            print('select_units_num_i', select_units_num_i) if 1 else None
+            print('select_units_num_i', select_units_num_i) if debug else None
 
             if ground_truth_units_num_i == select_units_num_i:
                 units_nums_equal += 1
+
+            gt_action_type_sample = gt_action_type[i].item()        
+            pred_action_type_sample = pred_action_type[i].item()
+            # print('gt_action_type_sample', F[gt_action_type_sample]) if 1 else None
+            # print('pred_action_type_sample', F[pred_action_type_sample]) if 1 else None
 
             for j in range(select_units_num_i):
                 pred = predict_sample[j].item()
                 gt = ground_truth_sample[j]
                 if gt != NONE_INDEX:  # the last index is the None index
                     gt_num += 1
+
+                if unit_types_one_sample is not None:
+                    pred_type = unit_types_one_sample[pred].item()
+                    gt_type = unit_types_one_sample[gt].item()
+
+                    # pred_type = L.get_unit_tpye_from_index(pred_type)
+                    # gt_type = L.get_unit_tpye_from_index(gt_type)
+
+                    # pred_type = L.get_unit_tpye_name_and_race(pred_type)[0].name
+                    # gt_type = L.get_unit_tpye_name_and_race(gt_type)[0].name
+
+                    # print('j', j) if 1 else None
+                    # print('pred_type', pred_type) if 1 else None
+                    # print('gt_type', gt_type) if 1 else None
+
+                    if pred_type == gt_type:
+                        type_correct_num += 1
+
                 if use_strict_order:
                     if pred == gt and pred != NONE_INDEX:
                         correct_num += 1
@@ -323,9 +346,9 @@ def get_selected_units_accuracy(ground_truth, predict, select_units_num, action_
     ret['units_nums_equal'] = units_nums_equal
     ret['batch_size'] = batch_size
 
-    print('get_selected_units_accuracy', [correct_num, gt_num, pred_num, all_num, units_nums_equal, batch_size])
+    print('get_selected_units_accuracy', [correct_num, gt_num, type_correct_num, pred_num, units_nums_equal, batch_size])
 
-    return [correct_num, gt_num, pred_num, all_num, units_nums_equal, batch_size]
+    return [correct_num, gt_num, type_correct_num, pred_num, units_nums_equal, batch_size]
 
 
 def get_target_unit_accuracy(ground_truth, predict, action_equal_mask, device, 

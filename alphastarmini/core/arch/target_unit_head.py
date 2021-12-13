@@ -74,7 +74,7 @@ class TargetUnitHead(nn.Module):
         # `func_embed` is computed the same as in the Selected Units head, 
         # and used in the same way for the query (added to the output of the `autoregressive_embedding` 
         # passed through a linear of size 256).
-        unit_types_one_hot = L.action_can_apply_to_entity_types_mask(action_type)
+        unit_types_one_hot = L.action_can_apply_to_targeted_mask(action_type)
 
         device = next(self.parameters()).device
         unit_types_one_hot = unit_types_one_hot.to(device)

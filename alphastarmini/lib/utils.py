@@ -21,6 +21,9 @@ from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
+from alphastarmini.lib.hyper_parameters import ConstSize
+
+from alphastarmini.third import action_dict as AD
 
 import param as P
 
@@ -55,6 +58,14 @@ z = [item.value for item in Zerg]
 all_list = n + p + t + z
 all_dict = dict(zip(all_list, range(0, len(all_list))))
 
+all_dict_inv = {v: k for k, v in all_dict.items()}
+
+
+def get_unit_tpye_from_index(index):
+    unit_tpye = all_dict_inv[index]
+
+    return unit_tpye
+
 
 def get_unit_tpye_index_fast(item):
     index = all_dict[item]
@@ -62,6 +73,32 @@ def get_unit_tpye_index_fast(item):
     #index = all_list.index(item)
 
     return index
+
+
+# we modify the DI-Star original file to the one we can use
+SELECTED_UNITS_TYPES_MASK = torch.zeros(ConstSize.Actions_Size, ConstSize.All_Units_Size)
+TARGET_UNITS_TYPES_MASK = torch.zeros(ConstSize.Actions_Size, ConstSize.All_Units_Size)
+
+for i in range(ConstSize.Actions_Size):
+    action_stat = AD.ACTIONS_STAT.get(i, None)
+    if action_stat is not None:
+        print('i', i, 'action_name', action_stat['action_name']) if debug else None
+
+        type_set = set(action_stat['selected_type'])
+        print('selected_type type_set', type_set) if debug else None
+
+        reorder_type_list = [unit_tpye_to_unit_type_index(j) for j in type_set]
+        print('reorder_type_list', reorder_type_list) if debug else None
+
+        SELECTED_UNITS_TYPES_MASK[i, reorder_type_list] = 1
+
+        type_set = set(action_stat['target_type'])
+        print('target_type type_set', type_set) if debug else None
+
+        reorder_type_list = [unit_tpye_to_unit_type_index(j) for j in type_set]
+        print('reorder_type_list', reorder_type_list) if debug else None
+
+        TARGET_UNITS_TYPES_MASK[i, reorder_type_list] = 1
 
 
 def unpackbits_for_largenumber(x, num_bits):
@@ -459,7 +496,6 @@ def action_involve_targeting_location_mask(action_types):
 def action_can_apply_to_entity_types(action_type):
     """
     find the entity_types which the action_type can be applied to
-    TAG: TODO
 
     Inputs: action_type
     Outputs: mask of applied entity_types
@@ -470,6 +506,7 @@ def action_can_apply_to_entity_types(action_type):
     # to certain unit_types which need strong prior knowledge, at present
     # I don't find there is such an api in pysc2
     # Thus now we only return a mask means all unit_types accept the action_type
+
     return mask
 
 
@@ -481,6 +518,7 @@ def action_can_apply_to_entity_types_mask(action_types):
     Outputs: mask
     """
     mask_list = []
+
     action_types = action_types.cpu().detach().numpy()
 
     for i, action_type in enumerate(action_types):
@@ -489,11 +527,60 @@ def action_can_apply_to_entity_types_mask(action_types):
         print('i:', i, 'action_type_index:', action_type_index) if debug else None
 
         mask = action_can_apply_to_entity_types(action_type_index)
+
         mask_list.append(mask)
 
     batch_mask = torch.cat(mask_list, dim=0)
 
     return batch_mask
+
+
+def action_can_apply_to_selected_mask(action_types):
+    """
+    find the entity_types which the action_type can be applied to
+
+    # Updated in mAS 1.06
+    # By the action_dict from the DI-Star project, we can implement
+    # this in a relatively easy way. Thanks for their huge work!
+
+
+    Inputs: batch of action_type
+    Outputs: mask
+    """
+
+    mask = SELECTED_UNITS_TYPES_MASK[action_types.squeeze(1)].to(action_types.device)
+
+    print('selected action_types:', action_types) if debug else None
+    print('selected action_types.shape:', action_types.shape) if debug else None
+
+    print('selected mask:', mask) if debug else None
+    print('selected mask.shape:', mask.shape) if debug else None
+
+    return mask
+
+
+def action_can_apply_to_targeted_mask(action_types):
+    """
+    find the entity_types which the action_type can be applied to
+
+    # Updated in mAS 1.06
+    # By the action_dict from the DI-Star project, we can implement
+    # this in a relatively easy way. Thanks for their huge work!
+
+
+    Inputs: batch of action_type
+    Outputs: mask
+    """
+
+    mask = TARGET_UNITS_TYPES_MASK[action_types.squeeze(1)].to(action_types.device)
+
+    print('targeted action_types:', action_types) if debug else None
+    print('targeted action_types.shape:', action_types.shape) if debug else None
+
+    print('targeted mask:', mask) if debug else None
+    print('targeted mask.shape:', mask.shape) if debug else None
+
+    return mask
 
 
 def action_can_apply_to_entity(action_type):

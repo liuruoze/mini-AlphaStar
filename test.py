@@ -45,7 +45,7 @@ if __name__ == '__main__':
     # pseudo_reward.test()
     # baseline.test()
 
-    arch_model.test()
+    # arch_model.test()
     # agent.test()
     # rl_algo.test()
     # rl_loss.test()
