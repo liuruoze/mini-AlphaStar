@@ -3,13 +3,19 @@
 
 " Train for RL by fighting against built-in AI (computer), using no replays"
 
+from time import time, sleep, strftime, localtime
+
 import os
 import random
 import traceback
-from time import time, sleep, strftime, localtime
 import threading
+import datetime
+
+import numpy as np
 
 import torch
+
+from tensorboardX import SummaryWriter
 
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
 from pysc2.lib import actions as sc2_actions
@@ -38,17 +44,18 @@ speed = False
 
 
 MAX_EPISODES = 3
-IS_TRAINING = False
+IS_TRAINING = True
 MAP_NAME = P.map_name  # "Simple64" "AbyssalReef"
 STEP_MUL = 8
-GAME_STEPS_PER_EPISODE = 18000    # 9000
+GAME_STEPS_PER_EPISODE = 9000    # 9000
 
 DIFFICULTY = 1
 RANDOM_SEED = 1
 VERSION = '3.16.1'
 
 RESTORE = True
-SAVE_REPLAY = True
+SAVE_REPLAY = False
+DEFINED_REWARD = True
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -60,18 +67,21 @@ if torch.backends.cudnn.is_available():
     torch.backends.cudnn.benchmark = True
 
 
+# TODO: fix the bug ValueError: The game didn't advance to the expected game loop. Expected: 2512, got: 2507
+
 class ActorVSComputer:
     """A single actor loop that generates trajectories by playing with built-in AI (computer).
 
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, coordinator, max_time_for_training=60 * 60 * 24,
+    def __init__(self, player, coordinator, idx, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/"):
         self.player = player
+        self.idx = idx
 
         print('initialed player')
         self.player.add_actor(self)
@@ -102,6 +112,10 @@ class ActorVSComputer:
         self.is_start = False
 
         self.replay_dir = replay_dir
+
+        if self.player.learner is not None:
+            if DEFINED_REWARD:
+                self.writer = self.player.learner.writer
 
     def start(self):
         self.is_start = True
@@ -172,6 +186,9 @@ class ActorVSComputer:
                         # initial last list
                         last_list = [0, 0, 0]
 
+                        # points for defined reward
+                        points, last_points = 0, 0
+
                         # in one episode (game)
                         start_episode_time = time()  # in seconds.
                         print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
@@ -197,7 +214,7 @@ class ActorVSComputer:
                             print("player_action.delay:", player_action.delay) if debug else None
                             print("player_select_units_num:", player_select_units_num) if debug else None
 
-                            if True:
+                            if False:
                                 show_sth(home_obs, player_action)
 
                             expected_delay = player_action.delay.item()
@@ -207,7 +224,7 @@ class ActorVSComputer:
                             print('run_loop, t1', time() - t) if speed else None
                             t = time()
 
-                            if False:
+                            if True:
                                 teacher_step = self.teacher.step_based_on_actions(state, teacher_memory, player_action, player_select_units_num)
                                 teacher_logits, teacher_select_units_num, teacher_new_memory = teacher_step
                                 print("teacher_logits:", teacher_logits) if debug else None
@@ -244,14 +261,25 @@ class ActorVSComputer:
                             t = time()
 
                             # calculate the unit counts of bag
-                            # player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
-                            # print("player unit count of bow:", sum(player_ucb)) if debug else None
+                            player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
+                            print("player unit count of bow:", sum(player_ucb)) if debug else None
 
                             print('run_loop, t6', time() - t) if speed else None
                             t = time()
 
                             game_loop = home_obs.observation.game_loop[0]
                             print("game_loop", game_loop) if debug else None
+
+                            if DEFINED_REWARD:
+                                points = get_points(home_next_obs)
+
+                                if last_points != 0:
+                                    reward = points - last_points
+                                else:
+                                    reward = 0
+                                print("{:d} get defined reward".format(self.idx), reward) if 1 else None
+
+                                last_points = points
 
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
                             # them here
@@ -270,8 +298,8 @@ class ActorVSComputer:
 
                                 build_order=player_bo,
                                 z_build_order=player_bo,  # we change it to the sampled build order
-                                unit_counts=[],  # player_ucb,
-                                z_unit_counts=[],  # player_ucb,  # we change it to the sampled unit counts
+                                unit_counts=player_ucb,  # player_ucb,
+                                z_unit_counts=player_ucb,  # player_ucb,  # we change it to the sampled unit counts
                                 game_loop=game_loop,
                                 last_list=last_list,
                             )
@@ -286,12 +314,17 @@ class ActorVSComputer:
                             last_list = [last_delay, last_action_type, last_repeat_queued]
 
                             if is_final:
-                                outcome = reward
+                                outcome = home_next_obs.reward
                                 print("outcome: ", outcome) if debug else None
                                 results[outcome + 1] += 1
 
                                 if SAVE_REPLAY:
                                     env.save_replay(self.replay_dir)
+
+                                if DEFINED_REWARD:
+                                    final_points = get_points(home_next_obs)
+
+                                    self.writer.add_scalar('agent_' + str(self.idx) + '/defined_reward', final_points, total_episodes)
 
                             if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = RU.stack_namedtuple(trajectory)
@@ -364,6 +397,33 @@ class ActorVSComputer:
                      random_seed=random_seed)
 
         return env
+
+
+def get_points(obs):
+    o = obs.observation
+    p = o['player']
+
+    food_used = p['food_used']
+    army_count = p['army_count']
+
+    collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
+    collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
+
+    collected_points = collected_minerals + collected_vespene
+
+    used_minerals = np.sum(o['score_by_category']['used_minerals'])
+    used_vespene = np.sum(o['score_by_category']['used_vespene'])
+
+    used_points = used_minerals + used_vespene
+
+    killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
+    killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
+
+    killed_points = killed_minerals + killed_vespene
+
+    points = collected_points + used_points + killed_points
+
+    return points
 
 
 def show_sth(home_obs, player_action):
@@ -503,7 +563,7 @@ def test(on_server=False, replay_path=None):
         player = league.get_learning_player(idx)
         learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING)
         learners.append(learner)
-        actors.extend([ActorVSComputer(player, coordinator) for _ in range(ACTOR_NUMS)])
+        actors.extend([ActorVSComputer(player, coordinator, (idx + 1)) for _ in range(ACTOR_NUMS)])
 
     threads = []
     for l in learners:

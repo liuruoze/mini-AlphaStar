@@ -4,14 +4,19 @@
 " The code for the learner in the actor-learner mode in the IMPALA architecture"
 
 # modified from AlphaStar pseudo-code
+
+from time import time, sleep, strftime, localtime
+
 import os
 import traceback
-from time import time, sleep, strftime, localtime
 import threading
 import itertools
+import datetime
 
 import torch
 from torch.optim import Adam, RMSprop
+
+from tensorboardX import SummaryWriter
 
 from alphastarmini.core.rl.rl_loss import loss_function
 
@@ -29,6 +34,8 @@ MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
 SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S", localtime()))
+
+LOGGING = True
 
 
 class Learner:
@@ -55,6 +62,11 @@ class Learner:
         self.is_running = False
 
         self.is_rl_training = is_training
+
+        if LOGGING:
+            now = datetime.datetime.now()
+            summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+            self.writer = SummaryWriter(summary_path)
 
     def get_parameters(self):
         return self.player.agent.get_parameters()

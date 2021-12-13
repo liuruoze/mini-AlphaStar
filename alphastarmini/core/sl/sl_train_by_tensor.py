@@ -237,11 +237,6 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
             batch_iter += 1
             print('batch_iter', batch_iter)
 
-            # if batch_iter % EVAL_INTERFEVL == 0:
-            #     print('Epoch: [{}/{}]| loss: {:.3f} | acc: {:.3f} | batch time: {:.3f}s '.format(
-            #         batch_iter, epoch, loss_sum / (batch_iter + 1), action_accuracy, batch_time))
-            #     torch.save(net.state_dict(), SAVE_PATH + "" + ".pth")
-
             write(writer, loss_value, loss_list, action_accuracy, 
                   move_camera_accuracy, non_camera_accuracy, short_important_accuracy,
                   location_accuracy, location_distance, selected_units_accuracy,

@@ -34,13 +34,7 @@ def cross_entropy(soft_targets, pred, mask=None,
 
     if debug:
         for i, (t, p) in enumerate(zip(soft_targets, logsoftmax(pred))):
-            # print('t', t)
-            # print('t.shape', t.shape)
-            # print('p', p)
-            # print('p.shape', p.shape)
             value = - t * logsoftmax(p)
-            # print('value', value)
-            # print('value.shape', value.shape)
             m = mask[i].item()
             if value.sum() > 1e6 and m != 0:
                 print('i', i)
@@ -286,18 +280,6 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     print('units_mask', units_mask) if debug else None
     print('units_mask.shape', units_mask.shape) if debug else None
 
-    # print('select_units_num', select_units_num) if 1 else None
-    # print('select_units_num.shape', select_units_num.shape) if 1 else None
-
-    # print('action_gt.units', action_gt.units[0, 0]) if 1 else None
-    # print('action_gt.units', action_gt.units[0, 1]) if 1 else None
-    # print('action_gt.units', action_gt.units[0, 2]) if 1 else None
-    # print('action_gt.units', action_gt.units[0, 3]) if 1 else None
-
-    # print('action_gt.units', action_gt.units[1, 3]) if 1 else None
-    # print('action_gt.units', action_gt.units[2, 1]) if 1 else None
-    # print('action_gt.units.shape', action_gt.units.shape) if 1 else None
-
     selected_mask = torch.arange(select_size, device=device).float()
     selected_mask = selected_mask.repeat(batch_size, 1)
 
@@ -308,32 +290,6 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     print('selected_mask', selected_mask) if debug else None
     print('selected_mask.shape', selected_mask.shape) if debug else None
 
-    # bias_action_gt = torch.zeros(1, 1, units_size, device=device).float()
-    # bias_action_gt[0, 0, -1] = 1
-    # print('bias_action_gt', bias_action_gt) if 1 else None
-
-    # equal_last_mask = action_gt.units == bias_action_gt
-    # print('equal_last_mask', equal_last_mask) if 1 else None
-    # print('equal_last_mask.shape', equal_last_mask.shape) if 1 else None
-
-    # equal_last_mask = equal_last_mask.all(dim=-1)
-    # print('equal_last_mask', equal_last_mask) if 1 else None
-    # print('equal_last_mask.shape', equal_last_mask.shape) if 1 else None
-
-    # m = action_gt.units[torch.arange(batch_size), select_units_num - 1]
-    # print('m', m) if 1 else None
-    # print('m.shape', m.shape) if 1 else None
-
-    # n = action_gt.units[torch.arange(batch_size), select_units_num]
-    # print('n', n) if 1 else None
-    # print('n.shape', n.shape) if 1 else None
-
-    # z = L.np_one_hot(select_units_num, units_size)
-    # print('z', z) if 1 else None
-    # print('z.shape', z.shape) if 1 else None
-
-    # action_gt.units[torch.arange(batch_size), select_units_num] = L.tensor_one_hot(entity_nums, units_size)
-
     for i in range(batch_size):
         j = select_units_num[i]
         if j < select_size:
@@ -341,40 +297,7 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
             nums = torch.tensor(nums, dtype=entity_nums.dtype, device=entity_nums.device)
             action_gt.units[i, j] = L.tensor_one_hot(nums, units_size)
 
-    # print('action_gt.units', action_gt.units) if 1 else None
-    # print('action_gt.units.shape', action_gt.units.shape) if 1 else None
-
-    # print('action_gt.units', action_gt.units[0, 0]) if 1 else None
-    # print('action_gt.units', action_gt.units[0, 1]) if 1 else None
-    # print('action_gt.units', action_gt.units[0, 2]) if 1 else None
-    # print('action_gt.units', action_gt.units[0, 3]) if 1 else None
-
-    # print('action_gt.units', action_gt.units[1, 3]) if 1 else None
-    # print('action_gt.units', action_gt.units[2, 1]) if 1 else None
-
-    # gt_units_mask = ~equal_last_mask.reshape(-1)
-
-    # assert gt_units_mask.dtype == torch.bool
-
-    # print('gt_units_mask', gt_units_mask) if 1 else None
-    # print('gt_units_mask.shape', gt_units_mask.shape) if 1 else None
-
-    # print('units_mask', units_mask) if 1 else None
-    # print('units_mask.shape', units_mask.shape) if 1 else None
-
-    # print('selected_mask', selected_mask) if 1 else None
-    # print('selected_mask.shape', selected_mask.shape) if 1 else None
-
     all_units_mask = units_mask * selected_mask  # * gt_units_mask
-
-    # print('all_units_mask.shape', all_units_mask.shape) if 1 else None
-    # print('all_units_mask', all_units_mask) if 1 else None
-
-    # print('action_gt.units.shape', action_gt.units.shape) if 1 else None
-    # print('action_gt.units', action_gt.units) if 1 else None
-
-    # print('units_logits.shape', units_logits.shape) if 1 else None
-    # print('units_logits', units_logits) if 1 else None
 
     # TODO: change to a proporate calculation of selected units
     selected_units_weight = 1.

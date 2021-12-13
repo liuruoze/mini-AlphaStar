@@ -331,14 +331,14 @@ class Agent(object):
         action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
             delay_logits, queue_logits, \
             units_logits, target_unit_logits, \
-            target_location_logits, select_units_num, new_state = self.model.sl_forward(state, 
-                                                                                        action_gt, 
-                                                                                        gt_select_units_num,
-                                                                                        gt_is_one_hot=False,
-                                                                                        batch_size=batch_size, 
-                                                                                        sequence_length=sequence_length, 
-                                                                                        hidden_state = hidden_state,
-                                                                                        multi_gpu_supvised_learning=True)
+            target_location_logits, select_units_num, new_state, unit_types_one = self.model.sl_forward(state, 
+                                                                                                        action_gt, 
+                                                                                                        gt_select_units_num,
+                                                                                                        gt_is_one_hot=False,
+                                                                                                        batch_size=batch_size, 
+                                                                                                        sequence_length=sequence_length, 
+                                                                                                        hidden_state = hidden_state,
+                                                                                                        multi_gpu_supvised_learning=True)
 
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
                                          units=units_logits, target_unit=target_unit_logits, 

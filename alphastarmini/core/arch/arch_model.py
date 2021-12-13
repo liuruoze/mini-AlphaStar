@@ -185,39 +185,6 @@ class ArchModel(nn.Module):
             select_size = gt_units.shape[1]
             units_size = gt_units.shape[2]
 
-            # gt_units[torch.arange(batch_size), gt_select_units_num] = torch.tensor(L.np_one_hot(entity_nums, units_size), 
-            #                                                                        device=gt_units.device,
-            #                                                                        dtype=gt_units.dtype)
-
-            # print('gt_select_units_num.shape', gt_select_units_num.shape) if 1 else None
-            # print('gt_select_units_num', gt_select_units_num) if 1 else None
-
-            # print('entity_nums.shape', entity_nums.shape) if 1 else None
-            # print('entity_nums', entity_nums) if 1 else None
-
-            # gt_max_mask = gt_select_units_num == select_size
-            # print('gt_max_mask.shape', gt_max_mask.shape) if 1 else None
-            # print('gt_max_mask', gt_max_mask) if 1 else None
-
-            # gt_select_units_num_max = gt_select_units_num * gt_max_mask
-            # print('gt_select_units_num_max.shape', gt_select_units_num_max.shape) if 1 else None
-            # print('gt_select_units_num_max', gt_select_units_num_max) if 1 else None            
-
-            # gt_select_units_num_non_max = gt_select_units_num * ~gt_max_mask
-            # print('gt_select_units_num_non_max.shape', gt_select_units_num_non_max.shape) if 1 else None
-            # print('gt_select_units_num_non_max', gt_select_units_num_non_max) if 1 else None  
-
-            # gt_units_max = gt_units * gt_max_mask
-            # print('gt_units_max.shape', gt_units_max.shape) if 1 else None
-            # print('gt_units_max', gt_units_max) if 1 else None
-
-            # gt_units_non_max = gt_units * ~gt_max_mask
-
-            # print('gt_select_units_num_non_max.shape', gt_select_units_num_non_max.shape) if 1 else None
-            # print('gt_select_units_num_non_max', gt_select_units_num_non_max) if 1 else None
-
-            # gt_units[torch.arange(batch_size), gt_select_units_num] = L.tensor_one_hot(entity_nums, units_size).long()
-
             for i in range(batch_size):
                 j = gt_select_units_num[i]
                 if j < select_size:

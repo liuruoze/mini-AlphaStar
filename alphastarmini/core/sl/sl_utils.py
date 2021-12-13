@@ -315,16 +315,6 @@ def get_selected_units_accuracy(ground_truth, predict, gt_action_type, pred_acti
                     pred_type = unit_types_one_sample[pred].item()
                     gt_type = unit_types_one_sample[gt].item()
 
-                    # pred_type = L.get_unit_tpye_from_index(pred_type)
-                    # gt_type = L.get_unit_tpye_from_index(gt_type)
-
-                    # pred_type = L.get_unit_tpye_name_and_race(pred_type)[0].name
-                    # gt_type = L.get_unit_tpye_name_and_race(gt_type)[0].name
-
-                    # print('j', j) if 1 else None
-                    # print('pred_type', pred_type) if 1 else None
-                    # print('gt_type', gt_type) if 1 else None
-
                     if pred_type == gt_type:
                         type_correct_num += 1
 
