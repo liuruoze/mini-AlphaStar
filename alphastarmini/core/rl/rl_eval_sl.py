@@ -39,9 +39,10 @@ debug = False
 speed = False
 
 
-MAX_EPISODES = 5
+MAX_EPISODES = 1
 IS_TRAINING = False
-MAP_NAME = P.map_name  # "Simple64" "AbyssalReef"
+MAP_NAME = "Simple64"  # P.map_name "Simple64" "AbyssalReef"
+USE_PREDICT_STEP_MUL = False
 STEP_MUL = 8
 GAME_STEPS_PER_EPISODE = 12000    # 9000
 
@@ -232,7 +233,10 @@ class ActorEval:
                             print('run_loop, t3', time() - t) if speed else None
                             t = time()
 
-                            timesteps = env.step(env_actions, step_mul=STEP_MUL)  # STEP_MUL step_mul
+                            if USE_PREDICT_STEP_MUL:
+                                timesteps = env.step(env_actions, step_mul=step_mul)  # STEP_MUL step_mul
+                            else:
+                                timesteps = env.step(env_actions, step_mul=STEP_MUL)
                             [home_next_obs] = timesteps
                             reward = home_next_obs.reward
                             print("reward: ", reward) if 0 else None

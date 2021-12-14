@@ -109,12 +109,16 @@ class ArchModel(nn.Module):
 
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
 
+        available_actions = state.statistical_state[6]  # available_actions is at position 6
+        print('available_actions:', available_actions) if debug else None
+        print('available_actions.shape:', available_actions.shape) if debug else None
+
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
                                               batch_size, sequence_length, hidden_state)
         print('lstm_output.shape:', lstm_output.shape) if debug else None
         print('lstm_output is nan:', torch.isnan(lstm_output).any()) if debug else None
 
-        action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context)
+        action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions)
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
 
@@ -164,10 +168,11 @@ class ArchModel(nn.Module):
         '''
 
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
-        entity_embeddings, embedded_entity, entity_nums, unit_types_one = self.entity_encoder(state.entity_state,
-                                                                                              return_unit_types=True)   
+        entity_embeddings, embedded_entity, entity_nums, unit_types_one = self.entity_encoder(state.entity_state, return_unit_types=True)   
         map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
+
+        available_actions = state.statistical_state[6]  # available_actions is at position 6
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
                                               batch_size, sequence_length, hidden_state)
 
@@ -212,7 +217,7 @@ class ArchModel(nn.Module):
             gt_units = gt_action.units
             gt_target_unit = gt_action.target_unit
 
-        action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, gt_action_type)
+        action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions, gt_action_type)
         delay_logits, _, autoregressive_embedding = self.delay_head(autoregressive_embedding, gt_delay)
         queue_logits, _, autoregressive_embedding = self.queue_head(autoregressive_embedding, gt_action_type, embedded_entity, gt_queue)
 

@@ -39,7 +39,7 @@ class ActionTypeHead(nn.Module):
                  is_sl_training=True, temperature=0.8, original_256=AHP.original_256,
                  max_action_num=LS.action_type_encoding, context_size=AHP.context_size, 
                  autoregressive_embedding_size=AHP.autoregressive_embedding_size,
-                 use_action_type_mask=False, is_rl_training=False):
+                 use_action_type_mask=True, is_rl_training=False):
         super().__init__()
         # TODO: make is_sl_training effective 
         self.is_rl_training = is_rl_training
@@ -71,7 +71,7 @@ class ActionTypeHead(nn.Module):
     def set_rl_training(self, staus):
         self.is_rl_training = staus
 
-    def forward(self, lstm_output, scalar_context, action_type=None):
+    def forward(self, lstm_output, scalar_context, action_type_mask=None, action_type=None):
         batch_size = lstm_output.shape[0]
         #seq_size = lstm_output.shape[1]
 
@@ -98,20 +98,19 @@ class ActionTypeHead(nn.Module):
         # action type through a `GLU` gated by `scalar_context`.
         action_type_logits = self.glu_1(x, scalar_context)
 
+        # inspired by the DI-star project, in action_type_head
+        if self.use_action_type_mask and action_type_mask is not None:
+            action_type_mask = action_type_mask.bool()
+            if action_type is not None:       
+                for i, a in enumerate(action_type):
+                    action_type_mask[i, a.item()] = True
+            action_type_logits = action_type_logits + (~action_type_mask * (-1e9))
+
         # AlphaStar: `action_type` is sampled from these logits using a multinomial with temperature 0.8. 
         # Note that during supervised learning, `action_type` will be the ground truth human action 
         # type, and temperature is 1.0 (and similarly for all other arguments).
         action_type_logits = action_type_logits / self.temperature
         print('action_type_logits after temperature:', action_type_logits) if debug else None
-
-        # use frame-skipping and eplison random search in RL
-        # not used because it will acffect the calculation of RL loss
-        # if self.is_rl_training:
-        #     if random.random() < 0.8:
-        #         action_type_logits[:, 0] = 1e9  # no-op
-        #     else:
-        #         if random.random() < 0.1:
-        #             action_type_logits[:] = 0.  # equal random select
 
         # note, torch.multinomial need samples to non-negative, finite and have a non-zero sum
         # which is different with tf.multinomial which can accept negative values like log(action_type_probs)

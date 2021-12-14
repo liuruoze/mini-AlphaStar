@@ -131,10 +131,46 @@ def calculate_unit_counts_bow(obs):
     return unit_counts_bow
 
 
+def calculate_unit_buildings_numpy(obs):
+    unit_counts = obs["unit_counts"] 
+    print('unit_counts:', unit_counts) if debug else None
+
+    unit_buildings = np.zeros([1, SFS.unit_counts_bow])
+    for u_c in unit_counts:
+        unit_type = u_c[0]
+        unit_count = u_c[1]
+
+        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
+        print('unit_type_index', unit_type_index) if debug else None
+
+        if unit_type_index >= SFS.unit_counts_bow:
+            unit_type_index = 0
+
+        if unit_count >= 1:
+            unit_buildings[0, unit_type_index] = 1
+
+    return unit_buildings
+
+
 def calculate_unit_counts_bow_numpy(obs):
-    ret = calculate_unit_counts_bow(obs)
-    ret = ret.detach().cpu().numpy()
-    return ret
+    unit_counts = obs["unit_counts"] 
+    print('unit_counts:', unit_counts) if debug else None
+
+    unit_counts_bow = np.zeros([1, SFS.unit_counts_bow])
+    for u_c in unit_counts:
+        unit_type = u_c[0]
+        unit_count = u_c[1]
+        print('unit_type', unit_type) if debug else None
+
+        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
+        print('unit_type_index', unit_type_index) if debug else None
+
+        if unit_type_index >= SFS.unit_counts_bow:
+            unit_type_index = 0
+
+        unit_counts_bow[0, unit_type_index] = unit_count
+
+    return unit_counts_bow
 
 
 # the probe, drone, and SCV are not counted in build order
@@ -155,7 +191,7 @@ def calculate_build_order(previous_bo, obs, next_obs):
     print("diff:", diff) if debug else None
 
     # remove types that should not be considered
-    # diff[0, outer_type_index_list] = 0
+    diff[0, outer_type_index_list] = 0
 
     diff_count = torch.sum(diff).item()
     print("diff between unit_counts_bow", diff_count) if debug else None

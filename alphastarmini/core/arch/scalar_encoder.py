@@ -17,6 +17,8 @@ from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
 from alphastarmini.lib import utils as L
 
+from alphastarmini.third import alphastar_available_actions as AAA
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False
@@ -36,6 +38,8 @@ class ScalarEncoder(nn.Module):
     if use_positional_encoding_for_time:
         max_game_seconds = 30 * 60
         time_encoding_all = L.positional_encoding(max_position=max_game_seconds, embedding_size=64, add_batch_dim=False)
+
+    use_human_knowledge_for_available_actions = True
 
     def __init__(self, n_statistics=10, n_upgrades=SFS.upgrades, 
                  n_action_num=SFS.available_actions, n_units_buildings=SFS.unit_counts_bow, 
@@ -157,11 +161,20 @@ class ScalarEncoder(nn.Module):
 
         #time[0, 0] = game_loop
 
-        # TODO: implement the available_actions
         # note: if we use raw action, this key doesn't exist
         # the_available_actions = obs["available_actions"] 
         # print('the_available_actions:', the_available_actions) if debug else None
-        available_actions = np.zeros((1, SFS.available_actions))
+        available_actions = np.ones((1, SFS.available_actions))
+        if cls.use_human_knowledge_for_available_actions:
+            available_actions = AAA.get_available_actions_raw_data(obs)
+            print('available_actions:', available_actions) if debug else None
+            print('available_actions.shape:', available_actions.shape) if debug else None
+
+            test = False
+            if test:
+                available_actions_tensor = torch.tensor(available_actions)
+                available_action_type = torch.nonzero(available_actions_tensor.long(), as_tuple=True)[-1].unsqueeze(dim=1)
+                print('available_action_type', available_action_type) if 1 else None
 
         # implement the unit_counts_bow
         unit_counts_bow = L.calculate_unit_counts_bow_numpy(obs)
@@ -188,8 +201,8 @@ class ScalarEncoder(nn.Module):
 
         mmr = np.zeros((1, SFS.mmr))
 
-        # TODO: implment it
-        units_buildings = np.zeros((1, SFS.units_buildings))
+        # implment it
+        units_buildings = L.calculate_unit_buildings_numpy(obs)
 
         # implement the effects
         effects = np.zeros((1, SFS.effects))
