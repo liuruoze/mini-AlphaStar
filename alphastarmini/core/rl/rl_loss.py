@@ -691,11 +691,11 @@ def loss_function(agent, trajectories):
     #print("stop", len(stop))
     loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
 
-    print("loss_actor_critic:", loss_actor_critic) if 1 else None
-    print("loss_upgo:", loss_upgo) if 1 else None
-    print("loss_kl:", loss_kl) if 1 else None
-    print("loss_ent:", loss_ent) if 1 else None
-    print("loss_all:", loss_all) if 1 else None
+    print("loss_actor_critic:", loss_actor_critic) if debug else None
+    print("loss_upgo:", loss_upgo) if debug else None
+    print("loss_kl:", loss_kl) if debug else None
+    print("loss_ent:", loss_ent) if debug else None
+    print("loss_all:", loss_all) if debug else None
 
     return loss_all
 

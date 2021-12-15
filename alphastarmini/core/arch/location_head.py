@@ -334,7 +334,7 @@ def test():
     location_head = LocationHead()
 
     print("autoregressive_embedding:", autoregressive_embedding) if debug else None
-    print("autoregressive_embedding.shape:", autoregressive_embedding.shape) if 1 else None
+    print("autoregressive_embedding.shape:", autoregressive_embedding.shape) if debug else None
 
     target_location_logits, target_location = \
         location_head.forward(autoregressive_embedding, action_type, map_skip)

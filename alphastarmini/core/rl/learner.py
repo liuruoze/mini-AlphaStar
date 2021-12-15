@@ -126,27 +126,27 @@ class Learner:
                             actor_is_running = actor_is_running | 1
 
                     if actor_is_running:
-                        print('learner trajectories size:', len(self.trajectories))
+                        print('learner trajectories size:', len(self.trajectories)) if debug else None
 
                         if len(self.trajectories) >= AHP.batch_size:
-                            print("learner begin to update parameters")
+                            print("learner begin to update parameters") if debug else None
                             self.update_parameters()
-                            print("learner end updating parameters")
+                            print("learner end updating parameters") if debug else None
 
                         sleep(1)
                     else:
-                        print("Actor stops!")
+                        print("Actor stops!") if debug else None
 
-                        print("Learner also stops!")
+                        print("Learner also stops!") if debug else None
                         return
 
                 except Exception as e:
-                    print("Learner.run() Exception cause break, Detials of the Exception:", e)
+                    print("Learner.run() Exception cause break, Detials of the Exception:", e) if debug else None
                     print(traceback.format_exc())
                     break
 
         except Exception as e:
-            print("Learner.run() Exception cause return, Detials of the Exception:", e)
+            print("Learner.run() Exception cause return, Detials of the Exception:", e) if debug else None
 
         finally:
             self.is_running = False

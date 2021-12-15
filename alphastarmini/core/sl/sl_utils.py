@@ -157,20 +157,39 @@ def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsio
     print('action_pred', action_pred) if debug else None 
 
     for raw_action_id, action_id in zip(ground_truth_raw_action_id, action_pred):
-        mask_raw = get_mask_by_raw_action_id(raw_action_id.item())
-        mask_predict = get_mask_by_raw_action_id(action_id.item())
+        gt_aid = raw_action_id.item()
+        predict_aid = action_id.item()
+
+        mask_raw = get_mask_by_raw_action_id(gt_aid)
+        mask_predict = get_mask_by_raw_action_id(predict_aid)
+
+        mask_weight = 1
+
+        Smart_pt_id = F.Smart_pt.id
+        Smart_unit_id = F.Smart_unit.id
+
+        if gt_aid == Smart_unit_id:
+            mask_weight = 0.5
+        elif gt_aid == Smart_pt_id:
+            mask_weight = 0.01
+        elif gt_aid in RAMP.SMALL_LIST:
+            mask_weight = 2
+        else:
+            mask_weight = 1
 
         if strict_comparsion:
-            if raw_action_id.item() == action_id.item():
-                mask_list.append(mask_raw)
-                mask_list_2.append(mask_predict)
-            else:
+            if raw_action_id.item() != action_id.item():
                 zero_mask = [1, 1, 0, 0, 0, 0]
-                mask_list.append(zero_mask)
-                mask_list_2.append(zero_mask)                
-        else:
-            mask_list.append(mask_raw)
-            mask_list_2.append(mask_predict)
+                mask_raw = zero_mask
+                mask_predict = zero_mask            
+
+        mask_raw = np.array(mask_raw)
+        mask_predict = np.array(mask_predict)
+
+        mask_raw = mask_raw * mask_weight
+
+        mask_list.append(mask_raw)
+        mask_list_2.append(mask_predict)
 
     mask_tensor = torch.tensor(mask_list)
     mask_tensor_2 = torch.tensor(mask_list_2)
@@ -178,7 +197,7 @@ def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsio
     print('mask_tensor', mask_tensor) if debug else None 
     print('mask_tensor_2', mask_tensor_2) if debug else None 
 
-    mask_tensor_return = mask_tensor * mask_tensor_2
+    mask_tensor_return = mask_tensor  # * mask_tensor_2
     print('mask_tensor_return', mask_tensor_return) if debug else None 
 
     mask_tensor_return = mask_tensor_return.to(device)
@@ -220,9 +239,11 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     for raw_action_id in ground_truth_raw_action_id:
         aid = raw_action_id.item()
         if aid == Smart_unit_id:
-            mask_list.append([1])
+            mask_list.append([0.5])
+        elif aid == Smart_pt_id:
+            mask_list.append([0.01])
         elif aid in RAMP.SMALL_LIST:
-            mask_list.append([1])
+            mask_list.append([2])
         else:
             mask_list.append([1])
 
@@ -302,8 +323,6 @@ def get_selected_units_accuracy(ground_truth, predict, gt_action_type, pred_acti
 
             gt_action_type_sample = gt_action_type[i].item()        
             pred_action_type_sample = pred_action_type[i].item()
-            # print('gt_action_type_sample', F[gt_action_type_sample]) if 1 else None
-            # print('pred_action_type_sample', F[pred_action_type_sample]) if 1 else None
 
             for j in range(select_units_num_i):
                 pred = predict_sample[j].item()

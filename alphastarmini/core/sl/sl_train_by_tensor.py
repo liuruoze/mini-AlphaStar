@@ -48,7 +48,7 @@ parser.add_argument("-p", "--path", default="./data/replay_data_tensor_new_small
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
-parser.add_argument('--num_workers', type=int, default=1, help='')
+parser.add_argument('--num_workers', type=int, default=2, help='')
 
 
 args = parser.parse_args()
@@ -63,7 +63,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-12-12_12-29-14.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-12-15_12-08-03.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
@@ -74,10 +74,10 @@ if SIMPLE_TEST:
     VAL_NUM = 1
 else:
     TRAIN_FROM = 0
-    TRAIN_NUM = 25
+    TRAIN_NUM = 45
 
-    VAL_FROM = 25
-    VAL_NUM = 5
+    VAL_FROM = 0
+    VAL_NUM = 1
 
 
 # hyper paramerters
@@ -86,8 +86,8 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 50  # SLTHP.num_epochs
-LEARNING_RATE = 1e-3  # SLTHP.learning_rate
+NUM_EPOCHS = 10  # SLTHP.num_epochs
+LEARNING_RATE = 1e-4  # SLTHP.learning_rate
 WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
 CLIP_VALUE = 0.5  # SLTHP.clip
 EVAL_INTERFEVL = 200

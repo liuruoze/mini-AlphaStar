@@ -565,7 +565,7 @@ def test():
         discounts = ~np.array(is_final[:-1], dtype=np.bool)  # don't forget dtype=np.bool!, or '~' ouput -1 instead of 1
         discounts = torch.tensor(discounts, dtype=torch.float, device=device)
 
-        print("discounts:", discounts) if 1 else None
+        print("discounts:", discounts) if debug else None
 
         boostrapvales = baselines[1:]
         rewards_short = rewards[:-1]

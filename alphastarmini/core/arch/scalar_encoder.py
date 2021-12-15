@@ -174,7 +174,7 @@ class ScalarEncoder(nn.Module):
             if test:
                 available_actions_tensor = torch.tensor(available_actions)
                 available_action_type = torch.nonzero(available_actions_tensor.long(), as_tuple=True)[-1].unsqueeze(dim=1)
-                print('available_action_type', available_action_type) if 1 else None
+                print('available_action_type', available_action_type) if debug else None
 
         # implement the unit_counts_bow
         unit_counts_bow = L.calculate_unit_counts_bow_numpy(obs)

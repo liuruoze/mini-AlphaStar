@@ -39,20 +39,27 @@ debug = False
 speed = False
 
 
-MAX_EPISODES = 1
+SIMPLE_TEST = not P.on_server
+if SIMPLE_TEST:
+    MAX_EPISODES = 1
+    GAME_STEPS_PER_EPISODE = 12000    # 9000
+    SAVE_STATISTIC = False
+else:
+    MAX_EPISODES = 3
+    GAME_STEPS_PER_EPISODE = 15000    # 9000
+    SAVE_STATISTIC = True
+
 IS_TRAINING = False
 MAP_NAME = "Simple64"  # P.map_name "Simple64" "AbyssalReef"
 USE_PREDICT_STEP_MUL = False
 STEP_MUL = 8
-GAME_STEPS_PER_EPISODE = 12000    # 9000
 
 DIFFICULTY = 1
 RANDOM_SEED = 1
 VERSION = '3.16.1'
 
 RESTORE = True
-SAVE_REPLAY = True
-SAVE_STATISTIC = True
+SAVE_REPLAY = False
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -199,7 +206,7 @@ class ActorEval:
                             player_step = self.player.agent.step_from_state(state, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
 
-                            print("player_function_call:", player_function_call) if 1 else None
+                            print("player_function_call:", player_function_call) if not SAVE_STATISTIC else None
                             print("player_action:", player_action) if debug else None
                             print("player_action.delay:", player_action.delay) if debug else None
                             print("player_select_units_num:", player_select_units_num) if debug else None
@@ -392,15 +399,15 @@ class ActorEval:
             print(traceback.format_exc())
 
         finally:
-            print("results: ", results) if 1 else None
-            print("win rate: ", results[2] / (1e-9 + sum(results))) if 1 else None
+            print("results: ", results) if debug else None
+            print("win rate: ", results[2] / (1e-9 + sum(results))) if debug else None
 
             with open('./output/eval_sl.txt', 'a') as file:
                 statistic = 'Avg: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | time: {:.3f}s \n'.format(
                     total_episodes, MAX_EPISODES, np.mean(food_used_list), np.mean(army_count_list), np.mean(collected_points_list),
                     np.mean(used_points_list), np.mean(killed_points_list), np.mean(seconds_list))
 
-                print("statistic: ", statistic) if 1 else None
+                print("statistic: ", statistic) if SAVE_STATISTIC else None
 
                 file.write(statistic)
 
@@ -454,7 +461,7 @@ def show_sth(home_obs, player_action):
         else:
             print('find a EOF!') if debug else None     
 
-    print('unit_type_list', unit_type_list) if debug else None     
+    print('unit_type_list', unit_type_list) if not SAVE_STATISTIC else None     
 
 
 def injected_function_call(home_obs, env, function_call):

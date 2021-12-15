@@ -209,7 +209,7 @@ class ActorVSComputer:
                             player_step = self.player.agent.step_from_state(state, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
 
-                            print("player_function_call:", player_function_call) if 1 else None
+                            print("player_function_call:", player_function_call) if debug else None
                             print("player_action:", player_action) if debug else None
                             print("player_action.delay:", player_action.delay) if debug else None
                             print("player_select_units_num:", player_select_units_num) if debug else None
@@ -277,7 +277,7 @@ class ActorVSComputer:
                                     reward = points - last_points
                                 else:
                                     reward = 0
-                                print("{:d} get defined reward".format(self.idx), reward) if 1 else None
+                                print("{:d} get defined reward".format(self.idx), reward) if debug else None
 
                                 last_points = points
 

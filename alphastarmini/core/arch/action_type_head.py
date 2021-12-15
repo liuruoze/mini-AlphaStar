@@ -39,7 +39,7 @@ class ActionTypeHead(nn.Module):
                  is_sl_training=True, temperature=0.8, original_256=AHP.original_256,
                  max_action_num=LS.action_type_encoding, context_size=AHP.context_size, 
                  autoregressive_embedding_size=AHP.autoregressive_embedding_size,
-                 use_action_type_mask=True, is_rl_training=False):
+                 use_action_type_mask=AHP.use_action_type_mask, is_rl_training=False):
         super().__init__()
         # TODO: make is_sl_training effective 
         self.is_rl_training = is_rl_training

@@ -361,8 +361,11 @@ class EntityEncoder(nn.Module):
         # entity_num: [batch_seq_size]
         entity_num = torch.sum(tmp_y, dim=1, keepdim=False)
 
-        # make sure we can have max to AHP.max_entities - 1
-        entity_num_numpy = np.minimum(AHP.max_entities - 1, entity_num.cpu().numpy())
+        # make sure we can have max to AHP.max_entities - 2 (510)
+        # this is we must use a 512 one-hot to represent the entity_nums
+        # so we have 0 to 511 entities, meanwhile, the 511 entity we use as a none index
+        # so we at most have 510 entities.
+        entity_num_numpy = np.minimum(AHP.max_entities - 2, entity_num.cpu().numpy())
         entity_num = torch.tensor(entity_num_numpy, dtype=entity_num.dtype, device=entity_num.device)
 
         # this means for each batch, there are how many real enetities
@@ -579,7 +582,7 @@ def test(debug=False):
 
     print('entity_embeddings.shape:', entity_embeddings.shape) if debug else None
     print('embedded_entity.shape:', embedded_entity.shape) if debug else None
-    print('entity_num.shape:', entity_num.shape) if 1 else None
+    print('entity_num.shape:', entity_num.shape) if debug else None
 
     if debug:
         print("This is a test!")

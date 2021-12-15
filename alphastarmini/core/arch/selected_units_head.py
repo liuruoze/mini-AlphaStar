@@ -486,20 +486,22 @@ class SelectedUnitsHead(nn.Module):
                 autoregressive_embedding = autoregressive_embedding + t * selected_mask[:, i + 1].unsqueeze(dim=1)
                 print("autoregressive_embedding:", autoregressive_embedding) if debug else None
 
-        # units_logits: [batch_size x select_units x entity_size]
+        # in SL, we make the selected can have 1 more, like 12 + 1
+        max_selected = self.max_selected + 1
         units_logits_size = len(units_logits_list)
-        if units_logits_size >= self.max_selected:
+
+        if units_logits_size >= max_selected:
             # remove the last one
-            units_logits = torch.cat(units_logits_list[:self.max_selected], dim=1)
-        elif units_logits_size > 0 and units_logits_size < self.max_selected:
+            units_logits = torch.cat(units_logits_list[:max_selected], dim=1)
+        elif units_logits_size > 0 and units_logits_size < max_selected:
             units_logits = torch.cat(units_logits_list, dim=1)
-            padding_size = self.max_selected - units_logits.shape[1]
+            padding_size = max_selected - units_logits.shape[1]
             if padding_size > 0:
                 pad_units_logits = torch.ones(units_logits.shape[0], padding_size, units_logits.shape[2],
                                               dtype=units_logits.dtype, device=units_logits.device) * (-1e9)
                 units_logits = torch.cat([units_logits, pad_units_logits], dim=1)
         else:
-            units_logits = torch.ones(batch_size, self.max_selected, entity_size,
+            units_logits = torch.ones(batch_size, max_selected, entity_size,
                                       dtype=action_type.dtype, device=action_type.device) * (-1e9)
 
         # AlphaStar: If `action_type` does not involve selecting units, this head is ignored.

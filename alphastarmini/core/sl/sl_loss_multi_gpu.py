@@ -15,6 +15,8 @@ from pysc2.lib.actions import RAW_FUNCTIONS
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 from alphastarmini.core.sl import sl_utils as SU
+
+from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib import utils as L
 
 __author__ = "Ruo-Ze Liu"
@@ -226,7 +228,7 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
                                                 strict_comparsion=True)
         selected_acc = SU.get_selected_units_accuracy(action_gt.units, units, action_gt.action_type, action_pred,
                                                       select_units_num, action_equal_mask,
-                                                      device, unit_types_one, entity_nums)
+                                                      device, unit_types_one, entity_nums, strict_comparsion=True)
         targeted_acc = SU.get_target_unit_accuracy(action_gt.target_unit, target_unit, action_equal_mask,
                                                    device, strict_comparsion=True)
 
@@ -260,7 +262,8 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=False)
 
     # we now onsider delay loss
-    delay_loss = criterion(action_gt.delay, delay_logits)
+    delay_weight = 0.0
+    delay_loss = delay_weight * criterion(action_gt.delay, delay_logits)
     loss += delay_loss
 
     queue_loss = criterion(action_gt.queue, queue_logits, mask=mask_tensor[:, 2].reshape(-1))
@@ -274,13 +277,16 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     print('entity_nums', entity_nums) if debug else None
     print('entity_nums.shape', entity_nums.shape) if debug else None
 
+    # use extended select_size in SL for including EOF
+    extended_select_size = select_size + 1
+
     units_mask = mask_tensor[:, 3]  # selected units is in the fourth position of units_mask
-    units_mask = units_mask.unsqueeze(1).repeat(1, select_size)
+    units_mask = units_mask.unsqueeze(1).repeat(1, extended_select_size)
     units_mask = units_mask.reshape(-1)
     print('units_mask', units_mask) if debug else None
     print('units_mask.shape', units_mask.shape) if debug else None
 
-    selected_mask = torch.arange(select_size, device=device).float()
+    selected_mask = torch.arange(extended_select_size, device=device).float()
     selected_mask = selected_mask.repeat(batch_size, 1)
 
     # note, the select_units_num is actually gt_select_units_num here
@@ -290,28 +296,35 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     print('selected_mask', selected_mask) if debug else None
     print('selected_mask.shape', selected_mask.shape) if debug else None
 
-    for i in range(batch_size):
-        j = select_units_num[i]
-        if j < select_size:
-            nums = min(units_size - 1, entity_nums[i].item())
-            nums = torch.tensor(nums, dtype=entity_nums.dtype, device=entity_nums.device)
-            action_gt.units[i, j] = L.tensor_one_hot(nums, units_size)
+    gt_units = action_gt.units.long()
+    padding = torch.zeros(batch_size, 1, units_size, dtype=gt_units.dtype, device=gt_units.device)
+    token = torch.tensor(AHP.max_entities - 1, dtype=padding.dtype, device=padding.device)
+    padding[:, 0] = L.tensor_one_hot(token, units_size).reshape(-1)
+    gt_units = torch.cat([gt_units, padding], dim=1)
+    print('gt_units', gt_units) if debug else None
+    print('gt_units.shape', gt_units.shape) if debug else None
+
+    gt_units[torch.arange(batch_size), select_units_num] = L.tensor_one_hot(entity_nums, units_size).long()
+    print('gt_units', gt_units) if debug else None
+    print('gt_units.shape', gt_units.shape) if debug else None
+
+    gt_units = gt_units.float()
 
     all_units_mask = units_mask * selected_mask  # * gt_units_mask
 
     # TODO: change to a proporate calculation of selected units
-    selected_units_weight = 1.
-    units_loss = selected_units_weight * criterion(action_gt.units.reshape(-1, units_size), units_logits.reshape(-1, units_size), 
-                                                   mask=all_units_mask, debug=False)
+    selected_units_weight = 10.
+    units_loss = selected_units_weight * criterion(gt_units.reshape(-1, units_size), units_logits.reshape(-1, units_size), 
+                                                   mask=all_units_mask, debug=False, outlier_remove=False)
     loss += units_loss
 
     target_unit_weight = 1.
     target_unit_loss = target_unit_weight * criterion(action_gt.target_unit.squeeze(-2), target_unit_logits.squeeze(-2), 
-                                                      mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=True, entity_nums=entity_nums)
+                                                      mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=False, entity_nums=entity_nums)
     loss += target_unit_loss
 
     batch_size = action_gt.target_location.shape[0]
-    location_weight = 1.
+    location_weight = 5.
     target_location_loss = location_weight * criterion(action_gt.target_location.reshape(batch_size, -1),
                                                        target_location_logits.reshape(batch_size, -1), mask=mask_tensor[:, 5].reshape(-1))
     loss += target_location_loss

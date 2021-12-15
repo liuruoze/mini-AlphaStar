@@ -190,18 +190,26 @@ class ArchModel(nn.Module):
             select_size = gt_units.shape[1]
             units_size = gt_units.shape[2]
 
-            for i in range(batch_size):
-                j = gt_select_units_num[i]
-                if j < select_size:
-                    nums = min(units_size - 1, entity_nums[i].item())
-                    nums = torch.tensor(nums, dtype=entity_nums.dtype, device=entity_nums.device)
-                    gt_units[i, j] = L.tensor_one_hot(nums, units_size).long()
+            padding = torch.zeros(batch_size, 1, units_size, dtype=gt_units.dtype, device=gt_units.device)
+            token = torch.tensor(AHP.max_entities - 1, dtype=padding.dtype, device=padding.device)
+            padding[:, 0] = L.tensor_one_hot(token, units_size).reshape(-1)
+            gt_units = torch.cat([gt_units, padding], dim=1)
+            print('gt_units', gt_units) if debug else None
+            print('gt_units.shape', gt_units.shape) if debug else None
+            gt_units[torch.arange(batch_size), gt_select_units_num] = L.tensor_one_hot(entity_nums, units_size).long()
+
+            # for i in range(batch_size):
+            #     j = gt_select_units_num[i]
+            #     if j < select_size:
+            #         nums = min(units_size - 1, entity_nums[i].item())
+            #         nums = torch.tensor(nums, dtype=entity_nums.dtype, device=entity_nums.device)
+            #         gt_units[i, j] = L.tensor_one_hot(nums, units_size).long()
 
             gt_units = gt_units.reshape(-1, units_size)
             print('gt_units.shape', gt_units.shape) if debug else None
 
             gt_units = torch.nonzero(gt_units, as_tuple=True)[-1]
-            gt_units = gt_units.reshape(batch_size, select_size, 1)
+            gt_units = gt_units.reshape(batch_size, -1, 1)
             print('gt_units', gt_units) if debug else None
             print('gt_units.shape', gt_units.shape) if debug else None
 
