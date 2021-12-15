@@ -29,7 +29,10 @@ debug = False
 # we define a loss accept soft_target, which label.shape = [N, C]
 # for some rows, it should not be added to loss, so we also need a mask one
 def cross_entropy(soft_targets, pred, mask=None, 
-                  debug=False, outlier_remove=True, entity_nums=None):
+                  debug=False, outlier_remove=True, 
+                  entity_nums=None, 
+                  select_size=None,
+                  select_units_num=None):
     # class is always in the last dim
     logsoftmax = nn.LogSoftmax(dim=-1)
     x_1 = - soft_targets * logsoftmax(pred)
@@ -72,6 +75,11 @@ def cross_entropy(soft_targets, pred, mask=None,
             outlier_mask = (x_2 >= 1e6)
             if outlier_mask.any() > 0:
                 stop()
+
+    if select_size is not None and select_units_num is not None:
+        x_2 = x_2.reshape(-1, select_size)
+        x_2 = torch.sum(x_2, dim=-1, keepdim=True)
+        x_2 = x_2 / select_units_num.unsqueeze(dim=1)
 
     x_4 = torch.mean(x_2)
     print('x_4:', x_4) if debug else None
@@ -315,7 +323,9 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     # TODO: change to a proporate calculation of selected units
     selected_units_weight = 10.
     units_loss = selected_units_weight * criterion(gt_units.reshape(-1, units_size), units_logits.reshape(-1, units_size), 
-                                                   mask=all_units_mask, debug=False, outlier_remove=False)
+                                                   mask=all_units_mask, debug=False, outlier_remove=False, 
+                                                   select_size = extended_select_size,
+                                                   select_units_num=select_units_num + 1)
     loss += units_loss
 
     target_unit_weight = 1.
