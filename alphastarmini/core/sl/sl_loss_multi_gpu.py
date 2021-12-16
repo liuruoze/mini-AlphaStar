@@ -60,16 +60,16 @@ def cross_entropy(soft_targets, pred, mask=None,
         x_2 = x_2.reshape(-1, select_size)
         x_2 = torch.sum(x_2, dim=-1, keepdim=True)
 
-        avg_type = 'PrefSingle'
+        avg_type = 'None'
 
         if avg_type == 'None':
             x_2 = x_2  # increase the multi unit weight
         elif avg_type == 'PrefSingle':
             x_2 / select_units_num.unsqueeze(dim=1)  # increase the single unit weight
         elif avg_type == 'Log':
-            x_2 = x_2 / torch.log(select_units_num.unsqueeze(dim=1))
-        elif avg_type == 'Square':
-            x_2 = x_2 / torch.square(select_units_num.unsqueeze(dim=1))
+            x_2 = x_2 / torch.log(select_units_num.unsqueeze(dim=1).float())
+        elif avg_type == 'Sqrt':
+            x_2 = x_2 / torch.sqrt(select_units_num.unsqueeze(dim=1).float())
         else:
             x_2 = x_2
 

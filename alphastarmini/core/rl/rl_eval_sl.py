@@ -47,7 +47,7 @@ if SIMPLE_TEST:
     GAME_STEPS_PER_EPISODE = 1000    # 9000
     SAVE_STATISTIC = True
 else:
-    MAX_EPISODES = 5
+    MAX_EPISODES = 10
     GAME_STEPS_PER_EPISODE = 18000    # 9000
     SAVE_STATISTIC = True
 
@@ -415,8 +415,8 @@ class ActorEval:
             total_time = time() - training_start_time
 
             with open('./output/eval_sl.txt', 'a') as file:
-                statistic = 'Avg: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | var(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
-                    total_episodes, MAX_EPISODES, np.mean(food_used_list), np.mean(army_count_list), np.var(army_count_list), np.mean(collected_points_list),
+                statistic = 'Avg: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | std(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
+                    total_episodes, MAX_EPISODES, np.mean(food_used_list), np.mean(army_count_list), np.std(army_count_list), np.mean(collected_points_list),
                     np.mean(used_points_list), np.mean(killed_points_list), np.mean(steps_list), total_time)
 
                 print("statistic: ", statistic) if SAVE_STATISTIC else None

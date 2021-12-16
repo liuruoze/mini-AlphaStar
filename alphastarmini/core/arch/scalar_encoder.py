@@ -322,7 +322,7 @@ class ScalarEncoder(nn.Module):
 
         # unit_counts_bow: A bag-of-words unit count from `entity_list`. 
         # The unit count vector is embedded by square rooting, passing through a linear layer, and passing through a ReLU
-        unit_counts_bow = torch.square(unit_counts_bow)
+        unit_counts_bow = torch.sqrt(unit_counts_bow)
         x = F.relu(self.unit_counts_bow_fc(unit_counts_bow))
         embedded_scalar_list.append(x)
 
