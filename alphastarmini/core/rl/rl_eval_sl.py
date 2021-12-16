@@ -28,6 +28,8 @@ from alphastarmini.core.ma.coordinator import Coordinator
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
+from alphastarmini.lib.hyper_parameters import SL_Training_Hyper_Parameters as SLTHP
+from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 
 from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
@@ -41,22 +43,22 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 1
-    GAME_STEPS_PER_EPISODE = 12000    # 9000
-    SAVE_STATISTIC = False
-else:
     MAX_EPISODES = 3
-    GAME_STEPS_PER_EPISODE = 15000    # 9000
+    GAME_STEPS_PER_EPISODE = 1000    # 9000
+    SAVE_STATISTIC = True
+else:
+    MAX_EPISODES = 5
+    GAME_STEPS_PER_EPISODE = 18000    # 9000
     SAVE_STATISTIC = True
 
 IS_TRAINING = False
-MAP_NAME = "Simple64"  # P.map_name "Simple64" "AbyssalReef"
+MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
 USE_PREDICT_STEP_MUL = False
 STEP_MUL = 8
 
 DIFFICULTY = 1
 RANDOM_SEED = 1
-VERSION = '3.16.1'
+VERSION = SCHP.game_version
 
 RESTORE = True
 SAVE_REPLAY = False
@@ -69,6 +71,11 @@ if torch.backends.cudnn.is_available():
     print('cudnn version', torch.backends.cudnn.version())
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
+
+# set random seed
+# is is actually effective
+# torch.manual_seed(SLTHP.seed)
+# np.random.seed(SLTHP.seed)
 
 
 class ActorEval:
@@ -131,13 +138,13 @@ class ActorEval:
             results = [0, 0, 0]
 
             # statistic list
-            food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, seconds_list = [], [], [], [], [], []
+            food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, steps_list = [], [], [], [], [], []
 
-            start_time = time()
-            print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_time)))
+            training_start_time = time()
+            print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(training_start_time)))
 
             # use max_episodes to end the loop
-            while time() - start_time < self.max_time_for_training:
+            while time() - training_start_time < self.max_time_for_training:
                 agents = [self.player]
 
                 with self.create_env_one_player(self.player) as env:
@@ -155,11 +162,11 @@ class ActorEval:
                     print('opponent:', "Computer bot") if debug else None
 
                     trajectory = []
-                    start_time = time()  # in seconds.
-                    print("start_time before reset:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_time)))
+                    opponent_start_time = time()  # in seconds.
+                    print("start_time before reset:", strftime("%Y-%m-%d %H:%M:%S", localtime(opponent_start_time)))
 
                     # one opponent match (may include several games) defaultly lasts for no more than 2 hour
-                    while time() - start_time < self.max_time_per_one_opponent:
+                    while time() - opponent_start_time < self.max_time_per_one_opponent:
 
                         # Note: the pysc2 environment don't return z
                         # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
@@ -175,6 +182,9 @@ class ActorEval:
 
                         player_memory = self.player.agent.initial_state()
                         teacher_memory = self.teacher.initial_state()
+
+                        torch.manual_seed(total_episodes)
+                        np.random.seed(total_episodes)
 
                         # initial build order
                         player_bo = []
@@ -199,11 +209,13 @@ class ActorEval:
                             state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
                                                                                     build_order=player_bo, 
                                                                                     last_list=last_list)
+
                             # TODO, implement baseline process in preprocess_state_all_plus_baseline (a new function)
                             baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, 
                                                                                         build_order=player_bo)
 
                             player_step = self.player.agent.step_from_state(state, player_memory)
+
                             player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
 
                             print("player_function_call:", player_function_call) if not SAVE_STATISTIC else None
@@ -211,7 +223,7 @@ class ActorEval:
                             print("player_action.delay:", player_action.delay) if debug else None
                             print("player_select_units_num:", player_select_units_num) if debug else None
 
-                            if True:
+                            if False:
                                 show_sth(home_obs, player_action)
 
                             expected_delay = player_action.delay.item()
@@ -246,7 +258,7 @@ class ActorEval:
                                 timesteps = env.step(env_actions, step_mul=STEP_MUL)
                             [home_next_obs] = timesteps
                             reward = home_next_obs.reward
-                            print("reward: ", reward) if 0 else None
+                            print("reward: ", reward) if debug else None
 
                             print('run_loop, t4', time() - t) if speed else None
                             t = time()
@@ -345,18 +357,16 @@ class ActorEval:
 
                                     killed_points = killed_minerals + killed_vespene
 
-                                    seconds = game_loop / 22.4
-
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
                                     collected_points_list.append(collected_points)
                                     used_points_list.append(used_points)
                                     killed_points_list.append(killed_points)
-                                    seconds_list.append(seconds)
+                                    steps_list.append(game_loop)
 
                                     with open('./output/eval_sl.txt', 'a') as file:
-                                        statistic = 'Episode: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | time: {:.3f}s \n'.format(
-                                            total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, seconds)
+                                        statistic = 'Episode: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
+                                            total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
 
                                         file.write(statistic)
 
@@ -402,10 +412,12 @@ class ActorEval:
             print("results: ", results) if debug else None
             print("win rate: ", results[2] / (1e-9 + sum(results))) if debug else None
 
+            total_time = time() - training_start_time
+
             with open('./output/eval_sl.txt', 'a') as file:
-                statistic = 'Avg: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | time: {:.3f}s \n'.format(
-                    total_episodes, MAX_EPISODES, np.mean(food_used_list), np.mean(army_count_list), np.mean(collected_points_list),
-                    np.mean(used_points_list), np.mean(killed_points_list), np.mean(seconds_list))
+                statistic = 'Avg: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | var(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
+                    total_episodes, MAX_EPISODES, np.mean(food_used_list), np.mean(army_count_list), np.var(army_count_list), np.mean(collected_points_list),
+                    np.mean(used_points_list), np.mean(killed_points_list), np.mean(steps_list), total_time)
 
                 print("statistic: ", statistic) if SAVE_STATISTIC else None
 

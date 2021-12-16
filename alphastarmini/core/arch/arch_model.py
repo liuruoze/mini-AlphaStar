@@ -119,9 +119,9 @@ class ArchModel(nn.Module):
         print('lstm_output is nan:', torch.isnan(lstm_output).any()) if debug else None
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions)
+
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
-
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head(autoregressive_embedding, 
                                                                                                    action_type, 
                                                                                                    entity_embeddings, 

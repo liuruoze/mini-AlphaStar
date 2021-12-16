@@ -45,7 +45,7 @@ speed = False
 
 MAX_EPISODES = 3
 IS_TRAINING = True
-MAP_NAME = P.map_name  # "Simple64" "AbyssalReef"
+MAP_NAME = "Simple64"
 STEP_MUL = 8
 GAME_STEPS_PER_EPISODE = 9000    # 9000
 

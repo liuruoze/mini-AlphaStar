@@ -11,14 +11,6 @@ replay_path = "data/Replays/filtered_replays_1/"
 #replay_path = "/home/liuruoze/mini-AlphaStar/data/filtered_replays_1/"
 
 '''The mini scale used in hyperparameter'''
-#Mini_Scale = 4
-#Mini_Scale = 8
-Mini_Scale = 16
-
 Batch_Scale = 16
 Seq_Scale = 16
 Select_Scale = 4
-
-'''The training and tesing map for current setting, affecting the location head mask '''
-# map_name = 'Simple64'
-map_name = 'Simple64'

@@ -34,8 +34,10 @@ from alphastarmini.core.sl.dataset import ReplayTensorDataset
 from alphastarmini.core.sl import sl_utils as SU
 
 from alphastarmini.lib.utils import load_latest_model, initial_model_state_dict
+
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import SL_Training_Hyper_Parameters as SLTHP
+from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 
 import param as P
 
@@ -44,7 +46,8 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-p", "--path", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
+parser.add_argument("-p1", "--path1", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
+parser.add_argument("-p2", "--path2", default="./data/replay_data_tensor_new_small_AR/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
@@ -54,7 +57,13 @@ parser.add_argument('--num_workers', type=int, default=2, help='')
 args = parser.parse_args()
 
 # training paramerters
-PATH = args.path
+if SCHP.map_name == 'Simple64':
+    PATH = args.path1
+elif SCHP.map_name == 'AbyssalReef':
+    PATH = args.path2
+else:
+    raise Exception
+
 MODEL = args.model
 RESTORE = args.restore
 CLIP = args.clip
@@ -63,7 +72,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-12-15_12-08-03.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-12-16_08-02-16.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:

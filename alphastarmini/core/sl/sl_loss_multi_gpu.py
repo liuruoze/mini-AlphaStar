@@ -30,32 +30,12 @@ debug = False
 # for some rows, it should not be added to loss, so we also need a mask one
 def cross_entropy(soft_targets, pred, mask=None, 
                   debug=False, outlier_remove=True, 
-                  entity_nums=None, 
-                  select_size=None,
-                  select_units_num=None):
+                  entity_nums=None, select_size=None,
+                  select_units_num=None, use_select_size=True,
+                  avg_type='None'):
     # class is always in the last dim
     logsoftmax = nn.LogSoftmax(dim=-1)
     x_1 = - soft_targets * logsoftmax(pred)
-
-    if debug:
-        for i, (t, p) in enumerate(zip(soft_targets, logsoftmax(pred))):
-            value = - t * logsoftmax(p)
-            m = mask[i].item()
-            if value.sum() > 1e6 and m != 0:
-                print('i', i)
-                if entity_nums is not None:
-                    print('entity_nums[i]', entity_nums[i])
-                print('find value large than 1e6')
-                print('t', t)
-                z = torch.nonzero(t, as_tuple=True)[-1]
-                print('z', z)
-                idx = z.item()
-                print('p', p)
-                q = p[idx]
-                print('q', q)
-                print('value', value)
-                print('m', m)
-                stop()
 
     print('x_1:', x_1) if debug else None
     print('x_1.shape:', x_1.shape) if debug else None
@@ -76,10 +56,22 @@ def cross_entropy(soft_targets, pred, mask=None,
             if outlier_mask.any() > 0:
                 stop()
 
-    if select_size is not None and select_units_num is not None:
+    if use_select_size and select_size is not None and select_units_num is not None:
         x_2 = x_2.reshape(-1, select_size)
         x_2 = torch.sum(x_2, dim=-1, keepdim=True)
-        x_2 = x_2 / select_units_num.unsqueeze(dim=1)
+
+        avg_type = 'PrefSingle'
+
+        if avg_type == 'None':
+            x_2 = x_2  # increase the multi unit weight
+        elif avg_type == 'PrefSingle':
+            x_2 / select_units_num.unsqueeze(dim=1)  # increase the single unit weight
+        elif avg_type == 'Log':
+            x_2 = x_2 / torch.log(select_units_num.unsqueeze(dim=1))
+        elif avg_type == 'Square':
+            x_2 = x_2 / torch.square(select_units_num.unsqueeze(dim=1))
+        else:
+            x_2 = x_2
 
     x_4 = torch.mean(x_2)
     print('x_4:', x_4) if debug else None

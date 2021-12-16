@@ -392,10 +392,10 @@ class Agent(object):
 
         if obs is not None:
             units = args_action.units
-            print('units index:', units)
+            print('units index:', units) if debug else None
             if units is not None:
                 unit_type = get_unit_type(obs["raw_units"][units[0]].unit_type)
-                print('selected unit is:', unit_type)
+                print('selected unit is:', unit_type) if debug else None
 
         print('args_action:', args_action) if debug else None
         return args_action
@@ -446,7 +446,7 @@ class Agent(object):
                     size = arg.sizes[0]
                     if queue < 0 or queue > size - 1:
                         args.append(rand)
-                        print("argument queue beyond the size!") if 1 else None
+                        print("argument queue beyond the size!") if debug else None
                     else:
                         args.append(to_list(queue))
                 elif arg.name == 'unit_tags':
@@ -458,7 +458,7 @@ class Agent(object):
                         print('size', size) if debug else None
                         if unit_index < 0 or unit_index > size - 1:
                             units_args.append(np.random.randint(0, size))
-                            print("argument unit_index beyond the size!") if 1 else None
+                            print("argument unit_index beyond the size!") if debug else None
                         else:
                             units_args.append(unit_index)
                     args.append(units_args)
@@ -466,7 +466,7 @@ class Agent(object):
                     size = arg.sizes[0]
                     if target_unit < 0 or target_unit > size - 1:
                         args.append(rand)
-                        print("argument target_unit beyond the size!") if 1 else None
+                        print("argument target_unit beyond the size!") if debug else None
                     else:
                         args.append(to_list(target_unit))
                 elif arg.name == 'world':
@@ -476,7 +476,7 @@ class Agent(object):
                             print('val', val) if debug else None
                             print('size', size) if debug else None
                             world_args.append(np.random.randint(0, size))
-                            print("argument world beyond the size!") if 1 else None
+                            print("argument world beyond the size!") if debug else None
                         else:
                             world_args.append(val)                        
                     args.append(world_args)

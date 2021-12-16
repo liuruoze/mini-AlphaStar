@@ -109,7 +109,6 @@ class SpatialEncoder(nn.Module):
         # Question: This has a problem, the first element of index 0 will be averaged everywhere
         # Solution: use zero_bias to remove
         scatter_mid = reduced_entity_embeddings.gather(1, scatter_index.long())
-
         print('scatter_mid', scatter_mid[0, :16, :4]) if debug else None
 
         scatter_mid = scatter_mid.reshape(batch_size, self.scatter_volume, 

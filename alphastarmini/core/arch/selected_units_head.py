@@ -258,7 +258,12 @@ class SelectedUnitsHead(nn.Module):
             # QUESTION: When to break?
             # ANSWER: If all the samples in the batch end the selection, end the iteration
             if is_end.all():
-                print('early break in SelectedUnitsHead!' if debug else None)
+                # Note: the original below writing is wrong !
+                # print('early break in SelectedUnitsHead!' if debug else None)
+                # which makes the if the debug is false, it will output a "None",
+                # this mistake is hard to find and be locateded. Becareful of the position of
+                # the right bracket. 
+                print('early break in SelectedUnitsHead!') if debug else None
                 break
 
         # units_logits: [batch_size x select_units x entity_size]

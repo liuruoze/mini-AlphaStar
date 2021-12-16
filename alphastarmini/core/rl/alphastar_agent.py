@@ -233,6 +233,7 @@ class AlphaStarAgent(RandomAgent):
         action_logits, action, hidden_state, select_units_num = self.agent_nn.action_logits_by_state(state, 
                                                                                                      single_inference=True,
                                                                                                      hidden_state=hidden_state)
+
         func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
 
         return func_call, action, action_logits, hidden_state, select_units_num
@@ -290,7 +291,7 @@ class AlphaStarAgent(RandomAgent):
         state_all = MsState(entity_state=entity_state_all, statistical_state=statistical_state_all, map_state=map_state_all)
 
         device = self.agent_nn.device()
-        print("unroll device:", device)
+        print("unroll device:", device) if debug else None
 
         print("initial_memory.shape:", initial_memory_list[0][0].shape) if debug else None
         # note the bacth size is in the second dim of hidden state

@@ -428,7 +428,7 @@ def test(on_server=False):
                 )
 
                 print(" Replay info ".center(60, "-")) if debug else None
-                print(replay_info) if debug else None
+                print("replay_info", replay_info) if debug else None
                 print("-" * 60) if debug else None
                 controller.start_replay(start_replay)
                 # The below several arguments are default set to False, so we shall enable them.
@@ -548,7 +548,7 @@ def test(on_server=False):
                             break
 
                         if o.player_result:  # end of game
-                            print(o.player_result)
+                            print('o.player_result', o.player_result)
                             break
 
                     except Exception as inst:

@@ -635,7 +635,6 @@ def action_can_apply_to_entity(action_type):
 
 def get_location_mask(mask):
     # mask shape [batch_size, output_map_size x output_map_size]
-    map_name = P.map_name
     mask = mask.reshape(mask.shape[0], SCHP.world_size, SCHP.world_size)
 
     map_size = (AAIFP.raw_resolution, AAIFP.raw_resolution)

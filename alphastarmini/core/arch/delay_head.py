@@ -19,9 +19,9 @@ debug = False
 
 def checkNaNandInf(val, name):
     if torch.isnan(val).any():
-        print(name, 'Find nan:', val)
+        print(name, 'Find nan:', val) if debug else None
     if torch.isinf(val).any():
-        print(name, 'Find inf:', val)
+        print(name, 'Find inf:', val) if debug else None
 
 
 class DelayHead(nn.Module):

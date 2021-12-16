@@ -55,6 +55,7 @@ class Core(nn.Module):
         batch_seq_size = embedded_scalar.shape[0]
         print('batch_size:', batch_size) if debug else None
         print('self.batch_size:', self.batch_size) if debug else None
+
         batch_size = batch_size if batch_size is not None else self.batch_size
         sequence_length = sequence_length if sequence_length is not None else self.sequence_length
 

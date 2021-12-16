@@ -924,9 +924,9 @@ def merge_judge(target_general_action, val):
     try:
         assert(len(ret) == 1)
     except AssertionError:
-        print(target_general_action)
-        print(val)
-        print(ret)
+        print('target_general_action', target_general_action)
+        print('val', val)
+        print('ret', ret)
     return ret[0]
 
 

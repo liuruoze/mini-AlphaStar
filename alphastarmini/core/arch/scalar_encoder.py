@@ -361,66 +361,26 @@ class ScalarEncoder(nn.Module):
 
         # TODO: add the seq info
         seq = torch.arange(SCHP.count_beginning_build_order)
-        print("seq:", seq) if debug else None
-        print("seq.shape:", seq.shape) if debug else None
-
         seq = L.tensor_one_hot(seq, SCHP.count_beginning_build_order)
-        print("seq:", seq) if debug else None
-        print("seq.shape:", seq.shape) if debug else None
-
         seq = seq.unsqueeze(0).repeat(batch_size, 1, 1).to(beginning_build_order.device)
-        print("seq:", seq) if debug else None
-        print("seq.shape:", seq.shape) if debug else None
 
         bo_sum = beginning_build_order.sum(dim=-1, keepdim=False)
-        print("bo_sum:", bo_sum) if debug else None
-        print("bo_sum.shape:", bo_sum.shape) if debug else None
-
         bo_sum = bo_sum.sum(dim=-1, keepdim=False)
-        print("bo_sum:", bo_sum) if debug else None
-        print("bo_sum.shape:", bo_sum.shape) if debug else None
-
         bo_sum = bo_sum.unsqueeze(1)
-        print("bo_sum:", bo_sum) if debug else None
-        print("bo_sum.shape:", bo_sum.shape) if debug else None
-
         bo_sum = bo_sum.repeat(1, SCHP.count_beginning_build_order)
-        print("bo_sum:", bo_sum) if debug else None
-        print("bo_sum.shape:", bo_sum.shape) if debug else None
 
         mask = torch.arange(SCHP.count_beginning_build_order)
-        print("mask:", mask) if debug else None
-        print("mask.shape:", mask.shape) if debug else None
-
         mask = mask.unsqueeze(0).repeat(batch_size, 1).to(bo_sum.device)
-        print("mask:", mask) if debug else None
-        print("mask.shape:", mask.shape) if debug else None
-
         mask = mask < bo_sum
-        print("mask:", mask) if debug else None
-        print("mask.shape:", mask.shape) if debug else None
-
         mask = mask.unsqueeze(2).repeat(1, 1, SCHP.count_beginning_build_order)
-        print("mask:", mask) if debug else None
-        print("mask.shape:", mask.shape) if debug else None
 
         # add the seq info, referenced by the processing way of DI-star
         x = torch.cat([beginning_build_order, seq], dim=2)
-        print("x:", x) if debug else None
-        print("x.shape:", x.shape) if debug else None
-
         x = self.before_beginning_build_order(x)
-        print("x:", x) if debug else None
-        print("x.shape:", x.shape) if debug else None
 
         # like in entity encoder, we add a sequence mask
         x = self.beginning_build_order_transformer(x, mask=mask)
-        print("x:", x) if debug else None
-        print("x.shape:", x.shape) if debug else None
-
         x = x.reshape(x.shape[0], SCHP.count_beginning_build_order * self.build_order_model_size)
-        print("x:", x) if debug else None
-        print("x.shape:", x.shape) if debug else None
 
         embedded_scalar_list.append(x)
         scalar_context_list.append(x)

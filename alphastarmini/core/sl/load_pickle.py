@@ -40,7 +40,7 @@ def print_tensor_list(tensor_list):
         if isinstance(l, list):
             print_tensor_list(l)
         else:
-            print(l.shape)
+            print('l.shape', l.shape)
 
 
 def from_pickle_to_tensor(pickle_path, tensor_path, from_index=0, end_index=None):

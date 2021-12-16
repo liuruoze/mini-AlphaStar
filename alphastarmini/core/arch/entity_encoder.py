@@ -528,7 +528,7 @@ def benchmark(e_list):
 
     elapse_time = time() - benchmark_start
     elapse_time = datetime.timedelta(seconds=elapse_time)
-    print("Preprocess time {}".format(elapse_time))
+    print("Preprocess time {}".format(elapse_time)) if debug else None
 
     # benchmark test
     benchmark_start = time()
@@ -546,7 +546,7 @@ def benchmark(e_list):
 
 
 def test(debug=False):
-    print(torch.tensor(np.unpackbits(np.array([25], np.uint8))))
+    print(torch.tensor(np.unpackbits(np.array([25], np.uint8)))) if debug else None
     batch_size = 10
 
     e_list = []

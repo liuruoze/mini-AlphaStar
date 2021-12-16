@@ -324,7 +324,9 @@ StarCraftHyperParameters = namedtuple('StarCraftHyperParameters', ['screen_size'
                                                                    'sc2_default_delay',
                                                                    'max_order_ids',
                                                                    'max_buffer_ids',
-                                                                   'max_add_on_type'])
+                                                                   'max_add_on_type',
+                                                                   'map_name',
+                                                                   'game_version'])
 
 StarCraft_Hyper_Parameters = StarCraftHyperParameters(screen_size=64,  # 128 comsume to much resource, 32 is too small to see
                                                       world_size=AlphaStar_Agent_Interface_Format_Params.raw_resolution,  
@@ -334,7 +336,10 @@ StarCraft_Hyper_Parameters = StarCraftHyperParameters(screen_size=64,  # 128 com
                                                       sc2_default_delay=32,
                                                       max_order_ids=ConstSize.Actions_Size,
                                                       max_buffer_ids=300,  # from 0 to 275 TODO: change to value in static_data
-                                                      max_add_on_type=50)  # TODO: change to value in static_data
+                                                      max_add_on_type=50,  # TODO: change to value in static_data
+                                                      map_name='Simple64',  # "Simple64" or "AbyssalReef"
+                                                      game_version='3.16.1',  # "3.16.1" or "4.0.2" or "4.10"
+                                                      )  
 
 Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
                                         home_race=5,
