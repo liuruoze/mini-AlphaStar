@@ -72,7 +72,7 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-12-16_17-03-39.pth' 
+RESTORE_PATH = MODEL_PATH + 'sl_21-12-16_21-34-24.pth' 
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
@@ -96,7 +96,7 @@ SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
 NUM_EPOCHS = 10  # SLTHP.num_epochs
-LEARNING_RATE = 3e-5  # SLTHP.learning_rate
+LEARNING_RATE = 1e-5  # SLTHP.learning_rate
 WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
 CLIP_VALUE = 0.5  # SLTHP.clip
 EVAL_INTERFEVL = 200
