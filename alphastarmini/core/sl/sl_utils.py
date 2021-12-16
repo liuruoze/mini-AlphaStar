@@ -20,12 +20,23 @@ from alphastarmini.core.sl.label import Label
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Label_Size as LS
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
+from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 
 from alphastarmini.lib import utils as L
 
 from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
 debug = False
+
+Smart_unit_weight_S64 = 0.5
+Smart_pt_weight_S64 = 0.01
+Important_weight_S64 = 2
+Other_weight_S64 = 1
+
+Smart_unit_weight_AR = 0.5
+Smart_pt_weight_AR = 0.1
+Important_weight_AR = 2
+Other_weight_AR = 1
 
 
 def obs2feature(obs):
@@ -168,14 +179,26 @@ def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsio
         Smart_pt_id = F.Smart_pt.id
         Smart_unit_id = F.Smart_unit.id
 
-        if gt_aid == Smart_unit_id:
-            mask_weight = 0.5
-        elif gt_aid == Smart_pt_id:
-            mask_weight = 0.01
-        elif gt_aid in RAMP.SMALL_LIST:
-            mask_weight = 2
+        if SCHP.map_name == 'Simple64':
+            if gt_aid == Smart_unit_id:
+                mask_weight = Smart_unit_weight_S64
+            elif gt_aid == Smart_pt_id:
+                mask_weight = Smart_pt_weight_S64
+            elif gt_aid in RAMP.SMALL_LIST:
+                mask_weight = Important_weight_S64
+            else:
+                mask_weight = Other_weight_S64
+        elif SCHP.map_name == 'AbyssalReef':
+            if gt_aid == Smart_unit_id:
+                mask_weight = Smart_unit_weight_AR
+            elif gt_aid == Smart_pt_id:
+                mask_weight = Smart_pt_weight_AR
+            elif gt_aid in RAMP.MEDIUM_LIST:
+                mask_weight = Important_weight_AR
+            else:
+                mask_weight = Other_weight_AR
         else:
-            mask_weight = 1
+            raise NotImplementedError('Unsupported map name!')
 
         if strict_comparsion:
             if raw_action_id.item() != action_id.item():
@@ -238,14 +261,27 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
 
     for raw_action_id in ground_truth_raw_action_id:
         aid = raw_action_id.item()
-        if aid == Smart_unit_id:
-            mask_list.append([0.5])
-        elif aid == Smart_pt_id:
-            mask_list.append([0.01])
-        elif aid in RAMP.SMALL_LIST:
-            mask_list.append([2])
+
+        if SCHP.map_name == 'Simple64':
+            if aid == Smart_unit_id:
+                mask_list.append([Smart_unit_weight_S64])
+            elif aid == Smart_pt_id:
+                mask_list.append([Smart_pt_weight_S64])
+            elif aid in RAMP.SMALL_LIST:
+                mask_list.append([Important_weight_S64])
+            else:
+                mask_list.append([Other_weight_S64])
+        elif SCHP.map_name == 'AbyssalReef':
+            if aid == Smart_unit_id:
+                mask_list.append([Smart_unit_weight_AR])
+            elif aid == Smart_pt_id:
+                mask_list.append([Smart_pt_weight_AR])
+            elif aid in RAMP.MEDIUM_LIST:
+                mask_list.append([Important_weight_AR])
+            else:
+                mask_list.append([Other_weight_AR])
         else:
-            mask_list.append([1])
+            raise NotImplementedError('Unsupported map name!')
 
     mask_tensor = torch.tensor(mask_list)
 

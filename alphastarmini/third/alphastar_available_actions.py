@@ -140,7 +140,7 @@ FUNCTION_LIST = [
     Avail_fn(161, "Effect_Restore_unit", [[1910]], None, [], 0, 0),
     Avail_fn(164, "UnloadAllAt_unit", [[81, 136, 24, 18, 54, 142, 95, 893]], None, [], 0, 0),
     Avail_fn(166, "Train_Disruptor_quick", [[70]], None, [150, 150], 0, 0),
-    # Avail_fn(167, "Effect_PurificationNova_pt", [[694]], None, [], 0, 0),
+    Avail_fn(167, "Effect_PurificationNova_pt", [[694]], None, [], 0, 0),
     # Avail_fn(168, "raw_move_camera", None, None, [], 0, 0),
     # Avail_fn(169, "Behavior_CloakOff_quick", [[50, 55, 144]], None, [], 0, 0),
     # Avail_fn(172, "Behavior_CloakOn_quick", [[50, 55, 144]], None, [], 25, 0),

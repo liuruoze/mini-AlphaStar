@@ -67,7 +67,7 @@ def cross_entropy(soft_targets, pred, mask=None,
         elif avg_type == 'PrefSingle':
             x_2 / select_units_num.unsqueeze(dim=1)  # increase the single unit weight
         elif avg_type == 'Log':
-            x_2 = x_2 / torch.log(select_units_num.unsqueeze(dim=1).float())
+            x_2 = x_2 / (torch.log(select_units_num.unsqueeze(dim=1).float()) + 1e-9)
         elif avg_type == 'Sqrt':
             x_2 = x_2 / torch.sqrt(select_units_num.unsqueeze(dim=1).float())
         else:
@@ -316,7 +316,7 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     selected_units_weight = 10.
     units_loss = selected_units_weight * criterion(gt_units.reshape(-1, units_size), units_logits.reshape(-1, units_size), 
                                                    mask=all_units_mask, debug=False, outlier_remove=False, 
-                                                   select_size = extended_select_size,
+                                                   select_size=extended_select_size,
                                                    select_units_num=select_units_num + 1)
     loss += units_loss
 
