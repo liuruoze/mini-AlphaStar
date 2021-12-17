@@ -83,7 +83,7 @@ if SIMPLE_TEST:
     VAL_NUM = 1
 else:
     TRAIN_FROM = 0
-    TRAIN_NUM = 45
+    TRAIN_NUM = 50
 
     VAL_FROM = 0
     VAL_NUM = 1
