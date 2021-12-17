@@ -298,13 +298,13 @@ class EntityEncoder(nn.Module):
         field_encoding_list.append(buff_id_0_encoding)     
 
         order_progress_0_encoding = entities_array[:, 43:44] * 0.01
-        order_progress_0_encoding_onehot = L.np_one_hot((entities_array[:, 44] * 0.1).astype(np.int32), cls.max_order_progress)
+        order_progress_0_encoding_onehot = L.np_one_hot(np.minimum(entities_array[:, 44] * 0.1, 9).astype(np.int32), cls.max_order_progress)
 
         field_encoding_list.append(order_progress_0_encoding)
         field_encoding_list.append(order_progress_0_encoding_onehot)
 
         order_progress_1_encoding = entities_array[:, 45:46] * 0.01
-        order_progress_1_encoding_onehot = L.np_one_hot((entities_array[:, 46] * 0.1).astype(np.int32), cls.max_order_progress)
+        order_progress_1_encoding_onehot = L.np_one_hot(np.minimum(entities_array[:, 46] * 0.1, 9).astype(np.int32), cls.max_order_progress)
 
         field_encoding_list.append(order_progress_1_encoding)
         field_encoding_list.append(order_progress_1_encoding_onehot)

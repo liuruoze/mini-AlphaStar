@@ -10,13 +10,16 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from pysc2.lib.actions import RAW_FUNCTIONS
+from pysc2.lib.actions import RAW_FUNCTIONS as F
 
 from alphastarmini.core.sl.feature import Feature
 from alphastarmini.core.sl.label import Label
 from alphastarmini.core.sl import sl_utils as SU
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
+from alphastarmini.lib.hyper_parameters import Label_Size as LS
+from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
+
 from alphastarmini.lib import utils as L
 
 __author__ = "Ruo-Ze Liu"
@@ -175,6 +178,15 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
     # if we do that, the pytorch DDP will cause a runtime error, just like the loss don't include all parameters
     # This error is strange, so we choose to use a specific loss writing schema for multi-gpu calculation.
     if True:
+        if SCHP.map_name == 'Simple64':
+            smart_action_gt = torch.zeros(1, LS.action_type_encoding, device=device).float()
+            smart_action_gt[0, F.Smart_unit.id.value] = 1
+
+            gather_action_gt = torch.zeros(1, LS.action_type_encoding, device=device).float()
+            gather_action_gt[0, F.Harvest_Gather_unit.id.value] = 1
+
+            action_gt.action_type[(action_gt.action_type == smart_action_gt).all(dim=-1).bool()] = gather_action_gt
+
         gt_units = action_gt.units
         units_size = gt_units.shape[-1]
 

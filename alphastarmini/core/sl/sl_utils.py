@@ -31,11 +31,13 @@ debug = False
 Smart_unit_weight_S64 = 0.5
 Smart_pt_weight_S64 = 0.01
 Important_weight_S64 = 2
+Attack_pt_weight_S64 = 2
 Other_weight_S64 = 1
 
 Smart_unit_weight_AR = 0.5
 Smart_pt_weight_AR = 0.1
 Important_weight_AR = 2
+Attack_pt_weight_AR = 2
 Other_weight_AR = 1
 
 
@@ -178,12 +180,15 @@ def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsio
 
         Smart_pt_id = F.Smart_pt.id
         Smart_unit_id = F.Smart_unit.id
+        Attack_pt_id = F.Attack_pt.id
 
         if SCHP.map_name == 'Simple64':
             if gt_aid == Smart_unit_id:
                 mask_weight = Smart_unit_weight_S64
             elif gt_aid == Smart_pt_id:
                 mask_weight = Smart_pt_weight_S64
+            elif gt_aid == Attack_pt_id:
+                mask_weight = Attack_pt_weight_S64
             elif gt_aid in RAMP.SMALL_LIST:
                 mask_weight = Important_weight_S64
             else:
@@ -193,6 +198,8 @@ def get_two_way_mask_in_SL(action_type_gt, action_pred, device, strict_comparsio
                 mask_weight = Smart_unit_weight_AR
             elif gt_aid == Smart_pt_id:
                 mask_weight = Smart_pt_weight_AR
+            elif gt_aid == Attack_pt_id:
+                mask_weight = Attack_pt_weight_AR
             elif gt_aid in RAMP.MEDIUM_LIST:
                 mask_weight = Important_weight_AR
             else:
@@ -237,27 +244,9 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     MOVE_CAMERA_ID = F.raw_move_camera.id
     Smart_pt_id = F.Smart_pt.id
     Smart_unit_id = F.Smart_unit.id
+    Attack_pt_id = F.Attack_pt.id
 
-    # Note, in SC2, move_camera resides as 50% actions in all actions
-    # we assume every other action has the same happenning rate, so 
-    # assume move_camera weight is 1.
-    # the non_move_camera weight is MAX_ACTIONS /2. / alpha
-    # alpha set to 10
-    MOVE_CAMERA_WEIGHT = 1.  # 1. / LS.action_type_encoding * 2.
-    alpha = 40.
-    NON_MOVE_CAMERA_WEIGHT = LS.action_type_encoding / 2. / alpha
-    SMALL_IMPORTANT_WEIGHT = NON_MOVE_CAMERA_WEIGHT * 5
-
-    # note, the human replays have many operations like smart_pt and smart_unit
-    # these actions are meaningless (we are hard to filter unit types for selection for them)
-    # so we also choose to decrease their weight
-    if decrease_smart_opertaion:
-        # TODO: change these ids to Func.id
-        SMART_WEIGHT = 1.5
-    else:
-        SMART_WEIGHT = NON_MOVE_CAMERA_WEIGHT
-
-    print('ground_truth_raw_action_id', ground_truth_raw_action_id) if debug else None
+    print('ground_truth_raw_action_id', ground_truth_raw_action_id) if 1 else None
 
     for raw_action_id in ground_truth_raw_action_id:
         aid = raw_action_id.item()
@@ -267,6 +256,8 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
                 mask_list.append([Smart_unit_weight_S64])
             elif aid == Smart_pt_id:
                 mask_list.append([Smart_pt_weight_S64])
+            elif aid == Attack_pt_id:
+                mask_list.append([Attack_pt_weight_S64])
             elif aid in RAMP.SMALL_LIST:
                 mask_list.append([Important_weight_S64])
             else:
@@ -276,6 +267,8 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
                 mask_list.append([Smart_unit_weight_AR])
             elif aid == Smart_pt_id:
                 mask_list.append([Smart_pt_weight_AR])
+            elif aid == Attack_pt_id:
+                mask_list.append([Attack_pt_weight_AR])
             elif aid in RAMP.MEDIUM_LIST:
                 mask_list.append([Important_weight_AR])
             else:
@@ -286,18 +279,6 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     mask_tensor = torch.tensor(mask_list)
 
     print('mask_tensor', mask_tensor) if debug else None
-
-    # also use predict value to weight
-    # not used first
-    if False:
-        mask_list_2 = [] 
-        for action_id in action_pred:
-            if action_id.item() == MOVE_CAMERA_ID:
-                mask_list_2.append([MOVE_CAMERA_WEIGHT])
-            else:
-                mask_list_2.append([NON_MOVE_CAMERA_WEIGHT])
-        mask_tensor_2 = torch.tensor(mask_list_2)
-        mask_tensor = mask_tensor * mask_tensor_2
 
     mask_tensor = mask_tensor.to(device)
 

@@ -31,7 +31,6 @@ SMALL_LIST = [
     # F.Build_CyberneticsCore_pt.id.value,
     F.Train_Zealot_quick.id.value,
     # F.Train_Stalker_quick.id.value,
-    F.Attack_pt.id.value,
 ]
 
 MEDIUM_LIST = [   

@@ -43,9 +43,9 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 1
+    MAX_EPISODES = 3
     GAME_STEPS_PER_EPISODE = 18000    # 9000
-    SAVE_STATISTIC = True
+    SAVE_STATISTIC = False
 else:
     MAX_EPISODES = 10
     GAME_STEPS_PER_EPISODE = 18000    # 9000
@@ -223,7 +223,7 @@ class ActorEval:
                             print("player_action.delay:", player_action.delay) if debug else None
                             print("player_select_units_num:", player_select_units_num) if debug else None
 
-                            if False:
+                            if True:
                                 show_sth(home_obs, player_action)
 
                             expected_delay = player_action.delay.item()
