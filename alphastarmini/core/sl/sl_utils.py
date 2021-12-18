@@ -246,7 +246,7 @@ def get_move_camera_weight_in_SL(action_type_gt, action_pred, device,
     Smart_unit_id = F.Smart_unit.id
     Attack_pt_id = F.Attack_pt.id
 
-    print('ground_truth_raw_action_id', ground_truth_raw_action_id) if 1 else None
+    print('ground_truth_raw_action_id', ground_truth_raw_action_id) if debug else None
 
     for raw_action_id in ground_truth_raw_action_id:
         aid = raw_action_id.item()
@@ -372,7 +372,7 @@ def get_selected_units_accuracy(ground_truth, predict, gt_action_type, pred_acti
     ret['units_nums_equal'] = units_nums_equal
     ret['batch_size'] = batch_size
 
-    print('get_selected_units_accuracy', [correct_num, gt_num, type_correct_num, pred_num, units_nums_equal, batch_size])
+    print('get_selected_units_accuracy', [correct_num, gt_num, type_correct_num, pred_num, units_nums_equal, batch_size]) if debug else None
 
     return [correct_num, gt_num, type_correct_num, pred_num, units_nums_equal, batch_size]
 
@@ -404,7 +404,7 @@ def get_target_unit_accuracy(ground_truth, predict, action_equal_mask, device,
 
         right_num, all_num = get_right_and_all_num(ground_truth_new, predict_new)
 
-    print('get_target_unit_accuracy', [right_num, all_num])
+    print('get_target_unit_accuracy', [right_num, all_num]) if debug else None
 
     return [right_num, all_num]
 

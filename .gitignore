@@ -40,6 +40,7 @@ data/*.zip
 res/paper/
 res/s2clientprotocol/
 model/*
+model_train/*
 *.SC2Replay
 data/experiment.txt
 tmp/*

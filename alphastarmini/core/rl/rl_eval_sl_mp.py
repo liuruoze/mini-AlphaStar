@@ -43,11 +43,11 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 5
-    GAME_STEPS_PER_EPISODE = 21000    # 9000
-    SAVE_STATISTIC = True
+    MAX_EPISODES = 3
+    GAME_STEPS_PER_EPISODE = 18000    # 9000
+    SAVE_STATISTIC = False
 else:
-    MAX_EPISODES = 5
+    MAX_EPISODES = 10
     GAME_STEPS_PER_EPISODE = 18000    # 9000
     SAVE_STATISTIC = True
 
@@ -318,6 +318,8 @@ class ActorEval:
                                 outcome = reward
                                 print("outcome: ", outcome) if debug else None
 
+                                results[outcome + 1] += 1
+
                                 if SAVE_REPLAY:
                                     env.save_replay(self.replay_dir)
 
@@ -355,9 +357,6 @@ class ActorEval:
 
                                     killed_points = killed_minerals + killed_vespene
 
-                                    if killed_points > 4000:
-                                        outcome = 1
-
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
                                     collected_points_list.append(collected_points)
@@ -370,8 +369,6 @@ class ActorEval:
                                             total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
 
                                         file.write(statistic)
-
-                                results[outcome + 1] += 1
 
                             if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = RU.stack_namedtuple(trajectory)
@@ -413,20 +410,18 @@ class ActorEval:
 
         finally:
             print("results: ", results) if debug else None
-            win_rate = results[2] / (1e-9 + sum(results))
-            print("win rate: ", win_rate) if debug else None
+            print("win rate: ", results[2] / (1e-9 + sum(results))) if debug else None
 
             total_time = time() - training_start_time
 
-            if SAVE_STATISTIC: 
-                with open('./output/eval_sl.txt', 'a') as file:
-                    statistic = 'Avg: [{}/{}] | win_rate: {:.1f} | food_used: {:.1f} | army_count: {:.1f} | std(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
-                        total_episodes, MAX_EPISODES, win_rate, np.mean(food_used_list), np.mean(army_count_list), np.std(army_count_list), np.mean(collected_points_list),
-                        np.mean(used_points_list), np.mean(killed_points_list), np.mean(steps_list), total_time)
+            with open('./output/eval_sl.txt', 'a') as file:
+                statistic = 'Avg: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | std(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
+                    total_episodes, MAX_EPISODES, np.mean(food_used_list), np.mean(army_count_list), np.std(army_count_list), np.mean(collected_points_list),
+                    np.mean(used_points_list), np.mean(killed_points_list), np.mean(steps_list), total_time)
 
-                    print("statistic: ", statistic) if SAVE_STATISTIC else None
+                print("statistic: ", statistic) if SAVE_STATISTIC else None
 
-                    file.write(statistic)
+                file.write(statistic)
 
             self.is_running = False
 

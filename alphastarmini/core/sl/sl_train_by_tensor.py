@@ -18,6 +18,7 @@ import torch.nn as nn
 
 from torch.utils.data import DataLoader, ConcatDataset
 from torch.optim import Adam, RMSprop
+from torch.optim.lr_scheduler import StepLR
 
 from tensorboardX import SummaryWriter
 
@@ -49,7 +50,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-p1", "--path1", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
 parser.add_argument("-p2", "--path2", default="./data/replay_data_tensor_new_small_AR/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
-parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
+parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
 parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
 parser.add_argument('--num_workers', type=int, default=2, help='')
 
@@ -72,7 +73,22 @@ NUM_WORKERS = args.num_workers
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-RESTORE_PATH = MODEL_PATH + 'sl_21-12-17_13-35-30.pth' 
+
+MODEL_PATH_TRAIN = "./model_train/"
+if not os.path.exists(MODEL_PATH_TRAIN):
+    os.mkdir(MODEL_PATH_TRAIN)
+
+RESTORE_NAME = 'sl_21-12-18_18-55-45'
+RESTORE_PATH = MODEL_PATH + RESTORE_NAME + '.pth' 
+RESTORE_PATH_TRAIN = MODEL_PATH_TRAIN + RESTORE_NAME + '.pkl'
+
+SAVE_STATE_DICT = True
+SAVE_ALL_PKL = False
+SAVE_CHECKPOINT = True
+
+LOAD_STATE_DICT = False
+LOAD_ALL_PKL = False
+LOAD_CHECKPOINT = True
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
@@ -83,11 +99,10 @@ if SIMPLE_TEST:
     VAL_NUM = 1
 else:
     TRAIN_FROM = 0
-    TRAIN_NUM = 50
+    TRAIN_NUM = 60
 
     VAL_FROM = 0
     VAL_NUM = 1
-
 
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
@@ -95,14 +110,14 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 15  # SLTHP.num_epochs
+NUM_EPOCHS = 5  # SLTHP.num_epochs
 LEARNING_RATE = 1e-4  # SLTHP.learning_rate
+STEP_SIZE = 30
+GAMMA = 0.2
+
 WEIGHT_DECAY = 1e-5  # SLTHP.weight_decay
 CLIP_VALUE = 0.5  # SLTHP.clip
-EVAL_INTERFEVL = 200
 
-# set random seed
-# is is actually effective
 torch.manual_seed(SLTHP.seed)
 np.random.seed(SLTHP.seed)
 
@@ -137,18 +152,49 @@ def getReplayData(path, replay_files, from_index=0, end_index=None):
 
 
 def main_worker(device):
-
     print('==> Making model..')
     net = ArchModel()
-
+    checkpoint = None
     if RESTORE:
-        # use state dict to restore
-        net.load_state_dict(torch.load(RESTORE_PATH, map_location=device), strict=False)
+        if LOAD_STATE_DICT:
+            # use state dict to restore
+            net.load_state_dict(torch.load(RESTORE_PATH, map_location=device), strict=False)
 
+        if LOAD_ALL_PKL:
+            # use all to restore
+            net = torch.load(RESTORE_PATH_TRAIN, map_location=device)
+
+        if LOAD_CHECKPOINT:
+            # use checkpoint to restore
+            checkpoint = torch.load(RESTORE_PATH_TRAIN, map_location=device)
+            net.load_state_dict(checkpoint['model'], strict=False)
     net = net.to(device)
 
     num_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
     print('The number of parameters of model is', num_params)
+
+    print('==> Making optimizer and scheduler..')
+
+    optimizer, scheduler = None, None
+    batch_iter, epoch = 0, 0
+
+    if RESTORE and LOAD_CHECKPOINT:
+        # use checkpoint to restore other
+        optimizer = Adam(net.parameters())
+        optimizer.load_state_dict(checkpoint['optimizer'])
+
+        scheduler = StepLR(optimizer, step_size=STEP_SIZE)
+        scheduler.load_state_dict(checkpoint['scheduler'])
+
+        batch_iter = checkpoint['batch_iter']
+        epoch = checkpoint['epoch']
+
+        ckpt = torch.load(RESTORE_PATH_TRAIN)
+        np.random.set_state(ckpt['numpy_random_state'])
+        torch.random.set_rng_state(ckpt['torch_random_state'])
+    else:
+        optimizer = Adam(net.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+        scheduler = StepLR(optimizer, step_size=STEP_SIZE, gamma=GAMMA)
 
     print('==> Preparing data..')
 
@@ -174,30 +220,30 @@ def main_worker(device):
     print('len(train_loader)', len(train_loader))
     print('len(val_loader)', len(val_loader))
 
-    optimizer = Adam(net.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    train(net, optimizer, scheduler, train_set, train_loader, device, 
+          val_set, batch_iter, epoch, val_loader)
 
-    train(net, optimizer, train_set, train_loader, device, val_set, val_loader)
 
-
-def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=None):
+def train(net, optimizer, scheduler, train_set, train_loader, device, 
+          val_set, batch_iter, epoch, val_loader=None):
 
     now = datetime.datetime.now()
     summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
     writer = SummaryWriter(summary_path)
 
-    # model path
-    SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + time.strftime("%y-%m-%d_%H-%M-%S", time.localtime()))
+    time_str = time.strftime("%y-%m-%d_%H-%M-%S", time.localtime())
+    SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + time_str)
+    SAVE_PATH_TRAIN = os.path.join(MODEL_PATH_TRAIN, MODEL + "_" + time_str)
 
     epoch_start = time.time()
-    batch_iter = 0
 
-    for epoch in range(NUM_EPOCHS):
-
+    for ep in range(NUM_EPOCHS):
         loss_sum = 0
+        epoch += 1 
 
+        # put model in train mode
+        net.train()
         for batch_idx, (features, labels) in enumerate(train_loader):
-            # put model in train mode
-            net.train()
             start = time.time()
 
             feature_tensor = features.to(device).float()
@@ -254,10 +300,33 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
 
             gc.collect()
 
-        if True:
-            print('Epoch: [{}/{}]| loss: {:.3f} | acc: {:.3f} | batch time: {:.3f}s '.format(
-                batch_iter, epoch, loss_sum / (batch_iter + 1), action_accuracy, batch_time))
-            torch.save(net.state_dict(), SAVE_PATH + "" + ".pth")
+            print('Batch/Epoch: [{}/{}]| loss: {:.3f} | acc: {:.3f} | batch time: {:.3f}s '.format(
+                batch_iter, epoch, loss_value, action_accuracy, batch_time))
+
+        if SAVE_STATE_DICT:
+            save_path = SAVE_PATH + ".pth"
+            print('Save model state_dict to', save_path)
+            torch.save(net.state_dict(), save_path)
+
+        if SAVE_ALL_PKL:
+            save_path = SAVE_PATH_TRAIN + ".pkl"
+            print('Save model all to', save_path)
+            torch.save(net, save_path)
+
+        if SAVE_CHECKPOINT:
+            save_path = SAVE_PATH_TRAIN + ".pkl"
+            save_dict = {'batch_iter': batch_iter,
+                         'epoch': epoch,
+                         'model': net.state_dict(),
+                         'optimizer': optimizer.state_dict(),
+                         'scheduler': scheduler.state_dict(),
+                         'loss': loss_value,
+                         'numpy_random_state': np.random.get_state(),
+                         'torch_random_state': torch.random.get_rng_state(),
+                         }
+
+            print('Save model checkpoint to', save_path)
+            torch.save(save_dict, save_path)
 
         if True:
             print('eval begin')
@@ -291,7 +360,9 @@ def train(net, optimizer, train_set, train_loader, device, val_set, val_loader=N
 
             del val_loss, val_acc
 
-            gc.collect()
+        gc.collect()
+
+        scheduler.step()
 
     elapse_time = time.time() - epoch_start
     elapse_time = datetime.timedelta(seconds=elapse_time)
@@ -344,7 +415,7 @@ def eval(model, val_set, val_loader, device):
                                                                 train=False)
             del feature_tensor, labels_tensor
 
-        print('eval i', i, 'loss', loss) if debug else None
+        print('eval i', i, 'loss', loss) if 1 else None
 
         loss_sum += loss.item()
 
