@@ -43,7 +43,7 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 30
+    MAX_EPISODES = 3
     GAME_STEPS_PER_EPISODE = 24000    # 9000
     SAVE_STATISTIC = True
     SAVE_REPLAY = True

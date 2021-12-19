@@ -50,7 +50,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-p1", "--path1", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
 parser.add_argument("-p2", "--path2", default="./data/replay_data_tensor_new_small_AR/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
-parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
+parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
 parser.add_argument('--num_workers', type=int, default=2, help='')
 
@@ -78,7 +78,7 @@ MODEL_PATH_TRAIN = "./model_train/"
 if not os.path.exists(MODEL_PATH_TRAIN):
     os.mkdir(MODEL_PATH_TRAIN)
 
-RESTORE_NAME = 'sl_21-12-19_21-30-55'
+RESTORE_NAME = 'sl_21-12-19_10-36-00_6425'
 RESTORE_PATH = MODEL_PATH + RESTORE_NAME + '.pth' 
 RESTORE_PATH_TRAIN = MODEL_PATH_TRAIN + RESTORE_NAME + '.pkl'
 
@@ -86,9 +86,9 @@ SAVE_STATE_DICT = True
 SAVE_ALL_PKL = False
 SAVE_CHECKPOINT = True
 
-LOAD_STATE_DICT = False
+LOAD_STATE_DICT = True
 LOAD_ALL_PKL = False
-LOAD_CHECKPOINT = True
+LOAD_CHECKPOINT = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
@@ -98,8 +98,8 @@ if SIMPLE_TEST:
     VAL_FROM = 1
     VAL_NUM = 1
 else:
-    TRAIN_FROM = 35
-    TRAIN_NUM = 35
+    TRAIN_FROM = 0
+    TRAIN_NUM = 70
 
     VAL_FROM = 0
     VAL_NUM = 1
@@ -110,7 +110,7 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 10  # SLTHP.num_epochs
+NUM_EPOCHS = 15  # SLTHP.num_epochs
 LEARNING_RATE = 1e-4  # SLTHP.learning_rate
 STEP_SIZE = 30
 GAMMA = 0.2

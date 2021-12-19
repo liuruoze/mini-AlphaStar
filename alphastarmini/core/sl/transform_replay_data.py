@@ -103,7 +103,7 @@ if SIMPLE_TEST:
     DATA_NUM = 2
 else:
     DATA_FROM = 0
-    DATA_NUM = 35
+    DATA_NUM = 30
 SMALL_MAX_STEPS = 5000  # 60 * 60 * 22.4 
 
 
