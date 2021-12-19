@@ -327,14 +327,14 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     # TODO: change to a proporate calculation of selected units
     selected_units_weight = 10.
     units_loss = selected_units_weight * criterion(gt_units.reshape(-1, units_size), units_logits.reshape(-1, units_size), 
-                                                   mask=all_units_mask, debug=False, outlier_remove=False, 
+                                                   mask=all_units_mask, debug=False, outlier_remove=True, 
                                                    select_size=extended_select_size,
                                                    select_units_num=select_units_num + 1)
     loss += units_loss
 
     target_unit_weight = 1.
     target_unit_loss = target_unit_weight * criterion(action_gt.target_unit.squeeze(-2), target_unit_logits.squeeze(-2), 
-                                                      mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=False, entity_nums=entity_nums)
+                                                      mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=True, entity_nums=entity_nums)
     loss += target_unit_loss
 
     batch_size = action_gt.target_location.shape[0]

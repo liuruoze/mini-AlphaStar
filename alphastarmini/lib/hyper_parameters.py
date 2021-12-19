@@ -337,7 +337,7 @@ StarCraft_Hyper_Parameters = StarCraftHyperParameters(screen_size=64,  # 128 com
                                                       max_order_ids=ConstSize.Actions_Size,
                                                       max_buffer_ids=300,  # from 0 to 275 TODO: change to value in static_data
                                                       max_add_on_type=50,  # TODO: change to value in static_data
-                                                      map_name='Simple64',  # "Simple64" or "AbyssalReef"
+                                                      map_name='AbyssalReef',  # "Simple64" or "AbyssalReef"
                                                       game_version='3.16.1',  # "3.16.1" or "4.0.2" or "4.10"
                                                       )  
 
