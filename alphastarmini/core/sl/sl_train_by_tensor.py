@@ -78,7 +78,7 @@ MODEL_PATH_TRAIN = "./model_train/"
 if not os.path.exists(MODEL_PATH_TRAIN):
     os.mkdir(MODEL_PATH_TRAIN)
 
-RESTORE_NAME = 'sl_21-12-17_00-05-38'
+RESTORE_NAME = 'sl_21-12-19_21-30-55'
 RESTORE_PATH = MODEL_PATH + RESTORE_NAME + '.pth' 
 RESTORE_PATH_TRAIN = MODEL_PATH_TRAIN + RESTORE_NAME + '.pkl'
 
@@ -86,9 +86,9 @@ SAVE_STATE_DICT = True
 SAVE_ALL_PKL = False
 SAVE_CHECKPOINT = True
 
-LOAD_STATE_DICT = True
+LOAD_STATE_DICT = False
 LOAD_ALL_PKL = False
-LOAD_CHECKPOINT = False
+LOAD_CHECKPOINT = True
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
@@ -98,8 +98,8 @@ if SIMPLE_TEST:
     VAL_FROM = 1
     VAL_NUM = 1
 else:
-    TRAIN_FROM = 50
-    TRAIN_NUM = 50
+    TRAIN_FROM = 35
+    TRAIN_NUM = 35
 
     VAL_FROM = 0
     VAL_NUM = 1
@@ -110,8 +110,8 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 70  # SLTHP.num_epochs
-LEARNING_RATE = 5e-5  # SLTHP.learning_rate
+NUM_EPOCHS = 10  # SLTHP.num_epochs
+LEARNING_RATE = 1e-4  # SLTHP.learning_rate
 STEP_SIZE = 30
 GAMMA = 0.2
 
@@ -187,7 +187,9 @@ def main_worker(device):
         scheduler.load_state_dict(checkpoint['scheduler'])
 
         batch_iter = checkpoint['batch_iter']
+        print('batch_iter is', batch_iter)
         epoch = checkpoint['epoch']
+        print('epoch is', epoch)
 
         ckpt = torch.load(RESTORE_PATH_TRAIN)
         np.random.set_state(ckpt['numpy_random_state'])

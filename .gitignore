@@ -41,6 +41,7 @@ res/paper/
 res/s2clientprotocol/
 model/*
 model_train/*
+model_eval/*
 *.SC2Replay
 data/experiment.txt
 tmp/*

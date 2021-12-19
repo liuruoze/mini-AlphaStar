@@ -290,6 +290,9 @@ class LocationHead(nn.Module):
 
         if target_location is None:
             target_location_probs = self.softmax(target_location_logits)
+            print("target_location_probs:", target_location_probs) if debug else None
+            print("target_location_probs.shape:", target_location_probs.shape) if debug else None
+
             location_id = torch.multinomial(target_location_probs, num_samples=1, replacement=True)
 
             target_location = np.zeros([batch_size, 2])

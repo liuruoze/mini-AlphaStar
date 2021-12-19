@@ -43,13 +43,15 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 5
+    MAX_EPISODES = 30
+    GAME_STEPS_PER_EPISODE = 24000    # 9000
+    SAVE_STATISTIC = True
+    SAVE_REPLAY = True
+else:
+    MAX_EPISODES = 10
     GAME_STEPS_PER_EPISODE = 21000    # 9000
     SAVE_STATISTIC = True
-else:
-    MAX_EPISODES = 5
-    GAME_STEPS_PER_EPISODE = 18000    # 9000
-    SAVE_STATISTIC = True
+    SAVE_REPLAY = True
 
 IS_TRAINING = False
 MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
@@ -61,7 +63,6 @@ RANDOM_SEED = 1
 VERSION = SCHP.game_version
 
 RESTORE = True
-SAVE_REPLAY = False
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -366,8 +367,13 @@ class ActorEval:
                                     steps_list.append(game_loop)
 
                                     with open('./output/eval_sl.txt', 'a') as file:
+                                        end_episode_time = time()  # in seconds.
+                                        end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time))
+
                                         statistic = 'Episode: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
                                             total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
+
+                                        statistic = end_episode_time + " " + statistic
 
                                         file.write(statistic)
 

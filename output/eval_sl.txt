@@ -196,3 +196,58 @@ Avg: [4/5] | win_rate: 0.0 | food_used: 26.3 | army_count: 4.0 | std(army_count)
 Avg: [1/5] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 73.283s 
 Episode: [1/5]| food_used: 66.0 | army_count: 14.0 | collected_points: 10246.0 | used_points: 5600.0 | killed_points: 700.0 | steps: 17160.000s 
 Avg: [2/5] | win_rate: 0.0 | food_used: 66.0 | army_count: 14.0 | std(army_count): 0.0 | collected_points: 10246.0 | used_points: 5600.0 | killed_points: 700.0 | steps: 17160.000 | Total time: 515.439s 
+Avg: [1/1] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 116.318s 
+Avg: [1/1] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 147.413s 
+Avg: [1/1] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 109.136s 
+Episode: [1/3]| food_used: 117.0 | army_count: 33.0 | collected_points: 10934.0 | used_points: 8150.0 | killed_points: 2350.0 | steps: 23992.000s 
+Episode: [2/3]| food_used: 2.0 | army_count: 0.0 | collected_points: 7880.0 | used_points: 100.0 | killed_points: 0.0 | steps: 18112.000s 
+Episode: [3/3]| food_used: 58.0 | army_count: 14.0 | collected_points: 9970.0 | used_points: 4775.0 | killed_points: 1850.0 | steps: 23992.000s 
+Avg: [3/3] | win_rate: 0.0 | food_used: 59.0 | army_count: 15.7 | std(army_count): 13.5 | collected_points: 9594.7 | used_points: 4341.7 | killed_points: 1400.0 | steps: 22032.000 | Total time: 1731.717s 
+Episode: [1/3]| food_used: 85.0 | army_count: 17.0 | collected_points: 11204.0 | used_points: 6850.0 | killed_points: 7900.0 | steps: 23992.000s 
+Episode: [2/3]| food_used: 11.0 | army_count: 0.0 | collected_points: 12331.0 | used_points: 550.0 | killed_points: 0.0 | steps: 23872.000s 
+Episode: [3/3]| food_used: 28.0 | army_count: 4.0 | collected_points: 10251.0 | used_points: 4600.0 | killed_points: 2850.0 | steps: 23992.000s 
+Avg: [3/3] | win_rate: 0.3 | food_used: 41.3 | army_count: 7.0 | std(army_count): 7.3 | collected_points: 11262.0 | used_points: 4000.0 | killed_points: 3583.3 | steps: 23952.000 | Total time: 2523.726s 
+Avg: [1/5] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 237.706s 
+Episode: [1/5]| food_used: 85.0 | army_count: 17.0 | collected_points: 11204.0 | used_points: 6850.0 | killed_points: 7900.0 | steps: 23992.000s 
+Episode: [2/5]| food_used: 3.0 | army_count: 0.0 | collected_points: 11864.0 | used_points: 150.0 | killed_points: 0.0 | steps: 21224.000s 
+Episode: [3/5]| food_used: 28.0 | army_count: 4.0 | collected_points: 10251.0 | used_points: 4600.0 | killed_points: 2850.0 | steps: 23992.000s 
+Episode: [4/5]| food_used: 95.0 | army_count: 36.0 | collected_points: 10257.0 | used_points: 7050.0 | killed_points: 7500.0 | steps: 23992.000s 
+Episode: [5/5]| food_used: 126.0 | army_count: 41.0 | collected_points: 11727.0 | used_points: 8800.0 | killed_points: 7100.0 | steps: 23992.000s 
+Avg: [5/5] | win_rate: 0.6 | food_used: 67.4 | army_count: 19.6 | std(army_count): 16.5 | collected_points: 11060.6 | used_points: 5490.0 | killed_points: 5070.0 | steps: 23438.400 | Total time: 3065.117s 
+Avg: [1/5] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 28.849s 
+Episode: [1/5]| food_used: 85.0 | army_count: 31.0 | collected_points: 9983.0 | used_points: 6500.0 | killed_points: 8300.0 | steps: 23992.000s 
+Episode: [2/5]| food_used: 59.0 | army_count: 19.0 | collected_points: 10058.0 | used_points: 5350.0 | killed_points: 5675.0 | steps: 23992.000s 
+Episode: [3/5]| food_used: 50.0 | army_count: 7.0 | collected_points: 10214.0 | used_points: 4200.0 | killed_points: 3400.0 | steps: 23992.000s 
+Episode: [4/5]| food_used: 103.0 | army_count: 38.0 | collected_points: 9739.0 | used_points: 7325.0 | killed_points: 7975.0 | steps: 23992.000s 
+Episode: [5/5]| food_used: 74.0 | army_count: 32.0 | collected_points: 10093.0 | used_points: 5700.0 | killed_points: 6775.0 | steps: 23992.000s 
+Avg: [5/5] | win_rate: 0.8 | food_used: 74.2 | army_count: 25.4 | std(army_count): 11.1 | collected_points: 10017.4 | used_points: 5815.0 | killed_points: 6425.0 | steps: 23992.000 | Total time: 3530.391s 
+Avg: [1/5] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 233.883s 
+Episode: [1/30]| food_used: 65.0 | army_count: 19.0 | collected_points: 11694.0 | used_points: 5150.0 | killed_points: 9225.0 | steps: 23992.000s 
+Episode: [2/30]| food_used: 75.0 | army_count: 25.0 | collected_points: 11681.0 | used_points: 6150.0 | killed_points: 2450.0 | steps: 23992.000s 
+Episode: [3/30]| food_used: 97.0 | army_count: 23.0 | collected_points: 11647.0 | used_points: 6800.0 | killed_points: 4075.0 | steps: 23992.000s 
+Episode: [4/30]| food_used: 86.0 | army_count: 25.0 | collected_points: 10497.0 | used_points: 6350.0 | killed_points: 2300.0 | steps: 23992.000s 
+Episode: [5/30]| food_used: 81.0 | army_count: 27.0 | collected_points: 10749.0 | used_points: 6050.0 | killed_points: 7350.0 | steps: 23992.000s 
+Episode: [6/30]| food_used: 51.0 | army_count: 12.0 | collected_points: 11418.0 | used_points: 4250.0 | killed_points: 3325.0 | steps: 23992.000s 
+Episode: [7/30]| food_used: 91.0 | army_count: 21.0 | collected_points: 8945.0 | used_points: 6750.0 | killed_points: 4400.0 | steps: 13640.000s 
+Episode: [8/30]| food_used: 5.0 | army_count: 0.0 | collected_points: 10622.0 | used_points: 250.0 | killed_points: 0.0 | steps: 22488.000s 
+Episode: [9/30]| food_used: 21.0 | army_count: 2.0 | collected_points: 12538.0 | used_points: 2850.0 | killed_points: 650.0 | steps: 23992.000s 
+Episode: [10/30]| food_used: 81.0 | army_count: 27.0 | collected_points: 9673.0 | used_points: 6275.0 | killed_points: 4875.0 | steps: 23992.000s 
+Episode: [11/30]| food_used: 89.0 | army_count: 15.0 | collected_points: 11903.0 | used_points: 6550.0 | killed_points: 1000.0 | steps: 23992.000s 
+Episode: [12/30]| food_used: 68.0 | army_count: 18.0 | collected_points: 9070.0 | used_points: 5300.0 | killed_points: 8350.0 | steps: 20368.000s 
+Episode: [13/30]| food_used: 87.0 | army_count: 22.0 | collected_points: 11364.0 | used_points: 6350.0 | killed_points: 6200.0 | steps: 23992.000s 
+Episode: [14/30]| food_used: 107.0 | army_count: 41.0 | collected_points: 8071.0 | used_points: 7900.0 | killed_points: 7375.0 | steps: 23992.000s 
+Episode: [15/30]| food_used: 47.0 | army_count: 10.0 | collected_points: 11222.0 | used_points: 4950.0 | killed_points: 2750.0 | steps: 23992.000s 
+Episode: [16/30]| food_used: 94.0 | army_count: 21.0 | collected_points: 10156.0 | used_points: 6850.0 | killed_points: 1700.0 | steps: 23992.000s 
+Episode: [17/30]| food_used: 20.0 | army_count: 6.0 | collected_points: 9025.0 | used_points: 2600.0 | killed_points: 725.0 | steps: 23992.000s 
+Episode: [18/30]| food_used: 121.0 | army_count: 39.0 | collected_points: 12778.0 | used_points: 8600.0 | killed_points: 8075.0 | steps: 23992.000s 
+Episode: [19/30]| food_used: 91.0 | army_count: 15.0 | collected_points: 11879.0 | used_points: 6250.0 | killed_points: 800.0 | steps: 23992.000s 
+Avg: [20/30] | win_rate: 0.5 | food_used: 72.5 | army_count: 19.4 | std(army_count): 10.5 | collected_points: 10785.9 | used_points: 5590.8 | killed_points: 3980.3 | steps: 23177.263 | Total time: 12886.868s 
+Avg: [1/30] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 254.531s 
+Episode: [1/30]| food_used: 49.0 | army_count: 20.0 | collected_points: 4535.0 | used_points: 4200.0 | killed_points: 8075.0 | steps: 21256.000s 
+ 2021-12-19 21:39:36Avg: [2/30] | win_rate: 1.0 | food_used: 49.0 | army_count: 20.0 | std(army_count): 0.0 | collected_points: 4535.0 | used_points: 4200.0 | killed_points: 8075.0 | steps: 21256.000 | Total time: 913.471s 
+Avg: [1/30] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 328.811s 
+2021-12-19 22:01:03 Episode: [1/30]| food_used: 69.0 | army_count: 22.0 | collected_points: 6003.0 | used_points: 5400.0 | killed_points: 6225.0 | steps: 17944.000s 
+2021-12-19 22:08:40 Episode: [2/30]| food_used: 75.0 | army_count: 16.0 | collected_points: 7140.0 | used_points: 5625.0 | killed_points: 3375.0 | steps: 10352.000s 
+Avg: [3/30] | win_rate: 1.0 | food_used: 72.0 | army_count: 19.0 | std(army_count): 3.0 | collected_points: 6571.5 | used_points: 5512.5 | killed_points: 4800.0 | steps: 14148.000 | Total time: 736.228s 
+2021-12-19 22:13:36 Episode: [1/30]| food_used: 99.0 | army_count: 23.0 | collected_points: 13555.0 | used_points: 7325.0 | killed_points: 6175.0 | steps: 15784.000s 
+Avg: [2/30] | win_rate: 1.0 | food_used: 99.0 | army_count: 23.0 | std(army_count): 0.0 | collected_points: 13555.0 | used_points: 7325.0 | killed_points: 6175.0 | steps: 15784.000 | Total time: 416.652s 

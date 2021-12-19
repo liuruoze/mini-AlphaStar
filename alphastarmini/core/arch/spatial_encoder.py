@@ -130,9 +130,15 @@ class SpatialEncoder(nn.Module):
         # scatter_map may cause a NaN bug in SL training, now we don't use it
         if entity_embeddings is not None:
             channels = x.shape[1]
+
             # the first 4 channels are scatter map
             scatter_map, reduced = torch.split(x, [self.scatter_volume, channels - self.scatter_volume], dim=1)
             scatter_entity = self.scatter(scatter_map, entity_embeddings)
+            print('scatter_entity', scatter_entity) if debug else None
+            print('scatter_entity.shape', scatter_entity.shape) if debug else None
+            print('reduced', reduced) if debug else None
+            print('reduced.shape', reduced.shape) if debug else None
+
             x = torch.cat([scatter_entity, reduced], dim=1)
 
         # After preprocessing, the planes are concatenated, projected to 32 channels 

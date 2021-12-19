@@ -40,6 +40,41 @@ def cross_entropy(soft_targets, pred, mask=None,
     logsoftmax = nn.LogSoftmax(dim=-1)
     x_1 = - soft_targets * logsoftmax(pred)
 
+    if debug:
+        for i, (t, p) in enumerate(zip(soft_targets, logsoftmax(pred))):
+            # print('t', t)
+            # print('t.shape', t.shape)
+            # print('p', p)
+            # print('p.shape', p.shape)
+            value = - t * logsoftmax(p)
+            # print('value', value)
+            # print('value.shape', value.shape)
+            m = mask[i].item()
+            if value.sum() > 1e6 and m != 0:
+                print('i', i)
+                if entity_nums is not None:
+                    if use_select_size and select_size is not None and select_units_num is not None:
+                        i_1 = int(i / select_size)
+                        print('i_1', i_1)
+                        i_2 = i - i_1 * select_size
+                        print('i_2', i_2)
+                        print('entity_nums[i_1]', entity_nums[i_1])
+                        print('select_units_num[i_1]', select_units_num[i_1])
+                    else:
+                        print('entity_nums[i]', entity_nums[i])
+
+                print('find value large than 1e6')
+                print('t', t)
+                z = torch.nonzero(t, as_tuple=True)[-1]
+                print('z', z)
+                idx = z.item()
+                print('p', p)
+                q = p[idx]
+                print('q', q)
+                print('value', value)
+                print('m', m)
+                stop()
+
     print('x_1:', x_1) if debug else None
     print('x_1.shape:', x_1.shape) if debug else None
 
@@ -327,7 +362,7 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     # TODO: change to a proporate calculation of selected units
     selected_units_weight = 10.
     units_loss = selected_units_weight * criterion(gt_units.reshape(-1, units_size), units_logits.reshape(-1, units_size), 
-                                                   mask=all_units_mask, debug=False, outlier_remove=True, 
+                                                   mask=all_units_mask, debug=False, outlier_remove=True, entity_nums=entity_nums,
                                                    select_size=extended_select_size,
                                                    select_units_num=select_units_num + 1)
     loss += units_loss
