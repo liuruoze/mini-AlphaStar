@@ -51,7 +51,7 @@ parser.add_argument("-p1", "--path1", default="./data/replay_data_tensor_new_sma
 parser.add_argument("-p2", "--path2", default="./data/replay_data_tensor_new_small_AR/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
-parser.add_argument("-c", "--clip", action="store_true", default=True, help="whether to use clipping")
+parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
 parser.add_argument('--num_workers', type=int, default=2, help='')
 
 
@@ -110,8 +110,8 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 15  # SLTHP.num_epochs
-LEARNING_RATE = 1e-4  # SLTHP.learning_rate
+NUM_EPOCHS = 70  
+LEARNING_RATE = 3e-5 
 STEP_SIZE = 30
 GAMMA = 0.2
 
