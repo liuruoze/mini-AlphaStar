@@ -1,0 +1,14 @@
+2021-12-20 08:25:14 Agent ID: 1 | Episode: [1/3] | food_used: 21.0 | army_count: 0.0 | collected_points: 1240.0 | used_points: 2000.0 | killed_points: 0.0 | steps: 2392.000s 
+2021-12-20 08:26:10 Agent ID: 1 | Episode: [2/3] | food_used: 21.0 | army_count: 0.0 | collected_points: 1245.0 | used_points: 1950.0 | killed_points: 0.0 | steps: 2392.000s 
+2021-12-20 08:27:13 Agent ID: 1 | Episode: [3/3] | food_used: 20.0 | army_count: 0.0 | collected_points: 1190.0 | used_points: 1850.0 | killed_points: 0.0 | steps: 2392.000s 
+Avg: [3/3] | win_rate: 0.0 | food_used: 20.7 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 1225.0 | used_points: 1933.3 | killed_points: 0.0 | steps: 2392.000 | Total time: 189.600s 
+2021-12-20 08:28:53 Agent ID: 1 | Episode: [1/2] | food_used: 21.0 | army_count: 0.0 | collected_points: 1320.0 | used_points: 1800.0 | killed_points: 0.0 | steps: 2392.000s 
+2021-12-20 08:28:54 Agent ID: 2 | Episode: [1/2] | food_used: 21.0 | army_count: 0.0 | collected_points: 1310.0 | used_points: 1850.0 | killed_points: 0.0 | steps: 2392.000s 
+2021-12-20 08:30:34 Agent ID: 1 | Episode: [2/2] | food_used: 21.0 | army_count: 0.0 | collected_points: 1310.0 | used_points: 1800.0 | killed_points: 0.0 | steps: 2392.000s 
+2021-12-20 08:30:36 Agent ID: 2 | Episode: [2/2] | food_used: 21.0 | army_count: 0.0 | collected_points: 1340.0 | used_points: 1750.0 | killed_points: 0.0 | steps: 2392.000s 
+Avg: [4/4] | win_rate: 0.0 | food_used: 21.0 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 1320.0 | used_points: 1800.0 | killed_points: 0.0 | steps: 2392.000 | Total time: 208.715s 
+2021-12-20 08:33:42 Agent ID: 1 | Episode: [1/4] | food_used: 21.0 | army_count: 0.0 | collected_points: 1240.0 | used_points: 2000.0 | killed_points: 0.0 | steps: 2392.000s 
+2021-12-20 08:34:31 Agent ID: 1 | Episode: [2/4] | food_used: 21.0 | army_count: 0.0 | collected_points: 1245.0 | used_points: 1950.0 | killed_points: 0.0 | steps: 2392.000s 
+2021-12-20 08:35:29 Agent ID: 1 | Episode: [3/4] | food_used: 20.0 | army_count: 0.0 | collected_points: 1190.0 | used_points: 1850.0 | killed_points: 0.0 | steps: 2392.000s 
+2021-12-20 08:36:35 Agent ID: 1 | Episode: [4/4] | food_used: 21.0 | army_count: 0.0 | collected_points: 1290.0 | used_points: 1650.0 | killed_points: 0.0 | steps: 2392.000s 
+Avg: [4/4] | win_rate: 0.0 | food_used: 20.8 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 1241.2 | used_points: 1862.5 | killed_points: 0.0 | steps: 2392.000 | Total time: 251.609s 

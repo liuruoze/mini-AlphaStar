@@ -38,8 +38,8 @@ if __name__ == '__main__':
 
     # ------------------------
 
-    # 3. we use RL environment to evaluate SL model
-    from alphastarmini.core.rl import rl_eval_sl
-    rl_eval_sl.test(on_server=P.on_server)
+    # 3. we use RL environment to multi-process (thread) evaluate SL model
+    from alphastarmini.core.rl import mp_rl_eval_sl
+    mp_rl_eval_sl.test(on_server=P.on_server)
 
     print('run over')

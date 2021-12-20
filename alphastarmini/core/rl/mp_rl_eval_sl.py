@@ -43,13 +43,18 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 1
-    GAME_STEPS_PER_EPISODE = 21000    # 9000
+    raise NotImplementedError
+else:
+    GAME_STEPS_PER_EPISODE = 24000  # 24000    # 9000
     SAVE_STATISTIC = True
     SAVE_REPLAY = True
-    REPLAY_DIR = "./added_simple64_replays/"
-else:
-    raise NotImplementedError
+    MAX_EPISODES = 1
+
+ACTOR_NUMS = 5
+
+# model path
+MODEL_TYPE = "sl"
+MODEL_PATH = "./model/"
 
 IS_TRAINING = False
 MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
@@ -62,10 +67,7 @@ VERSION = SCHP.game_version
 
 RESTORE = True
 
-# model path
-MODEL_TYPE = "sl"
-MODEL_PATH = "./model/"
-ACTOR_NUMS = 1
+OUTPUT_FILE = './output/mp_eval_sl.txt'
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -88,11 +90,11 @@ class ActorEval:
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, coordinator, max_time_for_training=60 * 60 * 24,
+    def __init__(self, player, coordinator, idx, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
-                 replay_dir=REPLAY_DIR):
+                 replay_dir="./added_simple64_replays/"):
         self.player = player
 
         print('initialed player')
@@ -102,12 +104,6 @@ class ActorEval:
         #model.load_state_dict(torch.load(model_path, map_location=device), strict=False) 
         if ON_GPU:
             self.player.agent.agent_nn.to(DEVICE)
-
-        # self.teacher = get_supervised_agent(player.race, model_type="sl", restore=RESTORE)
-        # print('initialed teacher')
-
-        # if ON_GPU:
-        #     self.teacher.agent_nn.to(DEVICE)
 
         self.coordinator = coordinator
         self.max_time_for_training = max_time_for_training
@@ -124,6 +120,8 @@ class ActorEval:
         self.is_start = False
 
         self.replay_dir = replay_dir
+
+        self.idx = idx
 
     def start(self):
         self.is_start = True
@@ -160,8 +158,6 @@ class ActorEval:
                     for agent, obs_spec, act_spec in zip(agents, observation_spec, action_spec):
                         agent.setup(obs_spec, act_spec)
 
-                    # self.teacher.setup(self.player.agent.obs_spec, self.player.agent.action_spec)
-
                     print('player:', self.player) if debug else None
                     print('opponent:', "Computer bot") if debug else None
 
@@ -185,7 +181,6 @@ class ActorEval:
                         is_final = home_obs.last()
 
                         player_memory = self.player.agent.initial_state()
-                        # teacher_memory = self.teacher.initial_state()
 
                         torch.manual_seed(total_episodes)
                         np.random.seed(total_episodes)
@@ -213,13 +208,7 @@ class ActorEval:
                             state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
                                                                                     build_order=player_bo, 
                                                                                     last_list=last_list)
-
-                            # TODO, implement baseline process in preprocess_state_all_plus_baseline (a new function)
-                            # baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, 
-                            #                                                             build_order=player_bo)
-
                             player_step = self.player.agent.step_from_state(state, player_memory)
-
                             player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
 
                             print("player_function_call:", player_function_call) if not SAVE_STATISTIC else None
@@ -227,30 +216,11 @@ class ActorEval:
                             print("player_action.delay:", player_action.delay) if debug else None
                             print("player_select_units_num:", player_select_units_num) if debug else None
 
-                            if True:
-                                show_sth(home_obs, player_action)
-
                             expected_delay = player_action.delay.item()
                             step_mul = max(1, expected_delay)
                             print("step_mul:", step_mul) if debug else None
 
-                            print('run_loop, t1', time() - t) if speed else None
-                            t = time()
-
-                            # if False:
-                            #     teacher_step = self.teacher.step_based_on_actions(state, teacher_memory, player_action, player_select_units_num)
-                            #     teacher_logits, teacher_select_units_num, teacher_new_memory = teacher_step
-                            #     print("teacher_logits:", teacher_logits) if debug else None
-                            # else:
-                            #     teacher_logits = None
-
-                            print('run_loop, t2', time() - t) if speed else None
-                            t = time()
-
                             env_actions = [player_function_call]
-
-                            print('run_loop, t3', time() - t) if speed else None
-                            t = time()
 
                             if USE_PREDICT_STEP_MUL:
                                 timesteps = env.step(env_actions, step_mul=step_mul)  # STEP_MUL step_mul
@@ -260,24 +230,11 @@ class ActorEval:
                             reward = home_next_obs.reward
                             print("reward: ", reward) if debug else None
 
-                            print('run_loop, t4', time() - t) if speed else None
-                            t = time()
-
                             is_final = home_next_obs.last()
 
                             # calculate the build order
                             player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
                             print("player build order:", player_bo) if debug else None
-
-                            print('run_loop, t5', time() - t) if speed else None
-                            t = time()
-
-                            # calculate the unit counts of bag
-                            # player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
-                            # print("player unit count of bow:", sum(player_ucb)) if debug else None
-
-                            print('run_loop, t6', time() - t) if speed else None
-                            t = time()
 
                             game_loop = home_obs.observation.game_loop[0]
                             print("game_loop", game_loop) if debug else None
@@ -346,15 +303,15 @@ class ActorEval:
                                     killed_points_list.append(killed_points)
                                     steps_list.append(game_loop)
 
-                                    with open('./output/eval_sl.txt', 'a') as file:
-                                        end_episode_time = time()  # in seconds.
-                                        end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time))
+                                    end_episode_time = time()  # in seconds.
+                                    end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(end_episode_time))
 
-                                        statistic = 'Episode: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
-                                            total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
+                                    statistic = 'Agent ID: {} | Episode: [{}/{}] | food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
+                                        self.idx, total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
 
-                                        statistic = end_episode_time + " " + statistic
+                                    statistic = end_episode_time + " " + statistic
 
+                                    with open(OUTPUT_FILE, 'a') as file:
                                         file.write(statistic)
 
                                 results[outcome + 1] += 1
@@ -386,7 +343,7 @@ class ActorEval:
                                 print("Beyond the max_frames_per_episode, break!")
                                 break
 
-                        #self.coordinator.send_outcome(self.player, self.opponent, outcome)
+                        self.coordinator.only_send_outcome(self.player, outcome)
 
                         # use max_frames_per_episode to end the episode
                         if self.max_episodes and total_episodes >= self.max_episodes:
@@ -405,14 +362,7 @@ class ActorEval:
             total_time = time() - training_start_time
 
             if SAVE_STATISTIC: 
-                with open('./output/eval_sl.txt', 'a') as file:
-                    statistic = 'Avg: [{}/{}] | win_rate: {:.1f} | food_used: {:.1f} | army_count: {:.1f} | std(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
-                        total_episodes, MAX_EPISODES, win_rate, np.mean(food_used_list), np.mean(army_count_list), np.std(army_count_list), np.mean(collected_points_list),
-                        np.mean(used_points_list), np.mean(killed_points_list), np.mean(steps_list), total_time)
-
-                    print("statistic: ", statistic) if SAVE_STATISTIC else None
-
-                    file.write(statistic)
+                self.coordinator.send_eval_results(self.player, food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, steps_list, total_time)
 
             self.is_running = False
 
@@ -445,28 +395,6 @@ class ActorEval:
         return env
 
 
-def show_sth(home_obs, player_action):
-    obs = home_obs.observation
-    raw_units = obs["raw_units"]
-
-    selected_units = player_action.units.reshape(-1)
-
-    selected_units = selected_units.detach().cpu().numpy().tolist()
-    print('selected_units', selected_units) if debug else None
-
-    unit_type_list = []
-    for i in selected_units:
-        if i < len(raw_units):
-            u = raw_units[i]
-            unit_type = u.unit_type
-            unit_type_name = sc2_units.get_unit_type(unit_type).name
-            unit_type_list.append(unit_type_name)
-        else:
-            print('find a EOF!') if debug else None     
-
-    print('unit_type_list', unit_type_list) if not SAVE_STATISTIC else None     
-
-
 def test(on_server=False, replay_path=None):
     league = League(
         initial_agents={
@@ -485,7 +413,7 @@ def test(on_server=False, replay_path=None):
         player = league.get_learning_player(idx)
         learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING)
         learners.append(learner)
-        actors.extend([ActorEval(player, coordinator) for _ in range(ACTOR_NUMS)])
+        actors.extend([ActorEval(player, coordinator, j + 1) for j in range(ACTOR_NUMS)])
 
     threads = []
     for l in learners:
@@ -501,5 +429,8 @@ def test(on_server=False, replay_path=None):
         # Wait for training to finish.
         for t in threads:
             t.join()
+
+        coordinator.write_eval_results()
+
     except Exception as e: 
         print("Exception Handled in Main, Detials of the Exception:", e)

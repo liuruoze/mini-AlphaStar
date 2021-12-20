@@ -257,3 +257,14 @@ Avg: [1/30] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count)
 2021-12-19 23:03:28 Episode: [3/30]| food_used: 60.0 | army_count: 16.0 | collected_points: 6826.0 | used_points: 4950.0 | killed_points: 2800.0 | steps: 8896.000s 
 Avg: [4/30] | win_rate: 1.0 | food_used: 69.7 | army_count: 20.3 | std(army_count): 3.3 | collected_points: 8137.3 | used_points: 5850.0 | killed_points: 3808.3 | steps: 10928.000 | Total time: 725.214s 
 Avg: [1/30] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 228.951s 
+Avg: [0/3] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 15.618s 
+2021-12-20 08:23:22 Episode: [1/3]| food_used: 15.0 | army_count: 0.0 | collected_points: 440.0 | used_points: 1250.0 | killed_points: 0.0 | steps: 992.000s 
+2021-12-20 08:23:41 Episode: [2/3]| food_used: 15.0 | army_count: 0.0 | collected_points: 435.0 | used_points: 1250.0 | killed_points: 0.0 | steps: 992.000s 
+2021-12-20 08:24:08 Episode: [3/3]| food_used: 14.0 | army_count: 0.0 | collected_points: 425.0 | used_points: 1200.0 | killed_points: 0.0 | steps: 992.000s 
+Avg: [3/3] | win_rate: 0.0 | food_used: 14.7 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 433.3 | used_points: 1233.3 | killed_points: 0.0 | steps: 992.000 | Total time: 84.479s 
+2021-12-20 10:47:23 Episode: [1/3]| food_used: 12.0 | army_count: 0.0 | collected_points: 395.0 | used_points: 1175.0 | killed_points: 0.0 | steps: 992.000s 
+Avg: [2/3] | win_rate: 0.0 | food_used: 12.0 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 395.0 | used_points: 1175.0 | killed_points: 0.0 | steps: 992.000 | Total time: 49.527s 
+2021-12-20 10:48:30 Episode: [1/3]| food_used: 12.0 | army_count: 0.0 | collected_points: 395.0 | used_points: 1175.0 | killed_points: 0.0 | steps: 992.000s 
+Avg: [2/3] | win_rate: 0.0 | food_used: 12.0 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 395.0 | used_points: 1175.0 | killed_points: 0.0 | steps: 992.000 | Total time: 49.581s 
+Avg: [1/1] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 190.772s 
+Avg: [1/1] | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 242.802s 

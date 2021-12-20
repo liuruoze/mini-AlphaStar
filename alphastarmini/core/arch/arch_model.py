@@ -62,9 +62,40 @@ class ArchModel(nn.Module):
             self.init_paramters()
 
     def init_paramters(self):
-        for p in self.parameters():
-            if p.dim() > 1:
-                nn.init.xavier_uniform_(p)
+        if True:
+            for p in self.parameters():
+                if p.dim() > 1:
+                    nn.init.xavier_uniform_(p)
+        else:
+            for m in self.modules():
+                if isinstance(m, nn.Conv1d):
+                    print('Conv1d', m) if debug else None
+                    nn.init.kaiming_normal_(m.weight.data, nonlinearity='relu')
+                    if hasattr(m, 'bias'):
+                        if m.bias is not None: 
+                            nn.init.constant_(m.bias.data, 0)
+                elif isinstance(m, nn.Conv2d):
+                    print('Conv2d', m) if debug else None
+                    nn.init.kaiming_normal_(m.weight.data, nonlinearity='relu')
+                    if hasattr(m, 'bias'):
+                        if m.bias is not None: 
+                            nn.init.constant_(m.bias.data, 0)
+                elif isinstance(m, nn.Linear):
+                    print('Linear', m) if debug else None
+                    nn.init.xavier_normal_(m.weight.data, gain=nn.init.calculate_gain('relu'))
+                    if hasattr(m, 'bias'):
+                        nn.init.constant_(m.bias.data, 0)
+                else:
+                    print('Other', m) if debug else None
+                    if hasattr(m, 'weight'):
+                        if m.weight is not None: 
+                            if m.weight.data.dim() > 1:
+                                nn.init.xavier_uniform_(m.weight.data)
+                    if hasattr(m, 'bias'):
+                        if m.bias is not None: 
+                            if hasattr(m.bias, 'data'):
+                                if m.bias.data.dim() > 1:
+                                    nn.init.constant_(m.bias.data, 0)
 
     def build_baselines(self):
         self.winloss_baseline = Baseline(baseline_type='winloss')

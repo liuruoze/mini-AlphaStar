@@ -1,0 +1,2 @@
+nohup python run.py > 1.out
+nohup python eval.py > 2.out
