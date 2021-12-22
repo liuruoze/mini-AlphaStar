@@ -1,15 +1,5 @@
 # mini-AlphaStar
 
-<p float="left">
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="200" />
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="200" /> 
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="200" />
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack2.gif" width="200" />
-</p>
-<p float="middle"> 
-  (mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'.)
-</p>
-
 ## Introduction
 
 We release mini-AlphaStar (mAS), which is a **mini-scale** version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2). 
@@ -21,6 +11,16 @@ When designing the mAS, we referred to the "Occam's Razor Principle": **simple**
 Meanwhile, we also try not to use too many dependency packages, so that mAS should only depend on PyTorch. In this way, we simplify the learning cost of mAS and make the architecture of mAS relatively **easy** to read. 
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
+
+<p float="left">
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="200" />
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="200" /> 
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="200" />
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack2.gif" width="200" />
+</p>
+<p float="center"> 
+  (mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'.)
+</p>
 
 ## Update
 
