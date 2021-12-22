@@ -9,6 +9,7 @@
 <p float="middle"> 
   (mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'.)
 </p>
+
 ## Introduction
 
 We release mini-AlphaStar (mAS), which is a **mini-scale** version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2). 
