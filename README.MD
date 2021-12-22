@@ -1,6 +1,6 @@
 # mini-AlphaStar
 
-![start](https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif=250x250)
+![start](https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif | width=100) ![start](https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif | width=100)
 
 ## Introduction
 
