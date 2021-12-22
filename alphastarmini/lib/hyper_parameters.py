@@ -128,6 +128,7 @@ ArchHyperParameters = namedtuple('ArchHyperParameters', ['batch_size',
                                                          'scatter_channels',
                                                          'init_net_params',
                                                          'use_action_type_mask',
+                                                         'use_predict_step_mul',
                                                          'positional_encoding_time', 
                                                          'scalar_encoder_fc1_input', 
                                                          'scalar_encoder_fc2_input',
@@ -165,7 +166,8 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       scatter_channels=1,  # 0 or 1
                                                       init_net_params=1,
                                                       use_action_type_mask=0,
-                                                      positional_encoding_time=0,
+                                                      use_predict_step_mul=1,
+                                                      positional_encoding_time=1,
                                                       scalar_encoder_fc1_input=1504,
                                                       scalar_encoder_fc2_input=544,
                                                       scalar_feature_size=7327,  # Deprecated
@@ -192,7 +194,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
 
 # mini-alphastar hyper parameters
 # Mini_Scale = P.Mini_Scale default is: 16 on laptop and 4 on server. use Batch_Scale, Seq_Scale, Select_Scale to replace it
-MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 * 3 / P.Batch_Scale),
+MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 * 4 / P.Batch_Scale),
                                                      sequence_length=int(32 * 1 / P.Seq_Scale),
                                                      max_selected=int(48 / P.Select_Scale),                                                    
                                                      max_entities=int(512),  # this value can not be downscaled, 
@@ -204,6 +206,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 * 3 / P.B
                                                      init_net_params=1,
                                                      use_action_type_mask=0,
                                                      positional_encoding_time=0,
+                                                     use_predict_step_mul=0,
                                                      scalar_encoder_fc1_input=864,
                                                      scalar_encoder_fc2_input=448,
                                                      scalar_feature_size=7327,  # Deprecated

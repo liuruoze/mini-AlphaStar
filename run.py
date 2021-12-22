@@ -38,13 +38,13 @@ if __name__ == '__main__':
 
     # ------------------------
 
-    # # 1. we transform the replays to pickle
-    # from alphastarmini.core.sl import transform_replay_data
-    # transform_replay_data.test(on_server=P.on_server)
+    # 1. we transform the replays to pickle
+    from alphastarmini.core.sl import transform_replay_data
+    transform_replay_data.test(on_server=P.on_server)
 
-    # 2. we use tensor to do supervised learning
-    from alphastarmini.core.sl import sl_train_by_tensor
-    sl_train_by_tensor.test(on_server=P.on_server)
+    # # 2. we use tensor to do supervised learning
+    # from alphastarmini.core.sl import sl_train_by_tensor
+    # sl_train_by_tensor.test(on_server=P.on_server)
 
     # # 3. we use RL environment to evaluate SL model
     # from alphastarmini.core.rl import rl_eval_sl

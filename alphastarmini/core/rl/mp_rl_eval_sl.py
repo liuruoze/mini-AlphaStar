@@ -58,7 +58,7 @@ MODEL_PATH = "./model/"
 
 IS_TRAINING = False
 MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
-USE_PREDICT_STEP_MUL = False
+USE_PREDICT_STEP_MUL = AHP.use_predict_step_mul
 STEP_MUL = 8
 
 DIFFICULTY = 1

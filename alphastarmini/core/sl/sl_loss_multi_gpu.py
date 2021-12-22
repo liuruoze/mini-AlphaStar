@@ -310,6 +310,8 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
 
     # we now onsider delay loss
     delay_weight = 0.0
+    if AHP.use_predict_step_mul:
+        delay_weight = 1.0
     delay_loss = delay_weight * criterion(action_gt.delay, delay_logits)
     loss += delay_loss
 

@@ -35,9 +35,13 @@ class ScalarEncoder(nn.Module):
     # assume we have most for some minutes game
     use_positional_encoding_for_time = AHP.positional_encoding_time
 
+    # the embedding_size should be 32 now
+    # we use both positional encoding and binary econding for time
+    time_embedding_size = int(SFS.time / 2)
+
     if use_positional_encoding_for_time:
-        max_game_seconds = 30 * 60
-        time_encoding_all = L.positional_encoding(max_position=max_game_seconds, embedding_size=64, add_batch_dim=False)
+        max_game_seconds = 30 * 60  # assume we have max 30 minutes games
+        time_encoding_all = L.positional_encoding(max_position=max_game_seconds, embedding_size=time_embedding_size, add_batch_dim=False)
 
     use_human_knowledge_for_available_actions = True
 
@@ -140,6 +144,7 @@ class ScalarEncoder(nn.Module):
             upgrades[0, u] = 1
 
         # question: how to know enemy's upgrades?
+        # TODO: implment the enemy upgrades
         enemy_upgrades = np.zeros((1, SFS.upgrades))
 
         # time conver to gameloop
@@ -147,19 +152,33 @@ class ScalarEncoder(nn.Module):
         game_loop = obs["game_loop"]
         print('game_loop:', game_loop) if debug else None
 
-        if not cls.use_positional_encoding_for_time:
-            time_encoding = L.unpackbits_for_largenumber(game_loop, num_bits=64).astype(np.float32).reshape(1, -1)
-            print('time_encoding:', time_encoding) if debug else None 
-            # note, we use binary encoding here for time
-            time = time_encoding
-        else:
+        if cls.use_positional_encoding_for_time:
+            embedding_size = cls.time_embedding_size
+
+            # transform game_loop to 32 binary vecoter
+            time_encoding_1 = L.unpackbits_for_largenumber(game_loop, num_bits=embedding_size).astype(np.float32).reshape(1, -1)
+            print('time_encoding_1:', time_encoding_1) if debug else None 
+
+            # note, we use binary encoding here for half of time encoding
+            time[0, :embedding_size] = time_encoding_1
+
+            # a second is 22.4 game_loop
             seconds = int(game_loop / 22.4)
             seconds = min(cls.max_game_seconds - 1, seconds)
+
+            # transform seconds to positional encdoing
             time_encoding_2 = (cls.time_encoding_all[seconds]).astype(np.float32).reshape(1, -1)
             print('time_encoding_2:', time_encoding_2) if debug else None 
-            time = time_encoding_2
 
-        #time[0, 0] = game_loop
+            # note, we use postionoal encoding here for half of time encoding
+            time[0, embedding_size:] = time_encoding_2
+        else:
+            # transform game_loop to 64 binary vecoter
+            time_encoding = L.unpackbits_for_largenumber(game_loop, num_bits=SFS.time).astype(np.float32).reshape(1, -1)
+            print('time_encoding:', time_encoding) if debug else None 
+
+            # note, we use binary encoding here for all of time encoding
+            time = time_encoding
 
         # note: if we use raw action, this key doesn't exist
         # the_available_actions = obs["available_actions"] 

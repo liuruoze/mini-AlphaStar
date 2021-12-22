@@ -62,7 +62,7 @@ class ArchModel(nn.Module):
             self.init_paramters()
 
     def init_paramters(self):
-        if False:
+        if True:
             for p in self.parameters():
                 if p.dim() > 1:
                     nn.init.xavier_uniform_(p)

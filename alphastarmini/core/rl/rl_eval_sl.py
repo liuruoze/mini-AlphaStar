@@ -47,13 +47,13 @@ if SIMPLE_TEST:
     GAME_STEPS_PER_EPISODE = 21000    # 9000
     SAVE_STATISTIC = True
     SAVE_REPLAY = True
-    REPLAY_DIR = "./added_simple64_replays/"
+    REPLAY_DIR = "./revised_simple64_replays/"
 else:
     raise NotImplementedError
 
 IS_TRAINING = False
 MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
-USE_PREDICT_STEP_MUL = False
+USE_PREDICT_STEP_MUL = AHP.use_predict_step_mul
 STEP_MUL = 8
 
 DIFFICULTY = 1

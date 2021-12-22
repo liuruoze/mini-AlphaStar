@@ -78,7 +78,7 @@ MODEL_PATH_TRAIN = "./model_train/"
 if not os.path.exists(MODEL_PATH_TRAIN):
     os.mkdir(MODEL_PATH_TRAIN)
 
-RESTORE_NAME = 'sl_21-12-20_11-01-23'
+RESTORE_NAME = 'sl_21-12-21_09-11-12'
 RESTORE_PATH = MODEL_PATH + RESTORE_NAME + '.pth' 
 RESTORE_PATH_TRAIN = MODEL_PATH_TRAIN + RESTORE_NAME + '.pkl'
 
@@ -98,8 +98,8 @@ if SIMPLE_TEST:
     VAL_FROM = 1
     VAL_NUM = 1
 else:
-    TRAIN_FROM = 20
-    TRAIN_NUM = 50
+    TRAIN_FROM = 0  # 20
+    TRAIN_NUM = 80  # 60
 
     VAL_FROM = 0
     VAL_NUM = 1
@@ -110,8 +110,8 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 70  
-LEARNING_RATE = 3e-5 
+NUM_EPOCHS = 15  
+LEARNING_RATE = 1e-4
 STEP_SIZE = 30
 GAMMA = 0.2
 
