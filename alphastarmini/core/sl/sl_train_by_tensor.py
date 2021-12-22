@@ -50,7 +50,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-p1", "--path1", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
 parser.add_argument("-p2", "--path2", default="./data/replay_data_tensor_new_small_AR/", help="The path where data stored")
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
-parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
+parser.add_argument("-r", "--restore", action="store_true", default=True, help="whether to restore model or not")
 parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
 parser.add_argument('--num_workers', type=int, default=2, help='')
 
@@ -98,8 +98,8 @@ if SIMPLE_TEST:
     VAL_FROM = 1
     VAL_NUM = 1
 else:
-    TRAIN_FROM = 0  # 20
-    TRAIN_NUM = 80  # 60
+    TRAIN_FROM = 20  # 20
+    TRAIN_NUM = 50  # 60
 
     VAL_FROM = 0
     VAL_NUM = 1
@@ -110,7 +110,7 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 15  
+NUM_EPOCHS = 1  
 LEARNING_RATE = 1e-4
 STEP_SIZE = 30
 GAMMA = 0.2

@@ -45,7 +45,7 @@ SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     raise NotImplementedError
 else:
-    GAME_STEPS_PER_EPISODE = 24000  # 24000    # 9000
+    GAME_STEPS_PER_EPISODE = 18000  # 24000    # 9000
     SAVE_STATISTIC = True
     SAVE_REPLAY = True
     MAX_EPISODES = 1
