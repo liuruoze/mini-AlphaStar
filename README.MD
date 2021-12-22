@@ -15,18 +15,18 @@ The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 Below is mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'.
 
 <p float="left">
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="350" />
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="350" /> 
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="400" />
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="400" /> 
 </p>
 
-**Left:** At start of the game. **Right:** In the middle period.
+**Left:** At start of the game.                          **Right:** In the middle period.
 
 <p float="left">
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="350" />
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack2.gif" width="350" />
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="400" />
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack2.gif" width="400" />
 </p>
 
-**Left:** Agent's 1st attack. **Right:** Agent's 2nd Attack.
+**Left:** Agent's 1st attack.                            **Right:** Agent's 2nd Attack.
 
 ## Update
 
