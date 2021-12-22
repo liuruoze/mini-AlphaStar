@@ -12,13 +12,14 @@ Meanwhile, we also try not to use too many dependency packages, so that mAS shou
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
+Below is mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'.
 
 <p float="left">
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="400" />
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="400" /> 
 </p>
 <p float="left">
-  (mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'. At start (left). In the middle (right).)
+  (At start of the game (left). In the middle period (right).)
 </p>
 
 
@@ -27,7 +28,7 @@ The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack2.gif" width="400" />
 </p>
 <p float="left">
-  (mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'. 1st Attack (left). 2nd Attack (right).)
+  (Agent's 1st Attack (left). Agent's 2nd Attack (right).)
 </p>
 
 
