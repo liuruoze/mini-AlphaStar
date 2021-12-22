@@ -18,10 +18,8 @@ Below is mAS's trained performance on Simple64, by supervised learning on 50 rep
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="400" />
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="400" /> 
 </p>
-<p float="left">
-  (At start of the game (left). In the middle period (right).)
-</p>
 
+**Left:** At start of the game. **Right:** In the middle period (right).
 
 <p float="left">
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="400" />
