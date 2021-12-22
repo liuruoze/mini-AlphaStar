@@ -1,9 +1,10 @@
 # mini-AlphaStar
 
 <p float="left">
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="100" />
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="100" /> 
-  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="100" />
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="200" />
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="200" /> 
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="200" />
+  <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack2.gif" width="200" />
 </p>
 
 ## Introduction
