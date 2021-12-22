@@ -18,7 +18,7 @@ The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="200" />
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack2.gif" width="200" />
 </p>
-<p float="center"> 
+<p style="text-align:center;"> 
   (mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'.)
 </p>
 
