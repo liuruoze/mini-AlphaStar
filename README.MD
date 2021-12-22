@@ -19,14 +19,14 @@ Below is mAS's trained performance on Simple64, by supervised learning on 50 rep
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/middle.gif" width="360" /> 
 </p>
 
-**Left:** At start of the game.                          **Right:** In the middle period.
+**Left:** At the start of the game.     **Right:** In the middle period of the game.
 
 <p float="left">
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack1.gif" width="360" />
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/attack2.gif" width="360" />
 </p>
 
-**Left:** Agent's 1st attack.                            **Right:** Agent's 2nd Attack.
+**Left:** The agent's 1st attack.      **Right:** The agent's 2nd Attack.
 
 ## Update
 
