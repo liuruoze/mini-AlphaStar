@@ -1,5 +1,7 @@
 # mini-AlphaStar
 
+![start](https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif)
+
 ## Introduction
 
 We release mini-AlphaStar (mAS), which is a **mini-scale** version of the AlphaStar (AS) program. AS is the intelligent AI proposed by DeepMind to play StarCraft II (SC2). 
