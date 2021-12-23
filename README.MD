@@ -12,7 +12,7 @@ Meanwhile, we also try not to use too many dependency packages, so that mAS shou
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
-Below is mAS's trained performance on Simple64, by supervised learning on 50 replays of experts'.
+Below 4 gifs are in the part of mAS's trained performance on Simple64, trained by supervised learning on 50 replays of experts'.
 
 <p float="left">
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="360" />
@@ -47,12 +47,12 @@ This is the "v_1.05" version. In this one, we refactor most of the codes, making
 
 ## Location
 
-The codes are stored in two places. 
+The codes and show videos are stored in two places. 
 
-Location | Usage | Results video
+Codes location | Result video location | Usage 
 ------------ | ------------- | -------------
-[Github](https://github.com/liuruoze/mini-AlphaStar) | for global users | [Youtube](https://youtu.be/mTtA0vdAULw)
-[Gitee](https://gitee.com/liuruoze/mini-AlphaStar) | for users in China | [Bilibili](https://www.bilibili.com/video/BV1Hm4y197Jm/)
+[Github](https://github.com/liuruoze/mini-AlphaStar) | [Youtube](https://youtu.be/mTtA0vdAULw) | for global users 
+[Gitee](https://gitee.com/liuruoze/mini-AlphaStar) | [Bilibili](https://www.bilibili.com/video/BV1Hm4y197Jm/) | for users in China 
 
 ## Contents
 
