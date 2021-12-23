@@ -49,10 +49,10 @@ This is the "v_1.05" version. In this one, we refactor most of the codes, making
 
 The codes are stored in two places. 
 
-Location | Usage
------------- | -------------
-[Github](https://github.com/liuruoze/mini-AlphaStar) | for global users
-[Gitee](https://gitee.com/liuruoze/mini-AlphaStar) | for users who are not fast to access Github easily in China
+Location | Usage | Results video
+------------ | ------------- | -------------
+[Github](https://github.com/liuruoze/mini-AlphaStar) | for global users | [Youtube](https://youtu.be/mTtA0vdAULw)
+[Gitee](https://gitee.com/liuruoze/mini-AlphaStar) | for users in China | [Bilibili](https://www.bilibili.com/video/BV1Hm4y197Jm/)
 
 ## Contents
 

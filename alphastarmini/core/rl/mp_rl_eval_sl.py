@@ -44,13 +44,14 @@ speed = False
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     raise NotImplementedError
-else:
-    GAME_STEPS_PER_EPISODE = 18000  # 24000    # 9000
-    SAVE_STATISTIC = True
-    SAVE_REPLAY = True
-    MAX_EPISODES = 1
 
+SAVE_STATISTIC = True
+SAVE_REPLAY = True
+# 24000
+GAME_STEPS_PER_EPISODE = 18000  
+MAX_EPISODES = 4
 ACTOR_NUMS = 5
+DIFFICULTY = 3
 
 # model path
 MODEL_TYPE = "sl"
@@ -60,13 +61,13 @@ IS_TRAINING = False
 MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
 USE_PREDICT_STEP_MUL = AHP.use_predict_step_mul
 STEP_MUL = 8
+WIN_THRESHOLD = 4000
 
-DIFFICULTY = 1
+
 RANDOM_SEED = 1
 VERSION = SCHP.game_version
 
 RESTORE = True
-
 OUTPUT_FILE = './output/mp_eval_sl.txt'
 
 # gpu setting
@@ -293,7 +294,7 @@ class ActorEval:
 
                                     killed_points = killed_minerals + killed_vespene
 
-                                    if killed_points > 4000:
+                                    if killed_points > WIN_THRESHOLD:
                                         outcome = 1
 
                                     food_used_list.append(food_used)
@@ -306,8 +307,8 @@ class ActorEval:
                                     end_episode_time = time()  # in seconds.
                                     end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(end_episode_time))
 
-                                    statistic = 'Agent ID: {} | Episode: [{}/{}] | food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
-                                        self.idx, total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
+                                    statistic = 'Agent ID: {} | Bot Difficulty: {} | Episode: [{}/{}] | food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
+                                        self.idx, DIFFICULTY, total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
 
                                     statistic = end_episode_time + " " + statistic
 
@@ -362,7 +363,8 @@ class ActorEval:
             total_time = time() - training_start_time
 
             if SAVE_STATISTIC: 
-                self.coordinator.send_eval_results(self.player, food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, steps_list, total_time)
+                self.coordinator.send_eval_results(self.player, DIFFICULTY, food_used_list, army_count_list, collected_points_list, 
+                                                   used_points_list, killed_points_list, steps_list, total_time)
 
             self.is_running = False
 
