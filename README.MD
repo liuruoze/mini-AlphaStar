@@ -12,7 +12,7 @@ Meanwhile, we also try not to use too many dependency packages, so that mAS shou
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
-Below 4 GIFs are parts of mAS's trained performance on Simple64, trained by supervised learning on 50 expert replays.
+Below 4 GIFs are mAS's trained performance on Simple64, by supervised learning on 50 expert replays.
 
 <p float="left">
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="360" />
