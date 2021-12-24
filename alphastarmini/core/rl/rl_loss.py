@@ -218,17 +218,17 @@ def policy_gradient_loss(logits, actions, advantages, mask):
     # advantages: shape [BATCH_SIZE]
     # mask: shape [BATCH_SIZE]
     action_log_prob = RA.log_prob(actions, logits, reduction="none")
-    print("action_log_prob:", action_log_prob) if 1 else None
-    print("action_log_prob.shape:", action_log_prob.shape) if 1 else None
+    print("action_log_prob:", action_log_prob) if debug else None
+    print("action_log_prob.shape:", action_log_prob.shape) if debug else None
 
     # advantages = stop_gradient(advantages)
     advantages = advantages.clone().detach()
-    print("advantages:", advantages) if 1 else None
-    print("advantages.shape:", advantages.shape) if 1 else None
+    print("advantages:", advantages) if debug else None
+    print("advantages.shape:", advantages.shape) if debug else None
 
     results = mask * advantages * action_log_prob
-    print("results:", results) if 1 else None
-    print("results.shape:", results.shape) if 1 else None
+    print("results:", results) if debug else None
+    print("results.shape:", results.shape) if debug else None
 
     # note, we should do policy ascent on the results
     # which means if we use policy descent, we should add a "-" sign for results
@@ -239,10 +239,10 @@ def policy_gradient_loss(logits, actions, advantages, mask):
 
 def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
                    action_fields):
-    if action_fields == 'units':
-        debug = True
-    else:
-        debug = False
+    # if action_fields == 'units':
+    #     debug = True
+    # else:
+    #     debug = False
 
     # Remove last timestep from trajectories and baselines.
     print("action_fields", action_fields) if debug else None
@@ -299,7 +299,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
         print("player_select_units_num.shape", player_select_units_num.shape) if debug else None
 
         # when computing logits, we consider the EOF
-        player_select_units_num = player_select_units_num
+        player_select_units_num = player_select_units_num + 1
 
         selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
         selected_mask = selected_mask.repeat(seqbatch_shape, 1)
@@ -379,8 +379,8 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     result = compute_over_actions(policy_gradient_loss, target_logits,
                                   actions, weighted_advantage, masks)
 
-    if action_fields == 'units':
-        stop()
+    # if action_fields == 'units':
+    #     stop()
 
     if action_fields == 'units':
         result = result.reshape(-1, AHP.max_selected)
@@ -389,10 +389,10 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     print("result", result) if debug else None
     print("result.shape", result.shape) if debug else None
 
-    if action_fields == 'units':
-        debug = False
-    else:
-        debug = False
+    # if action_fields == 'units':
+    #     debug = False
+    # else:
+    #     debug = False
 
     # note: we change back to use only result 
     return result

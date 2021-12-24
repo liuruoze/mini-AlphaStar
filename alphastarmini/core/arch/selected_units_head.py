@@ -197,8 +197,8 @@ class SelectedUnitsHead(nn.Module):
 
             # entity_logits shape: [batch_size x entity_size]
             entity_logits = y.div(self.temperature)
-            print("entity_logits:", entity_logits) if 1 else None
-            print("entity_logits.shape:", entity_logits.shape) if 1 else None
+            print("entity_logits:", entity_logits) if debug else None
+            print("entity_logits.shape:", entity_logits.shape) if debug else None
 
             # entity_probs shape: [batch_size x entity_size]
             entity_probs = self.softmax(entity_logits)

@@ -75,7 +75,7 @@ class EntityEncoder(nn.Module):
     max_was_selected = 2
     max_was_targeted = 2
 
-    bias_value = -1e9
+    bias_value = 0.  # -1e9
 
     '''
     Inputs: entity_list
@@ -98,9 +98,6 @@ class EntityEncoder(nn.Module):
         self.conv1 = nn.Conv1d(original_256, original_256, kernel_size=1, stride=1,
                                padding=0, bias=True)
         self.fc1 = nn.Linear(original_256, original_256)
-
-        # how many real entities we have
-        self.real_entities_size = 0
 
     @classmethod
     def preprocess_numpy(cls, entity_list, return_entity_pos=False, debug=False):
@@ -328,8 +325,7 @@ class EntityEncoder(nn.Module):
         # count how many real entities we have
         real_entities_size = all_entities_array.shape[0]
 
-        # we use a bias of -1e9 for any of the 512 entries that doesn't refer to an entity.
-        # TODO: make it better
+        # we use a bias of 0 for any of the 512 entries that doesn't refer to an entity.
         if all_entities_array.shape[0] < cls.max_entities:
             bias_length = cls.max_entities - all_entities_array.shape[0]
             bias = np.zeros((bias_length, AHP.embedding_size))
@@ -356,7 +352,7 @@ class EntityEncoder(nn.Module):
         tmp_x = torch.mean(x, dim=2, keepdim=False)
 
         # tmp_y: [batch_seq_size x entities_size]
-        tmp_y = (tmp_x > self.bias_value + 1e3)
+        tmp_y = (tmp_x != self.bias_value)
 
         # entity_num: [batch_seq_size]
         entity_num = torch.sum(tmp_y, dim=1, keepdim=False)
@@ -370,6 +366,7 @@ class EntityEncoder(nn.Module):
 
         # this means for each batch, there are how many real enetities
         print('entity_num:', entity_num) if debug else None
+        assert entity_num.min() > 0
 
         # generate the mask for transformer
         mask = torch.arange(0, self.max_entities).float()

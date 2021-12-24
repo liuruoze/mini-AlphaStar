@@ -219,15 +219,15 @@ class ActorVSComputer:
                             print("player_action:", player_action) if debug else None
                             print("player_action.delay:", player_action.delay) if debug else None
 
-                            select_units = player_logits.units
-                            print("select_units:", select_units) if 1 else None
-                            print("select_units.shape:", select_units.shape) if 1 else None
+                            # select_units = player_logits.units
+                            # print("select_units:", select_units) if 1 else None
+                            # print("select_units.shape:", select_units.shape) if 1 else None
 
-                            select_1 = select_units[0, 0]
-                            print("select_1:", select_1) if 1 else None
-                            print("select_1.shape:", select_1.shape) if 1 else None
+                            # select_1 = select_units[0, 0]
+                            # print("select_1:", select_1) if 1 else None
+                            # print("select_1.shape:", select_1.shape) if 1 else None
 
-                            select_2 = select_units[0, 1]
+                            # select_2 = select_units[0, 1]
 
                             print("player_select_units_num:", player_select_units_num) if debug else None
 

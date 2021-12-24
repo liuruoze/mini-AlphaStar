@@ -74,8 +74,9 @@ flags.DEFINE_float("no_op_threshold", 0.000, "The threshold to save no op operat
 # move_camera_threshold = (50 / 1) * len(RAW_FUNCTIONS) * scale_factor_2
 flags.DEFINE_float("move_camera_threshold", 0.00, "The threshold to save move_camera operations.")  # 0.05
 flags.DEFINE_float("Smart_pt_threshold", 0.0, "The threshold to save no op operations.")  # 0.3
-flags.DEFINE_float("Smart_unit_threshold", 0.2, "The threshold to save no op operations.")  # 0.3
-
+flags.DEFINE_float("Smart_unit_threshold", 0.1, "The threshold to save no op operations.")  # 0.3
+flags.DEFINE_float("Harvest_Gather_unit_threshold", 0.1, "The threshold to save no op operations.")  # 0.3
+flags.DEFINE_float("Attack_pt_threshold", 0.2, "The threshold to save no op operations.")  # 0.3
 
 flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
 flags.DEFINE_integer("observed_player", 1, "Which player to observe. For 2 player game, this can be 1 or 2.")
@@ -524,6 +525,12 @@ def test(on_server=False):
                                             func_call = None
                                     elif func_call.function.value == RAW_FUNCTIONS.Smart_unit.id.value:  # Smart_unit
                                         if random.uniform(0, 1) > FLAGS.Smart_unit_threshold:
+                                            func_call = None
+                                    elif func_call.function.value == RAW_FUNCTIONS.Harvest_Gather_unit.id.value:  # Harvest_Gather_unit
+                                        if random.uniform(0, 1) > FLAGS.Harvest_Gather_unit_threshold:
+                                            func_call = None
+                                    elif func_call.function.value == RAW_FUNCTIONS.Attack_pt.id.value:  # Harvest_Gather_unit
+                                        if random.uniform(0, 1) > FLAGS.Attack_pt_threshold:
                                             func_call = None
                             else:
                                 no_op = True

@@ -133,14 +133,14 @@ class ArchModel(nn.Module):
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
         entity_embeddings, embedded_entity, entity_nums = self.entity_encoder(state.entity_state)   
 
-        print('entity_embeddings:', entity_embeddings) if 1 else None
-        print('entity_embeddings.shape:', entity_embeddings.shape) if 1 else None
+        print('entity_embeddings:', entity_embeddings) if debug else None
+        print('entity_embeddings.shape:', entity_embeddings.shape) if debug else None
 
-        print('embedded_entity:', embedded_entity) if 1 else None
-        print('embedded_entity.shape:', embedded_entity.shape) if 1 else None
+        print('embedded_entity:', embedded_entity) if debug else None
+        print('embedded_entity.shape:', embedded_entity.shape) if debug else None
 
-        print('entity_nums:', entity_nums) if 1 else None
-        print('entity_nums.shape:', entity_nums.shape) if 1 else None
+        print('entity_nums:', entity_nums) if debug else None
+        print('entity_nums.shape:', entity_nums.shape) if debug else None
 
         if AHP.scatter_channels:
             map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
@@ -160,14 +160,14 @@ class ArchModel(nn.Module):
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions)
 
-        print('action_type_logits:', action_type_logits) if 1 else None
-        print('action_type_logits.shape:', action_type_logits.shape) if 1 else None
+        print('action_type_logits:', action_type_logits) if debug else None
+        print('action_type_logits.shape:', action_type_logits.shape) if debug else None
 
-        print('action_type:', action_type) if 1 else None
-        print('action_type.shape:', action_type.shape) if 1 else None
+        print('action_type:', action_type) if debug else None
+        print('action_type.shape:', action_type.shape) if debug else None
 
-        print('autoregressive_embedding:', autoregressive_embedding) if 1 else None
-        print('autoregressive_embedding.shape:', autoregressive_embedding.shape) if 1 else None       
+        print('autoregressive_embedding:', autoregressive_embedding) if debug else None
+        print('autoregressive_embedding.shape:', autoregressive_embedding.shape) if debug else None       
 
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
@@ -176,16 +176,14 @@ class ArchModel(nn.Module):
                                                                                                    entity_embeddings, 
                                                                                                    entity_nums)
 
-        print('units_logits:', units_logits) if 1 else None
-        print('units_logits.shape:', units_logits.shape) if 1 else None
+        print('units_logits:', units_logits) if debug else None
+        print('units_logits.shape:', units_logits.shape) if debug else None
 
-        print('units:', units) if 1 else None
-        print('units.shape:', units.shape) if 1 else None
+        print('units:', units) if debug else None
+        print('units.shape:', units.shape) if debug else None
 
-        print('autoregressive_embedding:', autoregressive_embedding) if 1 else None
-        print('autoregressive_embedding.shape:', autoregressive_embedding.shape) if 1 else None       
-
-        stop()
+        print('autoregressive_embedding:', autoregressive_embedding) if debug else None
+        print('autoregressive_embedding.shape:', autoregressive_embedding.shape) if debug else None       
 
         target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, 
                                                                 action_type, entity_embeddings, entity_nums)
