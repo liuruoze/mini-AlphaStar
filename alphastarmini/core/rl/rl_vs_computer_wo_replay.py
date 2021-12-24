@@ -32,6 +32,7 @@ from alphastarmini.core.ma.coordinator import Coordinator
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
+from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 
 from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
@@ -45,17 +46,22 @@ speed = False
 
 MAX_EPISODES = 3
 IS_TRAINING = True
-MAP_NAME = "Simple64"
+MAP_NAME = SCHP.map_name
 STEP_MUL = 8
-GAME_STEPS_PER_EPISODE = 9000    # 9000
+GAME_STEPS_PER_EPISODE = 18000    # 9000
 
 DIFFICULTY = 1
 RANDOM_SEED = 1
-VERSION = '3.16.1'
+VERSION = SCHP.game_version
 
 RESTORE = True
 SAVE_REPLAY = False
 DEFINED_REWARD = True
+
+# model path
+MODEL_TYPE = "sl"
+MODEL_PATH = "./model/"
+ACTOR_NUMS = 1
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -212,6 +218,17 @@ class ActorVSComputer:
                             print("player_function_call:", player_function_call) if debug else None
                             print("player_action:", player_action) if debug else None
                             print("player_action.delay:", player_action.delay) if debug else None
+
+                            select_units = player_logits.units
+                            print("select_units:", select_units) if 1 else None
+                            print("select_units.shape:", select_units.shape) if 1 else None
+
+                            select_1 = select_units[0, 0]
+                            print("select_1:", select_1) if 1 else None
+                            print("select_1.shape:", select_1.shape) if 1 else None
+
+                            select_2 = select_units[0, 1]
+
                             print("player_select_units_num:", player_select_units_num) if debug else None
 
                             if False:
@@ -295,7 +312,7 @@ class ActorVSComputer:
                                 teacher_logits=teacher_logits,      
                                 is_final=is_final,                                          
                                 reward=reward,
-
+                                player_select_units_num=player_select_units_num,
                                 build_order=player_bo,
                                 z_build_order=player_bo,  # we change it to the sampled build order
                                 unit_counts=player_ucb,  # player_ucb,
@@ -541,11 +558,6 @@ def injected_function_call(home_obs, env, function_call):
 
 
 def test(on_server=False, replay_path=None):
-    # model path
-    MODEL_TYPE = "sl"
-    MODEL_PATH = "./model/"
-    ACTOR_NUMS = 1
-
     league = League(
         initial_agents={
             race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)

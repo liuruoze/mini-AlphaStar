@@ -218,17 +218,17 @@ def policy_gradient_loss(logits, actions, advantages, mask):
     # advantages: shape [BATCH_SIZE]
     # mask: shape [BATCH_SIZE]
     action_log_prob = RA.log_prob(actions, logits, reduction="none")
-    print("action_log_prob:", action_log_prob) if debug else None
-    print("action_log_prob.shape:", action_log_prob.shape) if debug else None
+    print("action_log_prob:", action_log_prob) if 1 else None
+    print("action_log_prob.shape:", action_log_prob.shape) if 1 else None
 
     # advantages = stop_gradient(advantages)
     advantages = advantages.clone().detach()
-    print("advantages:", advantages) if debug else None
-    print("advantages.shape:", advantages.shape) if debug else None
+    print("advantages:", advantages) if 1 else None
+    print("advantages.shape:", advantages.shape) if 1 else None
 
     results = mask * advantages * action_log_prob
-    print("results:", results) if debug else None
-    print("results.shape:", results.shape) if debug else None
+    print("results:", results) if 1 else None
+    print("results.shape:", results.shape) if 1 else None
 
     # note, we should do policy ascent on the results
     # which means if we use policy descent, we should add a "-" sign for results
@@ -239,6 +239,11 @@ def policy_gradient_loss(logits, actions, advantages, mask):
 
 def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
                    action_fields):
+    if action_fields == 'units':
+        debug = True
+    else:
+        debug = False
+
     # Remove last timestep from trajectories and baselines.
     print("action_fields", action_fields) if debug else None
 
@@ -280,16 +285,35 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     print("actions", actions) if debug else None
     print("actions.shape", actions.shape) if debug else None
 
+    selected_mask = None
     if action_fields == 'units' or action_fields == 'target_unit':
+        seqbatch_shape = target_logits.shape[0]
         seqbatch_unit_shape = target_logits.shape[0:2]
+        select_max_size = target_logits.shape[1]
         target_logits = target_logits.reshape(-1, target_logits.shape[-1])
         behavior_logits = behavior_logits.reshape(-1, behavior_logits.shape[-1])
         actions = actions.reshape(-1, actions.shape[-1])
+
+        player_select_units_num = torch.tensor(trajectories.player_select_units_num).reshape(-1)
+        print("player_select_units_num", player_select_units_num) if debug else None
+        print("player_select_units_num.shape", player_select_units_num.shape) if debug else None
+
+        # when computing logits, we consider the EOF
+        player_select_units_num = player_select_units_num
+
+        selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
+        selected_mask = selected_mask.repeat(seqbatch_shape, 1)
+        selected_mask = selected_mask < player_select_units_num.unsqueeze(dim=1)
+        print("selected_mask:", selected_mask) if debug else None
+        print("selected_mask.shape:", selected_mask.shape) if debug else None
+
+        assert selected_mask.dtype == torch.bool
+
     elif action_fields == 'target_location':
         target_logits = target_logits.reshape(target_logits.shape[0], -1)
         behavior_logits = behavior_logits.reshape(behavior_logits.shape[0], -1)
 
-        actions_2 = torch.zeros(behavior_logits.shape[0], 1, dtype=torch.int64, device=device)
+        actions_2 = torch.zeros(behavior_logits.shape[0], 1, dtype=torch.int64, device=behavior_logits.device)
         print("actions_2.shape", actions_2.shape) if debug else None
 
         for i, pos in enumerate(actions):
@@ -344,12 +368,19 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
 
         weighted_advantage = torch.cat([weighted_advantage] * AHP.max_selected, dim=1)
         masks = torch.cat([masks] * AHP.max_selected, dim=1)
+        masks = masks * selected_mask.reshape(-1)
     else:
         target_logits = target_logits.reshape(sequence_length - 1, batch_size, -1)
         actions = actions.reshape(sequence_length - 1, batch_size, -1)
 
+    print("masks", masks) if debug else None
+    print("masks.shape", masks.shape) if debug else None
+
     result = compute_over_actions(policy_gradient_loss, target_logits,
                                   actions, weighted_advantage, masks)
+
+    if action_fields == 'units':
+        stop()
 
     if action_fields == 'units':
         result = result.reshape(-1, AHP.max_selected)
@@ -357,6 +388,11 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
 
     print("result", result) if debug else None
     print("result.shape", result.shape) if debug else None
+
+    if action_fields == 'units':
+        debug = False
+    else:
+        debug = False
 
     # note: we change back to use only result 
     return result
@@ -382,17 +418,34 @@ def split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories):
     # The weighting of these updates will be considered 1.0.
 
     loss = 0.
-    loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'action_type')
+
+    action_type_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'action_type')
+    loss += action_type_loss
+    print('action_type_loss', action_type_loss) if debug else None
 
     if True:
-        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'delay')
+        delay_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'delay')
+        loss += delay_loss
+        print('delay_loss', delay_loss) if debug else None
 
         # note: here we use queue, units, target_unit and target_location to replace the single arguments
         # loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'arguments')
-        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'queue')
-        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'units')
-        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_unit')
-        loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_location')
+
+        queue_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'queue')
+        loss += queue_loss
+        print('queue_loss', queue_loss) if debug else None
+
+        units_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'units')
+        loss += units_loss
+        print('units_loss', units_loss) if debug else None
+
+        target_unit_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_unit')
+        loss += target_unit_loss
+        print('target_unit_loss', target_unit_loss) if debug else None
+
+        target_location_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_location')
+        loss += target_location_loss
+        print('target_location_loss', target_location_loss) if debug else None
 
     return loss.mean()
 
@@ -635,7 +688,7 @@ def loss_function(agent, trajectories):
 
             # we add the split_vtrace_pg_loss
             pg_loss = split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories)
-            print("pg_loss:", pg_loss) if debug else None
+            print("pg_loss:", pg_loss) if 1 else None
 
             loss_actor_critic += (pg_cost * pg_loss)
 

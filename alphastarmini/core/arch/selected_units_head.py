@@ -197,6 +197,8 @@ class SelectedUnitsHead(nn.Module):
 
             # entity_logits shape: [batch_size x entity_size]
             entity_logits = y.div(self.temperature)
+            print("entity_logits:", entity_logits) if 1 else None
+            print("entity_logits.shape:", entity_logits.shape) if 1 else None
 
             # entity_probs shape: [batch_size x entity_size]
             entity_probs = self.softmax(entity_logits)
@@ -277,8 +279,8 @@ class SelectedUnitsHead(nn.Module):
         padding_size = self.max_selected - units_logits.shape[1]
         if padding_size > 0:
             pad_units_logits = torch.ones(units_logits.shape[0], padding_size, units_logits.shape[2],
-                                          dtype=units_logits.dtype, device=units_logits.device)
-            units_logits = torch.cat([units_logits, pad_units_logits], dim=1) * -1e9
+                                          dtype=units_logits.dtype, device=units_logits.device) * (-1e9)
+            units_logits = torch.cat([units_logits, pad_units_logits], dim=1) 
 
             pad_units = torch.zeros(units.shape[0], padding_size, units.shape[2],
                                     dtype=units.dtype, device=units.device)
