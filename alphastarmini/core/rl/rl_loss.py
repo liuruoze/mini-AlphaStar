@@ -239,11 +239,6 @@ def policy_gradient_loss(logits, actions, advantages, mask):
 
 def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
                    action_fields):
-    # if action_fields == 'units':
-    #     debug = True
-    # else:
-    #     debug = False
-
     # Remove last timestep from trajectories and baselines.
     print("action_fields", action_fields) if debug else None
 
@@ -379,20 +374,12 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     result = compute_over_actions(policy_gradient_loss, target_logits,
                                   actions, weighted_advantage, masks)
 
-    # if action_fields == 'units':
-    #     stop()
-
     if action_fields == 'units':
         result = result.reshape(-1, AHP.max_selected)
         result = torch.mean(result, dim=-1)
 
     print("result", result) if debug else None
     print("result.shape", result.shape) if debug else None
-
-    # if action_fields == 'units':
-    #     debug = False
-    # else:
-    #     debug = False
 
     # note: we change back to use only result 
     return result
