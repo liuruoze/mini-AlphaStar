@@ -326,7 +326,8 @@ class ScalarEncoder(nn.Module):
         x = F.relu(self.enemy_upgrades_fc(enemy_upgrades))
         embedded_scalar_list.append(x)
 
-        # TODO: time: A transformer positional encoder encoded the time into a 1D tensor of size 64
+        # time: A transformer positional encoder encoded the time into a 1D tensor of size 64
+        # do it in the preprocess
         x = time
         embedded_scalar_list.append(x)
 

@@ -88,72 +88,6 @@ class Agent(object):
 
         return state
 
-    def get_scalar_list(self, obs, build_order=None):
-        scalar_list = []
-
-        # implement the agent_statistics
-        player = obs["player"]
-        player_statistics = player[1:]
-        agent_statistics = torch.tensor(player_statistics, dtype=torch.float).reshape(1, -1)
-        print('agent_statistics:', agent_statistics) if debug else None
-
-        # implement the upgrades
-        upgrades = torch.zeros(1, SFS.upgrades)
-        obs_upgrades = obs["upgrades"]
-        print('obs_upgrades:', obs_upgrades) if debug else None
-        for u in obs_upgrades:
-            assert u >= 0 
-            assert u < SFS.upgrades
-            upgrades[0, u] = 1
-
-        # implement the unit_counts_bow
-        unit_counts_bow = L.calculate_unit_counts_bow(obs)
-        print('unit_counts_bow:', unit_counts_bow) if debug else None
-        print('torch.sum(unit_counts_bow):', torch.sum(unit_counts_bow)) if debug else None
-
-        # TODO: implement the units_buildings
-        units_buildings = torch.randn(1, SFS.units_buildings)
-
-        # implement the effects
-        effects = torch.zeros(1, SFS.effects)
-        # we now use feature_effects to represent it
-        feature_effects = obs["feature_effects"]
-        print('feature_effects:', feature_effects) if debug else None
-        for effect in feature_effects:
-            e = effect.effect_id
-            assert e >= 0 
-            assert e < SFS.effects
-            effects[0, e] = 1
-        # the raw effects are reserved for use
-        raw_effects = obs["raw_effects"]
-        print('raw_effects:', raw_effects) if debug else None
-
-        # now we simplely make upgrade the same as upgrades
-        upgrade = upgrades
-
-        # implement the build order
-        # TODO: add the pos of buildings
-        beginning_build_order = torch.zeros(1, SCHP.count_beginning_build_order, int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
-        print('beginning_build_order.shape:', beginning_build_order.shape) if debug else None
-        if build_order is not None:
-            # implement the beginning_build_order               
-            for i, bo in enumerate(build_order):
-                if i < 20:
-                    assert bo < SFS.unit_counts_bow
-                    beginning_build_order[0, i, bo] = 1
-            print("beginning_build_order:", beginning_build_order) if debug else None
-            print("sum(beginning_build_order):", torch.sum(beginning_build_order).item()) if debug else None
-
-        scalar_list.append(agent_statistics)
-        scalar_list.append(upgrades)
-        scalar_list.append(unit_counts_bow)
-        scalar_list.append(units_buildings)
-        scalar_list.append(effects)
-        scalar_list.append(upgrade)
-        scalar_list.append(beginning_build_order)
-
-        return scalar_list
-
     def preprocess_baseline_state(self, home_obs, away_obs, build_order=None):
         batch_size = 1
 
@@ -278,6 +212,47 @@ class Agent(object):
     @staticmethod
     def preprocess_state_spatial_numpy(obs, entity_pos_list=None):
         return ArchModel.preprocess_spatial_numpy(obs, entity_pos_list=entity_pos_list)
+
+    @staticmethod
+    def get_baseline_state_from_multi_source_state(msstate):
+        scalar_list = msstate.statistical_state
+
+        # statistical_state feature
+        # scalar_list.append(agent_statistics)
+        # scalar_list.append(home_race)
+        # scalar_list.append(away_race)
+        # scalar_list.append(upgrades)
+        # scalar_list.append(enemy_upgrades)
+        # scalar_list.append(time)
+
+        # scalar_list.append(available_actions)
+        # scalar_list.append(unit_counts_bow)
+        # scalar_list.append(mmr)
+        # scalar_list.append(units_buildings)
+        # scalar_list.append(effects)
+        # scalar_list.append(upgrade)
+
+        # scalar_list.append(beginning_build_order)
+        # scalar_list.append(last_delay)
+        # scalar_list.append(last_action_type)
+        # scalar_list.append(last_repeat_queued)
+
+        # baseline feature
+        # scalar_list.append(agent_statistics)
+        # scalar_list.append(upgrades)
+        # scalar_list.append(unit_counts_bow)
+        # scalar_list.append(units_buildings)
+        # scalar_list.append(effects)
+        # scalar_list.append(upgrade)
+        # scalar_list.append(beginning_build_order)
+
+        baseline_index = [0, 3, 7, 9, 10, 11, 12]
+
+        # can not use index list in python list
+        # return scalar_list[baseline_index]
+
+        baseline_state = [e for i, e in enumerate(scalar_list) if i in baseline_index]
+        return baseline_state
 
     @staticmethod
     def preprocess_state_all(obs, build_order=None, last_list=None):

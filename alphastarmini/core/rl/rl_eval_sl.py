@@ -214,10 +214,6 @@ class ActorEval:
                                                                                     build_order=player_bo, 
                                                                                     last_list=last_list)
 
-                            # TODO, implement baseline process in preprocess_state_all_plus_baseline (a new function)
-                            # baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, 
-                            #                                                             build_order=player_bo)
-
                             player_step = self.player.agent.step_from_state(state, player_memory)
 
                             player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step

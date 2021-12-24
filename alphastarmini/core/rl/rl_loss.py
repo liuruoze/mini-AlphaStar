@@ -528,11 +528,29 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
 
     actions = filter_by_for_lists(action_fields, trajectories.action)
 
+    selected_mask = None
     if action_fields == 'units' or action_fields == 'target_unit':
+        seqbatch_shape = target_logits.shape[0]
         seqbatch_unit_shape = target_logits.shape[0:2]
+        select_max_size = target_logits.shape[1]
         target_logits = target_logits.reshape(-1, target_logits.shape[-1])
         behavior_logits = behavior_logits.reshape(-1, behavior_logits.shape[-1])
         actions = actions.reshape(-1, actions.shape[-1])
+
+        player_select_units_num = torch.tensor(trajectories.player_select_units_num).reshape(-1)
+        print("player_select_units_num", player_select_units_num) if debug else None
+        print("player_select_units_num.shape", player_select_units_num.shape) if debug else None
+
+        # when computing logits, we consider the EOF
+        player_select_units_num = player_select_units_num + 1
+
+        selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
+        selected_mask = selected_mask.repeat(seqbatch_shape, 1)
+        selected_mask = selected_mask < player_select_units_num.unsqueeze(dim=1)
+        print("selected_mask:", selected_mask) if debug else None
+        print("selected_mask.shape:", selected_mask.shape) if debug else None
+
+        assert selected_mask.dtype == torch.bool
 
     if action_fields == 'target_location':
         target_logits = target_logits.reshape(target_logits.shape[0], -1)
@@ -577,6 +595,7 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
 
         weighted_advantage = torch.cat([weighted_advantage] * AHP.max_selected, dim=1)
         masks = torch.cat([masks] * AHP.max_selected, dim=1)
+        masks = masks * selected_mask.reshape(-1)
     else:
         target_logits = target_logits.reshape(AHP.sequence_length - 1, AHP.batch_size, -1)
         actions = actions.reshape(AHP.sequence_length - 1, AHP.batch_size, -1)
@@ -688,7 +707,7 @@ def loss_function(agent, trajectories):
 
             # we add the split_vtrace_pg_loss
             pg_loss = split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories)
-            print("pg_loss:", pg_loss) if 1 else None
+            print("pg_loss:", pg_loss) if debug else None
 
             loss_actor_critic += (pg_cost * pg_loss)
 
@@ -744,8 +763,8 @@ def loss_function(agent, trajectories):
     #print("stop", len(stop))
     loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
 
-    print("loss_actor_critic:", loss_actor_critic) if debug else None
-    print("loss_upgo:", loss_upgo) if debug else None
+    print("loss_actor_critic:", loss_actor_critic) if 1 else None
+    print("loss_upgo:", loss_upgo) if 1 else None
     print("loss_kl:", loss_kl) if debug else None
     print("loss_ent:", loss_ent) if debug else None
     print("loss_all:", loss_all) if debug else None

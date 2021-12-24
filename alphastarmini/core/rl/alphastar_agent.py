@@ -298,14 +298,14 @@ class AlphaStarAgent(RandomAgent):
         initial_memory_state = [torch.cat(l, dim=1) for l in zip(*initial_memory_list)]
 
         baseline_state_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_traj)]
-        print("baseline_state_all.shape:", baseline_state_all[0].shape) if debug else None
         baseline_state_op_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_op_traj)]
+        print("baseline_state_all.shape:", baseline_state_all[0].shape) if debug else None
 
         # change to device
         state_all.to(device)  # note: MsStata.to(device) in place operation
-        initial_memory_state = [l.to(device) for l in initial_memory_state]
-        baseline_state_all = [l.to(device) for l in baseline_state_all]
-        baseline_state_op_all = [l.to(device) for l in baseline_state_op_all]
+        initial_memory_state = [l.float().to(device) for l in initial_memory_state]
+        baseline_state_all = [l.float().to(device) for l in baseline_state_all]
+        baseline_state_op_all = [l.float().to(device) for l in baseline_state_op_all]
 
         # shape [batch_seq_size, embedding_size]
         baseline_list, policy_logits, select_units_num = self.agent_nn.unroll_traj(state_all=state_all, 

@@ -274,8 +274,11 @@ class ActorLoopPlusZ:
                                 state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, build_order=player_bo)
                                 state_op = self.player.agent.agent_nn.preprocess_state_all(away_obs.observation)
 
-                                baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, build_order=player_bo)
-                                baseline_state_op = self.player.agent.agent_nn.get_scalar_list(away_obs.observation)
+                                # baseline_state = self.player.agent.agent_nn.get_scalar_list(home_obs.observation, build_order=player_bo)
+                                # baseline_state_op = self.player.agent.agent_nn.get_scalar_list(away_obs.observation)
+
+                                baseline_state = self.player.agent.agent_nn.get_baseline_state_from_multi_source_state(state)
+                                baseline_state_op = self.player.agent.agent_nn.get_baseline_state_from_multi_source_state(state_op)
 
                                 player_step = self.player.agent.step_from_state(state, player_memory)
                                 player_function_call, player_action, player_logits, player_new_memory = player_step

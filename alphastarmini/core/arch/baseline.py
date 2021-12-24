@@ -12,6 +12,8 @@ from alphastarmini.core.arch.spatial_encoder import ResBlock1D
 
 from alphastarmini.lib.alphastar_transformer import Transformer
 
+from alphastarmini.lib import utils as L
+
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
@@ -57,11 +59,15 @@ class Baseline(nn.Module):
         self.units_buildings_fc = nn.Linear(n_units_buildings, original_32)  # with relu, also goto scalar_context
         self.effects_fc = nn.Linear(n_effects, original_32)  # with relu, also goto scalar_context
         self.upgrade_fc = nn.Linear(n_upgrade, original_32)  # with relu, also goto scalar_context. What is the difference with upgrades_fc?
-        self.before_beginning_build_order = nn.Linear(n_units_buildings, 16)  # without relu
-        self.beginning_build_order_transformer = Transformer(d_model=16, d_inner=32,
+
+        self.build_order_model_size = 16
+        self.before_beginning_build_order = nn.Linear(n_units_buildings + SCHP.count_beginning_build_order, 
+                                                      self.build_order_model_size)  # without relu  
+        self.beginning_build_order_transformer = Transformer(d_model=self.build_order_model_size, 
+                                                             d_inner=self.build_order_model_size * 2,
                                                              n_layers=3, n_head=2, 
                                                              d_k=8, d_v=8, 
-                                                             dropout=0.)  # make dropout=0 to make training and testing consistent
+                                                             dropout=0.)
         self.relu = nn.ReLU()
 
         self.embed_fc = nn.Linear(baseline_input, original_256)  # with relu
@@ -71,7 +77,7 @@ class Baseline(nn.Module):
 
         self.out_fc = nn.Linear(original_256, 1) 
 
-    def preprocess(self, various_observations):
+    def forward_process(self, various_observations):
         [agent_statistics, upgrades, unit_counts_bow,
          units_buildings, effects, upgrade, beginning_build_order] = various_observations
 
@@ -81,19 +87,10 @@ class Baseline(nn.Module):
         # a linear with 1 hidden unit.
 
         device = next(self.parameters()).device
-
         embedded_scalar_list = []
+
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
         the_log_statistics = torch.log(agent_statistics + 1)
-        if torch.isnan(the_log_statistics).any():
-            print('Find NAN the_log_statistics !', the_log_statistics)
-            eps = 1e-9
-            the_log_statistics = torch.log(self.relu(agent_statistics + 1) + eps)
-
-            if torch.isnan(the_log_statistics).any():
-                print('Find NAN the_log_statistics !', the_log_statistics)
-                the_log_statistics = torch.ones_like(agent_statistics, device=device)
-
         x = F.relu(self.statistics_fc(the_log_statistics))
         embedded_scalar_list.append(x)
 
@@ -139,13 +136,30 @@ class Baseline(nn.Module):
         print("beginning_build_order:", beginning_build_order) if debug else None
         print("beginning_build_order.shape:", beginning_build_order.shape) if debug else None
 
-        x = self.beginning_build_order_transformer(self.before_beginning_build_order(beginning_build_order))
-        print("x:", x) if debug else None
-        print("x.shape:", x.shape) if debug else None
+        batch_size = beginning_build_order.shape[0]
 
-        x = x.reshape(x.shape[0], SCHP.count_beginning_build_order * 16)
-        print("x:", x) if debug else None
-        print("x.shape:", x.shape) if debug else None
+        # TODO: add the seq info
+        seq = torch.arange(SCHP.count_beginning_build_order)
+        seq = L.tensor_one_hot(seq, SCHP.count_beginning_build_order)
+        seq = seq.unsqueeze(0).repeat(batch_size, 1, 1).to(beginning_build_order.device)
+
+        bo_sum = beginning_build_order.sum(dim=-1, keepdim=False)
+        bo_sum = bo_sum.sum(dim=-1, keepdim=False)
+        bo_sum = bo_sum.unsqueeze(1)
+        bo_sum = bo_sum.repeat(1, SCHP.count_beginning_build_order)
+
+        mask = torch.arange(SCHP.count_beginning_build_order)
+        mask = mask.unsqueeze(0).repeat(batch_size, 1).to(bo_sum.device)
+        mask = mask < bo_sum
+        mask = mask.unsqueeze(2).repeat(1, 1, SCHP.count_beginning_build_order)
+
+        # add the seq info, referenced by the processing way of DI-star
+        x = torch.cat([beginning_build_order, seq], dim=2)
+        x = self.before_beginning_build_order(x)
+
+        # like in entity encoder, we add a sequence mask
+        x = self.beginning_build_order_transformer(x, mask=mask)
+        x = x.reshape(x.shape[0], SCHP.count_beginning_build_order * self.build_order_model_size)
 
         embedded_scalar_list.append(x)
         embedded_scalar = torch.cat(embedded_scalar_list, dim=1)
@@ -156,11 +170,11 @@ class Baseline(nn.Module):
         return embedded_scalar
 
     def forward(self, lstm_output, various_observations, opponent_observations):
-        # TODO: check and improve it
-        player_scalar_out = self.preprocess(various_observations)
+        # check and improve it
+        player_scalar_out = self.forward_process(various_observations)
 
         # AlphaStar: The baseline extracts those same observations from `opponent_observations`.
-        opponenet_scalar_out = self.preprocess(opponent_observations)
+        opponenet_scalar_out = self.forward_process(opponent_observations)
 
         # AlphaStar: These features are all concatenated together to yield `action_type_input`
         action_type_input = torch.cat([lstm_output, player_scalar_out, opponenet_scalar_out], dim=1)
