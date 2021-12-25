@@ -98,8 +98,8 @@ if SIMPLE_TEST:
     VAL_FROM = 1
     VAL_NUM = 1
 else:
-    TRAIN_FROM = 20  # 20
-    TRAIN_NUM = 50  # 60
+    TRAIN_FROM = 0  # 20
+    TRAIN_NUM = 80  # 60
 
     VAL_FROM = 0
     VAL_NUM = 1
@@ -110,7 +110,7 @@ print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 10  
+NUM_EPOCHS = 30  
 LEARNING_RATE = 1e-4
 STEP_SIZE = 30
 GAMMA = 0.2

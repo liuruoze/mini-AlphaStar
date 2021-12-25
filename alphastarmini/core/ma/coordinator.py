@@ -61,7 +61,7 @@ class Coordinator:
         win_rate = self.results[2] / (1e-9 + total_episodes)
 
         statistic = 'Avg: [{}/{}] | Bot Difficulty: {} | win_rate: {:.1f} | food_used: {:.1f} | army_count: {:.1f} | std(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
-            total_episodes, self.difficulty, MAX_EPISODES, win_rate, np.mean(self.food_used_list), np.mean(self.army_count_list), np.std(self.army_count_list), np.mean(self.collected_points_list),
+            total_episodes, MAX_EPISODES, self.difficulty, win_rate, np.mean(self.food_used_list), np.mean(self.army_count_list), np.std(self.army_count_list), np.mean(self.collected_points_list),
             np.mean(self.used_points_list), np.mean(self.killed_points_list), np.mean(self.steps_list), np.mean(self.total_time_list))
 
         print("statistic: ", statistic)
