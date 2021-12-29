@@ -16,6 +16,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from pysc2.lib import actions
+from pysc2.lib.buffs import Buffs
 from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
 
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
@@ -57,22 +58,28 @@ z = [item.value for item in Zerg]
 
 all_list = n + p + t + z
 all_dict = dict(zip(all_list, range(0, len(all_list))))
-
 all_dict_inv = {v: k for k, v in all_dict.items()}
 
-
-def get_unit_tpye_from_index(index):
-    unit_tpye = all_dict_inv[index]
-
-    return unit_tpye
+buff = [item.value for item in Buffs]
+buff_list = buff
+all_buff = dict(zip(buff_list, range(0, len(buff_list))))
+all_buff_inv = {v: k for k, v in all_buff.items()}
 
 
 def get_unit_tpye_index_fast(item):
-    index = all_dict[item]
+    return all_dict[item]
 
-    #index = all_list.index(item)
 
-    return index
+def get_unit_tpye_from_index(index):
+    return all_dict_inv[index]
+
+
+def get_buff_index_fast(item):
+    return all_buff.get(item, 0)
+
+
+def get_buff_from_index(index):
+    return all_buff_inv[index]
 
 
 # we modify the DI-Star original file to the one we can use

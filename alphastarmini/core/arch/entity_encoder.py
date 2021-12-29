@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from pysc2.lib.actions import RAW_FUNCTIONS as RF
 from pysc2.lib.units import Protoss, Neutral
 
 from alphastarmini.lib.alphastar_transformer import Transformer
@@ -19,6 +20,8 @@ from alphastarmini.lib import utils as L
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import MiniStar_Arch_Hyper_Parameters as MAHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
+
+from alphastarmini.third import action_dict as AD
 
 __author__ = "Ruo-Ze Liu"
 
@@ -176,9 +179,26 @@ class EntityEncoder(nn.Module):
 
             field_encoding_list.append(entity.order_length)
 
-            field_encoding_list.append(entity.order_id_0)
+            print('entity.unit_type', L.get_unit_tpye_name_and_race(entity.unit_type)[0].name) if debug else None
 
-            field_encoding_list.append(entity.buff_id_0)            
+            order_id_0 = entity.order_id_0
+            field_encoding_list.append(order_id_0)
+            #print('entity.order_id_0', RF[order_id_0].name) if entity.alliance == 1 and entity.order_id_0 != 0 and entity.order_id_1 != 0 else None
+
+            order_id_1 = entity.order_id_1
+            field_encoding_list.append(order_id_1)
+            #print('entity.order_id_1', RF[order_id_1].name) if entity.alliance == 1 and entity.order_id_0 != 0 and entity.order_id_1 != 0 else None
+
+            buff_id_0 = L.get_buff_index_fast(entity.buff_id_0)
+            field_encoding_list.append(buff_id_0)            
+            # print('entity.buff_id_0', entity.buff_id_0) if entity.alliance == 1 and entity.buff_id_0 else None
+            # print('entity.buff_id_0', buff_id_0) if entity.alliance == 1 and buff_id_0 else None
+
+            if False:
+                buff_id_1 = L.get_buff_index_fast(entity.buff_id_1)
+                field_encoding_list.append(buff_id_1)            
+                print('entity.buff_id_0', entity.buff_id_1) if entity.alliance == 1 and entity.buff_id_1 else None
+                print('entity.buff_id_0', buff_id_1) if entity.alliance == 1 and buff_id_1 else None
 
             field_encoding_list.append(entity.order_progress_0)
             field_encoding_list.append(entity.order_progress_0)
@@ -288,38 +308,68 @@ class EntityEncoder(nn.Module):
         order_queue_length_encoding = L.np_one_hot(np.minimum(entities_array[:, 40], 8).astype(np.int32), cls.max_order_queue_length)
         field_encoding_list.append(order_queue_length_encoding)
 
-        order_id_0_encoding = L.np_one_hot(entities_array[:, 41].astype(np.int32), cls.max_order_ids)
+        idx = 41
+        order_id_0_encoding = entities_array[:, idx].astype(np.int32)
+        print('order_id_0_encoding before', order_id_0_encoding) if debug else None
+
+        # we transform the act to general act
+        order_id_0_encoding = AD.ACT_TO_GENERAL_ACT_ARRAY[order_id_0_encoding]
+        print('order_id_0_encoding after', order_id_0_encoding) if debug else None
+
+        order_id_0_encoding = L.np_one_hot(order_id_0_encoding, cls.max_order_ids)
         field_encoding_list.append(order_id_0_encoding)
+        idx += 1
 
-        buff_id_0_encoding = L.np_one_hot(entities_array[:, 42].astype(np.int32), cls.max_buffer_ids)
-        field_encoding_list.append(buff_id_0_encoding)     
+        order_id_1_encoding = entities_array[:, idx].astype(np.int32)
+        order_id_1_encoding = AD.ACT_TO_GENERAL_ACT_ARRAY[order_id_1_encoding]
+        order_id_1_encoding = L.np_one_hot(order_id_1_encoding, cls.max_order_ids)
+        field_encoding_list.append(order_id_1_encoding)
+        idx += 1
 
-        order_progress_0_encoding = entities_array[:, 43:44] * 0.01
-        order_progress_0_encoding_onehot = L.np_one_hot(np.minimum(entities_array[:, 44] * 0.1, 9).astype(np.int32), cls.max_order_progress)
+        buff_id_0_encoding = entities_array[:, idx].astype(np.int32)
+        buff_id_0_encoding = np.minimum(buff_id_0_encoding, cls.max_buffer_ids - 1)
+        buff_id_0_encoding = L.np_one_hot(buff_id_0_encoding, cls.max_buffer_ids)
+        field_encoding_list.append(buff_id_0_encoding)
+        idx += 1    
 
+        if False:
+            buff_id_1_encoding = entities_array[:, idx].astype(np.int32)
+            buff_id_1_encoding = np.minimum(buff_id_1_encoding, cls.max_buffer_ids - 1)
+            buff_id_1_encoding = L.np_one_hot(buff_id_1_encoding, cls.max_buffer_ids)
+            field_encoding_list.append(buff_id_1_encoding)
+            idx += 1    
+
+        order_progress_0_encoding = entities_array[:, idx:idx + 1] * 0.01
+        order_progress_0_encoding_onehot = L.np_one_hot(np.minimum(entities_array[:, idx + 1] * 0.1, 9).astype(np.int32), cls.max_order_progress)
         field_encoding_list.append(order_progress_0_encoding)
         field_encoding_list.append(order_progress_0_encoding_onehot)
+        idx += 2
 
-        order_progress_1_encoding = entities_array[:, 45:46] * 0.01
-        order_progress_1_encoding_onehot = L.np_one_hot(np.minimum(entities_array[:, 46] * 0.1, 9).astype(np.int32), cls.max_order_progress)
-
+        order_progress_1_encoding = entities_array[:, idx:idx + 1] * 0.01
+        order_progress_1_encoding_onehot = L.np_one_hot(np.minimum(entities_array[:, idx + 1] * 0.1, 9).astype(np.int32), cls.max_order_progress)
         field_encoding_list.append(order_progress_1_encoding)
         field_encoding_list.append(order_progress_1_encoding_onehot)
+        idx += 2
 
-        weapon_upgrades_encoding = L.np_one_hot(entities_array[:, 47].astype(np.int32), cls.max_weapon_upgrades)
+        weapon_upgrades_encoding = L.np_one_hot(entities_array[:, idx].astype(np.int32), cls.max_weapon_upgrades)
         field_encoding_list.append(weapon_upgrades_encoding)
+        idx += 1
 
-        armor_upgrades_encoding = L.np_one_hot(entities_array[:, 48].astype(np.int32), cls.max_armor_upgrades)
+        armor_upgrades_encoding = L.np_one_hot(entities_array[:, idx].astype(np.int32), cls.max_armor_upgrades)
         field_encoding_list.append(armor_upgrades_encoding)
+        idx += 1 
 
-        shield_upgrades_encoding = L.np_one_hot(entities_array[:, 49].astype(np.int32), cls.max_shield_upgrades)
+        shield_upgrades_encoding = L.np_one_hot(entities_array[:, idx].astype(np.int32), cls.max_shield_upgrades)
         field_encoding_list.append(shield_upgrades_encoding)
+        idx += 1 
 
-        was_selected_encoding = L.np_one_hot(entities_array[:, 50].astype(np.int32), cls.max_was_selected)
+        was_selected_encoding = L.np_one_hot(entities_array[:, idx].astype(np.int32), cls.max_was_selected)
         field_encoding_list.append(was_selected_encoding)
+        idx += 1 
 
-        was_targeted_encoding = L.np_one_hot(entities_array[:, 51].astype(np.int32), cls.max_was_targeted)
+        was_targeted_encoding = L.np_one_hot(entities_array[:, idx].astype(np.int32), cls.max_was_targeted)
         field_encoding_list.append(was_targeted_encoding)
+        idx += 1 
 
         all_entities_array = np.concatenate(field_encoding_list, axis=1)
         # count how many real entities we have

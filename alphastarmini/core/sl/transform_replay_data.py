@@ -76,7 +76,7 @@ flags.DEFINE_float("move_camera_threshold", 0.00, "The threshold to save move_ca
 flags.DEFINE_float("Smart_pt_threshold", 0.0, "The threshold to save no op operations.")  # 0.3
 flags.DEFINE_float("Smart_unit_threshold", 0.1, "The threshold to save no op operations.")  # 0.3
 flags.DEFINE_float("Harvest_Gather_unit_threshold", 0.1, "The threshold to save no op operations.")  # 0.3
-flags.DEFINE_float("Attack_pt_threshold", 0.2, "The threshold to save no op operations.")  # 0.3
+flags.DEFINE_float("Attack_pt_threshold", 0.5, "The threshold to save no op operations.")  # 0.3
 
 flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
 flags.DEFINE_integer("observed_player", 1, "Which player to observe. For 2 player game, this can be 1 or 2.")
@@ -102,11 +102,11 @@ RESULT = ['Victory', 'Defeat', 'Tie']
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     DATA_FROM = 0
-    DATA_NUM = 1
+    DATA_NUM = 2
 else:
     DATA_FROM = 0
-    DATA_NUM = 80
-SMALL_MAX_STEPS = 60 * 60 * 22.4  # 60 * 60 * 22.4   # 60 * 60 * 22.4 
+    DATA_NUM = 90
+SMALL_MAX_STEPS = 1000  # 5000, 60 * 60 * 22.4
 
 
 class SaveType(enum.IntEnum):

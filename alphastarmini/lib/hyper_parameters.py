@@ -10,6 +10,7 @@ from collections import namedtuple
 from pysc2.lib.actions import FUNCTIONS, RAW_FUNCTIONS
 from pysc2.lib.upgrades import Upgrades
 from pysc2.lib.features import Effects
+from pysc2.lib.buffs import Buffs
 from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
 
 from pysc2.env import sc2_env
@@ -200,7 +201,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(64 * 4 / P.B
                                                      max_entities=int(512),  # this value can not be downscaled, 
                                                      # if downscaled, we will miss many units.
                                                      minimap_size=64,                                               
-                                                     embedding_size=1545,
+                                                     embedding_size=1856,  # 1545, 1856, 2109
                                                      map_channels=24,
                                                      scatter_channels=1,  # 0 or 1
                                                      init_net_params=1,
@@ -338,7 +339,7 @@ StarCraft_Hyper_Parameters = StarCraftHyperParameters(screen_size=64,  # 128 com
                                                       count_beginning_build_order=20,
                                                       sc2_default_delay=32,
                                                       max_order_ids=ConstSize.Actions_Size,
-                                                      max_buffer_ids=300,  # from 0 to 275 TODO: change to value in static_data
+                                                      max_buffer_ids=len(Buffs),  # from 0 to 275 TODO: change to value in static_data
                                                       max_add_on_type=50,  # TODO: change to value in static_data
                                                       map_name='Simple64',  # "Simple64" or "AbyssalReef"
                                                       game_version='3.16.1',  # "3.16.1" or "4.0.2" or "4.10"
@@ -356,8 +357,8 @@ Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
                                         units_buildings=ConstSize.All_Units_Size,
                                         effects=ConstSize.Effects_Size,
                                         upgrade=ConstSize.Upgrades_Size,
-                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order *
-                                        ConstSize.All_Units_Size,
+                                        beginning_build_order=StarCraft_Hyper_Parameters.count_beginning_build_order
+                                        * ConstSize.All_Units_Size,
                                         last_delay=128,
                                         last_action_type=ConstSize.Actions_Size,
                                         last_repeat_queued=2)
