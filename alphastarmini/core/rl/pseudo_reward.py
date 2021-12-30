@@ -138,6 +138,8 @@ def compute_pseudoreward(trajectories, reward_name, device):
 
     # add to use reward_name to judge to use the win loss reward
     if reward_name == 'winloss_baseline':
+        print('trajectories.reward', trajectories.reward) if debug else None
+
         rewards_tensor = torch.tensor(trajectories.reward, dtype=torch.float32, device=device)
         return rewards_tensor
 

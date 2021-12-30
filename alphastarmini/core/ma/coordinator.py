@@ -11,13 +11,11 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
-OUTPUT_FILE = './output/mp_eval_sl.txt'
-
 
 class Coordinator:
     """Central worker that maintains payoff matrix and assigns new matches."""
 
-    def __init__(self, league):
+    def __init__(self, league, output_file=None):
         self.league = league
 
         self.food_used_list = []
@@ -31,6 +29,7 @@ class Coordinator:
 
         self.results = [0, 0, 0]
         self.difficulty = 1
+        self.output_file = output_file
 
     def send_outcome(self, home_player, away_player, outcome):
         self.league.update(home_player, away_player, outcome)
@@ -55,6 +54,8 @@ class Coordinator:
         self.difficulty = difficulty
 
     def write_eval_results(self):
+        print("write_eval_results: ", self.results)
+
         total_episodes = sum(self.results)
         MAX_EPISODES = total_episodes
 
@@ -66,5 +67,5 @@ class Coordinator:
 
         print("statistic: ", statistic)
 
-        with open(OUTPUT_FILE, 'a') as file:      
+        with open(self.output_file, 'a') as file:      
             file.write(statistic)

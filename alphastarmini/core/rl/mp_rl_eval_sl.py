@@ -228,6 +228,7 @@ class ActorEval:
                                 timesteps = env.step(env_actions, step_mul=step_mul)  # STEP_MUL step_mul
                             else:
                                 timesteps = env.step(env_actions, step_mul=STEP_MUL)
+
                             [home_next_obs] = timesteps
                             reward = home_next_obs.reward
                             print("reward: ", reward) if debug else None
@@ -408,7 +409,7 @@ def test(on_server=False, replay_path=None):
         main_exploiters=0,
         league_exploiters=0)
 
-    coordinator = Coordinator(league)
+    coordinator = Coordinator(league, output_file=OUTPUT_FILE)
     learners = []
     actors = []
 

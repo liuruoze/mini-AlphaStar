@@ -66,6 +66,7 @@ RESTORE = True
 MODEL_TYPE = "sl"
 MODEL_PATH = "./model/"
 ACTOR_NUMS = 1
+OUTPUT_FILE = './output/eval_sl.txt'
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -342,7 +343,7 @@ class ActorEval:
                                     killed_points_list.append(killed_points)
                                     steps_list.append(game_loop)
 
-                                    with open('./output/eval_sl.txt', 'a') as file:
+                                    with open(OUTPUT_FILE, 'a') as file:
                                         end_episode_time = time()  # in seconds.
                                         end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time))
 
@@ -401,7 +402,7 @@ class ActorEval:
             total_time = time() - training_start_time
 
             if SAVE_STATISTIC: 
-                with open('./output/eval_sl.txt', 'a') as file:
+                with open(OUTPUT_FILE, 'a') as file:
                     statistic = 'Avg: [{}/{}] | win_rate: {:.1f} | food_used: {:.1f} | army_count: {:.1f} | std(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
                         total_episodes, MAX_EPISODES, win_rate, np.mean(food_used_list), np.mean(army_count_list), np.std(army_count_list), np.mean(collected_points_list),
                         np.mean(used_points_list), np.mean(killed_points_list), np.mean(steps_list), total_time)

@@ -106,7 +106,7 @@ def mergeArgsActionLogits(list_args_action_logits):
     return ArgsActionLogits(*b)
 
 
-def entropy_loss_for_all_arguments(policy_logits, masks):
+def entropy_loss_for_all_arguments(policy_logits, target_select_units_num, masks):
     """Computes the entropy loss for a set of logits.
 
     Args:
@@ -167,7 +167,7 @@ def entropy_loss_for_all_arguments(policy_logits, masks):
     return torch.mean(torch.cat(entropy_list, axis=0))
 
 
-def human_policy_kl_loss(student_logits, teacher_logits, action_type_kl_cost):
+def human_policy_kl_loss(student_logits, teacher_logits, target_select_units_num, action_type_kl_cost):
     """Computes the KL loss to the human policy.
 
     Args:
@@ -226,9 +226,40 @@ def policy_gradient_loss(logits, actions, advantages, mask):
     print("advantages:", advantages) if debug else None
     print("advantages.shape:", advantages.shape) if debug else None
 
+    print("mask:", mask) if debug else None
+    print("mask.shape:", mask.shape) if debug else None
+
     results = mask * advantages * action_log_prob
     print("results:", results) if debug else None
     print("results.shape:", results.shape) if debug else None
+
+    outlier_remove = True
+    if outlier_remove:
+        outlier_mask = (torch.abs(results) >= 1e5)
+        results = results * ~outlier_mask
+    else:
+        outlier_mask = (torch.abs(results) >= 1e5)
+
+        if outlier_mask.any() > 0:
+
+            print("outlier_mask:", outlier_mask.nonzero(as_tuple=True)) if 1 else None
+            index = outlier_mask.nonzero(as_tuple=True)[0]
+
+            print("actions[index]:", actions[index]) if 1 else None
+            print("logits[index]:", logits[index]) if 1 else None
+            print("advantages[index]:", advantages[index]) if 1 else None
+            print("mask[index]:", mask[index]) if 1 else None
+            print("results[index]:", results[index]) if 1 else None
+
+            results = results.reshape(AHP.sequence_length - 1, AHP.batch_size, AHP.max_selected)
+
+            print("results:", results) if 1 else None
+            print("results.shape:", results.shape) if 1 else None
+
+            print("action_log_prob:", action_log_prob) if 1 else None
+            print("action_log_prob.shape:", action_log_prob.shape) if 1 else None
+
+            stop()
 
     # note, we should do policy ascent on the results
     # which means if we use policy descent, we should add a "-" sign for results
@@ -238,7 +269,7 @@ def policy_gradient_loss(logits, actions, advantages, mask):
 
 
 def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
-                   action_fields):
+                   action_fields, target_select_units_num=None):
     # Remove last timestep from trajectories and baselines.
     print("action_fields", action_fields) if debug else None
 
@@ -268,7 +299,16 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     # shape: [seq_batch_size x action_size]
     split_target_logits = split_target_logits.reshape(-1, *action_size)
 
+    if target_select_units_num is not None:
+        target_select_units_num = target_select_units_num.reshape(batch_size, sequence_length, -1)
+        target_select_units_num = torch.transpose(target_select_units_num, 0, 1)
+        target_select_units_num = target_select_units_num[:-1]
+        target_select_units_num = target_select_units_num.reshape((sequence_length - 1) * batch_size, -1)
+        print("target_select_units_num", target_select_units_num) if debug else None
+        print("target_select_units_num.shape", target_select_units_num.shape) if debug else None
+
     target_logits = split_target_logits
+    seqbatch_shape = target_logits.shape[0]
     print("target_logits", target_logits) if debug else None
     print("target_logits.shape", target_logits.shape) if debug else None
 
@@ -282,14 +322,13 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
 
     selected_mask = None
     if action_fields == 'units' or action_fields == 'target_unit':
-        seqbatch_shape = target_logits.shape[0]
         seqbatch_unit_shape = target_logits.shape[0:2]
         select_max_size = target_logits.shape[1]
         target_logits = target_logits.reshape(-1, target_logits.shape[-1])
         behavior_logits = behavior_logits.reshape(-1, behavior_logits.shape[-1])
         actions = actions.reshape(-1, actions.shape[-1])
 
-        player_select_units_num = torch.tensor(trajectories.player_select_units_num).reshape(-1)
+        player_select_units_num = torch.tensor(trajectories.player_select_units_num, device=target_logits.device).reshape(-1)
         print("player_select_units_num", player_select_units_num) if debug else None
         print("player_select_units_num.shape", player_select_units_num.shape) if debug else None
 
@@ -299,10 +338,18 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
         selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
         selected_mask = selected_mask.repeat(seqbatch_shape, 1)
         selected_mask = selected_mask < player_select_units_num.unsqueeze(dim=1)
-        print("selected_mask:", selected_mask) if debug else None
-        print("selected_mask.shape:", selected_mask.shape) if debug else None
 
         assert selected_mask.dtype == torch.bool
+
+        if target_select_units_num is not None:
+            # shape [seqbatch_shape, 1]
+            target_select_units_num = target_select_units_num + 1
+
+            target_selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
+            target_selected_mask = target_selected_mask.repeat(seqbatch_shape, 1)
+            target_selected_mask = target_selected_mask < target_select_units_num
+
+            assert target_selected_mask.dtype == torch.bool
 
     elif action_fields == 'target_location':
         target_logits = target_logits.reshape(target_logits.shape[0], -1)
@@ -358,21 +405,27 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
 
     # here we should reshape the target_logits and actions back to [T-1, B, C] size for computing policy gradient
     if action_fields == 'units':
-        target_logits = target_logits.reshape(sequence_length - 1, batch_size * AHP.max_selected, -1)
-        actions = actions.reshape(sequence_length - 1, batch_size * AHP.max_selected, -1)
+        target_logits = target_logits.reshape(seqbatch_shape * AHP.max_selected, -1)
+        actions = actions.reshape(seqbatch_shape * AHP.max_selected, -1)
 
         weighted_advantage = torch.cat([weighted_advantage] * AHP.max_selected, dim=1)
         masks = torch.cat([masks] * AHP.max_selected, dim=1)
-        masks = masks * selected_mask.reshape(-1)
+        masks = masks.reshape(-1) * selected_mask.reshape(-1)
+
+        if target_selected_mask is not None:
+            masks = masks * target_selected_mask.reshape(-1)
+
     else:
-        target_logits = target_logits.reshape(sequence_length - 1, batch_size, -1)
-        actions = actions.reshape(sequence_length - 1, batch_size, -1)
+        target_logits = target_logits.reshape(seqbatch_shape, -1)
+        actions = actions.reshape(seqbatch_shape, -1)
 
     print("masks", masks) if debug else None
     print("masks.shape", masks.shape) if debug else None
 
-    result = compute_over_actions(policy_gradient_loss, target_logits,
-                                  actions, weighted_advantage, masks)
+    # result = compute_over_actions(policy_gradient_loss, target_logits,
+    #                               actions, weighted_advantage, masks)
+
+    result = policy_gradient_loss(target_logits, actions, weighted_advantage.reshape(-1), masks.reshape(-1))
 
     if action_fields == 'units':
         result = result.reshape(-1, AHP.max_selected)
@@ -385,7 +438,74 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     return result
 
 
-def split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories):
+def split_upgo_loss(target_logits, target_select_units_num, baselines, trajectories):
+    """Computes split UPGO policy gradient loss.
+
+    See Methods for details on UPGO.
+    """
+    # Remove last timestep from trajectories and baselines.
+    trajectories = Trajectory(*tuple(t[:-1] for t in trajectories))
+    print("trajectories.reward", trajectories.reward) if debug else None
+
+    values = baselines[:-1]
+    # shape: list of [seq_size x batch_size]
+    print("values", values) if debug else None
+    print("values.shape", values.shape) if debug else None
+
+    # we change it to pytorch version
+    # returns = upgo_returns(values.detach().numpy(), np.array(trajectories.reward), ~np.array(trajectories.is_final), 
+    # baselines[-1].detach().numpy())
+    reward_tensor = torch.tensor(np.array(trajectories.reward), dtype=torch.float32, device=device)
+    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
+    returns = RA.upgo_returns(values, reward_tensor, discounts, baselines[-1])
+
+    # shape: list of [seq_size x batch_size]
+    print("returns", returns) if debug else None
+    print("returns.shape", returns.shape) if debug else None
+
+    # Compute the UPGO loss for each action subset.
+    # action_type, delay, and other arguments are also similarly separately 
+    # updated using UPGO, in the same way as the VTrace Actor-Critic loss, 
+    # with relative weight 1.0.
+    # We make upgo also contains all the arguments
+    loss = sum_upgo_loss(target_logits, values, trajectories, returns, target_select_units_num)
+
+    return loss
+
+
+def sum_upgo_loss(target_logits, values, trajectories, returns, target_select_units_num):
+    loss = 0.
+
+    action_type_loss = upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'action_type')
+    loss += action_type_loss
+    print('action_type_loss', action_type_loss.mean()) if debug else None
+
+    delay_loss = upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'delay')
+    loss += delay_loss * 0  # dont' use delay loss now
+    print('delay_loss', delay_loss.mean()) if 0 else None
+
+    queue_loss = upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'queue')
+    loss += queue_loss
+    print('queue_loss', queue_loss.mean()) if debug else None
+
+    units_loss = upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'units', target_select_units_num)
+    loss += units_loss
+    print('units_loss', units_loss.mean()) if debug else None
+
+    target_unit_loss = upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'target_unit')
+    loss += target_unit_loss
+    print('target_unit_loss', target_unit_loss.mean()) if debug else None
+
+    target_location_loss = upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'target_location')
+    loss += target_location_loss
+    print('target_location_loss', target_location_loss.mean()) if debug else None
+
+    loss_upgo = loss.mean()
+    print('loss_upgo', loss_upgo) if debug else None
+    return loss_upgo
+
+
+def split_vtrace_pg_loss(target_logits, target_select_units_num, baselines, rewards, trajectories):
     """Computes the split v-trace policy gradient loss.
 
     We compute the policy loss (and therefore update, via autodiff) separately for
@@ -408,86 +528,37 @@ def split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories):
 
     action_type_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'action_type')
     loss += action_type_loss
-    print('action_type_loss', action_type_loss) if debug else None
+    print('action_type_loss', action_type_loss.mean()) if debug else None
 
     if True:
         delay_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'delay')
-        loss += delay_loss
-        print('delay_loss', delay_loss) if debug else None
+        loss += delay_loss * 0
+        print('delay_loss', delay_loss.mean()) if debug else None
 
         # note: here we use queue, units, target_unit and target_location to replace the single arguments
-        # loss += vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'arguments')
-
         queue_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'queue')
         loss += queue_loss
-        print('queue_loss', queue_loss) if debug else None
+        print('queue_loss', queue_loss.mean()) if debug else None
 
-        units_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'units')
+        units_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'units', target_select_units_num)
         loss += units_loss
-        print('units_loss', units_loss) if debug else None
+        print('units_loss', units_loss.mean()) if debug else None
 
         target_unit_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_unit')
         loss += target_unit_loss
-        print('target_unit_loss', target_unit_loss) if debug else None
+        print('target_unit_loss', target_unit_loss.mean()) if debug else None
 
         target_location_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_location')
         loss += target_location_loss
-        print('target_location_loss', target_location_loss) if debug else None
+        print('target_location_loss', target_location_loss.mean()) if debug else None
 
-    return loss.mean()
+    sum_vtrace_pg_loss = loss.mean()
+    print('sum_vtrace_pg_loss', sum_vtrace_pg_loss) if debug else None
 
-
-def split_upgo_loss(target_logits, baselines, trajectories):
-    """Computes split UPGO policy gradient loss.
-
-    See split_vtrace_pg_loss docstring for details on split updates.
-    See Methods for details on UPGO.
-    """
-    # Remove last timestep from trajectories and baselines.
-    trajectories = Trajectory(*tuple(t[:-1] for t in trajectories))
-    print("trajectories.reward", trajectories.reward) if debug else None
-
-    values = baselines[:-1]
-    # shape: list of [seq_size x batch_size]
-    print("values", values) if debug else None
-    print("values.shape", values.shape) if debug else None
-
-    # we change it to pytorch version
-    # returns = upgo_returns(values.detach().numpy(), np.array(trajectories.reward), ~np.array(trajectories.is_final), 
-    # baselines[-1].detach().numpy())
-    reward_tensor = torch.tensor(np.array(trajectories.reward), device=device)
-    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
-    returns = RA.upgo_returns(values, reward_tensor, discounts, baselines[-1])
-
-    # shape: list of [seq_size x batch_size]
-    print("returns", returns) if debug else None
-    print("returns.shape", returns.shape) if debug else None
-
-    # Compute the UPGO loss for each action subset.
-    # action_type, delay, and other arguments are also similarly separately 
-    # updated using UPGO, in the same way as the VTrace Actor-Critic loss, 
-    # with relative weight 1.0.
-    # We make upgo also contains all the arguments
-    loss = sum_upgo_loss(target_logits, values, trajectories, returns)
-
-    return loss
+    return sum_vtrace_pg_loss
 
 
-def sum_upgo_loss(target_logits, values, trajectories, returns):
-    loss = 0.
-    loss += upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'action_type')
-    loss += upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'delay')
-
-    loss += upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'queue')
-    loss += upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'units')
-
-    loss += upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'target_unit')
-    loss += upgo_loss_like_vtrace(target_logits, values, trajectories, returns, 'target_location')
-
-    return loss.mean()
-
-
-def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_fields):
+def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_fields, target_select_units_num=None):
     print("action_fields", action_fields) if debug else None
 
     # Filter for only the relevant actions/logits/masks.
@@ -497,8 +568,11 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
     split_target_logits = target_logits
     action_size = tuple(list(target_logits.shape[1:]))  # from the 3rd dim, it is action dim, may be [S] or [C, S] or [H, W]
 
+    batch_size = AHP.batch_size
+    sequence_length = AHP.sequence_length
+
     # shape: [batch_size x seq_size x action_size]
-    split_target_logits = split_target_logits.reshape(AHP.batch_size, AHP.sequence_length, *action_size)
+    split_target_logits = split_target_logits.reshape(batch_size, sequence_length, *action_size)
 
     # shape: [seq_size x batch_size x action_size]
     split_target_logits = torch.transpose(split_target_logits, 0, 1)
@@ -509,26 +583,34 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
     # shape: [seq_batch_size x action_size]
     split_target_logits = split_target_logits.reshape(-1, *action_size)
 
+    if target_select_units_num is not None:
+        target_select_units_num = target_select_units_num.reshape(batch_size, sequence_length, -1)
+        target_select_units_num = torch.transpose(target_select_units_num, 0, 1)
+        target_select_units_num = target_select_units_num[:-1]
+        target_select_units_num = target_select_units_num.reshape((sequence_length - 1) * batch_size, -1)
+        print("target_select_units_num", target_select_units_num) if debug else None
+        print("target_select_units_num.shape", target_select_units_num.shape) if debug else None
+
     target_logits = split_target_logits
+    seqbatch_shape = target_logits.shape[0]
 
     behavior_logits = filter_by_for_lists(action_fields, trajectories.behavior_logits)
-
     actions = filter_by_for_lists(action_fields, trajectories.action)
 
     selected_mask = None
     if action_fields == 'units' or action_fields == 'target_unit':
-        seqbatch_shape = target_logits.shape[0]
         seqbatch_unit_shape = target_logits.shape[0:2]
         select_max_size = target_logits.shape[1]
         target_logits = target_logits.reshape(-1, target_logits.shape[-1])
         behavior_logits = behavior_logits.reshape(-1, behavior_logits.shape[-1])
         actions = actions.reshape(-1, actions.shape[-1])
 
-        player_select_units_num = torch.tensor(trajectories.player_select_units_num).reshape(-1)
+        player_select_units_num = torch.tensor(trajectories.player_select_units_num, device=target_logits.device).reshape(-1)
         print("player_select_units_num", player_select_units_num) if debug else None
         print("player_select_units_num.shape", player_select_units_num.shape) if debug else None
 
         # when computing logits, we consider the EOF
+        # shape [seqbatch_shape]
         player_select_units_num = player_select_units_num + 1
 
         selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
@@ -538,6 +620,16 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
         print("selected_mask.shape:", selected_mask.shape) if debug else None
 
         assert selected_mask.dtype == torch.bool
+
+        if target_select_units_num is not None:
+            # shape [seqbatch_shape, 1]
+            target_select_units_num = target_select_units_num + 1
+
+            target_selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
+            target_selected_mask = target_selected_mask.repeat(seqbatch_shape, 1)
+            target_selected_mask = target_selected_mask < target_select_units_num
+
+            assert target_selected_mask.dtype == torch.bool
 
     if action_fields == 'target_location':
         target_logits = target_logits.reshape(target_logits.shape[0], -1)
@@ -577,18 +669,23 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
 
     # here we should reshape the target_logits and actions back to [T-1, B, C] size for computing policy gradient
     if action_fields == 'units':
-        target_logits = target_logits.reshape(AHP.sequence_length - 1, AHP.batch_size * AHP.max_selected, -1)
-        actions = actions.reshape(AHP.sequence_length - 1, AHP.batch_size * AHP.max_selected, -1)
+        target_logits = target_logits.reshape(seqbatch_shape * AHP.max_selected, -1)
+        actions = actions.reshape(seqbatch_shape * AHP.max_selected, -1)
 
         weighted_advantage = torch.cat([weighted_advantage] * AHP.max_selected, dim=1)
         masks = torch.cat([masks] * AHP.max_selected, dim=1)
-        masks = masks * selected_mask.reshape(-1)
-    else:
-        target_logits = target_logits.reshape(AHP.sequence_length - 1, AHP.batch_size, -1)
-        actions = actions.reshape(AHP.sequence_length - 1, AHP.batch_size, -1)
+        masks = masks.reshape(-1) * selected_mask.reshape(-1)
 
-    result = compute_over_actions(policy_gradient_loss, target_logits,
-                                  actions, weighted_advantage, masks)
+        if target_selected_mask is not None:
+            masks = masks * target_selected_mask.reshape(-1)
+    else:
+        target_logits = target_logits.reshape(seqbatch_shape, -1)
+        actions = actions.reshape(seqbatch_shape, -1)
+
+    # result = compute_over_actions(policy_gradient_loss, target_logits,
+    #                               actions, weighted_advantage, masks)
+
+    result = policy_gradient_loss(target_logits, actions, weighted_advantage.reshape(-1), masks.reshape(-1))
 
     if action_fields == 'units':
         result = result.reshape(-1, AHP.max_selected)
@@ -641,7 +738,7 @@ def loss_function(agent, trajectories):
     # Answer: To calculate the importance ratio = target_logits / behavior_logits
     # trajectories shape: list of trajectory
     # target_logits: ArgsActionLogits
-    target_logits, baselines, select_units_num = agent.unroll(trajectories)
+    target_logits, baselines, target_select_units_num = agent.unroll(trajectories)
 
     the_action_type = target_logits.action_type
     print("the_action_type.shape:", the_action_type.shape) if debug else None
@@ -668,19 +765,17 @@ def loss_function(agent, trajectories):
     # See the paper methods and detailed_architecture.txt for more details.
     BASELINE_COSTS_AND_REWARDS = get_baseline_hyperparameters()
 
-    reward_index = 1
+    reward_index = 0
     for baseline, costs_and_rewards in zip(baselines, BASELINE_COSTS_AND_REWARDS):
         # baseline is for caluculation in td_lambda and vtrace_pg
         # costs_and_rewards are only weight for loss
 
-        if reward_index != 0:
-            # reward_name is for pseudoreward
-            # pg_cost is for vtrace_pg_loss
-            # baseline_cost is for lambda_loss
+        if reward_index == 0:
             pg_cost, baseline_cost, reward_name = costs_and_rewards
-            print("reward_name:", reward_name) if debug else None
+            print("reward_name:", reward_name) if 1 else None
 
             rewards = PR.compute_pseudoreward(trajectories, reward_name, device=target_logits.action_type.device)
+            print("rewards:", rewards) if 0 else None
 
             # The action_type argument, delay, and all other arguments are separately updated 
             # using a separate ("split") VTrace Actor-Critic losses. The weighting of these 
@@ -693,7 +788,7 @@ def loss_function(agent, trajectories):
             loss_actor_critic += (baseline_cost * lambda_loss)
 
             # we add the split_vtrace_pg_loss
-            pg_loss = split_vtrace_pg_loss(target_logits, baseline, rewards, trajectories)
+            pg_loss = split_vtrace_pg_loss(target_logits, target_select_units_num, baseline, rewards, trajectories)
             print("pg_loss:", pg_loss) if debug else None
 
             loss_actor_critic += (pg_cost * pg_loss)
@@ -703,7 +798,7 @@ def loss_function(agent, trajectories):
     # Note: upgo_loss has only one baseline which is just for winloss 
     # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
     UPGO_WEIGHT = 1.0
-    loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines[0], trajectories)
+    loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, target_select_units_num, baselines[0], trajectories)
 
     # Distillation Loss:
     # There is an distillation loss with weight 2e-3 on all action arguments, 
@@ -725,7 +820,8 @@ def loss_function(agent, trajectories):
     print("teacher_logits_action_type.shape", teacher_logits_action_type.shape) if debug else None
 
     # TODO: for all arguments
-    loss_kl = human_policy_kl_loss(target_logits.action_type, teacher_logits_action_type, ACTION_TYPE_KL_COST)
+    # loss_kl = human_policy_kl_loss(target_logits.action_type, teacher_logits_action_type, 
+    #                                target_select_units_num, ACTION_TYPE_KL_COST)
 
     # Entropy Loss:
     # There is an entropy loss with weight 1e-4 on all action arguments, 
@@ -745,105 +841,20 @@ def loss_function(agent, trajectories):
     # so we gradient descent the -entropy
     # Original AlphaStar pseudocode is wrong
     # AlphaStar: loss_ent = entropy_loss(trajectories.behavior_logits, trajectories.masks)
-    loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, trajectories.masks))
+    # loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, target_select_units_num, trajectories.masks))
 
     #print("stop", len(stop))
-    loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
+    loss_all = loss_actor_critic + loss_upgo  # + loss_kl + loss_ent
 
     print("loss_actor_critic:", loss_actor_critic) if 1 else None
-    print("loss_upgo:", loss_upgo) if 1 else None
-    print("loss_kl:", loss_kl) if debug else None
-    print("loss_ent:", loss_ent) if debug else None
-    print("loss_all:", loss_all) if debug else None
+    print("loss_upgo:", loss_upgo) if 0 else None
+    print("loss_kl:", loss_kl) if 0 else None
+    print("loss_ent:", loss_ent) if 0 else None
+    print("loss_all:", loss_all) if 0 else None
 
     return loss_all
 
 
 def test():
 
-    test_split_vtrace_pg_loss = True
-
-    if test_split_vtrace_pg_loss:
-        batch_size = 2
-        seq_len = 4
-
-        device = 'cpu'
-
-        is_final = [[0, 0], [0, 0], [0, 0], [0, 0]]
-        baselines = [[2, 1], [3, 4], [0, 5], [2, 7]]
-        rewards = [[0, 0], [0, 0], [0, 1], [-1, 0]]
-
-        baselines = torch.tensor(baselines, dtype=torch.float, device=device)
-        rewards = torch.tensor(rewards, dtype=torch.float, device=device)
-
-        action_type_logits = torch.randn(batch_size * seq_len, LS.action_type_encoding, dtype=torch.float, device=device)
-        delay_logits = torch.randn(batch_size * seq_len, SFS.last_delay, dtype=torch.float, device=device)
-        queue_logits = torch.randn(batch_size * seq_len, SFS.last_repeat_queued, dtype=torch.float, device=device)
-        units_logits = torch.randn(batch_size * seq_len, AHP.max_selected, AHP.max_entities, dtype=torch.float, device=device)
-        target_unit_logits = torch.randn(batch_size * seq_len, 1, AHP.max_entities, dtype=torch.float, device=device)
-        target_location_logits = torch.randn(batch_size * seq_len, SCHP.world_size, SCHP.world_size, dtype=torch.float, device=device)
-
-        target_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
-                                         units=units_logits, target_unit=target_unit_logits, 
-                                         target_location=target_location_logits)
-        behavior_logitss = []
-        actionss = []
-        maskss = []
-        for i in range(seq_len):
-            behavior_logits = []
-            actions = []
-            masks = []
-            for j in range(batch_size):              
-                action_type_logits = torch.randn(1, LS.action_type_encoding, dtype=torch.float, device=device)
-                delay_logits = torch.randn(1, SFS.last_delay, dtype=torch.float, device=device)
-                queue_logits = torch.randn(1, SFS.last_repeat_queued, dtype=torch.float, device=device)
-                units_logits = torch.randn(1, AHP.max_selected, AHP.max_entities, dtype=torch.float, device=device)
-                target_unit_logits = torch.randn(1, 1, AHP.max_entities, dtype=torch.float, device=device)
-                target_location_logits = torch.randn(1, SCHP.world_size, SCHP.world_size, dtype=torch.float, device=device)
-
-                behavior_logit = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
-                                                  units=units_logits, target_unit=target_unit_logits, 
-                                                  target_location=target_location_logits)
-                behavior_logits.append(behavior_logit)
-
-                mask = [1, 1, 1, 1, 1, 1]
-                masks.append(mask)
-
-                action_type = torch.ones(1, 1, dtype=torch.long, device=device)
-                delay = torch.ones(1, 1, dtype=torch.long, device=device)
-                queue = torch.ones(1, 1, dtype=torch.long, device=device)
-                units = torch.ones(1, AHP.max_selected, 1, dtype=torch.long, device=device)
-                target_unit = torch.ones(1, 1, 1, dtype=torch.long, device=device)
-                target_location = torch.ones(1, 2, dtype=torch.long, device=device)
-                action = ArgsAction(action_type=action_type, delay=delay, queue=queue,
-                                    units=units, target_unit=target_unit, target_location=target_location)
-
-                actions.append(action)
-
-            behavior_logitss.append(behavior_logits)
-            maskss.append(masks)
-            actionss.append(actions)
-
-        trajectories = Trajectory(
-            state=[[0, 0], [0, 0], [0, 0], [0, 0]],
-            baseline_state=[[0, 0], [0, 0], [0, 0], [0, 0]],
-            baseline_state_op=[[0, 0], [0, 0], [0, 0], [0, 0]],  # when fighting with computer, we don't use opponent state
-            memory=[[0, 0], [0, 0], [0, 0], [0, 0]],
-            z=[[0, 0], [0, 0], [0, 0], [0, 0]],
-            masks=maskss,
-            action=actionss,
-            behavior_logits=behavior_logitss,
-            teacher_logits=[[0, 0], [0, 0], [0, 0], [0, 0]],      
-            is_final=is_final,                                          
-            reward=rewards,
-
-            build_order=[[0, 0], [0, 0], [0, 0], [0, 0]],
-            z_build_order=[[0, 0], [0, 0], [0, 0], [0, 0]],  # we change it to the sampled build order
-            unit_counts=[[0, 0], [0, 0], [0, 0], [0, 0]],
-            z_unit_counts=[[0, 0], [0, 0], [0, 0], [0, 0]],  # we change it to the sampled unit counts
-            game_loop=[[0, 0], [0, 0], [0, 0], [0, 0]],
-        )
-
-        pg_loss = split_vtrace_pg_loss(target_logits, baselines, rewards, trajectories)
-
-        print('pg_loss', pg_loss)
+    pass

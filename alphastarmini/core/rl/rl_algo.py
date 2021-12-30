@@ -532,6 +532,12 @@ def log_prob(actions, logits, reduction="none"):
     # such for log_prob is actually -CrossEntropyLoss
     loss = torch.nn.CrossEntropyLoss(reduction=reduction)
 
+    print("logits:", logits) if debug else None
+    print("logits.shape:", logits.shape) if debug else None
+
+    print("actions:", actions) if debug else None
+    print("actions.shape:", actions.shape) if debug else None
+
     # logits: shape [BATCH_SIZE, CLASS_SIZE]
     # actions: shape [BATCH_SIZE]
     loss_result = loss(logits, torch.squeeze(actions, dim=-1))

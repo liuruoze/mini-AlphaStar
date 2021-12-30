@@ -41,7 +41,7 @@ LOGGING = True
 class Learner:
     """Learner worker that updates agent parameters based on trajectories."""
 
-    def __init__(self, player, max_time_for_training=60 * 3, is_training=True):
+    def __init__(self, player, max_time_for_training=60 * 3, is_training=True, buffer_lock=None):
         self.player = player
         self.player.set_learner(self)
 
@@ -63,6 +63,8 @@ class Learner:
 
         self.is_rl_training = is_training
 
+        self.buffer_lock = buffer_lock
+
         if LOGGING:
             now = datetime.datetime.now()
             summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
@@ -75,8 +77,12 @@ class Learner:
         self.trajectories.append(trajectory)
 
     def update_parameters(self):
+        self.buffer_lock.acquire()
+
         trajectories = self.trajectories[:AHP.batch_size]
         self.trajectories = self.trajectories[AHP.batch_size:]
+
+        self.buffer_lock.release()
 
         if self.is_rl_training:
             agent = self.player.agent

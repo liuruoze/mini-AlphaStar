@@ -12,3 +12,15 @@ Avg: [4/4] | win_rate: 0.0 | food_used: 21.0 | army_count: 0.0 | std(army_count)
 2021-12-20 08:35:29 Agent ID: 1 | Episode: [3/4] | food_used: 20.0 | army_count: 0.0 | collected_points: 1190.0 | used_points: 1850.0 | killed_points: 0.0 | steps: 2392.000s 
 2021-12-20 08:36:35 Agent ID: 1 | Episode: [4/4] | food_used: 21.0 | army_count: 0.0 | collected_points: 1290.0 | used_points: 1650.0 | killed_points: 0.0 | steps: 2392.000s 
 Avg: [4/4] | win_rate: 0.0 | food_used: 20.8 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 1241.2 | used_points: 1862.5 | killed_points: 0.0 | steps: 2392.000 | Total time: 251.609s 
+Avg: [0/0] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 80.652s 
+Avg: [0/0] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 31.646s 
+Avg: [0/0] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 31.045s 
+Avg: [0/0] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 30.732s 
+Avg: [0/0] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: nan | army_count: nan | std(army_count): nan | collected_points: nan | used_points: nan | killed_points: nan | steps: nan | Total time: 34.759s 
+Avg: [2/2] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: 12.5 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 187.5 | used_points: 1162.5 | killed_points: 0.0 | steps: 496.000 | Total time: 43.875s 
+Avg: [2/2] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: 13.0 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 197.5 | used_points: 1137.5 | killed_points: 0.0 | steps: 496.000 | Total time: 34.559s 
+Avg: [4/4] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: 15.0 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 436.2 | used_points: 1293.8 | killed_points: 0.0 | steps: 992.000 | Total time: 169.701s 
+Avg: [4/4] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: 14.8 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 426.2 | used_points: 1287.5 | killed_points: 0.0 | steps: 992.000 | Total time: 183.010s 
+Avg: [4/4] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: 13.5 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 407.5 | used_points: 1343.8 | killed_points: 0.0 | steps: 992.000 | Total time: 182.810s 
+Avg: [4/4] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: 14.0 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 426.2 | used_points: 1293.8 | killed_points: 0.0 | steps: 992.000 | Total time: 186.298s 
+Avg: [4/4] | Bot Difficulty: 1 | win_rate: 0.0 | food_used: 14.2 | army_count: 0.0 | std(army_count): 0.0 | collected_points: 426.2 | used_points: 1306.2 | killed_points: 0.0 | steps: 992.000 | Total time: 171.760s 
