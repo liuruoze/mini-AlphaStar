@@ -4,8 +4,27 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
-import alphastarmini
 import torch
+import numpy as np
+import random
+
+seed = 0  # use the fixed seed for the full program
+
+# must use
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)  # if you are using multi-GPU.
+
+# optional use
+# torch.set_deterministic(True)
+# torch.backends.cudnn.enabled = False 
+# torch.backends.cudnn.benchmark = False
+# os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+os.environ['PYTHONHASHSEED'] = str(seed)
+
+import alphastarmini
 
 from alphastarmini.core.arch import entity_encoder
 from alphastarmini.core.arch import scalar_encoder

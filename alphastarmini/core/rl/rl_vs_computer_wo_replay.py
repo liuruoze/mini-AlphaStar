@@ -43,9 +43,9 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 speed = False
 
-MAX_EPISODES = 5
-GAME_STEPS_PER_EPISODE = 24000    # 9000
+MAX_EPISODES = 25
 ACTOR_NUMS = 4
+GAME_STEPS_PER_EPISODE = 18000    # 9000
 IS_TRAINING = True
 REWARD_SCALE = 0.001
 
@@ -60,7 +60,9 @@ STEP_MUL = 8
 
 SAVE_REPLAY = False
 DEFINED_REWARD = True
+USE_DEFINED_REWARD_AS_REWARD = True
 WIN_THRESHOLD = 4000
+
 
 # model path
 MODEL_TYPE = "sl"
@@ -76,8 +78,8 @@ if torch.backends.cudnn.is_available():
     torch.backends.cudnn.enabled = True
     torch.backends.cudnn.benchmark = True
 
-torch.manual_seed(RANDOM_SEED)
-np.random.seed(RANDOM_SEED)
+# torch.manual_seed(RANDOM_SEED)
+# np.random.seed(RANDOM_SEED)
 
 # TODO: fix the bug ValueError: The game didn't advance to the expected game loop. Expected: 2512, got: 2507
 
@@ -252,8 +254,9 @@ class ActorVSComputer:
 
                             timesteps = env.step(env_actions, step_mul=STEP_MUL)  # STEP_MUL step_mul
                             [home_next_obs] = timesteps
-                            # reward = home_next_obs.reward
-                            # print("reward: ", reward) if 0 else None
+
+                            reward = home_next_obs.reward
+                            print("reward: ", reward) if 0 else None
 
                             print('run_loop, t4', time() - t) if speed else None
                             t = time()
@@ -280,45 +283,12 @@ class ActorVSComputer:
                             if DEFINED_REWARD:
                                 points = get_points(home_next_obs)
 
-                                if last_points is not None:
-                                    reward = points - last_points
-                                else:
-                                    reward = 0
-                                print("{:d} get defined reward".format(self.idx), reward) if debug else None
-
+                                if USE_DEFINED_REWARD_AS_REWARD:
+                                    if last_points is not None:
+                                        reward = points - last_points
+                                    else:
+                                        reward = 0
                                 last_points = points
-
-                            # note, original AlphaStar pseudo-code has some mistakes, we modified 
-                            # them here
-                            traj_step = Trajectory(
-                                state=state,
-                                baseline_state=baseline_state,
-                                baseline_state_op=baseline_state,  # when fighting with computer, we don't use opponent state
-                                memory=player_memory,
-                                z=z,
-                                masks=action_masks,
-                                action=player_action,
-                                behavior_logits=player_logits,
-                                teacher_logits=teacher_logits,      
-                                is_final=is_final,                                          
-                                reward=reward,
-                                player_select_units_num=player_select_units_num,
-                                build_order=player_bo,
-                                z_build_order=player_bo,  # we change it to the sampled build order
-                                unit_counts=player_ucb,  # player_ucb,
-                                z_unit_counts=player_ucb,  # player_ucb,  # we change it to the sampled unit counts
-                                game_loop=game_loop,
-                                last_list=last_list,
-                            )
-                            if self.is_training:
-                                trajectory.append(traj_step)
-
-                            player_memory = tuple(h.detach() for h in player_new_memory)
-                            home_obs = home_next_obs
-                            last_delay = expected_delay
-                            last_action_type = player_action.action_type.item()
-                            last_repeat_queued = player_action.queue.item()
-                            last_list = [last_delay, last_action_type, last_repeat_queued]
 
                             if is_final:
                                 outcome = home_next_obs.reward
@@ -356,6 +326,8 @@ class ActorVSComputer:
 
                                     if killed_points > WIN_THRESHOLD:
                                         outcome = 1
+                                        if not USE_DEFINED_REWARD_AS_REWARD:
+                                            reward = 1
 
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
@@ -376,6 +348,40 @@ class ActorVSComputer:
                                         file.write(statistic)
 
                                 results[outcome + 1] += 1
+
+                            print("{:d} get reward".format(self.idx), reward) if 1 else None
+
+                            # note, original AlphaStar pseudo-code has some mistakes, we modified 
+                            # them here
+                            traj_step = Trajectory(
+                                state=state,
+                                baseline_state=baseline_state,
+                                baseline_state_op=baseline_state,  # when fighting with computer, we don't use opponent state
+                                memory=player_memory,
+                                z=z,
+                                masks=action_masks,
+                                action=player_action,
+                                behavior_logits=player_logits,
+                                teacher_logits=teacher_logits,      
+                                is_final=is_final,                                          
+                                reward=reward,
+                                player_select_units_num=player_select_units_num,
+                                build_order=player_bo,
+                                z_build_order=player_bo,  # we change it to the sampled build order
+                                unit_counts=player_ucb,  # player_ucb,
+                                z_unit_counts=player_ucb,  # player_ucb,  # we change it to the sampled unit counts
+                                game_loop=game_loop,
+                                last_list=last_list,
+                            )
+                            if self.is_training:
+                                trajectory.append(traj_step)
+
+                            player_memory = tuple(h.detach() for h in player_new_memory)
+                            home_obs = home_next_obs
+                            last_delay = expected_delay
+                            last_action_type = player_action.action_type.item()
+                            last_repeat_queued = player_action.queue.item()
+                            last_list = [last_delay, last_action_type, last_repeat_queued]
 
                             if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = RU.stack_namedtuple(trajectory)
@@ -485,7 +491,9 @@ def get_points(obs):
 
     killed_points = killed_minerals + killed_vespene
 
-    points = float(collected_points + used_points + 2 * killed_points)
+    #points = float(collected_points + used_points + 2 * killed_points)
+
+    points = float(killed_points)
 
     points = points * REWARD_SCALE
 

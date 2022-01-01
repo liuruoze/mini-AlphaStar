@@ -46,17 +46,18 @@ if SIMPLE_TEST:
     raise NotImplementedError
 
 SAVE_STATISTIC = True
-SAVE_REPLAY = True
+SAVE_REPLAY = False
 
 # 24000
 GAME_STEPS_PER_EPISODE = 24000  
-MAX_EPISODES = 4
+MAX_EPISODES = 1
 ACTOR_NUMS = 5
 DIFFICULTY = 1
 
 # model path
 MODEL_TYPE = "rl"
-MODEL_PATH = "./model/"
+MODEL_PATH = "./model_eval/"
+OUTPUT_FILE = "./output/mp_eval_rl.txt"
 
 IS_TRAINING = False
 MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
@@ -69,7 +70,7 @@ RANDOM_SEED = 1
 VERSION = SCHP.game_version
 
 RESTORE = True
-OUTPUT_FILE = './output/mp_eval_rl.txt'
+
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -82,8 +83,8 @@ if torch.backends.cudnn.is_available():
 
 # set random seed
 # is is actually effective
-# torch.manual_seed(SLTHP.seed)
-# np.random.seed(SLTHP.seed)
+# torch.manual_seed(RANDOM_SEED)
+# np.random.seed(RANDOM_SEED)
 
 
 class ActorEval:
@@ -184,8 +185,8 @@ class ActorEval:
 
                         player_memory = self.player.agent.initial_state()
 
-                        torch.manual_seed(total_episodes)
-                        np.random.seed(total_episodes)
+                        # torch.manual_seed(total_episodes)
+                        # np.random.seed(total_episodes)
 
                         # initial build order
                         player_bo = []

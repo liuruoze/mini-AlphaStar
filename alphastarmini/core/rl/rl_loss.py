@@ -844,7 +844,7 @@ def loss_function(agent, trajectories):
     # loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, target_select_units_num, trajectories.masks))
 
     #print("stop", len(stop))
-    loss_all = loss_actor_critic + loss_upgo  # + loss_kl + loss_ent
+    loss_all = loss_actor_critic  # + loss_upgo  # + loss_kl + loss_ent
 
     print("loss_actor_critic:", loss_actor_critic) if 1 else None
     print("loss_upgo:", loss_upgo) if 0 else None

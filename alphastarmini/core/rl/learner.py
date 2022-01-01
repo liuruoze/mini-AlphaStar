@@ -103,7 +103,7 @@ class Learner:
 
             # we use new ways to save
             # torch.save(agent.agent_nn.model, SAVE_PATH + "" + ".pkl")
-            if agent.steps % (10 * AHP.batch_size * AHP.sequence_length) == 0:
+            if agent.steps % (1 * AHP.batch_size * AHP.sequence_length) == 0:
                 torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
         agent.steps += AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
