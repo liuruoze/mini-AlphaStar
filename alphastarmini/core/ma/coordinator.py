@@ -15,7 +15,7 @@ debug = False
 class Coordinator:
     """Central worker that maintains payoff matrix and assigns new matches."""
 
-    def __init__(self, league, output_file=None):
+    def __init__(self, league, output_file=None, results_lock=None, writer=None):
         self.league = league
 
         self.food_used_list = []
@@ -29,7 +29,22 @@ class Coordinator:
 
         self.results = [0, 0, 0]
         self.difficulty = 1
+
+        self.results_lock = results_lock
         self.output_file = output_file
+        self.writer = writer
+
+    def set_uninitialed_results(self, actor_nums, episode_nums):
+        self.episode_results = np.ones([actor_nums, episode_nums], dtype=np.float) * (-1e9)
+
+    def send_episode_results(self, agent_idx, episode_nums, results): 
+        episode_id = episode_nums - 1
+
+        self.episode_results[agent_idx - 1, episode_id] = results
+
+        single_episode_results = self.episode_results[:, episode_id]
+        if not (single_episode_results == (-1e9)).any():
+            self.writer.add_scalar('coordinator/results', np.mean(single_episode_results), episode_id)
 
     def send_outcome(self, home_player, away_player, outcome):
         self.league.update(home_player, away_player, outcome)

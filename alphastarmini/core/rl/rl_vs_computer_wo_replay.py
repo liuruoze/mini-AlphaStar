@@ -47,7 +47,7 @@ MAX_EPISODES = 25
 ACTOR_NUMS = 4
 GAME_STEPS_PER_EPISODE = 18000    # 9000
 IS_TRAINING = True
-REWARD_SCALE = 0.001
+REWARD_SCALE = 0.0001
 
 RESTORE = True
 SAVE_STATISTIC = True
@@ -90,7 +90,7 @@ class ActorVSComputer:
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, coordinator, teacher, idx, buffer_lock=None, max_time_for_training=60 * 60 * 24,
+    def __init__(self, player, coordinator, teacher, idx, buffer_lock=None, results_lock=None, writer=None, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
@@ -112,15 +112,13 @@ class ActorVSComputer:
 
         self.thread.daemon = True                            # Daemonize thread
         self.buffer_lock = buffer_lock
+        self.results_lock = results_lock
 
         self.is_running = True
         self.is_start = False
 
         self.replay_dir = replay_dir
-
-        if self.player.learner is not None:
-            if DEFINED_REWARD:
-                self.writer = self.player.learner.writer
+        self.writer = writer
 
     def start(self):
         self.is_start = True
@@ -300,6 +298,9 @@ class ActorVSComputer:
                                     final_points = get_points(home_next_obs)
                                     print('agent_', self.idx, ' defined_reward:', final_points) if debug else None
 
+                                    with self.results_lock:
+                                        self.coordinator.send_episode_results(self.idx, total_episodes, final_points)
+
                                     self.writer.add_scalar('agent_' + str(self.idx) + '/defined_reward', final_points, total_episodes)
 
                                 if SAVE_STATISTIC:
@@ -349,7 +350,7 @@ class ActorVSComputer:
 
                                 results[outcome + 1] += 1
 
-                            print("{:d} get reward".format(self.idx), reward) if 1 else None
+                            print("{:d} get reward".format(self.idx), reward) if 0 else None
 
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
                             # them here
@@ -391,12 +392,9 @@ class ActorVSComputer:
 
                                         print("Learner send_trajectory!") if debug else None
 
-                                        self.buffer_lock.acquire()
-
-                                        self.player.learner.send_trajectory(trajectories)
-                                        trajectory = []
-
-                                        self.buffer_lock.release()
+                                        with self.buffer_lock:
+                                            self.player.learner.send_trajectory(trajectories)
+                                            trajectory = []
                                     else:
                                         print("Learner stops!")
 
@@ -414,8 +412,8 @@ class ActorVSComputer:
                                 print("Beyond the max_frames_per_episode, break!")
                                 break
 
-                        print("outcome: ", outcome) if 1 else None
-                        self.coordinator.only_send_outcome(self.player, outcome)
+                        with self.results_lock:
+                            self.coordinator.only_send_outcome(self.player, outcome)
 
                         # use max_frames_per_episode to end the episode
                         if self.max_episodes and total_episodes >= self.max_episodes:
@@ -491,9 +489,9 @@ def get_points(obs):
 
     killed_points = killed_minerals + killed_vespene
 
-    #points = float(collected_points + used_points + 2 * killed_points)
+    points = float(collected_points + used_points + 2 * killed_points)
 
-    points = float(killed_points)
+    #points = float(killed_points)
 
     points = points * REWARD_SCALE
 
@@ -624,7 +622,14 @@ def test(on_server=False, replay_path=None):
         main_exploiters=0,
         league_exploiters=0)
 
-    coordinator = Coordinator(league, output_file=OUTPUT_FILE)
+    now = datetime.datetime.now()
+    summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+    writer = SummaryWriter(summary_path)
+
+    results_lock = threading.Lock()
+    coordinator = Coordinator(league, output_file=OUTPUT_FILE, results_lock=results_lock, writer=writer)
+    coordinator.set_uninitialed_results(actor_nums=ACTOR_NUMS, episode_nums=MAX_EPISODES)
+
     learners = []
     actors = []
 
@@ -639,9 +644,9 @@ def test(on_server=False, replay_path=None):
             teacher.agent_nn.to(DEVICE)
 
         buffer_lock = threading.Lock()
-        learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING, buffer_lock=buffer_lock)
+        learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING, buffer_lock=buffer_lock, writer=writer)
         learners.append(learner)
-        actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock) for z in range(ACTOR_NUMS)])
+        actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
 
     threads = []
     for l in learners:
