@@ -214,44 +214,50 @@ class Agent(object):
         return ArchModel.preprocess_spatial_numpy(obs, entity_pos_list=entity_pos_list)
 
     @staticmethod
-    def get_baseline_state_from_multi_source_state(msstate):
+    def get_baseline_state_from_multi_source_state(obs, msstate):
         scalar_list = msstate.statistical_state
 
         # statistical_state feature
-        # scalar_list.append(agent_statistics)
-        # scalar_list.append(home_race)
-        # scalar_list.append(away_race)
-        # scalar_list.append(upgrades)
-        # scalar_list.append(enemy_upgrades)
-        # scalar_list.append(time)
-
-        # scalar_list.append(available_actions)
-        # scalar_list.append(unit_counts_bow)
-        # scalar_list.append(mmr)
-        # scalar_list.append(units_buildings)
-        # scalar_list.append(effects)
-        # scalar_list.append(upgrade)
-
-        # scalar_list.append(beginning_build_order)
-        # scalar_list.append(last_delay)
-        # scalar_list.append(last_action_type)
-        # scalar_list.append(last_repeat_queued)
+        # scalar_list.append(agent_statistics) 0
+        # scalar_list.append(home_race) 1
+        # scalar_list.append(away_race) 2
+        # scalar_list.append(upgrades) 3
+        # scalar_list.append(enemy_upgrades) 4
+        # scalar_list.append(time) 5
+        # scalar_list.append(available_actions) 6
+        # scalar_list.append(unit_counts_bow) 7
+        # scalar_list.append(mmr) 8
+        # scalar_list.append(units_buildings) 9
+        # scalar_list.append(effects) 10
+        # scalar_list.append(upgrade) 11
+        # scalar_list.append(beginning_build_order) 12 
+        # scalar_list.append(last_delay) 13
+        # scalar_list.append(last_action_type) 14 
+        # scalar_list.append(last_repeat_queued) 15
 
         # baseline feature
-        # scalar_list.append(agent_statistics)
-        # scalar_list.append(upgrades)
-        # scalar_list.append(unit_counts_bow)
-        # scalar_list.append(units_buildings)
-        # scalar_list.append(effects)
-        # scalar_list.append(upgrade)
-        # scalar_list.append(beginning_build_order)
-
+        # scalar_list.append(agent_statistics) 0
+        # scalar_list.append(upgrades) 3
+        # scalar_list.append(unit_counts_bow) 7
+        # scalar_list.append(units_buildings) 9
+        # scalar_list.append(effects) 10
+        # scalar_list.append(upgrade) 11 
+        # scalar_list.append(beginning_build_order) 12
         baseline_index = [0, 3, 7, 9, 10, 11, 12]
 
         # can not use index list in python list
         # return scalar_list[baseline_index]
-
         baseline_state = [e for i, e in enumerate(scalar_list) if i in baseline_index]
+
+        # add cumulative_score in mAS 1.06
+        # AlphaStar:cumulative_score - Various score metrics tracked by the game, and only used for baselines, 
+        # not for inference during play. These are not visible to humans while playing, and include score, 
+        # idle production and work time, total value of units and structure, total destroyed value of units and structures, 
+        # total collected minerals and vespene, rate of minerals and vespene collection, and total spent minerals and vespene
+        cumulative_score = torch.tensor(np.array(obs['score_cumulative']), dtype=torch.float32).reshape(1, -1)
+        print('cumulative_score', cumulative_score) if debug else None
+
+        baseline_state.append(cumulative_score)
         return baseline_state
 
     @staticmethod

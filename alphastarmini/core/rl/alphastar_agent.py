@@ -247,7 +247,7 @@ class AlphaStarAgent(RandomAgent):
 
         return action_logits, select_units_num, hidden_state
 
-    def unroll(self, trajectories):
+    def unroll(self, trajectories, use_opponent_state=False):
         """Unrolls the network over the trajectory.
 
         The actions taken by the agent and the initial state of the unroll are
@@ -273,7 +273,8 @@ class AlphaStarAgent(RandomAgent):
 
             state_traj.extend(traj.state)
             baseline_state_traj.extend(traj.baseline_state)
-            baseline_state_op_traj.extend(traj.baseline_state_op)
+            if use_opponent_state:
+                baseline_state_op_traj.extend(traj.baseline_state_op)
 
             # add the state
         entity_state_list = []
@@ -298,14 +299,19 @@ class AlphaStarAgent(RandomAgent):
         initial_memory_state = [torch.cat(l, dim=1) for l in zip(*initial_memory_list)]
 
         baseline_state_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_traj)]
-        baseline_state_op_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_op_traj)]
         print("baseline_state_all.shape:", baseline_state_all[0].shape) if debug else None
 
+        if use_opponent_state:
+            baseline_state_op_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_op_traj)]
         # change to device
         state_all.to(device)  # note: MsStata.to(device) in place operation
         initial_memory_state = [l.float().to(device) for l in initial_memory_state]
         baseline_state_all = [l.float().to(device) for l in baseline_state_all]
-        baseline_state_op_all = [l.float().to(device) for l in baseline_state_op_all]
+
+        if use_opponent_state:
+            baseline_state_op_all = [l.float().to(device) for l in baseline_state_op_all]
+        else:
+            baseline_state_op_all = None
 
         # shape [batch_seq_size, embedding_size]
         baseline_list, policy_logits, select_units_num = self.agent_nn.unroll_traj(state_all=state_all, 

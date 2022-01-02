@@ -32,7 +32,8 @@ class Baseline(nn.Module):
     '''
 
     def __init__(self, baseline_type='winloss',
-                 n_statistics=10, 
+                 n_statistics=10,
+                 n_cumulatscore=13,
                  baseline_input=AHP.winloss_baseline_input_size,
                  n_upgrades=SFS.upgrades, 
                  n_units_buildings=SFS.unit_counts_bow, 
@@ -54,6 +55,7 @@ class Baseline(nn.Module):
             baseline_input = AHP.effects_baseline_input_size
 
         self.statistics_fc = nn.Linear(n_statistics, original_64)  # with relu
+        self.cumulatscore_fc = nn.Linear(n_cumulatscore, original_64)  # with relu
         self.upgrades_fc = nn.Linear(n_upgrades, original_128)  # with relu
         self.unit_counts_bow_fc = nn.Linear(n_units_buildings, original_64)  # A bag-of-words unit count from `entity_list`, with relu
         self.units_buildings_fc = nn.Linear(n_units_buildings, original_32)  # with relu, also goto scalar_context
@@ -77,9 +79,9 @@ class Baseline(nn.Module):
 
         self.out_fc = nn.Linear(original_256, 1) 
 
-    def forward_process(self, various_observations):
+    def pre_forward(self, various_observations):
         [agent_statistics, upgrades, unit_counts_bow,
-         units_buildings, effects, upgrade, beginning_build_order] = various_observations
+         units_buildings, effects, upgrade, beginning_build_order, cumulative_score] = various_observations
 
         # These features are all concatenated together to yield `action_type_input`, 
         # passed through a linear of size 256, then passed through 16 ResBlocks with 256 hidden units 
@@ -90,14 +92,18 @@ class Baseline(nn.Module):
         embedded_scalar_list = []
 
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
+        print("agent_statistics:", agent_statistics) if debug else None
         the_log_statistics = torch.log(agent_statistics + 1)
+        print("the_log_statistics:", the_log_statistics) if debug else None
+
         x = F.relu(self.statistics_fc(the_log_statistics))
         embedded_scalar_list.append(x)
 
-        # TODO: `cumulative_score`, as a 1D tensor of values, is processed like `agent_statistics`.
-        cumulative_score = torch.ones(agent_statistics.shape[0], SFS.agent_statistics, device=device)
+        print("cumulative_score:", cumulative_score) if debug else None
         score_log_statistics = torch.log(cumulative_score + 1)
-        x = F.relu(self.statistics_fc(score_log_statistics))
+        print("score_log_statistics:", score_log_statistics) if debug else None
+
+        x = F.relu(self.cumulatscore_fc(score_log_statistics))
         embedded_scalar_list.append(x)
 
         # upgrades: The boolean vector of whether an upgrade is present is embedded through a linear of size 128 and a ReLU
@@ -138,7 +144,6 @@ class Baseline(nn.Module):
 
         batch_size = beginning_build_order.shape[0]
 
-        # TODO: add the seq info
         seq = torch.arange(SCHP.count_beginning_build_order)
         seq = L.tensor_one_hot(seq, SCHP.count_beginning_build_order)
         seq = seq.unsqueeze(0).repeat(batch_size, 1, 1).to(beginning_build_order.device)
@@ -169,12 +174,16 @@ class Baseline(nn.Module):
 
         return embedded_scalar
 
-    def forward(self, lstm_output, various_observations, opponent_observations):
+    def forward(self, lstm_output, various_observations, opponent_observations=None):
         # check and improve it
-        player_scalar_out = self.forward_process(various_observations)
+        player_scalar_out = self.pre_forward(various_observations)
 
         # AlphaStar: The baseline extracts those same observations from `opponent_observations`.
-        opponenet_scalar_out = self.forward_process(opponent_observations)
+        if opponent_observations is not None:
+            opponenet_scalar_out = self.pre_forward(opponent_observations)
+        else:
+            print("opponent_observations is:", opponent_observations) if debug else None
+            opponenet_scalar_out = torch.zeros_like(player_scalar_out)
 
         # AlphaStar: These features are all concatenated together to yield `action_type_input`
         action_type_input = torch.cat([lstm_output, player_scalar_out, opponenet_scalar_out], dim=1)
@@ -185,6 +194,7 @@ class Baseline(nn.Module):
         print("x.shape:", x.shape) if debug else None
 
         # AlphaStar: then passed through 16 ResBlocks with 256 hidden units and layer normalization,
+        # Note: tje layer normalization is already inside each resblock
         x = x.unsqueeze(-1)
         for resblock in self.resblock_stack:
             x = resblock(x)

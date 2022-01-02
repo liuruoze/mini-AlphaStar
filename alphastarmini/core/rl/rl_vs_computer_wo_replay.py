@@ -43,9 +43,9 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 speed = False
 
-MAX_EPISODES = 25
-ACTOR_NUMS = 4
-GAME_STEPS_PER_EPISODE = 18000    # 9000
+MAX_EPISODES = 1
+ACTOR_NUMS = 1
+GAME_STEPS_PER_EPISODE = 1800    # 9000
 IS_TRAINING = True
 REWARD_SCALE = 0.0001
 
@@ -59,8 +59,8 @@ MAP_NAME = SCHP.map_name
 STEP_MUL = 8
 
 SAVE_REPLAY = False
-DEFINED_REWARD = True
-USE_DEFINED_REWARD_AS_REWARD = True
+USE_DEFINED_REWARD_AS_REWARD = False
+USE_RESULT_REWARD = True
 WIN_THRESHOLD = 4000
 
 
@@ -210,7 +210,7 @@ class ActorVSComputer:
                             state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
                                                                                     build_order=player_bo, 
                                                                                     last_list=last_list)
-                            baseline_state = self.player.agent.agent_nn.get_baseline_state_from_multi_source_state(state)
+                            baseline_state = self.player.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
 
                             player_step = self.player.agent.step_from_state(state, player_memory)
                             player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
@@ -278,15 +278,14 @@ class ActorVSComputer:
                             game_loop = home_obs.observation.game_loop[0]
                             print("game_loop", game_loop) if debug else None
 
-                            if DEFINED_REWARD:
-                                points = get_points(home_next_obs)
+                            points = get_points(home_next_obs)
 
-                                if USE_DEFINED_REWARD_AS_REWARD:
-                                    if last_points is not None:
-                                        reward = points - last_points
-                                    else:
-                                        reward = 0
-                                last_points = points
+                            if USE_DEFINED_REWARD_AS_REWARD:
+                                if last_points is not None:
+                                    reward = points - last_points
+                                else:
+                                    reward = 0
+                            last_points = points
 
                             if is_final:
                                 outcome = home_next_obs.reward
@@ -294,14 +293,21 @@ class ActorVSComputer:
                                 if SAVE_REPLAY:
                                     env.save_replay(self.replay_dir)
 
-                                if DEFINED_REWARD:
+                                if not USE_RESULT_REWARD:
                                     final_points = get_points(home_next_obs)
                                     print('agent_', self.idx, ' defined_reward:', final_points) if debug else None
 
-                                    with self.results_lock:
-                                        self.coordinator.send_episode_results(self.idx, total_episodes, final_points)
+                                    episode_return = final_points
+                                else:
+                                    final_outcome = outcome
+                                    print('agent_', self.idx, ' reward:', final_outcome) if 1 else None
 
-                                    self.writer.add_scalar('agent_' + str(self.idx) + '/defined_reward', final_points, total_episodes)
+                                    episode_return = final_outcome
+
+                                with self.results_lock:
+                                    self.coordinator.send_episode_results(self.idx, total_episodes, episode_return)
+
+                                self.writer.add_scalar('agent_' + str(self.idx) + '/episode_return', episode_return, total_episodes)
 
                                 if SAVE_STATISTIC:
                                     o = home_next_obs.observation
@@ -328,7 +334,7 @@ class ActorVSComputer:
                                     if killed_points > WIN_THRESHOLD:
                                         outcome = 1
                                         if not USE_DEFINED_REWARD_AS_REWARD:
-                                            reward = 1
+                                            reward = outcome
 
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
