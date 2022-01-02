@@ -429,7 +429,9 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
 
     if action_fields == 'units':
         result = result.reshape(-1, AHP.max_selected)
-        result = torch.mean(result, dim=-1)
+        # replace mean with sum, inspired by DI-Star
+        # result = torch.mean(result, dim=-1)
+        result = torch.sum(result, dim=-1)
 
     print("result", result) if debug else None
     print("result.shape", result.shape) if debug else None
@@ -689,7 +691,9 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
 
     if action_fields == 'units':
         result = result.reshape(-1, AHP.max_selected)
-        result = torch.mean(result, dim=-1)
+        # replace mean with sum, inspired by DI-Star
+        # result = torch.mean(result, dim=-1)
+        result = torch.sum(result, dim=-1)
 
     print("result", result) if debug else None
     print("result.shape", result.shape) if debug else None
@@ -844,11 +848,11 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     # loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, target_select_units_num, trajectories.masks))
 
     #print("stop", len(stop))
-    loss_all = loss_upgo  # loss_actor_critic + loss_kl  # + loss_upgo  # + loss_kl + loss_ent
+    loss_all = loss_actor_critic + loss_kl  # + loss_upgo  # + loss_kl + loss_ent
 
-    print("loss_actor_critic:", loss_actor_critic) if 0 else None
-    print("loss_upgo:", loss_upgo) if 1 else None
-    print("loss_kl:", loss_kl) if 0 else None
+    print("loss_actor_critic:", loss_actor_critic) if 1 else None
+    print("loss_upgo:", loss_upgo) if 0 else None
+    print("loss_kl:", loss_kl) if 1 else None
     print("loss_ent:", loss_ent) if 0 else None
     print("loss_all:", loss_all) if 1 else None
 

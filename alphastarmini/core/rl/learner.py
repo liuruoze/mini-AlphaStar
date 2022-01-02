@@ -27,6 +27,7 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+LR = 5e-5  # THP.learning_rate
 
 # model path
 MODEL = "rl"
@@ -52,7 +53,7 @@ class Learner:
 
         # PyTorch code
         self.optimizer = Adam(self.get_parameters(), 
-                              lr=THP.learning_rate, betas=(THP.beta1, THP.beta2), 
+                              lr=LR, betas=(THP.beta1, THP.beta2), 
                               eps=THP.epsilon, weight_decay=THP.weight_decay)
 
         self.thread = threading.Thread(target=self.run, args=())
