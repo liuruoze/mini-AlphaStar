@@ -62,7 +62,7 @@ SAVE_REPLAY = False
 USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
 WIN_THRESHOLD = 4000
-
+USE_OPPONENT_STATE = False
 
 # model path
 MODEL_TYPE = "sl"
@@ -650,7 +650,8 @@ def test(on_server=False, replay_path=None):
             teacher.agent_nn.to(DEVICE)
 
         buffer_lock = threading.Lock()
-        learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING, buffer_lock=buffer_lock, writer=writer)
+        learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING, 
+                          buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE)
         learners.append(learner)
         actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
 

@@ -40,7 +40,8 @@ class Learner:
     """Learner worker that updates agent parameters based on trajectories."""
 
     def __init__(self, player, max_time_for_training=60 * 3, 
-                 is_training=True, buffer_lock=None, writer=None):
+                 is_training=True, buffer_lock=None, writer=None,
+                 use_opponent_state=True):
         self.player = player
         self.player.set_learner(self)
 
@@ -65,6 +66,8 @@ class Learner:
         self.buffer_lock = buffer_lock
         self.writer = writer
 
+        self.use_opponent_state = use_opponent_state
+
     def get_parameters(self):
         return self.player.agent.get_parameters()
 
@@ -84,7 +87,7 @@ class Learner:
             self.optimizer.zero_grad()
 
             # with torch.autograd.set_detect_anomaly(True):
-            loss = loss_function(agent, trajectories)
+            loss = loss_function(agent, trajectories, self.use_opponent_state)
             print("loss:", loss) if debug else None
 
             loss.backward()

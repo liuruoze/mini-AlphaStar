@@ -247,7 +247,7 @@ class AlphaStarAgent(RandomAgent):
 
         return action_logits, select_units_num, hidden_state
 
-    def unroll(self, trajectories, use_opponent_state=False):
+    def unroll(self, trajectories, use_opponent_state=True):
         """Unrolls the network over the trajectory.
 
         The actions taken by the agent and the initial state of the unroll are

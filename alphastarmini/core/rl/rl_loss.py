@@ -729,7 +729,7 @@ def get_baseline_hyperparameters():
     return BASELINE_COSTS_AND_REWARDS
 
 
-def loss_function(agent, trajectories):
+def loss_function(agent, trajectories, use_opponent_state=True):
     """Computes the loss of trajectories given weights."""
     # All ALL_CAPS variables are constants.
 
@@ -738,7 +738,7 @@ def loss_function(agent, trajectories):
     # Answer: To calculate the importance ratio = target_logits / behavior_logits
     # trajectories shape: list of trajectory
     # target_logits: ArgsActionLogits
-    target_logits, baselines, target_select_units_num = agent.unroll(trajectories)
+    target_logits, baselines, target_select_units_num = agent.unroll(trajectories, use_opponent_state)
 
     the_action_type = target_logits.action_type
     print("the_action_type.shape:", the_action_type.shape) if debug else None
