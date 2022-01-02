@@ -43,9 +43,9 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 speed = False
 
-MAX_EPISODES = 1
-ACTOR_NUMS = 1
-GAME_STEPS_PER_EPISODE = 1800    # 9000
+MAX_EPISODES = 25
+ACTOR_NUMS = 4
+GAME_STEPS_PER_EPISODE = 18000    # 9000
 IS_TRAINING = True
 REWARD_SCALE = 0.0001
 
@@ -363,7 +363,7 @@ class ActorVSComputer:
                             traj_step = Trajectory(
                                 state=state,
                                 baseline_state=baseline_state,
-                                baseline_state_op=baseline_state,  # when fighting with computer, we don't use opponent state
+                                baseline_state_op=None,  # when fighting with computer, we don't use opponent state
                                 memory=player_memory,
                                 z=z,
                                 masks=action_masks,
@@ -374,9 +374,9 @@ class ActorVSComputer:
                                 reward=reward,
                                 player_select_units_num=player_select_units_num,
                                 build_order=player_bo,
-                                z_build_order=player_bo,  # we change it to the sampled build order
+                                z_build_order=None,  # we change it to the sampled build order
                                 unit_counts=player_ucb,  # player_ucb,
-                                z_unit_counts=player_ucb,  # player_ucb,  # we change it to the sampled unit counts
+                                z_unit_counts=None,  # player_ucb,  # we change it to the sampled unit counts
                                 game_loop=game_loop,
                                 last_list=last_list,
                             )
