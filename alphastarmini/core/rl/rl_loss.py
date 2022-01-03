@@ -41,6 +41,7 @@ ACTION_FIELDS = [
     'target_location',
 ]
 
+SELECTED_UNITS_PLUS_ONE = True
 
 # below now only consider action_type now
 # baseline are also all zeros
@@ -64,13 +65,11 @@ def filter_by(action_fields, target):
 
 
 def filter_by_for_lists(action_fields, target_list):
-
     return torch.cat([getattr(b, action_fields) for a in target_list for b in a], dim=0)
 
 
 def filter_by_for_masks(action_fields, target_mask):
-    index_list = ['action_type', 'delay', 'queue', 'units', 'target_unit', 'target_location']
-    index = index_list.index(action_fields)
+    index = ACTION_FIELDS.index(action_fields)
 
     mask = torch.tensor(target_mask, device=device)
     mask = mask[:, :, index]
@@ -104,109 +103,233 @@ def mergeArgsActionLogits(list_args_action_logits):
     return ArgsActionLogits(*b)
 
 
-def entropy_loss_for_all_arguments(policy_logits, target_select_units_num, masks):
+def entropy_loss_for_all_arguments(target_logits, trajectories, target_select_units_num):
     """Computes the entropy loss for a set of logits.
 
     Args:
-      policy_logits: namedtuple of the logits for each policy argument.
-        Each shape is [..., N_i].
-      masks: The masks. Each shape is policy_logits.shape[:-1].
+      target_logits: [batch_size, seq_size, -1]
+      target_select_units_num: [batch_size, seq_size, 1]
+      trajectories: [seq_size, batch_size, -1]
     Returns:
       Per-example entropy loss, as an array of shape policy_logits.shape[:-1].
     """
-    masks = torch.tensor(masks, device=device)
+    device = target_logits.action_type.device
 
-    entropy_list = []
-    for x in ACTION_FIELDS:    
+    target_select_units_num = target_select_units_num.reshape(AHP.batch_size, AHP.sequence_length, -1)
+    target_select_units_num = torch.transpose(target_select_units_num, 0, 1)
+    target_select_units_num = target_select_units_num.reshape(AHP.sequence_length * AHP.batch_size, -1)
+    if SELECTED_UNITS_PLUS_ONE:
+        target_select_units_num = target_select_units_num + 1
 
-        logits = getattr(policy_logits, x) 
-        print("x name:", x) if debug else None
-        print("logits.shape:", logits.shape) if debug else None
+    target_selected_mask = torch.arange(AHP.max_selected, device=device).float()
+    target_selected_mask = target_selected_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
+    target_selected_mask = target_selected_mask < target_select_units_num
+    assert target_selected_mask.dtype == torch.bool
 
-        if x == "target_unit":
-            # remove the axis 2
-            logits = logits.squeeze(dim=1)
+    player_select_units_num = torch.tensor(trajectories.player_select_units_num, device=device).reshape(-1)
+    if SELECTED_UNITS_PLUS_ONE:
+        player_select_units_num = player_select_units_num + 1
 
-        logits = logits.reshape(AHP.batch_size, AHP.sequence_length, *tuple(logits.shape[1:]))
-        print("logits.shape:", logits.shape) if debug else None
+    player_selected_mask = torch.arange(AHP.max_selected, device=device).float()
+    player_selected_mask = player_selected_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
+    player_selected_mask = player_selected_mask < player_select_units_num.unsqueeze(dim=1)
+    assert player_selected_mask.dtype == torch.bool
 
-        logits = logits.transpose(0, 1)
-        print("logits.shape:", logits.shape) if debug else None
-
-        # shape to be [seq_batch_size, channel_size]
-        logits = logits.reshape(AHP.sequence_length * AHP.batch_size, *tuple(logits.shape[2:]))
-        print("logits.shape:", logits.shape) if debug else None
-
-        if x == "units":
-            logits = logits.reshape(AHP.sequence_length * AHP.batch_size * AHP.max_selected, AHP.max_entities)
-        if x == "target_location":
-            logits = logits.reshape(AHP.sequence_length * AHP.batch_size, SCHP.world_size * SCHP.world_size)
-        print("logits.shape:", logits.shape) if debug else None
-
-        i = ACTION_FIELDS.index(x)
-
-        # shape to be [seq_size, batch_size, 1]
-        mask = masks[:, :, i]
-
-        # shape to be [seq_batch_size, 1]
-        mask = mask.reshape(-1, 1)
-        if x == "units":
-            mask = [mask] * AHP.max_selected
-            mask = torch.cat(mask, dim=0)
-        print("mask.shape:", mask.shape) if debug else None
-
-        entropy_item = RA.entropy(logits, mask)
-        print("entropy_item:", entropy_item) if debug else None
-
-        entropy_list.append(entropy_item)
-
-    return torch.mean(torch.cat(entropy_list, axis=0))
-
-
-def human_policy_kl_loss(student_logits, teacher_logits, target_select_units_num):
-    """Computes the KL loss to the human policy.
-
-    Args:
-      student_logits: [batch_size, seq_size, -1].
-      teacher_logits: [seq, batch_size, -1].
-      target_select_mask: 
-      action_mask:
-    Returns:
-
-    """
-    masks = torch.tensor(masks, device=device)
-
-    entropy_list = []
-    for field in ACTION_FIELDS:    
-        logits = getattr(policy_logits, field) 
-
+    masks = torch.tensor(trajectories.masks, device=device)
+    entropy_loss = torch.zeros(1, dtype=torch.float32, device=device)
+    for i, field in enumerate(ACTION_FIELDS):    
+        logits = getattr(target_logits, field) 
         print("field name:", field) if debug else None
         print("logits.shape:", logits.shape) if debug else None
 
-        if field == "target_unit":
-            logits = logits.squeeze(dim=1)  
+        logits = logits.reshape(AHP.batch_size, AHP.sequence_length, *tuple(logits.shape[1:]))
+        logits = logits.transpose(0, 1)
+        logits = logits.reshape(AHP.sequence_length * AHP.batch_size, *tuple(logits.shape[2:]))
+
+        all_logits = [logits]
+
+        if field == "units":
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size, AHP.max_selected, AHP.max_entities) for logit in all_logits]
+        elif field == "target_unit":
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size * 1, AHP.max_entities) for logit in all_logits]     
         elif field == "target_location":
-            logits = logits.squeeze(dim=1)
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size, SCHP.world_size * SCHP.world_size) for logit in all_logits]
+
+        [logits] = all_logits
+
+        if field == "units":
+            entropy = RA.entropy(logits, target_selected_mask * player_selected_mask)
+            entropy = entropy.sum(dim=-2)
+        else:
+            entropy = RA.entropy(logits)
+        entropy = entropy.sum(dim=-1)
+
+        # Normalize by actions available.
+        entropy = entropy / torch.log(torch.tensor(logits.shape[-1], 
+                                                   dtype=torch.float32, 
+                                                   device=device))
+
+        mask = masks[:, :, i]
+        mask = mask.reshape(-1, 1)
+        entropy = entropy * mask
+
+        entropy_loss += entropy.mean()
+
+    return entropy_loss
+
+
+def human_policy_kl_loss_all(target_logits, trajectories, target_select_units_num):
+    """Computes the KL loss to the human policy.
+
+    Args:
+      target_logits: [batch_size, seq_size, -1]
+      target_select_units_num: [batch_size, seq_size, 1]
+      trajectories: [seq_size, batch_size, -1]
+    Returns:
+
+    """
+    device = target_logits.action_type.device
+    teacher_logits = trajectories.teacher_logits
+
+    target_select_units_num = target_select_units_num.reshape(AHP.batch_size, AHP.sequence_length, -1)
+    target_select_units_num = torch.transpose(target_select_units_num, 0, 1)
+    target_select_units_num = target_select_units_num.reshape(AHP.sequence_length * AHP.batch_size, -1)
+    if SELECTED_UNITS_PLUS_ONE:
+        target_select_units_num = target_select_units_num + 1
+
+    target_selected_mask = torch.arange(AHP.max_selected, device=device).float()
+    target_selected_mask = target_selected_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
+    target_selected_mask = target_selected_mask < target_select_units_num
+    assert target_selected_mask.dtype == torch.bool
+
+    player_select_units_num = torch.tensor(trajectories.player_select_units_num, device=device).reshape(-1)
+    if SELECTED_UNITS_PLUS_ONE:
+        player_select_units_num = player_select_units_num + 1
+
+    player_selected_mask = torch.arange(AHP.max_selected, device=device).float()
+    player_selected_mask = player_selected_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
+    player_selected_mask = player_selected_mask < player_select_units_num.unsqueeze(dim=1)
+    assert player_selected_mask.dtype == torch.bool
+
+    masks = torch.tensor(trajectories.masks, device=device)
+    kl_loss = torch.zeros(1, dtype=torch.float32, device=device)
+
+    for i, field in enumerate(ACTION_FIELDS):    
+
+        logits = getattr(target_logits, field) 
+        print("field name:", field) if 1 else None
+        print("logits.shape:", logits.shape) if debug else None
+
+        logits = logits.reshape(AHP.batch_size, AHP.sequence_length, *tuple(logits.shape[1:]))
+        logits = logits.transpose(0, 1)
+        logits = logits.reshape(AHP.sequence_length * AHP.batch_size, *tuple(logits.shape[2:]))
+
+        t_logits = filter_by_for_lists(field, teacher_logits) 
+        print("t_logits.shape:", t_logits.shape) if debug else None
+
+        all_logits = [logits, t_logits]
+
+        if field == "units":
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size, AHP.max_selected, AHP.max_entities) for logit in all_logits]
+        elif field == "target_unit":
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size * 1, AHP.max_entities) for logit in all_logits]     
+        elif field == "target_location":
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size, SCHP.world_size * SCHP.world_size) for logit in all_logits]
+
+        [logits, t_logits] = all_logits
+
+        if field == "target_unit":
+            print("logits:", logits) if 1 else None
+            print("logits.shape:", logits.shape) if 1 else None
+
+            print("t_logits:", t_logits) if 1 else None
+            print("t_logits.shape:", t_logits.shape) if 1 else None
+
+        if field == "units":
+            kl = RA.kl(logits, t_logits, target_selected_mask * player_selected_mask)
+            kl = kl.sum(dim=-2)
+        else:
+            if field == "target_unit":
+                kl = RA.kl(logits, t_logits, debug=True)
+            else:
+                kl = RA.kl(logits, t_logits)
+        kl = kl.sum(dim=-1)
+
+        mask = masks[:, :, i]
+        mask = mask.reshape(-1, 1)
+
+        kl = kl * mask
+        kl = kl.mean()
+        print("kl:", kl) if 1 else None
+
+        kl_loss += kl
 
     return kl_loss
 
 
-def human_policy_kl_loss_action(student_logits, teacher_logits, game_loop):
+def human_policy_kl_loss_action(target_logits, trajectories):
     """Computes the KL loss to the human policy.
 
     Args:
-      trajectories: The trajectories.
-      kl_cost: A float; the weighting to apply to the KL cost to the human policy.
-      action_type_kl_cost: Additional cost applied to action_types for
-        conditioned policies.
+      target_logits: [batch_size, seq_size, -1]
+      trajectories: [seq_size, batch_size, -1]
     Returns:
-      Per-example entropy loss, as an array of shape policy_logits.shape[:-1].
-    """
-    # student_logits: list of ArgsActionLogits
-    action_type_loss = RA.kl(student_logits, teacher_logits, 1)
 
-    kl_loss = action_type_kl_cost * torch.mean(action_type_loss)
-    print("kl_loss:", kl_loss) if debug else None
+    """
+    device = target_logits.action_type.device
+    teacher_logits = trajectories.teacher_logits
+
+    game_loop = torch.tensor(trajectories.game_loop, device=device).reshape(AHP.sequence_length * AHP.batch_size)
+    seconds = game_loop / 22.4
+    flag = seconds > 4 * 60
+
+    masks = torch.tensor(trajectories.masks, device=device)
+    kl_loss = torch.zeros(1, dtype=torch.float32, device=device)
+
+    for i, field in enumerate(ACTION_FIELDS):
+        if i != 0:
+            break
+
+        logits = getattr(target_logits, field) 
+        print("field name:", field) if 1 else None
+        print("logits.shape:", logits.shape) if debug else None
+
+        logits = logits.reshape(AHP.batch_size, AHP.sequence_length, *tuple(logits.shape[1:]))
+        logits = logits.transpose(0, 1)
+        logits = logits.reshape(AHP.sequence_length * AHP.batch_size, *tuple(logits.shape[2:]))
+
+        t_logits = filter_by_for_lists(field, teacher_logits) 
+        all_logits = [logits, t_logits]
+
+        if field == "units":
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size, AHP.max_selected, AHP.max_entities) for logit in all_logits]
+        elif field == "target_unit":
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size * 1, AHP.max_entities) for logit in all_logits]     
+        elif field == "target_location":
+            all_logits = [logit.reshape(AHP.sequence_length * AHP.batch_size, SCHP.world_size * SCHP.world_size) for logit in all_logits]
+
+        [logits, t_logits] = all_logits
+
+        if field == "units":
+            kl = RA.kl(logits, t_logits, target_selected_mask * player_selected_mask)
+            kl = kl.sum(dim=-2)
+        else:
+            kl = RA.kl(logits, t_logits)
+        kl = kl.sum(dim=-1)
+
+        if i == 0:
+            print("kl.shape:", kl.shape) if 1 else None
+            print("flag.shape:", flag.shape) if 1 else None
+            kl = kl * flag
+
+        mask = masks[:, :, i]
+        mask = mask.reshape(-1, 1)
+
+        kl = kl * mask
+        kl = kl.mean()
+        print("kl:", kl) if 1 else None
+
+        kl_loss += kl
 
     return kl_loss
 
@@ -357,7 +480,8 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
         print("player_select_units_num.shape", player_select_units_num.shape) if debug else None
 
         # when computing logits, we consider the EOF
-        player_select_units_num = player_select_units_num + 1
+        if SELECTED_UNITS_PLUS_ONE:
+            player_select_units_num = player_select_units_num + 1
 
         selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
         selected_mask = selected_mask.repeat(seqbatch_shape, 1)
@@ -367,7 +491,8 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
 
         if target_select_units_num is not None:
             # shape [seqbatch_shape, 1]
-            target_select_units_num = target_select_units_num + 1
+            if SELECTED_UNITS_PLUS_ONE:
+                target_select_units_num = target_select_units_num + 1
 
             target_selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
             target_selected_mask = target_selected_mask.repeat(seqbatch_shape, 1)
@@ -461,7 +586,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     print("result.shape", result.shape) if debug else None
 
     # note: we change back to use only result 
-    return result
+    return result.mean()
 
 
 def split_upgo_loss(target_logits, target_select_units_num, baselines, trajectories):
@@ -526,7 +651,7 @@ def sum_upgo_loss(target_logits, values, trajectories, returns, target_select_un
     loss += target_location_loss
     print('target_location_loss', target_location_loss.mean()) if debug else None
 
-    loss_upgo = loss.mean()
+    loss_upgo = loss
     print('loss_upgo', loss_upgo) if debug else None
     return loss_upgo
 
@@ -582,7 +707,7 @@ def split_vtrace_pg_loss(target_logits, target_select_units_num, baselines, rewa
         loss += target_location_loss
         print('target_location_loss', target_location_loss.mean()) if 1 else None
 
-    sum_vtrace_pg_loss = loss.mean()
+    sum_vtrace_pg_loss = loss
     print('sum_vtrace_pg_loss', sum_vtrace_pg_loss) if debug else None
 
     return sum_vtrace_pg_loss
@@ -640,8 +765,8 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
         print("player_select_units_num.shape", player_select_units_num.shape) if debug else None
 
         # when computing logits, we consider the EOF
-        # shape [seqbatch_shape]
-        player_select_units_num = player_select_units_num + 1
+        if SELECTED_UNITS_PLUS_ONE:
+            player_select_units_num = player_select_units_num + 1
 
         selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
         selected_mask = selected_mask.repeat(seqbatch_shape, 1)
@@ -652,8 +777,8 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
         assert selected_mask.dtype == torch.bool
 
         if target_select_units_num is not None:
-            # shape [seqbatch_shape, 1]
-            target_select_units_num = target_select_units_num + 1
+            if SELECTED_UNITS_PLUS_ONE:
+                target_select_units_num = target_select_units_num + 1
 
             target_selected_mask = torch.arange(select_max_size, device=target_logits.device).float()
             target_selected_mask = target_selected_mask.repeat(seqbatch_shape, 1)
@@ -726,7 +851,7 @@ def upgo_loss_like_vtrace(target_logits, values, trajectories, returns, action_f
     print("result", result) if debug else None
     print("result.shape", result.shape) if debug else None
 
-    return result
+    return result.mean()
 
 
 def get_baseline_hyperparameters():
@@ -840,25 +965,16 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     # If the trajectory was conditioned on `cumulative_statistics`, there is an additional 
     # distillation loss of weight 1e-1 on the action type logits 
     # for the first four minutes of the game.
-    # Thus KL_COST = 2e-3
+    # Thus ALL_KL_COST = 2e-3
     # and ACTION_TYPE_KL_COST = 1e-1
-    KL_COST = 2e-3
+    ALL_KL_COST = 2e-3
     ACTION_TYPE_KL_COST = 1e-1
 
-    # We change to use the teacher logits
-    # [seq_size x batch_size x -1]
-    print("trajectories.teacher_logits", trajectories.teacher_logits) if debug else None
+    # for all arguments
+    all_kl_loss = human_policy_kl_loss_all(target_logits, trajectories, target_select_units_num)
+    action_type_kl_loss = human_policy_kl_loss_action(target_logits, trajectories)
 
-    teacher_logits_action_type = filter_by_for_lists("action_type", trajectories.teacher_logits)
-    print("target_logits.action_type.shape", target_logits.action_type.shape) if debug else None
-    print("teacher_logits_action_type.shape", teacher_logits_action_type.shape) if debug else None
-
-    # TODO: for all arguments
-    # loss_kl = human_policy_kl_loss(target_logits, trajectories.teacher_logits, 
-    #                                target_select_units_num, KL_COST)
-
-    # loss_kl_action = human_policy_kl_loss_action(target_logits.action_type, teacher_logits_action_type, 
-    #                                              trajectories.game_loop, ACTION_TYPE_KL_COST)
+    loss_kl = ALL_KL_COST * all_kl_loss + ACTION_TYPE_KL_COST * action_type_kl_loss
 
     # Entropy Loss:
     # There is an entropy loss with weight 1e-4 on all action arguments, 
@@ -878,10 +994,10 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     # so we gradient descent the -entropy
     # Original AlphaStar pseudocode is wrong
     # AlphaStar: loss_ent = entropy_loss(trajectories.behavior_logits, trajectories.masks)
-    # loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, target_select_units_num, trajectories.masks))
+    loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, trajectories, target_select_units_num))
 
     #print("stop", len(stop))
-    loss_all = loss_actor_critic  # + loss_kl  # + loss_upgo  # + loss_kl + loss_ent
+    loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
 
     print("loss_actor_critic:", loss_actor_critic) if 1 else None
     print("loss_upgo:", loss_upgo) if 0 else None

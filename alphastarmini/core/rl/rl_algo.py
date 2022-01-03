@@ -450,7 +450,26 @@ def generalized_lambda_returns(rewards,
             name="generalized_lambda_returns")
 
 
-def entropy(policy_logits, masks):
+# def entropy(policy_logits, masks):
+#     # policy_logits shape: [seq_batch_size, channel_size]
+#     # masks shape: [seq_batch_size, 1]
+
+#     softmax = nn.Softmax(dim=-1)
+#     logsoftmax = nn.LogSoftmax(dim=-1)
+
+#     policy = softmax(policy_logits)
+#     log_policy = logsoftmax(policy_logits)
+
+#     ent = torch.sum(-policy * log_policy * masks, axis=-1)  # Aggregate over actions.
+#     # Normalize by actions available.
+#     normalized_entropy = ent / torch.log(torch.tensor(policy_logits.shape[-1], 
+#                                                       dtype=torch.float32, 
+#                                                       device=policy_logits.device))
+
+#     return normalized_entropy
+
+
+def entropy(policy_logits, selected_mask=None):
     # policy_logits shape: [seq_batch_size, channel_size]
     # masks shape: [seq_batch_size, 1]
 
@@ -460,16 +479,14 @@ def entropy(policy_logits, masks):
     policy = softmax(policy_logits)
     log_policy = logsoftmax(policy_logits)
 
-    ent = torch.sum(-policy * log_policy * masks, axis=-1)  # Aggregate over actions.
-    # Normalize by actions available.
-    normalized_entropy = ent / torch.log(torch.tensor(policy_logits.shape[-1], 
-                                                      dtype=torch.float32, 
-                                                      device=policy_logits.device))
+    ent = -policy * log_policy
+    if selected_mask is not None:
+        ent = ent * selected_mask.unsqueeze(-1)    
 
-    return normalized_entropy
+    return ent
 
 
-def kl(student_logits, teacher_logits):
+def kl(student_logits, teacher_logits, selected_mask=None, debug=False):
     softmax = nn.Softmax(dim=-1)
     logsoftmax = nn.LogSoftmax(dim=-1)
 
@@ -486,6 +503,9 @@ def kl(student_logits, teacher_logits):
     print("teacher_probs.shape:", teacher_probs.shape) if debug else None
 
     kl = teacher_probs * (t_logprobs - s_logprobs)
+    if selected_mask is not None:
+        kl = kl * selected_mask.unsqueeze(-1) 
+
     print("kl:", kl) if debug else None
     print("kl.shape:", kl.shape) if debug else None
 

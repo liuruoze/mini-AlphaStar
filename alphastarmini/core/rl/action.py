@@ -268,9 +268,7 @@ class ArgsActionLogits(object):
                                       shape5, shape6)
 
     def to(self, device):
-        print('self.action_type.device:', self.action_type.device) if debug else None
         self.action_type = self.action_type.to(device).float()
-        print('self.action_type.device:', self.action_type.device) if debug else None
         self.delay = self.delay.to(device).float()
         self.queue = self.queue.to(device).float()
         self.units = self.units.to(device).float()

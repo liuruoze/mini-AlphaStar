@@ -43,9 +43,17 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 speed = False
 
-MAX_EPISODES = 25
-ACTOR_NUMS = 4
-GAME_STEPS_PER_EPISODE = 18000    # 9000
+
+SIMPLE_TEST = not P.on_server
+if SIMPLE_TEST:
+    MAX_EPISODES = 2
+    ACTOR_NUMS = 1
+    GAME_STEPS_PER_EPISODE = 900    # 9000
+else:
+    MAX_EPISODES = 25
+    ACTOR_NUMS = 4
+    GAME_STEPS_PER_EPISODE = 18000    # 9000    
+
 IS_TRAINING = True
 REWARD_SCALE = 0.0001
 
@@ -235,6 +243,8 @@ class ActorVSComputer:
                                 teacher_step = self.teacher.step_based_on_actions(state, teacher_memory, player_action, player_select_units_num)
                                 teacher_logits, teacher_select_units_num, teacher_new_memory = teacher_step
                                 print("teacher_logits:", teacher_logits) if debug else None
+
+                                assert teacher_select_units_num == player_select_units_num
                             else:
                                 teacher_logits = None
 
