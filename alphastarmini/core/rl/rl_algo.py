@@ -469,7 +469,7 @@ def entropy(policy_logits, masks):
     return normalized_entropy
 
 
-def kl(student_logits, teacher_logits, mask):
+def kl(student_logits, teacher_logits):
     softmax = nn.Softmax(dim=-1)
     logsoftmax = nn.LogSoftmax(dim=-1)
 
@@ -485,7 +485,7 @@ def kl(student_logits, teacher_logits, mask):
     print("teacher_probs:", teacher_probs) if debug else None
     print("teacher_probs.shape:", teacher_probs.shape) if debug else None
 
-    kl = teacher_probs * (t_logprobs - s_logprobs) * mask
+    kl = teacher_probs * (t_logprobs - s_logprobs)
     print("kl:", kl) if debug else None
     print("kl.shape:", kl.shape) if debug else None
 

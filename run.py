@@ -69,13 +69,13 @@ if __name__ == '__main__':
     # from alphastarmini.core.rl import rl_eval_sl
     # rl_eval_sl.test(on_server=P.on_server)
 
-    # # 4. we use SL model to do reinforcement learning against computer
-    # from alphastarmini.core.rl import rl_vs_computer_wo_replay
-    # rl_vs_computer_wo_replay.test(on_server=P.on_server, replay_path=P.replay_path)
+    # 4. we use SL model to do reinforcement learning against computer
+    from alphastarmini.core.rl import rl_vs_computer_wo_replay
+    rl_vs_computer_wo_replay.test(on_server=P.on_server, replay_path=P.replay_path)
 
-    # 5. we use RL environment to evaluate SL model
-    from alphastarmini.core.rl import rl_eval_rl
-    rl_eval_rl.test(on_server=P.on_server)
+    # # 5. we use RL environment to evaluate SL model
+    # from alphastarmini.core.rl import rl_eval_rl
+    # rl_eval_rl.test(on_server=P.on_server)
 
     # # 6. we use SL model and replays to do reinforcement learning
     # from alphastarmini.core.rl import rl_train_with_replay

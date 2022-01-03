@@ -33,16 +33,14 @@ debug = False
 
 
 ACTION_FIELDS = [
-    'action_type',  # Action taken. need 'repeat'?
+    'action_type',  
     'delay',
-    'arguments',
-    'queued',
-    'selected_units',
+    'queue',
+    'units',
     'target_unit',
     'target_location',
 ]
 
-Mask = collections.namedtuple('Mask', ACTION_FIELDS)
 
 # below now only consider action_type now
 # baseline are also all zeros
@@ -116,12 +114,10 @@ def entropy_loss_for_all_arguments(policy_logits, target_select_units_num, masks
     Returns:
       Per-example entropy loss, as an array of shape policy_logits.shape[:-1].
     """
-
-    index_list = ['action_type', 'delay', 'queue', 'units', 'target_unit', 'target_location']
     masks = torch.tensor(masks, device=device)
 
     entropy_list = []
-    for x in index_list:    
+    for x in ACTION_FIELDS:    
 
         logits = getattr(policy_logits, x) 
         print("x name:", x) if debug else None
@@ -147,7 +143,7 @@ def entropy_loss_for_all_arguments(policy_logits, target_select_units_num, masks
             logits = logits.reshape(AHP.sequence_length * AHP.batch_size, SCHP.world_size * SCHP.world_size)
         print("logits.shape:", logits.shape) if debug else None
 
-        i = index_list.index(x)
+        i = ACTION_FIELDS.index(x)
 
         # shape to be [seq_size, batch_size, 1]
         mask = masks[:, :, i]
@@ -167,7 +163,35 @@ def entropy_loss_for_all_arguments(policy_logits, target_select_units_num, masks
     return torch.mean(torch.cat(entropy_list, axis=0))
 
 
-def human_policy_kl_loss(student_logits, teacher_logits, target_select_units_num, action_type_kl_cost):
+def human_policy_kl_loss(student_logits, teacher_logits, target_select_units_num):
+    """Computes the KL loss to the human policy.
+
+    Args:
+      student_logits: [batch_size, seq_size, -1].
+      teacher_logits: [seq, batch_size, -1].
+      target_select_mask: 
+      action_mask:
+    Returns:
+
+    """
+    masks = torch.tensor(masks, device=device)
+
+    entropy_list = []
+    for field in ACTION_FIELDS:    
+        logits = getattr(policy_logits, field) 
+
+        print("field name:", field) if debug else None
+        print("logits.shape:", logits.shape) if debug else None
+
+        if field == "target_unit":
+            logits = logits.squeeze(dim=1)  
+        elif field == "target_location":
+            logits = logits.squeeze(dim=1)
+
+    return kl_loss
+
+
+def human_policy_kl_loss_action(student_logits, teacher_logits, game_loop):
     """Computes the KL loss to the human policy.
 
     Args:
@@ -223,7 +247,7 @@ def policy_gradient_loss(logits, actions, advantages, mask):
 
     # advantages = stop_gradient(advantages)
     advantages = advantages.clone().detach()
-    print("advantages:", advantages) if debug else None
+    print("advantages:", advantages.mean()) if 1 else None
     print("advantages.shape:", advantages.shape) if debug else None
 
     print("mask:", mask) if debug else None
@@ -235,10 +259,10 @@ def policy_gradient_loss(logits, actions, advantages, mask):
 
     outlier_remove = True
     if outlier_remove:
-        outlier_mask = (torch.abs(results) >= 1e5)
+        outlier_mask = (torch.abs(results) >= 1e3)
         results = results * ~outlier_mask
     else:
-        outlier_mask = (torch.abs(results) >= 1e5)
+        outlier_mask = (torch.abs(results) >= 1e3)
 
         if outlier_mask.any() > 0:
 
@@ -530,29 +554,33 @@ def split_vtrace_pg_loss(target_logits, target_select_units_num, baselines, rewa
 
     action_type_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'action_type')
     loss += action_type_loss
-    print('action_type_loss', action_type_loss.mean()) if debug else None
+    print('action_type_loss', action_type_loss.mean()) if 1 else None
 
     if True:
         delay_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'delay')
-        loss += delay_loss * 0
+        delay_loss_weight = 0
+        delay_loss = delay_loss * delay_loss_weight
+        loss += delay_loss
         print('delay_loss', delay_loss.mean()) if debug else None
 
         # note: here we use queue, units, target_unit and target_location to replace the single arguments
         queue_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'queue')
         loss += queue_loss
-        print('queue_loss', queue_loss.mean()) if debug else None
+        print('queue_loss', queue_loss.mean()) if 1 else None
 
         units_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'units', target_select_units_num)
+        units_loss_weight = 0
+        units_loss = units_loss * units_loss_weight
         loss += units_loss
-        print('units_loss', units_loss.mean()) if debug else None
+        print('units_loss', units_loss.mean()) if 1 else None
 
         target_unit_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_unit')
         loss += target_unit_loss
-        print('target_unit_loss', target_unit_loss.mean()) if debug else None
+        print('target_unit_loss', target_unit_loss.mean()) if 1 else None
 
         target_location_loss = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, 'target_location')
         loss += target_location_loss
-        print('target_location_loss', target_location_loss.mean()) if debug else None
+        print('target_location_loss', target_location_loss.mean()) if 1 else None
 
     sum_vtrace_pg_loss = loss.mean()
     print('sum_vtrace_pg_loss', sum_vtrace_pg_loss) if debug else None
@@ -744,6 +772,7 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     # target_logits: ArgsActionLogits
     target_logits, baselines, target_select_units_num = agent.unroll(trajectories, use_opponent_state)
 
+    # shape [batch_size x seq_size x *action_size]
     the_action_type = target_logits.action_type
     print("the_action_type.shape:", the_action_type.shape) if debug else None
     print("baselines.shape:", baselines.shape) if debug else None
@@ -817,6 +846,7 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     ACTION_TYPE_KL_COST = 1e-1
 
     # We change to use the teacher logits
+    # [seq_size x batch_size x -1]
     print("trajectories.teacher_logits", trajectories.teacher_logits) if debug else None
 
     teacher_logits_action_type = filter_by_for_lists("action_type", trajectories.teacher_logits)
@@ -824,8 +854,11 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     print("teacher_logits_action_type.shape", teacher_logits_action_type.shape) if debug else None
 
     # TODO: for all arguments
-    loss_kl = human_policy_kl_loss(target_logits.action_type, teacher_logits_action_type, 
-                                   target_select_units_num, ACTION_TYPE_KL_COST)
+    # loss_kl = human_policy_kl_loss(target_logits, trajectories.teacher_logits, 
+    #                                target_select_units_num, KL_COST)
+
+    # loss_kl_action = human_policy_kl_loss_action(target_logits.action_type, teacher_logits_action_type, 
+    #                                              trajectories.game_loop, ACTION_TYPE_KL_COST)
 
     # Entropy Loss:
     # There is an entropy loss with weight 1e-4 on all action arguments, 
@@ -848,7 +881,7 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     # loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, target_select_units_num, trajectories.masks))
 
     #print("stop", len(stop))
-    loss_all = loss_actor_critic + loss_kl  # + loss_upgo  # + loss_kl + loss_ent
+    loss_all = loss_actor_critic  # + loss_kl  # + loss_upgo  # + loss_kl + loss_ent
 
     print("loss_actor_critic:", loss_actor_critic) if 1 else None
     print("loss_upgo:", loss_upgo) if 0 else None
