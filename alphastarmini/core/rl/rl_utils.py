@@ -31,6 +31,7 @@ TRAJECTORY_FIELDS = [
     'teacher_logits',  # namedtuple of logits of the supervised policy.
     'reward',  # Reward for the agent after taking the step.
     'player_select_units_num',  # action select units num
+    'entity_num',  # the entity nums in this state
     'build_order',  # build_order
     'z_build_order',  # the build_order for the sampled replay
     'unit_counts',  # unit_counts

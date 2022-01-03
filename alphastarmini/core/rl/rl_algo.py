@@ -450,26 +450,7 @@ def generalized_lambda_returns(rewards,
             name="generalized_lambda_returns")
 
 
-# def entropy(policy_logits, masks):
-#     # policy_logits shape: [seq_batch_size, channel_size]
-#     # masks shape: [seq_batch_size, 1]
-
-#     softmax = nn.Softmax(dim=-1)
-#     logsoftmax = nn.LogSoftmax(dim=-1)
-
-#     policy = softmax(policy_logits)
-#     log_policy = logsoftmax(policy_logits)
-
-#     ent = torch.sum(-policy * log_policy * masks, axis=-1)  # Aggregate over actions.
-#     # Normalize by actions available.
-#     normalized_entropy = ent / torch.log(torch.tensor(policy_logits.shape[-1], 
-#                                                       dtype=torch.float32, 
-#                                                       device=policy_logits.device))
-
-#     return normalized_entropy
-
-
-def entropy(policy_logits, selected_mask=None):
+def entropy(policy_logits, selected_mask=None, entity_mask=None, debug=False):
     # policy_logits shape: [seq_batch_size, channel_size]
     # masks shape: [seq_batch_size, 1]
 
@@ -480,13 +461,21 @@ def entropy(policy_logits, selected_mask=None):
     log_policy = logsoftmax(policy_logits)
 
     ent = -policy * log_policy
+
     if selected_mask is not None:
+        print("ent.shape:", ent.shape) if debug else None
+        print("selected_mask.shape:", selected_mask.shape) if debug else None
         ent = ent * selected_mask.unsqueeze(-1)    
+
+    if entity_mask is not None:
+        print("ent.shape:", ent.shape) if debug else None
+        print("entity_mask.shape:", entity_mask.shape) if debug else None
+        ent = ent * entity_mask
 
     return ent
 
 
-def kl(student_logits, teacher_logits, selected_mask=None, debug=False):
+def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None, debug=False):
     softmax = nn.Softmax(dim=-1)
     logsoftmax = nn.LogSoftmax(dim=-1)
 
@@ -503,8 +492,16 @@ def kl(student_logits, teacher_logits, selected_mask=None, debug=False):
     print("teacher_probs.shape:", teacher_probs.shape) if debug else None
 
     kl = teacher_probs * (t_logprobs - s_logprobs)
+
     if selected_mask is not None:
+        print("kl.shape:", kl.shape) if debug else None
+        print("selected_mask.shape:", selected_mask.shape) if debug else None
         kl = kl * selected_mask.unsqueeze(-1) 
+
+    if entity_mask is not None:
+        print("kl.shape:", kl.shape) if debug else None
+        print("entity_mask.shape:", entity_mask.shape) if debug else None
+        kl = kl * entity_mask
 
     print("kl:", kl) if debug else None
     print("kl.shape:", kl.shape) if debug else None
@@ -513,7 +510,7 @@ def kl(student_logits, teacher_logits, selected_mask=None, debug=False):
 
 
 def compute_unclipped_logrho(behavior_logits, target_logits, actions):
-    """Helper function for compute_importance_weights."""
+    """Helper function."""
 
     target_log_prob = log_prob(actions, target_logits, reduction="none")
     print("target_log_prob:", target_log_prob) if debug else None
@@ -554,19 +551,22 @@ def log_prob(actions, logits, reduction="none"):
 
     print("logits:", logits) if debug else None
     print("logits.shape:", logits.shape) if debug else None
-
     print("actions:", actions) if debug else None
     print("actions.shape:", actions.shape) if debug else None
 
+    # actions: shape [BATCH_SIZE, 1]
+    actions = torch.squeeze(actions, dim=-1)
+
     # logits: shape [BATCH_SIZE, CLASS_SIZE]
     # actions: shape [BATCH_SIZE]
-    loss_result = loss(logits, torch.squeeze(actions, dim=-1))
+    loss_result = loss(logits, actions)
 
     # Original AlphaStar pseudocode is wrong
     # AlphaStar: return loss_result
 
     # change to right log_prob
-    the_log_prob = - loss_result
+    # the_log_prob: shape [BATCH_SIZE]
+    the_log_prob = -loss_result
 
     return the_log_prob
 

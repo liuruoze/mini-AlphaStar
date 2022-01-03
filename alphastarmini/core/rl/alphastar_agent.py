@@ -230,13 +230,13 @@ class AlphaStarAgent(RandomAgent):
         device = self.agent_nn.device()
         state.to(device)
 
-        action_logits, action, hidden_state, select_units_num = self.agent_nn.action_logits_by_state(state, 
-                                                                                                     single_inference=True,
-                                                                                                     hidden_state=hidden_state)
+        action_logits, action, hidden_state, select_units_num, entity_num = self.agent_nn.action_logits_by_state(state, 
+                                                                                                                 single_inference=True,
+                                                                                                                 hidden_state=hidden_state)
 
         func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
 
-        return func_call, action, action_logits, hidden_state, select_units_num
+        return func_call, action, action_logits, hidden_state, select_units_num, entity_num
 
     def step_based_on_actions(self, state, hidden_state, action_gt, gt_select_units_num):  
         action_logits, select_units_num, hidden_state = self.agent_nn.action_logits_based_on_actions(state, 
@@ -314,11 +314,9 @@ class AlphaStarAgent(RandomAgent):
             baseline_state_op_all = None
 
         # shape [batch_seq_size, embedding_size]
-        baseline_list, policy_logits, select_units_num = self.agent_nn.unroll_traj(state_all=state_all, 
-                                                                                   initial_state=initial_memory_state, 
-                                                                                   baseline_state=baseline_state_all, 
-                                                                                   baseline_opponent_state=baseline_state_op_all)
+        baseline_list, policy_logits, select_units_num, entity_nums = self.agent_nn.unroll_traj(state_all=state_all, 
+                                                                                                initial_state=initial_memory_state, 
+                                                                                                baseline_state=baseline_state_all, 
+                                                                                                baseline_opponent_state=baseline_state_op_all)
 
-        baselines = [baseline.reshape(AHP.batch_size, AHP.sequence_length).transpose(0, 1) for baseline in baseline_list]
-
-        return policy_logits, baselines, select_units_num
+        return policy_logits, baseline_list, select_units_num, entity_nums

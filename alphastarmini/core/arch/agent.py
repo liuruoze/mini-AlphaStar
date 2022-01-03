@@ -299,11 +299,11 @@ class Agent(object):
         batch_size = 1 if single_inference else None
         sequence_length = 1 if single_inference else None
 
-        action_logits, actions, new_state, select_units_num = self.model.forward(state, batch_size = batch_size,
-                                                                                 sequence_length = sequence_length,
-                                                                                 hidden_state = hidden_state, 
-                                                                                 return_logits = True)
-        return action_logits, actions, new_state, select_units_num
+        action_logits, actions, new_state, select_units_num, entity_nums = self.model.forward(state, batch_size = batch_size,
+                                                                                              sequence_length = sequence_length,
+                                                                                              hidden_state = hidden_state, 
+                                                                                              return_logits = True)
+        return action_logits, actions, new_state, select_units_num, entity_nums
 
     def action_logits_based_on_actions(self, state, action_gt, gt_select_units_num, hidden_state = None, single_inference = False):
         batch_size = 1 if single_inference else None
@@ -475,12 +475,12 @@ class Agent(object):
         return func_call
 
     def unroll_traj(self, state_all, initial_state, baseline_state=None, baseline_opponent_state=None):
-        baseline_value_list, action_logits, _, _, select_units_num = self.model.forward(state_all, batch_size=None, sequence_length=None, 
-                                                                                        hidden_state=initial_state, return_logits=True,
-                                                                                        baseline_state=baseline_state, 
-                                                                                        baseline_opponent_state=baseline_opponent_state,
-                                                                                        return_baseline=True)
-        return baseline_value_list, action_logits, select_units_num
+        baseline_value_list, action_logits, _, _, select_units_num, entity_num = self.model.forward(state_all, batch_size=None, sequence_length=None, 
+                                                                                                    hidden_state=initial_state, return_logits=True,
+                                                                                                    baseline_state=baseline_state, 
+                                                                                                    baseline_opponent_state=baseline_opponent_state,
+                                                                                                    return_baseline=True)
+        return baseline_value_list, action_logits, select_units_num, entity_num
 
     def get_weights(self):
         if self.model is not None:

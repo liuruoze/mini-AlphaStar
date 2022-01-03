@@ -199,6 +199,9 @@ class ArchModel(nn.Module):
             return action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \
                 units_logits, target_unit_logits, target_location_logits, select_units_num
 
+        print('entity_nums.shape:', entity_nums.shape) if debug else None
+        print('select_units_num.shape:', select_units_num.shape) if debug else None
+
         if return_logits:
 
             if return_baseline:
@@ -211,11 +214,11 @@ class ArchModel(nn.Module):
                 baseline_value_list = [winloss_baseline_value, build_order_baseline_value, built_units_baseline_value,
                                        upgrades_baseline_value, effects_baseline_value]
 
-                return baseline_value_list, action_logits, action, hidden_state, select_units_num
+                return baseline_value_list, action_logits, action, hidden_state, select_units_num, entity_nums
 
-            return action_logits, action, hidden_state, select_units_num
+            return action_logits, action, hidden_state, select_units_num, entity_nums
 
-        return action, hidden_state, select_units_num
+        return action, hidden_state, select_units_num, entity_nums
 
     def sl_forward(self, state, gt_action, gt_select_units_num, 
                    gt_is_one_hot=True, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None):

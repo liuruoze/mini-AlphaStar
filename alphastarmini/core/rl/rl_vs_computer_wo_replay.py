@@ -221,13 +221,14 @@ class ActorVSComputer:
                             baseline_state = self.player.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
 
                             player_step = self.player.agent.step_from_state(state, player_memory)
-                            player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
+                            player_function_call, player_action, player_logits, \
+                                player_new_memory, player_select_units_num, entity_num = player_step
 
                             print("player_function_call:", player_function_call) if debug else None
                             print("player_action:", player_action) if debug else None
                             print("player_action.delay:", player_action.delay) if debug else None
-
                             print("player_select_units_num:", player_select_units_num) if debug else None
+                            print("entity_num:", entity_num) if debug else None
 
                             if False:
                                 show_sth(home_obs, player_action)
@@ -383,6 +384,7 @@ class ActorVSComputer:
                                 is_final=is_final,                                          
                                 reward=reward,
                                 player_select_units_num=player_select_units_num,
+                                entity_num=entity_num,
                                 build_order=player_bo,
                                 z_build_order=None,  # we change it to the sampled build order
                                 unit_counts=player_ucb,  # player_ucb,
