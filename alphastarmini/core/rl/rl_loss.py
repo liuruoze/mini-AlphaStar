@@ -220,7 +220,9 @@ def human_policy_kl_loss_all(target_logits, trajectories, target_select_units_nu
 
         if field == "units":
             selected_mask = target_selected_mask * player_selected_mask
-            kl = RA.kl(logits, t_logits, selected_mask=selected_mask, entity_mask=entity_mask.unsqueeze(-2), debug=False)
+            kl = RA.kl(logits, t_logits, selected_mask=selected_mask, entity_mask=entity_mask.unsqueeze(-2), 
+                       debug=False, target_entity_num=target_entity_num.reshape(-1), target_select_units_num=target_select_units_num.reshape(-1),
+                       player_select_units_num=player_select_units_num.reshape(-1))
             kl = kl.sum(dim=-2)
         else:
             if field == "target_unit":
@@ -332,7 +334,7 @@ def td_lambda_loss(baselines, rewards, trajectories):
 
 
 def policy_gradient_loss(logits, actions, advantages, mask, selected_mask=None,
-                         entity_mask=None, debug=False):
+                         entity_mask=None, debug=False, outlier_remove=False):
     """Helper function for computing policy gradient loss for UPGO and v-trace."""
 
     # logits: shape [BATCH_SIZE, CLASS_SIZE]
@@ -346,9 +348,23 @@ def policy_gradient_loss(logits, actions, advantages, mask, selected_mask=None,
         # if it is not None, it is the units head
         entity_mask = entity_mask.unsqueeze(dim=1)
 
+        print("logits.shape:", logits.shape) if 1 else None
+        print("actions.shape:", actions.shape) if 1 else None
+        print("entity_mask.shape:", entity_mask.shape) if 1 else None
+
         # logits: shape [BATCH_SIZE, MAX_SELECT, MAX_ENTITY]
         # entity_mask: shape [BATCH_SIZE, 1, MAX_ENTITY]
         logits = logits * entity_mask
+
+        if True:
+            outlier_mask = (torch.abs(logits) == 1e8)
+            if outlier_mask.any() > 0:
+                print("outlier_mask:", outlier_mask.nonzero(as_tuple=True)) if 1 else None
+                index = outlier_mask.nonzero(as_tuple=True)
+                print("logits[index]:", logits[index]) if 1 else None
+                print("actions[index[0:2]]:", actions[index[0], 0]) if 1 else None
+                print("actions[index[0:2]]:", actions[index[0], 1]) if 1 else None
+                print("mask[index[0]]:", mask[index[0]]) if 1 else None
 
         if len(logits.shape) == 3:
             select_size = logits.shape[1]
@@ -390,33 +406,21 @@ def policy_gradient_loss(logits, actions, advantages, mask, selected_mask=None,
     print("results:", results) if debug else None
     print("results.shape:", results.shape) if debug else None
 
-    outlier_remove = True
     if outlier_remove:
-        outlier_mask = (torch.abs(results) >= 1e3)
+        outlier_mask = (torch.abs(results) >= 1e6)
         results = results * ~outlier_mask
     else:
-        outlier_mask = (torch.abs(results) >= 1e3)
-
+        outlier_mask = (torch.abs(results) >= 1e6)
         if outlier_mask.any() > 0:
-
             print("outlier_mask:", outlier_mask.nonzero(as_tuple=True)) if 1 else None
-            index = outlier_mask.nonzero(as_tuple=True)[0]
 
-            print("actions[index]:", actions[index]) if 1 else None
-            print("logits[index]:", logits[index]) if 1 else None
+            index = outlier_mask.nonzero(as_tuple=True)
+
+            print("action_log_prob[index]:", action_log_prob[index]) if 1 else None
             print("advantages[index]:", advantages[index]) if 1 else None
             print("mask[index]:", mask[index]) if 1 else None
-            print("results[index]:", results[index]) if 1 else None
 
-            results = results.reshape(AHP.sequence_length - 1, AHP.batch_size, AHP.max_selected)
-
-            print("results:", results) if 1 else None
-            print("results.shape:", results.shape) if 1 else None
-
-            print("action_log_prob:", action_log_prob) if 1 else None
-            print("action_log_prob.shape:", action_log_prob.shape) if 1 else None
-
-            stop()
+            # stop()
 
     # note, we should do policy ascent on the results
     # which means if we use policy descent, we should add a "-" sign for results
@@ -425,7 +429,7 @@ def policy_gradient_loss(logits, actions, advantages, mask, selected_mask=None,
     return loss
 
 
-def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
+def vtrace_pg_loss(target_logits, target_actions, baselines, rewards, trajectories,
                    action_fields, target_select_units_num, target_entity_num):
     print('action_fields', action_fields) if debug else None
 
@@ -437,9 +441,12 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
     sequence_length = rewards.shape[0]
     batch_size = rewards.shape[1]
 
-    target_logits = getattr(target_logits, action_fields)
     device = target_logits.device
 
+    target_logits = getattr(target_logits, action_fields)
+    target_actions = getattr(target_actions, action_fields)
+
+    target_actions = target_actions[:-1]
     target_logits = target_logits[:-1]
     target_select_units_num = target_select_units_num[:-1].reshape(-1)
     target_entity_num = target_entity_num[:-1].reshape(-1)
@@ -456,6 +463,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
         target_logits = target_logits.reshape(-1, target_logits.shape[-1])
         behavior_logits = behavior_logits.reshape(-1, behavior_logits.shape[-1])
         actions = actions.reshape(-1, actions.shape[-1])
+        target_actions = target_actions.reshape(-1, target_actions.shape[-1])
 
         player_select_units_num = torch.tensor(trajectories.player_select_units_num, device=device).reshape(-1)
         selected_mask = torch.arange(AHP.max_selected, device=device).float()
@@ -522,6 +530,7 @@ def vtrace_pg_loss(target_logits, baselines, rewards, trajectories,
 
         target_logits = target_logits.reshape(sequence_length * batch_size, AHP.max_selected, -1)
         actions = actions.reshape(sequence_length * batch_size, AHP.max_selected, -1)
+        target_actions = target_actions.reshape(sequence_length * batch_size, AHP.max_selected, -1)
         selected_mask = selected_mask * target_selected_mask
 
         result = policy_gradient_loss(target_logits, actions, weighted_advantage, masks, selected_mask, entity_mask)
@@ -579,23 +588,31 @@ def sum_upgo_loss(target_logits, values, trajectories, returns, target_select_un
     """Computes the split upgo policy gradient loss.
     """
     loss = 0.
+    print('sum_upgo_loss') if 1 else None
+
     for i, field in enumerate(ACTION_FIELDS):
         loss_field = upgo_loss(target_logits, values, trajectories, returns, field,
                                target_select_units_num, target_entity_num)
         loss_val = loss_field.item()
+        print('field', field, 'loss_val', loss_val) if 1 else None
+
     loss += loss_field
 
     return loss
 
 
-def sum_vtrace_pg_loss(target_logits, target_select_units_num, target_entity_num, baselines, rewards, trajectories):
+def sum_vtrace_pg_loss(target_logits, target_actions, target_select_units_num, target_entity_num, baselines, rewards, trajectories):
     """Computes the split v-trace policy gradient loss.
     """
     loss = 0.
+    print('sum_vtrace_pg_loss') if 1 else None
+
     for i, field in enumerate(ACTION_FIELDS):
-        loss_field = vtrace_pg_loss(target_logits, baselines, rewards, trajectories, field,
+        loss_field = vtrace_pg_loss(target_logits, target_actions, baselines, rewards, trajectories, field,
                                     target_select_units_num, target_entity_num)
         loss_val = loss_field.item()
+        print('field', field, 'loss_val', loss_val) if 1 else None
+
         loss += loss_field
 
     return loss
@@ -769,11 +786,15 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     """Computes the loss of trajectories given weights."""
 
     # target_logits: ArgsActionLogits
-    target_logits, baselines, target_select_units_num, target_entity_num = agent.unroll(trajectories, use_opponent_state)
+    target_logits, target_actions, baselines, target_select_units_num, target_entity_num = agent.unroll(trajectories, use_opponent_state)
     target_logits = transpose_target_logits(target_logits)
     baselines = transpose_baselines(baselines)
     target_select_units_num = transpose_sth(target_select_units_num)
     target_entity_num = transpose_sth(target_entity_num)
+    target_actions = transpose_target_logits(target_actions)
+
+    print("target_entity_num:", target_entity_num) if 1 else None
+    print("target_entity_num.shape:", target_entity_num.shape) if 1 else None
 
     # note, we change the structure of the trajectories
     trajectories = RU.stack_namedtuple(trajectories) 
@@ -783,8 +804,10 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     trajectories = RU.namedtuple_zip(trajectories) 
 
     entity_num = torch.tensor(trajectories.entity_num, device=device)
-    print("entity_num:", entity_num) if debug else None
-    print("entity_num.shape:", entity_num.shape) if debug else None
+    print("entity_num:", entity_num) if 1 else None
+    print("entity_num.shape:", entity_num.shape) if 1 else None
+
+    assert torch.equal(target_entity_num, entity_num)
 
     loss_actor_critic = 0.
 
@@ -818,7 +841,7 @@ def loss_function(agent, trajectories, use_opponent_state=True):
             loss_actor_critic += (baseline_cost * lambda_loss)
 
             # we add vtrace loss
-            pg_loss = sum_vtrace_pg_loss(target_logits, target_select_units_num, target_entity_num, 
+            pg_loss = sum_vtrace_pg_loss(target_logits, target_actions, target_select_units_num, target_entity_num, 
                                          baseline, rewards, trajectories)
             print("pg_loss:", pg_loss) if debug else None
 
@@ -862,7 +885,7 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     loss_ent = ENT_WEIGHT * (- entropy_loss_for_all_arguments(target_logits, trajectories, target_select_units_num, target_entity_num))
 
     #print("stop", len(stop))
-    loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
+    loss_all = loss_actor_critic + loss_upgo  # + loss_kl + loss_ent
 
     print("loss_actor_critic:", loss_actor_critic) if 1 else None
     print("loss_upgo:", loss_upgo) if 1 else None

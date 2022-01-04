@@ -457,8 +457,9 @@ def entropy(policy_logits, selected_mask=None, entity_mask=None, debug=False):
     softmax = nn.Softmax(dim=-1)
     logsoftmax = nn.LogSoftmax(dim=-1)
 
-    policy = softmax(policy_logits)
+    #policy = softmax(policy_logits)
     log_policy = logsoftmax(policy_logits)
+    policy = torch.exp(log_policy)
 
     ent = -policy * log_policy
 
@@ -475,7 +476,9 @@ def entropy(policy_logits, selected_mask=None, entity_mask=None, debug=False):
     return ent
 
 
-def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None, debug=False):
+def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None, 
+       debug=False, outlier_remove=True, target_entity_num=None,
+       target_select_units_num=None, player_select_units_num=None):
     softmax = nn.Softmax(dim=-1)
     logsoftmax = nn.LogSoftmax(dim=-1)
 
@@ -487,7 +490,8 @@ def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None, deb
     print("t_logprobs:", t_logprobs) if debug else None
     print("t_logprobs.shape:", t_logprobs.shape) if debug else None  
 
-    teacher_probs = softmax(teacher_logits)
+    #teacher_probs = softmax(teacher_logits)
+    teacher_probs = torch.exp(t_logprobs)
     print("teacher_probs:", teacher_probs) if debug else None
     print("teacher_probs.shape:", teacher_probs.shape) if debug else None
 
@@ -504,6 +508,28 @@ def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None, deb
         kl = kl * entity_mask
 
     print("kl:", kl) if debug else None
+
+    if outlier_remove:
+        outlier_mask = (torch.abs(kl) >= 1e6)
+        kl = kl * ~outlier_mask
+    else:
+        outlier_mask = (torch.abs(kl) >= 1e6)
+        if outlier_mask.any() > 0:
+            print("outlier_mask:", outlier_mask.nonzero(as_tuple=True)) if 1 else None
+            index = outlier_mask.nonzero(as_tuple=True)
+
+            print("kl[index]:", kl[index]) if 1 else None
+            print("student_logits[index]:", student_logits[index]) if 1 else None
+            print("teacher_logits[index]:", teacher_logits[index]) if 1 else None
+
+            id0 = index[0]
+
+            print("target_entity_num[id0]:", target_entity_num[id0]) if 1 else None
+            print("target_select_units_num[id0]:", target_select_units_num[id0]) if 1 else None
+            print("player_select_units_num[id0]:", player_select_units_num[id0]) if 1 else None            
+
+            # stop()
+
     print("kl.shape:", kl.shape) if debug else None
 
     return kl

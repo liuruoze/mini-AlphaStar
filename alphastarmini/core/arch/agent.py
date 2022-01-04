@@ -475,12 +475,12 @@ class Agent(object):
         return func_call
 
     def unroll_traj(self, state_all, initial_state, baseline_state=None, baseline_opponent_state=None):
-        baseline_value_list, action_logits, _, _, select_units_num, entity_num = self.model.forward(state_all, batch_size=None, sequence_length=None, 
+        baseline_value_list, action_logits, actions, _, select_units_num, entity_num = self.model.forward(state_all, batch_size=None, sequence_length=None, 
                                                                                                     hidden_state=initial_state, return_logits=True,
                                                                                                     baseline_state=baseline_state, 
                                                                                                     baseline_opponent_state=baseline_opponent_state,
                                                                                                     return_baseline=True)
-        return baseline_value_list, action_logits, select_units_num, entity_num
+        return baseline_value_list, action_logits, actions, select_units_num, entity_num
 
     def get_weights(self):
         if self.model is not None:

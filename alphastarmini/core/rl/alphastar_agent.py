@@ -314,9 +314,9 @@ class AlphaStarAgent(RandomAgent):
             baseline_state_op_all = None
 
         # shape [batch_seq_size, embedding_size]
-        baseline_list, policy_logits, select_units_num, entity_nums = self.agent_nn.unroll_traj(state_all=state_all, 
-                                                                                                initial_state=initial_memory_state, 
-                                                                                                baseline_state=baseline_state_all, 
-                                                                                                baseline_opponent_state=baseline_state_op_all)
+        baseline_list, policy_logits, actions, select_units_num, entity_nums = self.agent_nn.unroll_traj(state_all=state_all, 
+                                                                                                         initial_state=initial_memory_state, 
+                                                                                                         baseline_state=baseline_state_all, 
+                                                                                                         baseline_opponent_state=baseline_state_op_all)
 
-        return policy_logits, baseline_list, select_units_num, entity_nums
+        return policy_logits, actions, baseline_list, select_units_num, entity_nums
