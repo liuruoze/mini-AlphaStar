@@ -5,12 +5,21 @@
 
 # modified from AlphaStar pseudo-code
 import os
-import torch
 import traceback
 import collections
 
-from alphastarmini.lib.utils import load_latest_model, initial_model_state_dict
+import numpy as np
+
+import torch
+
+from pysc2.lib.features import FeatureUnit
+
 from alphastarmini.core.rl.alphastar_agent import AlphaStarAgent
+
+from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
+from alphastarmini.lib.utils import load_latest_model, initial_model_state_dict
+
+from alphastarmini.third import action_dict as AD
 
 __author__ = "Ruo-Ze Liu"
 
@@ -26,6 +35,7 @@ TRAJECTORY_FIELDS = [
     # namedtuple of masks for each action component. 0/False if final_step of
     # trajectory, or the argument is not used; else 1/True.
     'masks',
+    'unit_type_entity_mask',
     'action',  # Action taken by the agent.
     'behavior_logits',  # namedtuple of logits of the behavior policy.
     'teacher_logits',  # namedtuple of logits of the supervised policy.
@@ -97,6 +107,44 @@ def namedtuple_zip(trajectory):
         return None
 
     return new
+
+
+def get_unit_type_mask(action, obs):
+    function_id = action.action_type.item()
+    obs_list = [obs]
+    action_types = [function_id]
+
+    unit_type_masks = get_batch_unit_type_mask(action_types, obs_list)
+    unit_type_mask = unit_type_masks[0].reshape(-1)
+    return unit_type_mask
+
+
+def get_batch_unit_type_mask(action_types, obs_list):
+    # inpsired by DI-Star project
+
+    unit_type_mask_list = []
+    for idx, action in enumerate(action_types):
+        info_1 = AD.GENERAL_ACTION_INFO_MASK[action]
+        try:
+            info_2 = AD.ACTIONS_STAT[action]
+        except KeyError:
+            info_2 = {"selected_type": [], "target_type": []}
+
+        unit_type_mask = np.zeros([1, AHP.max_entities])
+        if info_1["selected_units"]:
+            set_1 = set(info_1["avail_unit_type_id"])
+            set_2 = set(info_2["selected_type"])
+            set_all = set.union(set_1, set_2)
+            print('set all', set_all) if debug else None
+
+            raw_units_types = obs_list[idx]["raw_units"][:, FeatureUnit.unit_type]
+            for i, t in enumerate(raw_units_types):
+                if t in set_all and i < AHP.max_entities:
+                    unit_type_mask[0, i] = 1
+        unit_type_mask_list.append(unit_type_mask)
+
+    unit_type_masks = np.concatenate(unit_type_mask_list, axis=0)
+    return unit_type_masks
 
 
 def get_mask(action, action_spec):

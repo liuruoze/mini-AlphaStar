@@ -450,7 +450,7 @@ def generalized_lambda_returns(rewards,
             name="generalized_lambda_returns")
 
 
-def entropy(policy_logits, selected_mask=None, entity_mask=None, debug=False):
+def entropy(policy_logits, selected_mask=None, entity_mask=None, unit_type_entity_mask=None,):
     # policy_logits shape: [seq_batch_size, channel_size]
     # masks shape: [seq_batch_size, 1]
 
@@ -477,7 +477,7 @@ def entropy(policy_logits, selected_mask=None, entity_mask=None, debug=False):
 
 
 def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None, 
-       debug=False, outlier_remove=True, target_entity_num=None,
+       unit_type_entity_mask=None, outlier_remove=True, target_entity_num=None,
        target_select_units_num=None, player_select_units_num=None):
     softmax = nn.Softmax(dim=-1)
     logsoftmax = nn.LogSoftmax(dim=-1)
@@ -498,14 +498,19 @@ def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None,
     kl = teacher_probs * (t_logprobs - s_logprobs)
 
     if selected_mask is not None:
-        print("kl.shape:", kl.shape) if debug else None
-        print("selected_mask.shape:", selected_mask.shape) if debug else None
+        print("kl.shape:", kl.shape) if 1 else None
+        print("selected_mask.shape:", selected_mask.shape) if 1 else None
         kl = kl * selected_mask.unsqueeze(-1) 
 
     if entity_mask is not None:
-        print("kl.shape:", kl.shape) if debug else None
-        print("entity_mask.shape:", entity_mask.shape) if debug else None
+        print("kl.shape:", kl.shape) if 1 else None
+        print("entity_mask.shape:", entity_mask.shape) if 1 else None
         kl = kl * entity_mask
+
+    if unit_type_entity_mask is not None:
+        print("kl.shape:", kl.shape) if 1 else None
+        print("unit_type_entity_mask.shape:", unit_type_entity_mask.shape) if 1 else None
+        kl = kl * unit_type_entity_mask
 
     print("kl:", kl) if debug else None
 
@@ -535,13 +540,16 @@ def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None,
     return kl
 
 
-def compute_unclipped_logrho(behavior_logits, target_logits, actions):
+def compute_unclipped_logrho(behavior_logits, target_logits, actions, selected_mask=None,
+                             entity_mask=None, debug=False):
     """Helper function."""
 
-    target_log_prob = log_prob(actions, target_logits, reduction="none")
+    target_log_prob = log_prob_masked(actions, target_logits, reduction="none", selected_mask=selected_mask,
+                                      entity_mask=entity_mask, debug=debug)
     print("target_log_prob:", target_log_prob) if debug else None
 
-    behavior_log_prob = log_prob(actions, behavior_logits, reduction="none")
+    behavior_log_prob = log_prob_masked(actions, behavior_logits, reduction="none", selected_mask=selected_mask,
+                                        entity_mask=entity_mask, debug=debug)
     print("behavior_log_prob:", behavior_log_prob) if debug else None
 
     subtract = target_log_prob - behavior_log_prob
@@ -550,10 +558,12 @@ def compute_unclipped_logrho(behavior_logits, target_logits, actions):
     return subtract
 
 
-def compute_importance_weights(behavior_logits, target_logits, actions):
+def compute_importance_weights(behavior_logits, target_logits, actions, selected_mask=None,
+                               entity_mask=None, debug=False):
     """Computes clipped importance weights."""
 
-    logrho = compute_unclipped_logrho(behavior_logits, target_logits, actions)
+    logrho = compute_unclipped_logrho(behavior_logits, target_logits, actions, selected_mask=selected_mask,
+                                      entity_mask=entity_mask, debug=debug)
     print("logrho:", logrho) if debug else None
     print("logrho.shape:", logrho.shape) if debug else None
 
@@ -565,6 +575,81 @@ def compute_importance_weights(behavior_logits, target_logits, actions):
     print("clip_rho:", clip_rho) if debug else None
 
     return clip_rho   
+
+
+def compute_cliped_importance_weights(target_log_prob, behavior_log_prob):
+    """Computes clipped importance weights."""
+
+    logrho = target_log_prob - behavior_log_prob
+    rho = torch.exp(logrho)
+    clip_rho = torch.clamp(rho, max=1.)
+
+    return clip_rho 
+
+
+def log_prob_masked(logits, actions, mask_used):
+    """Returns the log probability of taking an action given the logits."""
+    [selected_mask, entity_mask, unit_type_entity_mask] = mask_used
+
+    if entity_mask is not None:
+        # for selected units head and target unit head
+        entity_mask = entity_mask.reshape(-1, entity_mask.shape[-1]).unsqueeze(dim=1).bool()
+
+        if unit_type_entity_mask is not None:
+            unit_type_entity_mask = unit_type_entity_mask.reshape(-1, unit_type_entity_mask.shape[-1]).unsqueeze(dim=1).bool()
+            print("unit_type_entity_mask.shape:", unit_type_entity_mask.shape) if 1 else None
+
+        print("logits.shape:", logits.shape) if 1 else None
+        print("actions.shape:", actions.shape) if 1 else None
+        print("entity_mask.shape:", entity_mask.shape) if 1 else None
+
+        # logits: shape [BATCH_SIZE, MAX_SELECT, MAX_ENTITY]
+        # entity_mask: shape [BATCH_SIZE, 1, MAX_ENTITY]
+        # unit_type_entity_mask: shape [BATCH_SIZE, 1, MAX_ENTITY]
+        logits = logits  
+        logits = logits.masked_fill(~entity_mask, -1e9)
+
+        if unit_type_entity_mask is not None:
+            logits = logits.masked_fill(~unit_type_entity_mask, -1e9)
+
+        if len(logits.shape) == 3:
+            select_size = logits.shape[1]
+            logits = logits.reshape(-1, logits.shape[-1])
+        if len(actions.shape) == 3:
+            actions = actions.reshape(-1, actions.shape[-1])
+
+    print("logits.shape:", logits.shape) if 1 else None
+    print("actions.shape:", actions.shape) if 1 else None
+
+    loss = torch.nn.CrossEntropyLoss(reduction="none")
+
+    # actions: shape [BATCH_SIZE, 1]
+    actions = torch.squeeze(actions, dim=-1)
+
+    # logits: shape [BATCH_SIZE, CLASS_SIZE]
+    # actions: shape [BATCH_SIZE]
+    loss_result = loss(logits, actions)
+
+    if selected_mask is not None:
+        # for selected units head
+        selected_mask = selected_mask.reshape(-1, selected_mask.shape[-1])
+        if len(loss_result.shape) == 1:
+            loss_result = loss_result.reshape(-1, AHP.max_selected)
+
+        print("loss_result.shape:", loss_result.shape) if 1 else None
+        print("selected_mask.shape:", selected_mask.shape) if 1 else None
+
+        loss_result = loss_result * selected_mask
+        loss_result = torch.sum(loss_result, dim=-1)
+
+        # action_log_prob: shape [BATCH_SIZE]
+        print("loss_result.shape:", loss_result.shape) if debug else None
+
+    # change to right log_prob
+    # the_log_prob: shape [BATCH_SIZE]
+    the_log_prob = -loss_result
+
+    return the_log_prob
 
 
 def log_prob(actions, logits, reduction="none"):

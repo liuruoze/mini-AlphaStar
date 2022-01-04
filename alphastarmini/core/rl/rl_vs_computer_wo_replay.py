@@ -256,6 +256,9 @@ class ActorVSComputer:
 
                             player_action_spec = action_spec[0]
                             action_masks = RU.get_mask(player_action, player_action_spec)
+                            unit_type_entity_mask = RU.get_unit_type_mask(player_action, home_obs.observation)
+                            print('unit_type_entity_mask', unit_type_entity_mask) if debug else None
+
                             z = None
 
                             print('run_loop, t3', time() - t) if speed else None
@@ -378,6 +381,7 @@ class ActorVSComputer:
                                 memory=player_memory,
                                 z=z,
                                 masks=action_masks,
+                                unit_type_entity_mask=unit_type_entity_mask,
                                 action=player_action,
                                 behavior_logits=player_logits,
                                 teacher_logits=teacher_logits,      
