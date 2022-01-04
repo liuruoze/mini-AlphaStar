@@ -540,43 +540,6 @@ def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None,
     return kl
 
 
-def compute_unclipped_logrho(behavior_logits, target_logits, actions, selected_mask=None,
-                             entity_mask=None, debug=False):
-    """Helper function."""
-
-    target_log_prob = log_prob_masked(actions, target_logits, reduction="none", selected_mask=selected_mask,
-                                      entity_mask=entity_mask, debug=debug)
-    print("target_log_prob:", target_log_prob) if debug else None
-
-    behavior_log_prob = log_prob_masked(actions, behavior_logits, reduction="none", selected_mask=selected_mask,
-                                        entity_mask=entity_mask, debug=debug)
-    print("behavior_log_prob:", behavior_log_prob) if debug else None
-
-    subtract = target_log_prob - behavior_log_prob
-    print("subtract:", subtract) if debug else None
-
-    return subtract
-
-
-def compute_importance_weights(behavior_logits, target_logits, actions, selected_mask=None,
-                               entity_mask=None, debug=False):
-    """Computes clipped importance weights."""
-
-    logrho = compute_unclipped_logrho(behavior_logits, target_logits, actions, selected_mask=selected_mask,
-                                      entity_mask=entity_mask, debug=debug)
-    print("logrho:", logrho) if debug else None
-    print("logrho.shape:", logrho.shape) if debug else None
-
-    rho = torch.exp(logrho)
-    print("rho:", rho) if debug else None
-
-    # change to pytorch version
-    clip_rho = torch.clamp(rho, max=1.)
-    print("clip_rho:", clip_rho) if debug else None
-
-    return clip_rho   
-
-
 def compute_cliped_importance_weights(target_log_prob, behavior_log_prob):
     """Computes clipped importance weights."""
 
@@ -644,36 +607,6 @@ def log_prob_masked(logits, actions, mask_used):
 
         # action_log_prob: shape [BATCH_SIZE]
         print("loss_result.shape:", loss_result.shape) if debug else None
-
-    # change to right log_prob
-    # the_log_prob: shape [BATCH_SIZE]
-    the_log_prob = -loss_result
-
-    return the_log_prob
-
-
-def log_prob(actions, logits, reduction="none"):
-    """Returns the log probability of taking an action given the logits."""
-    # Equivalent to tf.sparse_softmax_cross_entropy_with_logits.
-
-    # note CrossEntropyLoss is $ - log(e^(x_i) / \sum_j{e^{x_j}}) $
-    # such for log_prob is actually -CrossEntropyLoss
-    loss = torch.nn.CrossEntropyLoss(reduction=reduction)
-
-    print("logits:", logits) if debug else None
-    print("logits.shape:", logits.shape) if debug else None
-    print("actions:", actions) if debug else None
-    print("actions.shape:", actions.shape) if debug else None
-
-    # actions: shape [BATCH_SIZE, 1]
-    actions = torch.squeeze(actions, dim=-1)
-
-    # logits: shape [BATCH_SIZE, CLASS_SIZE]
-    # actions: shape [BATCH_SIZE]
-    loss_result = loss(logits, actions)
-
-    # Original AlphaStar pseudocode is wrong
-    # AlphaStar: return loss_result
 
     # change to right log_prob
     # the_log_prob: shape [BATCH_SIZE]
