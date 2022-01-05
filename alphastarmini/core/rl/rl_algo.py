@@ -318,9 +318,9 @@ def upgo_returns(values, rewards, discounts, bootstrap):
     return lambda_returns(next_values, rewards, discounts, lambdas)
 
 
-def entropy(policy_logits, selected_mask=None, entity_mask=None, unit_type_entity_mask=None, 
+def entropy(all_logits, selected_mask=None, entity_mask=None, unit_type_entity_mask=None, 
             outlier_remove=True):
-
+    [policy_logits] = all_logits
     log_policy = F.log_softmax(policy_logits, dim=-1) 
     policy = torch.exp(log_policy)  # more stable than softmax(policy_logits)
     x = log_policy
@@ -338,9 +338,9 @@ def entropy(policy_logits, selected_mask=None, entity_mask=None, unit_type_entit
     return x
 
 
-def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None, 
+def kl(all_logits, selected_mask=None, entity_mask=None, 
        unit_type_entity_mask=None, outlier_remove=True):
-
+    [student_logits, teacher_logits] = all_logits
     s_logprobs = F.log_softmax(student_logits, dim=-1)
     t_logprobs = F.log_softmax(teacher_logits, dim=-1)
     teacher_probs = torch.exp(t_logprobs)  # more stable than softmax(teacher_logits)
@@ -360,10 +360,8 @@ def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None,
 
 
 def compute_cliped_importance_weights(target_log_prob, behavior_log_prob):
-
     rho = torch.exp(target_log_prob - behavior_log_prob)
     clip_rho = torch.clamp(rho, max=1.)
-
     return clip_rho 
 
 
@@ -384,7 +382,6 @@ def log_prob(logits, actions, mask_used, outlier_remove=True):
 
     if unit_type_entity_mask is not None:
         unit_type_entity_mask = unit_type_entity_mask.reshape(-1, unit_type_entity_mask.shape[-1])
-
     if entity_mask is not None:
         entity_mask = entity_mask.reshape(-1, entity_mask.shape[-1])
 
@@ -395,17 +392,12 @@ def log_prob(logits, actions, mask_used, outlier_remove=True):
         if select_size > 1:
             unit_type_entity_mask = unit_type_entity_mask.unsqueeze(1).repeat(1, select_size, 1)
             entity_mask = entity_mask.unsqueeze(1).repeat(1, select_size, 1)
-
             unit_type_entity_mask = unit_type_entity_mask.view(-1, unit_type_entity_mask.shape[-1])
             entity_mask = entity_mask.view(-1, entity_mask.shape[-1])
 
             entity_mask = entity_mask * unit_type_entity_mask
-
     if len(actions.shape) == 3:
         actions = actions.view(-1, actions.shape[-1])
-
-    # not used
-    # loss = torch.nn.CrossEntropyLoss(reduction="none")
 
     def cross_entropy_mask_class(pred, soft_targets, mask=None):
         x = - soft_targets * F.log_softmax(pred, dim=-1)
@@ -417,15 +409,10 @@ def log_prob(logits, actions, mask_used, outlier_remove=True):
 
     # actions: shape [BATCH_SIZE, 1] to [BATCH_SIZE]
     actions = torch.squeeze(actions, dim=-1)
-
-    # use ont_hot to actions
     actions = F.one_hot(actions, num_classes=logits.shape[-1])
-
-    # use defined masked cross_entropy
     loss_result = cross_entropy_mask_class(logits, actions, entity_mask)
 
     if selected_mask is not None:
-        # for selected units head
         selected_mask = selected_mask.view(-1, selected_mask.shape[-1])
         if len(loss_result.shape) == 1:
             loss_result = loss_result.view(-1, AHP.max_selected)

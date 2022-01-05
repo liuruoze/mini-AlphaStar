@@ -124,8 +124,10 @@ def get_batch_unit_type_mask(action_types, obs_list):
 
     unit_type_mask_list = []
     for idx, action in enumerate(action_types):
-        info_1 = AD.GENERAL_ACTION_INFO_MASK[action]
-        info_2 = {"selected_type": [], "target_type": []}
+        info_1 = {"avail_unit_type_id": []} 
+        if action in AD.GENERAL_ACTION_INFO_MASK:
+            info_1 = AD.GENERAL_ACTION_INFO_MASK[action]
+        info_2 = {"selected_type": []}
         if action in AD.ACTIONS_STAT:
             info_2 = AD.ACTIONS_STAT[action]
 
@@ -135,6 +137,7 @@ def get_batch_unit_type_mask(action_types, obs_list):
             set_2 = set(info_2["selected_type"])
             set_all = set.union(set_1, set_2)
             print('set all', set_all) if debug else None
+
             raw_units_types = obs_list[idx]["raw_units"][:, FeatureUnit.unit_type]
             for i, t in enumerate(raw_units_types):
                 if t in set_all and i < AHP.max_entities:
