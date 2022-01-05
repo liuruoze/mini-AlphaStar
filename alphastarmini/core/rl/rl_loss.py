@@ -330,8 +330,8 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
 
         [target_logits, behavior_logits] = all_logits
 
-        target_log_prob = RA.log_prob_masked(target_logits, actions, mask_used)
-        behavior_log_prob = RA.log_prob_masked(behavior_logits, actions, mask_used)
+        target_log_prob = RA.log_prob(target_logits, actions, mask_used)
+        behavior_log_prob = RA.log_prob(behavior_logits, actions, mask_used)
         clipped_rhos = RA.compute_cliped_importance_weights(target_log_prob, behavior_log_prob)
 
         if field == 'units':
@@ -340,9 +340,11 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
 
         weighted_advantage = ((returns - values) * clipped_rhos).reshape(-1)
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
-        print('field', field, 'loss_val', loss_field.mean()) if 1 else None
+        loss_field = loss_field.mean()
+        print('field', field, 'loss_val', loss_field.item()) if 1 else None
 
-        loss += loss_field.mean()
+        loss += loss_field
+        del loss_field
 
     return loss
 
@@ -389,8 +391,8 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
 
         [target_logits, behavior_logits] = all_logits
 
-        target_log_prob = RA.log_prob_masked(target_logits, actions, mask_used)
-        behavior_log_prob = RA.log_prob_masked(behavior_logits, actions, mask_used)
+        target_log_prob = RA.log_prob(target_logits, actions, mask_used)
+        behavior_log_prob = RA.log_prob(behavior_logits, actions, mask_used)
         clipped_rhos = RA.compute_cliped_importance_weights(target_log_prob, behavior_log_prob)
 
         if field == 'units':
@@ -399,14 +401,16 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
 
         weighted_advantage = RA.vtrace_advantages(clipped_rhos, rewards, discounts, values, baselines[-1])[1].reshape(-1)
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
-        print('field', field, 'loss_val', loss_field.mean()) if 1 else None
+        loss_field = loss_field.mean()
+        print('field', field, 'loss_val', loss_field.item()) if 1 else None
 
-        loss += loss_field.mean()
+        loss += loss_field
+        del loss_field
 
     return loss
 
 
-def loss_function(agent, trajectories, use_opponent_state=True):
+def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=False):
     """Computes the loss of trajectories given weights."""
 
     # target_logits: ArgsActionLogits
@@ -440,29 +444,29 @@ def loss_function(agent, trajectories, use_opponent_state=True):
     # Vtrace Loss:
     reward_index = 0
     for baseline, costs_and_rewards in zip(baselines, BASELINE_COSTS_AND_REWARDS):
+        if no_replay_learn:
+            if reward_index != 0:
+                break
 
-        # baseline is for caluculation in td_lambda and vtrace_pg
-        # costs_and_rewards are only weight for loss
-        if reward_index == 0:
-            pg_cost, baseline_cost, reward_name = costs_and_rewards
-            print("reward_name:", reward_name) if 1 else None
+        pg_cost, baseline_cost, reward_name = costs_and_rewards
+        print("reward_name:", reward_name) if 1 else None
 
-            rewards = PR.compute_pseudoreward(trajectories, reward_name, device=target_logits.action_type.device)
-            print("rewards:", rewards) if 0 else None
+        rewards = PR.compute_pseudoreward(trajectories, reward_name, device=target_logits.action_type.device)
+        print("rewards:", rewards) if 0 else None
 
-            # The action_type argument, delay, and all other arguments are separately updated 
-            # using a separate ("split") VTrace Actor-Critic losses. The weighting of these 
-            # updates will be considered 1.0. action_type, delay, and other arguments are 
-            # also similarly separately updated using UPGO, in the same way as the VTrace 
-            # Actor-Critic loss, with relative weight 1.0. 
-            baseline_loss = td_lambda_loss(baseline, rewards, trajectories)
-            print("baseline_loss:", baseline_loss) if debug else None
+        # The action_type argument, delay, and all other arguments are separately updated 
+        # using a separate ("split") VTrace Actor-Critic losses. The weighting of these 
+        # updates will be considered 1.0. action_type, delay, and other arguments are 
+        # also similarly separately updated using UPGO, in the same way as the VTrace 
+        # Actor-Critic loss, with relative weight 1.0. 
+        baseline_loss = td_lambda_loss(baseline, rewards, trajectories)
+        print("baseline_loss:", baseline_loss) if debug else None
 
-            # we add vtrace loss
-            pg_loss = sum_vtrace_loss(target_logits, trajectories, baseline, rewards, selected_mask, entity_mask)
-            print("pg_loss:", pg_loss) if debug else None
+        # we add vtrace loss
+        pg_loss = sum_vtrace_loss(target_logits, trajectories, baseline, rewards, selected_mask, entity_mask)
+        print("pg_loss:", pg_loss) if debug else None
 
-            loss_actor_critic += (baseline_cost * baseline_loss + pg_cost * pg_loss)
+        loss_actor_critic += (baseline_cost * baseline_loss + pg_cost * pg_loss)
 
         reward_index += 1
 
@@ -497,11 +501,13 @@ def loss_function(agent, trajectories, use_opponent_state=True):
 
     loss_all = loss_actor_critic  # + loss_upgo  # + loss_kl + loss_ent
 
-    print("loss_actor_critic:", loss_actor_critic) if 1 else None
-    print("loss_upgo:", loss_upgo) if 1 else None
-    print("loss_kl:", loss_kl) if 1 else None
-    print("loss_ent:", loss_ent) if 1 else None
-    print("loss_all:", loss_all) if 1 else None
+    print("loss_actor_critic:", loss_actor_critic.item()) if 1 else None
+    print("loss_upgo:", loss_upgo.item()) if 1 else None
+    print("loss_kl:", loss_kl.item()) if 1 else None
+    print("loss_ent:", loss_ent.item()) if 1 else None
+    print("loss_all:", loss_all.item()) if 1 else None
+
+    del loss_actor_critic, loss_upgo, loss_kl, loss_ent
 
     return loss_all
 

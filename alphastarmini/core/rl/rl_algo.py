@@ -12,6 +12,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from alphastarmini.core.rl.rl_utils import Trajectory
 from alphastarmini.core.rl.action import ArgsActionLogits
@@ -26,19 +27,14 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 
-def reverse_seq(sequence, sequence_lengths=None):
+def reverse_seq(sequence):
     """Reverse sequence along dim 0.
     Args:
       sequence: Tensor of shape [T, B, ...].
-      sequence_lengths: (optional) tensor of shape [B]. If `None`, only reverse
-        along dim 0.
     Returns:
       Tensor of same shape as sequence with dim 0 reversed up to sequence_lengths.
     """
-    if sequence_lengths is None:
-        return torch.flip(sequence, [0])
-    else:
-        raise NotImplementedError
+    return torch.flip(sequence, [0])
 
 
 def lambda_returns(values_tp1, rewards, discounts, lambdas=0.8):
@@ -88,45 +84,10 @@ def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
     Returns:
         Tensor of shape `[T, B]` containing multistep returns.
     """
-
-    # Regroup:
-    #   result[t] = (rewards[t] + pcontinues[t]*(1-lambda_)*state_values[t]) +
-    #               pcontinues[t]*lambda_*result[t + 1]
-    # Define:
-    #   sequence[t] = rewards[t] + pcontinues[t]*(1-lambda_)*state_values[t]
-    #   discount[t] = pcontinues[t]*lambda_
-    # Substitute:
-    #   result[t] = sequence[t] + discount[t]*result[t + 1]
-    # Boundary condition:
-    #   result[last] = rewards[last] + pcontinues[last]*state_values[last]
-    # Add and subtract the same quantity at BC:
-    #   state_values[last] =
-    #       lambda_*state_values[last] + (1-lambda_)*state_values[last]
-    # This makes:
-    #   result[last] =
-    #       (rewards[last] + pcontinues[last]*(1-lambda_)*state_values[last]) +
-    #       pcontinues[last]*lambda_*state_values[last]
-    # Substitute in definitions for sequence and discount:
-    #   result[last] = sequence[last] + discount[last]*state_values[last]
-    # Define:
-    #   initial_value=state_values[last]
-    # We get the following recurrent relationship:
-    #   result[last] = sequence[last] + decay[last]*initial_value
-    #   result[k] = sequence[k] + decay[k] * result[k + 1]
-    # This matches the form of scan_discounted_sum:
-    #   result = scan_sum_with_discount(sequence, discount,
-    #                                   initial_value = state_values[last])  
-
     sequence = rewards + pcontinues * state_values * (1 - lambda_)
-    print("sequence", sequence) if debug else None
-    print("sequence.shape", sequence.shape) if debug else None
-
     discount = pcontinues * lambda_
-    print("discount", discount) if debug else None
-    print("discount.shape", discount.shape) if debug else None
 
     initial_value = state_values[-1]
-    print("initial_value", initial_value) if debug else None
 
     return scan_discounted_sum(sequence, discount, initial_value,
                                reverse=True, 
@@ -172,29 +133,16 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
     elems = [s.unsqueeze(0) for s in elems]
     elems = torch.cat(elems, dim=0) 
     elems = torch.transpose(elems, 0, 1)
-    print("elems", elems) if debug else None
-    print("elems.shape", elems.shape) if debug else None
 
     def scan(foo, x, initial_value, debug=False):
         res = []
         a_ = initial_value.clone().detach()
-        print("a_", a_) if debug else None
-        print("a_.shape", a_.shape) if debug else None
-
         res.append(foo(a_, x[0]).unsqueeze(0))
-        print("res", res) if debug else None
-        print("len(x)", len(x)) if debug else None
-
         a_ = foo(a_, x[0])
 
         for i in range(1, len(x)):
-            print("i", i) if debug else None
             res.append(foo(a_, x[i]).unsqueeze(0))
-            print("res", res) if debug else None
-
             a_ = foo(a_, x[i])
-            print("a_", a_) if debug else None
-            print("a_.shape", a_.shape) if debug else None
 
         return torch.cat(res)
 
@@ -202,9 +150,6 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
 
     if reverse:
         result = reverse_seq(result)
-
-    print("result", result) if debug else None
-    print("result.shape", result.shape) if debug else None 
 
     return result
 
@@ -293,15 +238,6 @@ def vtrace_from_importance_weights(
     print("deltas:", deltas) if debug else None
     print("deltas.shape:", deltas.shape) if debug else None
 
-    # Note that all sequences are reversed, computation starts from the back.
-    '''
-    Note this code is wrong, we should use zip to concat
-    sequences = (
-        torch.flip(discounts, dims=[0]),
-        torch.flip(cs, dims=[0]),
-        torch.flip(deltas, dims=[0]),
-    )
-    '''
     flip_discounts = torch.flip(discounts, dims=[0])
     flip_cs = torch.flip(cs, dims=[0])
     flip_deltas = torch.flip(deltas, dims=[0])
@@ -363,21 +299,14 @@ def upgo_returns(values, rewards, discounts, bootstrap):
     Returns:
       UPGO return targets. Shape [T, B].
     """
-    print("rewards", rewards) if debug else None
-    print("discounts", discounts) if debug else None
-
     # we change it to pytorch version
     # next_values = np.concatenate((values[1:], np.expand_dims(bootstrap, axis=0)), axis=0)
     # next_values. Shape [T, B].
     next_values = torch.cat([values[1:], bootstrap.unsqueeze(dim=0)], dim=0)
-    print("next_values", next_values) if debug else None
-    print("next_values.shape", next_values.shape) if debug else None
 
     # Upgo can be viewed as a lambda return! The trace continues (i.e. lambda =
     # 1.0) if r_t + V_tp1 > V_t. original G_t = r_t +  
     lambdas = (rewards + discounts * next_values) >= values
-    print("lambdas", lambdas) if debug else None
-    print("lambdas.shape", lambdas.shape) if debug else None
 
     # change the bool tensor to float tensor
     lambdas = lambdas.float()
@@ -389,230 +318,122 @@ def upgo_returns(values, rewards, discounts, bootstrap):
     return lambda_returns(next_values, rewards, discounts, lambdas)
 
 
-def generalized_lambda_returns(rewards,
-                               pcontinues,
-                               values,
-                               bootstrap_value,
-                               lambda_=1,
-                               name="generalized_lambda_returns"):
-    """
-    # not used actually in mini-AlphaStar
-    code at https://github.com/deepmind/trfl/blob/2c07ac22512a16715cc759f0072be43a5d12ae45/trfl/value_ops.py#L74
-    Computes lambda-returns along a batch of (chunks of) trajectories.
-    For lambda=1 these will be multistep returns looking ahead from each
-    state to the end of the chunk, where bootstrap_value is used. If you pass an
-    entire trajectory and zeros for bootstrap_value, this is just the Monte-Carlo
-    return / TD(1) target.
-    For lambda=0 these are one-step TD(0) targets.
-    The sequences in the tensors should be aligned such that an agent in a state
-    with value `V` transitions into another state with value `V'`, receiving
-    reward `r` and pcontinue `p`. Then `V`, `r` and `p` are all at the same index
-    `i` in the corresponding tensors. `V'` is at index `i+1`, or in the
-    `bootstrap_value` tensor if `i == T`.
-    Subtracting `values` from these lambda-returns will yield estimates of the
-    advantage function which can be used for both the policy gradient loss and
-    the baseline value function loss in A3C / GAE.
-    Args:
-      rewards: 2-D Tensor with shape `[T, B]`.
-      pcontinues: 2-D Tensor with shape `[T, B]`.
-      values: 2-D Tensor containing estimates of the state values for timesteps
-        0 to `T-1`. Shape `[T, B]`.
-      bootstrap_value: 1-D Tensor containing an estimate of the value of the
-        final state at time `T`, used for bootstrapping the target n-step
-        returns. Shape `[B]`.
-      lambda_: an optional scalar or 2-D Tensor with shape `[T, B]`.
-      name: Customises the name_scope for this op.
-    Returns:
-      2-D Tensor with shape `[T, B]`
-    """
+def entropy(policy_logits, selected_mask=None, entity_mask=None, unit_type_entity_mask=None, 
+            outlier_remove=True):
 
-    if lambda_ == 1:
-                # This is actually equivalent to the branch below, just an optimisation
-                # to avoid unnecessary work in this case:
-        return scan_discounted_sum(
-            rewards,
-            pcontinues,
-            initial_value=bootstrap_value,
-            reverse=True,
-            back_prop=False,
-            name="multistep_returns")
-    else:
-        v_tp1 = torch.concat([values[1:, :], torch.unsqueeze(bootstrap_value, 0)], axis=0)
-        # `back_prop=False` prevents gradients flowing into values and
-        # bootstrap_value, which is what you want when using the bootstrapped
-        # lambda-returns in an update as targets for values.
-        return multistep_forward_view(
-            rewards,
-            pcontinues,
-            v_tp1,
-            lambda_,
-            back_prop=False,
-            name="generalized_lambda_returns")
-
-
-def entropy(policy_logits, selected_mask=None, entity_mask=None, unit_type_entity_mask=None,):
-    # policy_logits shape: [seq_batch_size, channel_size]
-    # masks shape: [seq_batch_size, 1]
-
-    softmax = nn.Softmax(dim=-1)
-    logsoftmax = nn.LogSoftmax(dim=-1)
-
-    #policy = softmax(policy_logits)
-    log_policy = logsoftmax(policy_logits)
-    policy = torch.exp(log_policy)
-
-    ent = -policy * log_policy
+    log_policy = F.log_softmax(policy_logits, dim=-1) 
+    policy = torch.exp(log_policy)  # more stable than softmax(policy_logits)
+    x = log_policy
 
     if selected_mask is not None:
-        print("ent.shape:", ent.shape) if debug else None
-        print("selected_mask.shape:", selected_mask.shape) if debug else None
-        ent = ent * selected_mask.unsqueeze(-1)    
-
+        x = x * selected_mask.unsqueeze(-1)    
     if entity_mask is not None:
-        print("ent.shape:", ent.shape) if debug else None
-        print("entity_mask.shape:", entity_mask.shape) if debug else None
-        ent = ent * entity_mask
+        x = x * entity_mask
+    if unit_type_entity_mask is not None:
+        x = x * unit_type_entity_mask
 
-    return ent
+    x = remove_outlier(x, outlier_remove)
+    x = -policy * x
+
+    return x
 
 
 def kl(student_logits, teacher_logits, selected_mask=None, entity_mask=None, 
-       unit_type_entity_mask=None, outlier_remove=True, target_entity_num=None,
-       target_select_units_num=None, player_select_units_num=None):
-    softmax = nn.Softmax(dim=-1)
-    logsoftmax = nn.LogSoftmax(dim=-1)
+       unit_type_entity_mask=None, outlier_remove=True):
 
-    s_logprobs = logsoftmax(student_logits)
-    print("s_logprobs:", s_logprobs) if debug else None
-    print("s_logprobs.shape:", s_logprobs.shape) if debug else None    
-
-    t_logprobs = logsoftmax(teacher_logits)
-    print("t_logprobs:", t_logprobs) if debug else None
-    print("t_logprobs.shape:", t_logprobs.shape) if debug else None  
-
-    #teacher_probs = softmax(teacher_logits)
-    teacher_probs = torch.exp(t_logprobs)
-    print("teacher_probs:", teacher_probs) if debug else None
-    print("teacher_probs.shape:", teacher_probs.shape) if debug else None
-
-    kl = teacher_probs * (t_logprobs - s_logprobs)
+    s_logprobs = F.log_softmax(student_logits, dim=-1)
+    t_logprobs = F.log_softmax(teacher_logits, dim=-1)
+    teacher_probs = torch.exp(t_logprobs)  # more stable than softmax(teacher_logits)
+    x = t_logprobs - s_logprobs
 
     if selected_mask is not None:
-        print("kl.shape:", kl.shape) if 1 else None
-        print("selected_mask.shape:", selected_mask.shape) if 1 else None
-        kl = kl * selected_mask.unsqueeze(-1) 
-
+        x = x * selected_mask.unsqueeze(-1) 
     if entity_mask is not None:
-        print("kl.shape:", kl.shape) if 1 else None
-        print("entity_mask.shape:", entity_mask.shape) if 1 else None
-        kl = kl * entity_mask
-
+        x = x * entity_mask
     if unit_type_entity_mask is not None:
-        print("kl.shape:", kl.shape) if 1 else None
-        print("unit_type_entity_mask.shape:", unit_type_entity_mask.shape) if 1 else None
-        kl = kl * unit_type_entity_mask
+        x = x * unit_type_entity_mask
 
-    print("kl:", kl) if debug else None
+    x = remove_outlier(x, outlier_remove)
+    x = teacher_probs * x
 
-    if outlier_remove:
-        outlier_mask = (torch.abs(kl) >= 1e6)
-        kl = kl * ~outlier_mask
-    else:
-        outlier_mask = (torch.abs(kl) >= 1e6)
-        if outlier_mask.any() > 0:
-            print("outlier_mask:", outlier_mask.nonzero(as_tuple=True)) if 1 else None
-            index = outlier_mask.nonzero(as_tuple=True)
-
-            print("kl[index]:", kl[index]) if 1 else None
-            print("student_logits[index]:", student_logits[index]) if 1 else None
-            print("teacher_logits[index]:", teacher_logits[index]) if 1 else None
-
-            id0 = index[0]
-
-            print("target_entity_num[id0]:", target_entity_num[id0]) if 1 else None
-            print("target_select_units_num[id0]:", target_select_units_num[id0]) if 1 else None
-            print("player_select_units_num[id0]:", player_select_units_num[id0]) if 1 else None            
-
-            # stop()
-
-    print("kl.shape:", kl.shape) if debug else None
-
-    return kl
+    return x
 
 
 def compute_cliped_importance_weights(target_log_prob, behavior_log_prob):
-    """Computes clipped importance weights."""
 
-    logrho = target_log_prob - behavior_log_prob
-    rho = torch.exp(logrho)
+    rho = torch.exp(target_log_prob - behavior_log_prob)
     clip_rho = torch.clamp(rho, max=1.)
 
     return clip_rho 
 
 
-def log_prob_masked(logits, actions, mask_used):
+def remove_outlier(x, remove=False):
+    outlier_mask = (x == -1e9)
+    if remove:
+        x = x * ~outlier_mask
+    else:
+        if outlier_mask.any() > 0:
+            index = outlier_mask.nonzero(as_tuple=True)
+            print("x[index]:", x[index]) if 1 else None
+    return x
+
+
+def log_prob(logits, actions, mask_used, outlier_remove=True):
     """Returns the log probability of taking an action given the logits."""
     [selected_mask, entity_mask, unit_type_entity_mask] = mask_used
 
+    if unit_type_entity_mask is not None:
+        unit_type_entity_mask = unit_type_entity_mask.reshape(-1, unit_type_entity_mask.shape[-1])
+
     if entity_mask is not None:
-        # for selected units head and target unit head
-        entity_mask = entity_mask.reshape(-1, entity_mask.shape[-1]).unsqueeze(dim=1).bool()
+        entity_mask = entity_mask.reshape(-1, entity_mask.shape[-1])
 
-        if unit_type_entity_mask is not None:
-            unit_type_entity_mask = unit_type_entity_mask.reshape(-1, unit_type_entity_mask.shape[-1]).unsqueeze(dim=1).bool()
-            print("unit_type_entity_mask.shape:", unit_type_entity_mask.shape) if 1 else None
+    if len(logits.shape) == 3:
+        select_size = logits.shape[1]
+        logits = logits.view(-1, logits.shape[-1])
 
-        print("logits.shape:", logits.shape) if 1 else None
-        print("actions.shape:", actions.shape) if 1 else None
-        print("entity_mask.shape:", entity_mask.shape) if 1 else None
+        if select_size > 1:
+            unit_type_entity_mask = unit_type_entity_mask.unsqueeze(1).repeat(1, select_size, 1)
+            entity_mask = entity_mask.unsqueeze(1).repeat(1, select_size, 1)
 
-        # logits: shape [BATCH_SIZE, MAX_SELECT, MAX_ENTITY]
-        # entity_mask: shape [BATCH_SIZE, 1, MAX_ENTITY]
-        # unit_type_entity_mask: shape [BATCH_SIZE, 1, MAX_ENTITY]
-        logits = logits  
-        logits = logits.masked_fill(~entity_mask, -1e9)
+            unit_type_entity_mask = unit_type_entity_mask.view(-1, unit_type_entity_mask.shape[-1])
+            entity_mask = entity_mask.view(-1, entity_mask.shape[-1])
 
-        if unit_type_entity_mask is not None:
-            logits = logits.masked_fill(~unit_type_entity_mask, -1e9)
+            entity_mask = entity_mask * unit_type_entity_mask
 
-        if len(logits.shape) == 3:
-            select_size = logits.shape[1]
-            logits = logits.reshape(-1, logits.shape[-1])
-        if len(actions.shape) == 3:
-            actions = actions.reshape(-1, actions.shape[-1])
+    if len(actions.shape) == 3:
+        actions = actions.view(-1, actions.shape[-1])
 
-    print("logits.shape:", logits.shape) if 1 else None
-    print("actions.shape:", actions.shape) if 1 else None
+    # not used
+    # loss = torch.nn.CrossEntropyLoss(reduction="none")
 
-    loss = torch.nn.CrossEntropyLoss(reduction="none")
+    def cross_entropy_mask_class(pred, soft_targets, mask=None):
+        x = - soft_targets * F.log_softmax(pred, dim=-1)
+        if mask is not None:
+            x = x * mask
+        x = remove_outlier(x, outlier_remove)
+        x = torch.sum(x, -1)  
+        return x
 
-    # actions: shape [BATCH_SIZE, 1]
+    # actions: shape [BATCH_SIZE, 1] to [BATCH_SIZE]
     actions = torch.squeeze(actions, dim=-1)
 
-    # logits: shape [BATCH_SIZE, CLASS_SIZE]
-    # actions: shape [BATCH_SIZE]
-    loss_result = loss(logits, actions)
+    # use ont_hot to actions
+    actions = F.one_hot(actions, num_classes=logits.shape[-1])
+
+    # use defined masked cross_entropy
+    loss_result = cross_entropy_mask_class(logits, actions, entity_mask)
 
     if selected_mask is not None:
         # for selected units head
-        selected_mask = selected_mask.reshape(-1, selected_mask.shape[-1])
+        selected_mask = selected_mask.view(-1, selected_mask.shape[-1])
         if len(loss_result.shape) == 1:
-            loss_result = loss_result.reshape(-1, AHP.max_selected)
-
-        print("loss_result.shape:", loss_result.shape) if 1 else None
-        print("selected_mask.shape:", selected_mask.shape) if 1 else None
+            loss_result = loss_result.view(-1, AHP.max_selected)
 
         loss_result = loss_result * selected_mask
         loss_result = torch.sum(loss_result, dim=-1)
 
-        # action_log_prob: shape [BATCH_SIZE]
-        print("loss_result.shape:", loss_result.shape) if debug else None
-
-    # change to right log_prob
-    # the_log_prob: shape [BATCH_SIZE]
-    the_log_prob = -loss_result
-
-    return the_log_prob
+    return -loss_result
 
 
 def test():

@@ -50,7 +50,7 @@ if SIMPLE_TEST:
     ACTOR_NUMS = 1
     GAME_STEPS_PER_EPISODE = 900    # 9000
 else:
-    MAX_EPISODES = 25
+    MAX_EPISODES = 12
     ACTOR_NUMS = 4
     GAME_STEPS_PER_EPISODE = 18000    # 9000    
 
@@ -71,6 +71,7 @@ USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
 WIN_THRESHOLD = 4000
 USE_OPPONENT_STATE = False
+NO_REPLAY_LEARN = True
 
 # model path
 MODEL_TYPE = "sl"
@@ -667,7 +668,8 @@ def test(on_server=False, replay_path=None):
 
         buffer_lock = threading.Lock()
         learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING, 
-                          buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE)
+                          buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
+                          no_replay_learn=NO_REPLAY_LEARN)
         learners.append(learner)
         actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
 

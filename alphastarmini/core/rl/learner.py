@@ -42,7 +42,7 @@ class Learner:
 
     def __init__(self, player, max_time_for_training=60 * 3, 
                  is_training=True, buffer_lock=None, writer=None,
-                 use_opponent_state=True):
+                 use_opponent_state=True, no_replay_learn=False):
         self.player = player
         self.player.set_learner(self)
 
@@ -68,6 +68,7 @@ class Learner:
         self.writer = writer
 
         self.use_opponent_state = use_opponent_state
+        self.no_replay_learn = no_replay_learn
 
     def get_parameters(self):
         return self.player.agent.get_parameters()
@@ -88,13 +89,16 @@ class Learner:
             self.optimizer.zero_grad()
 
             # with torch.autograd.set_detect_anomaly(True):
-            loss = loss_function(agent, trajectories, self.use_opponent_state)
+            loss = loss_function(agent, trajectories, self.use_opponent_state, self.no_replay_learn)
             print("loss:", loss) if debug else None
 
             loss.backward()
             self.optimizer.step()
 
             self.writer.add_scalar('learner/loss', loss.item(), agent.steps)
+
+            loss = None
+            del loss
 
             agent.agent_nn.model.eval()  # for BN and dropout 
             print("end backward") if debug else None
