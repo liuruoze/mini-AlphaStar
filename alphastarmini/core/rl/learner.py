@@ -27,8 +27,6 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
-LR = 5e-5  # THP.learning_rate
-
 # model path
 MODEL = "rl"
 MODEL_PATH = "./model/"
@@ -40,7 +38,7 @@ SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S",
 class Learner:
     """Learner worker that updates agent parameters based on trajectories."""
 
-    def __init__(self, player, max_time_for_training=60 * 3, 
+    def __init__(self, player, max_time_for_training=60 * 3, lr=THP.learning_rate,
                  is_training=True, buffer_lock=None, writer=None,
                  use_opponent_state=True, no_replay_learn=False):
         self.player = player
@@ -53,7 +51,7 @@ class Learner:
 
         # PyTorch code
         self.optimizer = Adam(self.get_parameters(), 
-                              lr=LR, betas=(THP.beta1, THP.beta2), 
+                              lr=lr, betas=(THP.beta1, THP.beta2), 
                               eps=THP.epsilon, weight_decay=THP.weight_decay)
 
         self.thread = threading.Thread(target=self.run, args=())

@@ -346,7 +346,7 @@ def compute_cliped_importance_weights(target_log_prob, behavior_log_prob):
 
 
 def remove_outlier(x, remove=False):
-    outlier_mask = (x == -1e9)
+    outlier_mask = (torch.abs(x) > 1e8)
     if remove:
         x = x * ~outlier_mask
     else:

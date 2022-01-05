@@ -124,7 +124,7 @@ def get_batch_unit_type_mask(action_types, obs_list):
 
     unit_type_mask_list = []
     for idx, action in enumerate(action_types):
-        info_1 = {"avail_unit_type_id": []} 
+        info_1 = {"selected_units": False, "avail_unit_type_id": []} 
         if action in AD.GENERAL_ACTION_INFO_MASK:
             info_1 = AD.GENERAL_ACTION_INFO_MASK[action]
         info_2 = {"selected_type": []}

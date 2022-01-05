@@ -54,21 +54,23 @@ else:
     ACTOR_NUMS = 4
     GAME_STEPS_PER_EPISODE = 18000    # 9000    
 
-IS_TRAINING = True
+USE_DEFINED_REWARD_AS_REWARD = True
+USE_RESULT_REWARD = False
 REWARD_SCALE = 0.0001
+LR = 1e-3
 
 RESTORE = True
 SAVE_STATISTIC = True
 DIFFICULTY = 1
 RANDOM_SEED = 1
-VERSION = SCHP.game_version
 
+VERSION = SCHP.game_version
 MAP_NAME = SCHP.map_name
 STEP_MUL = 8
 
 SAVE_REPLAY = False
-USE_DEFINED_REWARD_AS_REWARD = False
-USE_RESULT_REWARD = True
+IS_TRAINING = True
+
 WIN_THRESHOLD = 4000
 USE_OPPONENT_STATE = False
 NO_REPLAY_LEARN = True
@@ -667,7 +669,7 @@ def test(on_server=False, replay_path=None):
             teacher.agent_nn.to(DEVICE)
 
         buffer_lock = threading.Lock()
-        learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING, 
+        learner = Learner(player, max_time_for_training=60 * 60 * 24, lr=LR, is_training=IS_TRAINING, 
                           buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
                           no_replay_learn=NO_REPLAY_LEARN)
         learners.append(learner)
