@@ -66,7 +66,7 @@ RESTORE = True
 MODEL_TYPE = "sl"
 MODEL_PATH = "./model/"
 ACTOR_NUMS = 1
-OUTPUT_FILE = './output/eval_sl.txt'
+OUTPUT_FILE = './outputs/eval_sl.txt'
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()

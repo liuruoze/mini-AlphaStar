@@ -52,3 +52,4 @@ cameras.txt
 cameras.csv
 /scripts/download_replay/third/download/*
 output/*.txt
+outputs/*

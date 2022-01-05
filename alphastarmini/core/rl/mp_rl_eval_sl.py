@@ -69,7 +69,7 @@ RANDOM_SEED = 1
 VERSION = SCHP.game_version
 
 RESTORE = True
-OUTPUT_FILE = './output/mp_eval_sl.txt'
+OUTPUT_FILE = './outputs/mp_eval_sl.txt'
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()

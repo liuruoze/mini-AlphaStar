@@ -76,7 +76,7 @@ NO_REPLAY_LEARN = True
 # model path
 MODEL_TYPE = "sl"
 MODEL_PATH = "./model/"
-OUTPUT_FILE = './output/rl_vs_computer_wo_replay.txt'
+OUTPUT_FILE = './outputs/rl_vs_computer_wo_replay.txt'
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()

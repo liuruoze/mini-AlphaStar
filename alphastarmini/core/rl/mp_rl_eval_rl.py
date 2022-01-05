@@ -57,7 +57,7 @@ DIFFICULTY = 1
 # model path
 MODEL_TYPE = "rl"
 MODEL_PATH = "./model_eval/"
-OUTPUT_FILE = "./output/mp_eval_rl.txt"
+OUTPUT_FILE = "./outputs/mp_eval_rl.txt"
 
 IS_TRAINING = False
 MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
