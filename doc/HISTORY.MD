@@ -77,10 +77,23 @@
 * Fix the right version to see replays of AlphaStar Final Terran;
 * Change from z_2 = F.relu(self.fc_2(z_1)) to z_2 = self.fc_2(F.relu(z_1)) in selected_units_head;
 
+## v_1.04
 
+* Add mask for supervised learning loss calculation;
+* Add camera and non-camera accuracy for evaluation;
+* Refactor most code for multi-GPU training;
+* Add support for multi-GPU supervised training;
 
+## v_1.05
 
-
+* We refactor most of the codes, from transforming replays to reinforcement learning;
+* Through new architecture, the transformed replay tensor files have saved 70% disk space now;
+* Memory usage is also optimized. Now the number of processing replays in SL is 3 times or more than before; 
+* With the new tensor replay files, the training speed of SL is much faster, about 10x faster than before;
+* Using weighted loss makes results of SL significantly increased. The accuracy of actions rises to above 90%;
+* By a new SL training pattern, the accuracy of the action arguments like units improved from 0.05 to 0.95;
+* The loss of RL calculations are refactored, making the readability improved;
+* Due to the optimized algorithm, the sampling speed of RL is now 10x faster than before. 
 
 
 
