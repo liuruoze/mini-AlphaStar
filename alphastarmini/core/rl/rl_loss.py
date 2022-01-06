@@ -145,8 +145,8 @@ def td_lambda_loss(baselines, rewards, trajectories, device):
     baselines = baselines
     rewards = rewards[:-1]  # rewards should be T_0 -> T_{n-1}
 
-    # The baseline is then updated using TDLambda, with relative weighting 10.0 and lambda 0.8.
-    returns = RA.lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8).detach()
+    with torch.no_grad():
+        returns = RA.lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
     result = returns - baselines[:-1]
 
     return 0.5 * torch.mean(torch.square(result))
@@ -232,8 +232,8 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
         target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
-
-        weighted_advantage = ((returns - values) * clipped_rhos).reshape(-1)
+        with torch.no_grad():
+            weighted_advantage = ((returns - values) * clipped_rhos).reshape(-1)
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean()
         print('field', field, 'loss_val', loss_field.item()) if 1 else None
@@ -259,8 +259,8 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
         target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
-
-        weighted_advantage = RA.vtrace_advantages(clipped_rhos, rewards, discounts, values, baselines[-1])[1].reshape(-1)
+        with torch.no_grad():
+            weighted_advantage = RA.vtrace_advantages(clipped_rhos, rewards, discounts, values, baselines[-1])[1].reshape(-1)
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean()
         print('field', field, 'loss_val', loss_field.item()) if 1 else None
@@ -305,7 +305,8 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
 
     target_log_prob = RA.log_prob(target_logits, actions, mask_used)
     behavior_log_prob = RA.log_prob(behavior_logits, actions, mask_used)
-    clipped_rhos = RA.compute_cliped_importance_weights(target_log_prob, behavior_log_prob)
+    with torch.no_grad():
+        clipped_rhos = RA.compute_cliped_importance_weights(target_log_prob, behavior_log_prob)
 
     if field == 'units':
         clipped_rhos = clipped_rhos.reshape(seqbatch_shape, -1).sum(dim=-1)
@@ -404,7 +405,8 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     # AlphaStar: loss_ent = entropy_loss(trajectories.behavior_logits, trajectories.masks)
     loss_ent = ENT_WEIGHT * (- entropy_loss(target_logits, trajectories, selected_mask, entity_mask))
 
-    loss_all = -loss_actor_critic  # + loss_upgo  # + loss_kl + loss_ent
+    loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
+    loss_all = -loss_all
 
     print("loss_actor_critic:", loss_actor_critic.item()) if 1 else None
     print("loss_upgo:", loss_upgo.item()) if 1 else None
