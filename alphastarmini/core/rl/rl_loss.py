@@ -406,7 +406,7 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     loss_ent = ENT_WEIGHT * (- entropy_loss(target_logits, trajectories, selected_mask, entity_mask))
 
     loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
-    loss_all = -loss_all
+    #loss_all = -loss_all
 
     print("loss_actor_critic:", loss_actor_critic.item()) if 1 else None
     print("loss_upgo:", loss_upgo.item()) if 1 else None

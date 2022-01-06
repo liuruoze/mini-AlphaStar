@@ -47,7 +47,7 @@ This release is the "v_1.06" version. In this version, we win the built-in AI fo
 
 ## Hints
 
-**Warning**: SC2 is extremely difficult, and AlphaStar is also very complex. Even our project is a mini-AlphaStar, it has almost the similar technologies as AlphaStar, and the training resource also costs very high. We can hardly train Mini-AS on a laptop. The recommended way is to use a commercial server with a GPU card and enough large memory and disk space. For someone interested in this project for the first time, we recommend you collect (star) this project and devolve deeply into researching it when you have enough free time and training resources.
+**Warning**: SC2 is extremely difficult, and AlphaStar is also very complex. Even our project is a mini-AlphaStar, it has almost the similar technologies as AS, and the training resource also costs very high. We can hardly train mini-AS on a laptop. The recommended way is to use a commercial server with a GPU card and enough large memory and disk space. For someone interested in this project for the first time, we recommend you collect (star) this project and devolve deeply into researching it when you have enough free time and training resources.
 
 ## Location
 
