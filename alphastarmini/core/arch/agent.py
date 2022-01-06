@@ -212,11 +212,12 @@ class Agent(object):
                                                                                               return_logits = True)
         return action_logits, actions, new_state, select_units_num, entity_nums
 
-    def action_logits_based_on_actions(self, state, action_gt, gt_select_units_num, hidden_state = None, single_inference = False):
-        batch_size = 1 if single_inference else None
-        sequence_length = 1 if single_inference else None
+    def action_logits_based_on_actions(self, state, action_gt, gt_select_units_num, hidden_state=None, 
+                                       single_inference=False, batch_size=None, sequence_length=None):
+        batch_size = 1 if single_inference else batch_size
+        sequence_length = 1 if single_inference else sequence_length
 
-        action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
+        _, action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
             delay_logits, queue_logits, \
             units_logits, target_unit_logits, \
             target_location_logits, select_units_num, new_state, unit_types_one = self.model.sl_forward(state, 
@@ -225,8 +226,8 @@ class Agent(object):
                                                                                                         gt_is_one_hot=False,
                                                                                                         batch_size=batch_size, 
                                                                                                         sequence_length=sequence_length, 
-                                                                                                        hidden_state = hidden_state,
-                                                                                                        multi_gpu_supvised_learning=True)
+                                                                                                        hidden_state=hidden_state,
+                                                                                                        multi_gpu_supvised_learning=False)
 
         # the sl_forward will added one entity into the max selected size, so we shoulde substract one
         units_logits = units_logits[:, :-1, :]
@@ -235,6 +236,31 @@ class Agent(object):
                                          target_location=target_location_logits)
 
         return action_logits, select_units_num, new_state
+
+    def action_logits_on_actions_for_unroll(self, state, action_gt, gt_select_units_num, hidden_state=None, 
+                                            batch_size=None, sequence_length=None, baseline_state=None, baseline_opponent_state=None):
+
+        baselinelist, action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
+            delay_logits, queue_logits, \
+            units_logits, target_unit_logits, \
+            target_location_logits, select_units_num, new_state, unit_types_one = self.model.sl_forward(state, 
+                                                                                                        action_gt, 
+                                                                                                        gt_select_units_num,
+                                                                                                        gt_is_one_hot=False,
+                                                                                                        batch_size=batch_size, 
+                                                                                                        sequence_length=sequence_length, 
+                                                                                                        hidden_state=hidden_state,
+                                                                                                        multi_gpu_supvised_learning=False,
+                                                                                                        baseline_state=baseline_state, 
+                                                                                                        baseline_opponent_state=baseline_opponent_state)
+
+        # the sl_forward will added one entity into the max selected size, so we shoulde substract one
+        units_logits = units_logits[:, :-1, :]
+        action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
+                                         units=units_logits, target_unit=target_unit_logits, 
+                                         target_location=target_location_logits)
+
+        return baselinelist, action_logits, select_units_num, new_state
 
     def state_by_obs(self, obs, return_tag_list = False):
         state, tag_list = Agent.preprocess_state_all(obs, return_tag_list)

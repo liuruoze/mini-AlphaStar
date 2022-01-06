@@ -16,6 +16,7 @@ from pysc2.env import environment as E
 
 from alphastarmini.core.arch.agent import Agent
 from alphastarmini.core.rl.state import MsState
+from alphastarmini.core.rl.action import ArgsAction, ArgsActionLogits
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 
@@ -239,6 +240,12 @@ class AlphaStarAgent(RandomAgent):
         return func_call, action, action_logits, hidden_state, select_units_num, entity_num
 
     def step_based_on_actions(self, state, hidden_state, action_gt, gt_select_units_num):  
+        device = self.agent_nn.device()
+
+        state.to(device)
+        action_gt.to(device)
+        gt_select_units_num = gt_select_units_num.to(device)
+
         action_logits, select_units_num, hidden_state = self.agent_nn.action_logits_based_on_actions(state, 
                                                                                                      action_gt=action_gt, 
                                                                                                      gt_select_units_num=gt_select_units_num, 
@@ -253,6 +260,8 @@ class AlphaStarAgent(RandomAgent):
         The actions taken by the agent and the initial state of the unroll are
         dictated by trajectory.
         """
+        device = self.agent_nn.device()
+        print("unroll device:", device) if 1 else None
 
         # trajectories shape: list of trajectory
         policy_logits = None
@@ -291,18 +300,15 @@ class AlphaStarAgent(RandomAgent):
 
         state_all = MsState(entity_state=entity_state_all, statistical_state=statistical_state_all, map_state=map_state_all)
 
-        device = self.agent_nn.device()
-        print("unroll device:", device) if debug else None
-
-        print("initial_memory.shape:", initial_memory_list[0][0].shape) if debug else None
+        # print("initial_memory.shape:", initial_memory_list[0][0].shape) if debug else None
         # note the bacth size is in the second dim of hidden state
-        initial_memory_state = [torch.cat(l, dim=1) for l in zip(*initial_memory_list)]
+        initial_memory_state = [torch.cat(l.float().to(device), dim=1) for l in zip(*initial_memory_list)]
 
-        baseline_state_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_traj)]
+        baseline_state_all = [torch.cat(statis.float().to(device), dim=0) for statis in zip(*baseline_state_traj)]
+        if use_opponent_state:
+            baseline_state_op_all = [torch.cat(statis.float().to(device), dim=0) for statis in zip(*baseline_state_op_traj)]
         print("baseline_state_all.shape:", baseline_state_all[0].shape) if debug else None
 
-        if use_opponent_state:
-            baseline_state_op_all = [torch.cat(statis, dim=0) for statis in zip(*baseline_state_op_traj)]
         # change to device
         state_all.to(device)  # note: MsStata.to(device) in place operation
         initial_memory_state = [l.float().to(device) for l in initial_memory_state]
@@ -320,3 +326,202 @@ class AlphaStarAgent(RandomAgent):
                                                                                                          baseline_opponent_state=baseline_state_op_all)
 
         return policy_logits, actions, baseline_list, select_units_num, entity_nums
+
+    def rl_unroll(self, trajectories, use_opponent_state=True):
+        """Unrolls the network over the trajectory.
+
+        The actions taken by the agent and the initial state of the unroll are
+        dictated by trajectory.
+        """
+        ACTION_FIELDS = [
+            'action_type',  
+            'delay',
+            'queue',
+            'units',
+            'target_unit',
+            'target_location',
+        ]
+
+        device = self.agent_nn.device()
+        print("unroll device:", device) if 1 else None
+
+        # trajectories shape: list of trajectory
+        policy_logits = None
+        baselines = None
+
+        hidden_traj = []  # traj.memory
+        cell_traj = []
+
+        state_traj = []  # traj.state
+        baseline_state_traj = []  # traj.baseline_state
+        baseline_state_op_traj = []  # traj.baseline_state_op
+        actions_traj = []
+        select_units_num_traj = []
+        entity_nums_traj = []
+
+        batch_size = len(trajectories)
+        for i, traj in enumerate(trajectories):
+            seq_length = len(traj.state)
+
+            hidden = list(zip(*traj.memory))[0]
+            print('hidden', hidden) if debug else None
+
+            hidden_traj.extend(hidden)
+
+            cell = list(zip(*traj.memory))[1]
+            print('cell', cell) if debug else None
+
+            cell_traj.extend(cell)
+
+            state_traj.extend(traj.state)
+            baseline_state_traj.extend(traj.baseline_state)
+            if use_opponent_state:
+                baseline_state_op_traj.extend(traj.baseline_state_op)
+            actions_traj.extend(traj.action)
+            select_units_num_traj.extend(traj.player_select_units_num)
+            entity_nums_traj.extend(traj.entity_num)
+
+        print('batch_size', batch_size)
+        print('seq_length', seq_length)
+
+        # add the state
+        entity_state_list = []
+        statistical_state_list = []
+        map_state_list = []
+        for s in state_traj:
+            entity_state_list.append(s.entity_state)
+            statistical_state_list.append(s.statistical_state)
+            map_state_list.append(s.map_state)
+
+        action_type_list = []
+        delay_list = []
+        queue_list = []
+        units_list = []
+        target_unit_list = []
+        target_location_list = []
+        for a in actions_traj:
+            action_type_list.append(a.action_type)
+            delay_list.append(a.delay)
+            queue_list.append(a.queue)
+            units_list.append(a.units)
+            target_unit_list.append(a.target_unit)
+            target_location_list.append(a.target_location)
+
+        entity_state_all = torch.cat([l.to(device) for l in entity_state_list], dim=0)
+        entity_state_all = entity_state_all.view(batch_size, seq_length, *tuple(entity_state_all.shape[1:]))
+
+        statistical_state_all = [torch.cat([l.to(device) for l in statis], dim=0) for statis in zip(*statistical_state_list)]
+        statistical_state_all = [l.view(batch_size, seq_length, *tuple(l.shape[1:])) for l in statistical_state_all]
+
+        map_state_all = torch.cat([l.to(device) for l in map_state_list], dim=0).to(device)
+        map_state_all = map_state_all.view(batch_size, seq_length, *tuple(map_state_all.shape[1:]))
+
+        select_units_num_all = torch.cat([l.to(device) for l in select_units_num_traj], dim=0)
+        select_units_num_all = select_units_num_all.view(batch_size, seq_length, *tuple(select_units_num_all.shape[1:]))
+
+        entity_nums_all = torch.cat([l.to(device) for l in entity_nums_traj], dim=0)
+        entity_nums_all = entity_nums_all.view(batch_size, seq_length, *tuple(entity_nums_all.shape[1:]))
+
+        # # note, hidden has the size of [num_of_lstm_layers, batch_size, hidden_size]
+        hidden_all = torch.cat([l.to(device) for l in hidden_traj], dim=1)
+        hidden_all = hidden_all.transpose(0, 1)
+        hidden_all = hidden_all.view(batch_size, seq_length, *tuple(hidden_all.shape[1:]))
+
+        cell_all = torch.cat([l.to(device) for l in cell_traj], dim=1)
+        cell_all = cell_all.transpose(0, 1)
+        cell_all = cell_all.view(batch_size, seq_length, *tuple(cell_all.shape[1:]))
+
+        action_type_all = torch.cat([l.to(device) for l in action_type_list], dim=0)
+        action_type_all = action_type_all.view(batch_size, seq_length, *tuple(action_type_all.shape[1:]))
+
+        delay_all = torch.cat([l.to(device) for l in delay_list], dim=0)
+        delay_all = delay_all.view(batch_size, seq_length, *tuple(delay_all.shape[1:]))
+
+        queue_all = torch.cat([l.to(device) for l in queue_list], dim=0)
+        queue_all = queue_all.view(batch_size, seq_length, *tuple(queue_all.shape[1:]))
+
+        units_all = torch.cat([l.to(device) for l in units_list], dim=0)
+        units_all = units_all.view(batch_size, seq_length, *tuple(units_all.shape[1:]))
+
+        target_unit_all = torch.cat([l.to(device) for l in target_unit_list], dim=0)
+        target_unit_all = target_unit_all.view(batch_size, seq_length, *tuple(target_unit_all.shape[1:]))
+
+        target_location_all = torch.cat([l.to(device) for l in target_location_list], dim=0)
+        target_location_all = target_location_all.view(batch_size, seq_length, *tuple(target_location_all.shape[1:]))
+
+        logits_list = []
+        baseline_list = []
+
+        baseline_state_all = [torch.cat([l.to(device) for l in statis], dim=0) for statis in zip(*baseline_state_traj)]
+        baseline_state_all = [l.view(batch_size, seq_length, *tuple(l.shape[1:])) for l in baseline_state_all]
+
+        if use_opponent_state:
+            baseline_state_op_all = [torch.cat([l.to(device) for l in statis], dim=0) for statis in zip(*baseline_state_op_traj)]
+            baseline_state_op_all = [l.view(batch_size, seq_length, *tuple(l.shape[1:])) for l in baseline_state_op_all]
+
+        for i in range(seq_length):
+            entity_state = entity_state_all[:, i]
+            statistical_state = [s[:, i] for s in statistical_state_all]
+            map_state = map_state_all[:, i]
+
+            state = MsState(entity_state=entity_state, statistical_state=statistical_state, map_state=map_state)
+
+            select_units_num = select_units_num_all[:, i]
+            hidden = hidden_all[:, i].transpose(0, 1).contiguous()  # .detach()
+            cell = cell_all[:, i].transpose(0, 1).contiguous()  # .detach()
+            memory = tuple([hidden, cell])
+
+            baseline_state = [s[:, i].float() for s in baseline_state_all]
+            if use_opponent_state:
+                baseline_opponent_state = [s[:, i].float() for s in baseline_state_op_all]
+            else:
+                baseline_opponent_state = None
+
+            action_type = action_type_all[:, i]
+            delay = delay_all[:, i]
+            queue = queue_all[:, i]
+            units = units_all[:, i]
+            target_unit = target_unit_all[:, i]
+            target_location = target_location_all[:, i]
+
+            action = ArgsAction(action_type=action_type, delay=delay, queue=queue,
+                                units=units, target_unit=target_unit, target_location=target_location)
+
+            baselines, logits, _, _ = self.agent_nn.action_logits_on_actions_for_unroll(state, action, select_units_num, 
+                                                                                        hidden_state=memory, 
+                                                                                        batch_size=batch_size, 
+                                                                                        sequence_length=1,
+                                                                                        baseline_state=baseline_state, 
+                                                                                        baseline_opponent_state=baseline_opponent_state)
+            logits_list.append(logits)
+            baseline_list.append(baselines)
+
+        # concate them in the sequence dim
+        action_type_list = []
+        delay_list = []
+        queue_list = []
+        units_list = []
+        target_unit_list = []
+        target_location_list = []
+        for a in logits_list:
+            action_type_list.append(a.action_type.unsqueeze(1))
+            delay_list.append(a.delay.unsqueeze(1))
+            queue_list.append(a.queue.unsqueeze(1))
+            units_list.append(a.units.unsqueeze(1))
+            target_unit_list.append(a.target_unit.unsqueeze(1))
+            target_location_list.append(a.target_location.unsqueeze(1))
+
+        action_type_logits = torch.cat(action_type_list, dim=1)
+        delay_logits = torch.cat(delay_list, dim=1)
+        queue_logits = torch.cat(queue_list, dim=1)
+        units_logits = torch.cat(units_list, dim=1)
+        target_unit_logits = torch.cat(target_unit_list, dim=1)
+        target_location_logits = torch.cat(target_location_list, dim=1)
+
+        policy_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
+                                         units=units_logits, target_unit=target_unit_logits, 
+                                         target_location=target_location_logits)
+
+        baseline_list = [torch.cat(l, dim=1) for l in zip(*baseline_list)]
+
+        return policy_logits, baseline_list, select_units_num_all, entity_nums_all

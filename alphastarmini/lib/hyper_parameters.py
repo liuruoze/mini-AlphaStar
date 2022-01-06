@@ -195,7 +195,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
 
 # mini-alphastar hyper parameters
 # Mini_Scale = P.Mini_Scale default is: 16 on laptop and 4 on server. use Batch_Scale, Seq_Scale, Select_Scale to replace it
-MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(32 * 3 / P.Batch_Scale),
+MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(32 * 2 / P.Batch_Scale),
                                                      sequence_length=int(32 * 3 / P.Seq_Scale),
                                                      max_selected=int(48 / P.Select_Scale),                                                    
                                                      max_entities=int(512),  # this value can not be downscaled, 
@@ -259,7 +259,7 @@ SL_Training_Hyper_Parameters = SLTrainingHyperParameters(num_epochs=100,
 
 # for the rl training parameters, like learning rate
 RLTrainingHyperParameters = namedtuple('RLTrainingHyperParameters', ['learning_rate', 'beta1', 'beta2', 'epsilon',
-                                                                     'weight_decay', 'clip', 'seed'])
+                                                                     'weight_decay', 'clip', 'num_epochs', 'seed'])
 
 RL_Training_Hyper_Parameters = RLTrainingHyperParameters(learning_rate=1e-5,  # AlphaStar: 3e-5
                                                          beta1=0, 
@@ -267,6 +267,7 @@ RL_Training_Hyper_Parameters = RLTrainingHyperParameters(learning_rate=1e-5,  # 
                                                          epsilon=1e-5,
                                                          weight_decay=1e-5,
                                                          clip=0.5,
+                                                         num_epochs=2,
                                                          seed=1)
 
 # for the params passed to the sc2_env creation

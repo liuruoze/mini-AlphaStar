@@ -233,6 +233,18 @@ class ArgsAction(object):
                                                  self.target_location)
         return result
 
+    @property    
+    def device(self):
+        return self.action_type.device
+
+    def to(self, device):
+        self.action_type = self.action_type.to(device)
+        self.delay = self.delay.to(device)
+        self.queue = self.queue.to(device)
+        self.units = self.units.to(device)
+        self.target_unit = self.target_unit.to(device)
+        self.target_location = self.target_location.to(device)
+
 
 class ArgsActionLogits(object):
     '''

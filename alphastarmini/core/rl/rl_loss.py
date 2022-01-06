@@ -40,12 +40,13 @@ ACTION_FIELDS = [
     'target_unit',
     'target_location',
 ]
+FIELDS_WEIGHT = [1, 0, 1, 1, 1, 1]
 
 SELECTED_UNITS_PLUS_ONE = False
 
 
-def filter_by_for_lists(action_fields, target_list):
-    return torch.cat([getattr(b, action_fields) for a in target_list for b in a], dim=0)
+def filter_by_for_lists(action_fields, target_list, device):
+    return torch.cat([getattr(b, action_fields).to(device) for a in target_list for b in a], dim=0)
 
 
 def filter_by_for_masks(action_fields, target_mask, device):
@@ -65,7 +66,7 @@ def entropy_loss(target_logits, trajectories, selected_mask, entity_mask):
     loss = 0 
     for i, field in enumerate(ACTION_FIELDS):  
         x = get_kl_or_entropy(target_logits, field, RA.entropy, mask, selected_mask, entity_mask, unit_type_entity_mask)
-        loss += x
+        loss = loss + x * FIELDS_WEIGHT[i]
 
     return loss
 
@@ -80,9 +81,9 @@ def human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask
 
     loss = 0  
     for i, field in enumerate(ACTION_FIELDS):
-        t_logits = filter_by_for_lists(field, trajectories.teacher_logits) 
+        t_logits = filter_by_for_lists(field, trajectories.teacher_logits, device) 
         x = get_kl_or_entropy(target_logits, field, RA.kl, mask, selected_mask, entity_mask, unit_type_entity_mask, t_logits)
-        loss += x
+        loss = loss + x * FIELDS_WEIGHT[i]
 
     return loss
 
@@ -129,7 +130,7 @@ def human_policy_kl_loss_action(target_logits, trajectories):
 
     logits = getattr(target_logits, field) 
     logits = logits.view(AHP.sequence_length * AHP.batch_size, *tuple(logits.shape[2:]))
-    t_logits = filter_by_for_lists(field, trajectories.teacher_logits) 
+    t_logits = filter_by_for_lists(field, trajectories.teacher_logits, device) 
 
     kl = RA.kl([logits, t_logits]).sum(dim=-1) * flag
     kl = torch.mean(kl * mask)
@@ -182,7 +183,7 @@ def get_baseline_hyperparameters():
 def transpose_target_logits(target_logits):
     for i, field in enumerate(ACTION_FIELDS):  
         logits = getattr(target_logits, field) 
-        logits = logits.view(AHP.batch_size, AHP.sequence_length, *tuple(logits.shape[1:]))
+        #logits = logits.view(AHP.batch_size, AHP.sequence_length, *tuple(logits.shape[1:]))
         logits = logits.transpose(0, 1).contiguous()
         logits = logits.view(AHP.sequence_length, AHP.batch_size, *tuple(logits.shape[2:]))
         setattr(target_logits, field, logits)
@@ -190,7 +191,7 @@ def transpose_target_logits(target_logits):
 
 
 def transpose_baselines(baseline_list):
-    baselines = [baseline.reshape(AHP.batch_size, AHP.sequence_length).transpose(0, 1).contiguous() for baseline in baseline_list]
+    baselines = [baseline.view(AHP.batch_size, AHP.sequence_length).transpose(0, 1).contiguous() for baseline in baseline_list]
     return baselines
 
 
@@ -238,7 +239,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
         loss_field = loss_field.mean()
         print('field', field, 'loss_val', loss_field.item()) if 1 else None
 
-        loss += loss_field
+        loss = loss + loss_field * FIELDS_WEIGHT[i]
         del loss_field
 
     return loss
@@ -265,7 +266,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
         loss_field = loss_field.mean()
         print('field', field, 'loss_val', loss_field.item()) if 1 else None
 
-        loss += loss_field
+        loss = loss + loss_field * FIELDS_WEIGHT[i]
         del loss_field
 
     return loss
@@ -281,8 +282,8 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
     seqbatch_shape = sequence_length * batch_size
     target_logits = target_logits.view(seqbatch_shape, *tuple(target_logits.shape[2:]))
 
-    behavior_logits = filter_by_for_lists(field, trajectories.behavior_logits)
-    actions = filter_by_for_lists(field, trajectories.action)
+    behavior_logits = filter_by_for_lists(field, trajectories.behavior_logits, device)
+    actions = filter_by_for_lists(field, trajectories.action, device)
     masks = filter_by_for_masks(field, trajectories.masks, device)
 
     all_logits = [target_logits, behavior_logits]
@@ -319,7 +320,7 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     """Computes the loss of trajectories given weights."""
 
     # target_logits: ArgsActionLogits
-    target_logits, target_actions, baselines, target_select_units_num, target_entity_num = agent.unroll(trajectories, use_opponent_state)
+    target_logits, baselines, target_select_units_num, target_entity_num = agent.rl_unroll(trajectories, use_opponent_state)
     device = target_logits.action_type.device
 
     # transpose to [seq_size x batch_size x -1]

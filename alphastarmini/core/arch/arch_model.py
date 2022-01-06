@@ -221,7 +221,8 @@ class ArchModel(nn.Module):
         return action, hidden_state, select_units_num, entity_nums
 
     def sl_forward(self, state, gt_action, gt_select_units_num, 
-                   gt_is_one_hot=True, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None):
+                   gt_is_one_hot=True, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None,
+                   baseline_state=None, baseline_opponent_state=None):
         '''
         # inspired by the DI-star project
         # injected the args of ground truth into the forward calculation
@@ -233,7 +234,8 @@ class ArchModel(nn.Module):
         map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
 
-        available_actions = state.statistical_state[6]  # available_actions is at position 6
+        available_actions_id = 6  # available_actions is at position 6
+        available_actions = state.statistical_state[available_actions_id]  
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
                                               batch_size, sequence_length, hidden_state)
 
@@ -258,13 +260,6 @@ class ArchModel(nn.Module):
             print('gt_units', gt_units) if debug else None
             print('gt_units.shape', gt_units.shape) if debug else None
             gt_units[torch.arange(batch_size), gt_select_units_num] = L.tensor_one_hot(entity_nums, units_size).long()
-
-            # for i in range(batch_size):
-            #     j = gt_select_units_num[i]
-            #     if j < select_size:
-            #         nums = min(units_size - 1, entity_nums[i].item())
-            #         nums = torch.tensor(nums, dtype=entity_nums.dtype, device=entity_nums.device)
-            #         gt_units[i, j] = L.tensor_one_hot(nums, units_size).long()
 
             gt_units = gt_units.reshape(-1, units_size)
             print('gt_units.shape', gt_units.shape) if debug else None
@@ -309,9 +304,20 @@ class ArchModel(nn.Module):
         if multi_gpu_supvised_learning:
             return action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \
                 units_logits, target_unit_logits, target_location_logits, select_units_num, hidden_state, unit_types_one
+        elif baseline_state is not None:
+            winloss_baseline_value = self.winloss_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+            build_order_baseline_value = self.build_order_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+            built_units_baseline_value = self.built_units_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+            upgrades_baseline_value = self.upgrades_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
+            effects_baseline_value = self.effects_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
 
-        return action_type_logits, delay_logits, queue_logits, \
-            units_logits, target_unit_logits, target_location_logits
+            baseline_value_list = [winloss_baseline_value, build_order_baseline_value, built_units_baseline_value,
+                                   upgrades_baseline_value, effects_baseline_value]
+        else:
+            baseline_value_list = []
+
+        return baseline_value_list, action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \
+            units_logits, target_unit_logits, target_location_logits, select_units_num, hidden_state, unit_types_one
 
 
 def test():

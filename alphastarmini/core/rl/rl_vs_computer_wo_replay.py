@@ -59,6 +59,12 @@ USE_RESULT_REWARD = False
 REWARD_SCALE = 0.0001
 LR = 1e-5
 
+BUFFER_SIZE = 1  # 100
+COUNT_OF_BATCHES = 1  # 10
+
+NUM_EPOCHS = 1  # 20
+USE_RANDOM_SAMPLE = True
+
 RESTORE = True
 SAVE_STATISTIC = True
 DIFFICULTY = 1
@@ -101,16 +107,20 @@ class ActorVSComputer:
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, coordinator, teacher, idx, buffer_lock=None, results_lock=None, writer=None, max_time_for_training=60 * 60 * 24,
+    def __init__(self, player, device, coordinator, teacher, idx, buffer_lock=None, results_lock=None, writer=None, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
-                 replay_dir="./added_simple64_replays/"):
+                 replay_dir="./added_simple64_replays/",
+                 update_params_interval=30):
         self.player = player
         self.player.add_actor(self)
         self.idx = idx
         self.teacher = teacher
         self.coordinator = coordinator
+        self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)
+        if ON_GPU:
+            self.agent.agent_nn.to(device)
 
         self.max_time_for_training = max_time_for_training
         self.max_time_per_one_opponent = max_time_per_one_opponent
@@ -130,6 +140,7 @@ class ActorVSComputer:
 
         self.replay_dir = replay_dir
         self.writer = writer
+        self.update_params_interval = update_params_interval
 
     def start(self):
         self.is_start = True
@@ -155,7 +166,7 @@ class ActorVSComputer:
 
             # use max_episodes to end the loop
             while time() - training_start_time < self.max_time_for_training:
-                agents = [self.player]
+                agents = [self.agent]
 
                 with self.create_env_one_player(self.player) as env:
 
@@ -166,12 +177,14 @@ class ActorVSComputer:
                     for agent, obs_spec, act_spec in zip(agents, observation_spec, action_spec):
                         agent.setup(obs_spec, act_spec)
 
-                    self.teacher.setup(self.player.agent.obs_spec, self.player.agent.action_spec)
+                    self.teacher.setup(self.agent.obs_spec, self.agent.action_spec)
 
                     print('player:', self.player) if debug else None
                     print('opponent:', "Computer bot") if debug else None
 
                     trajectory = []
+
+                    update_params_timer = time()
 
                     opponent_start_time = time()  # in seconds.
                     print("opponent_start_time before reset:", strftime("%Y-%m-%d %H:%M:%S", localtime(opponent_start_time)))
@@ -191,7 +204,7 @@ class ActorVSComputer:
                         [home_obs] = timesteps
                         is_final = home_obs.last()
 
-                        player_memory = self.player.agent.initial_state()
+                        player_memory = self.agent.initial_state()
                         teacher_memory = self.teacher.initial_state()
 
                         episode_frames = 0
@@ -218,20 +231,28 @@ class ActorVSComputer:
 
                             t = time()
 
-                            state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
-                                                                                    build_order=player_bo, 
-                                                                                    last_list=last_list)
-                            baseline_state = self.player.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
+                            # every 10s, the actor get the params from the learner
+                            if time() - update_params_timer > self.update_params_interval:
+                                print("agent_{:d} update params".format(self.idx)) if 1 else None
+                                self.agent.set_weights(self.player.agent.get_weights())
+                                update_params_timer = time()
 
-                            player_step = self.player.agent.step_from_state(state, player_memory)
+                            state = self.agent.agent_nn.preprocess_state_all(home_obs.observation, 
+                                                                             build_order=player_bo, 
+                                                                             last_list=last_list)
+                            baseline_state = self.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
+
+                            player_step = self.agent.step_from_state(state, player_memory)
                             player_function_call, player_action, player_logits, \
                                 player_new_memory, player_select_units_num, entity_num = player_step
 
                             print("player_function_call:", player_function_call) if debug else None
-                            print("player_action:", player_action) if debug else None
+
                             print("player_action.delay:", player_action.delay) if debug else None
-                            print("player_select_units_num:", player_select_units_num) if debug else None
                             print("entity_num:", entity_num) if debug else None
+
+                            print("player_select_units_num:", player_select_units_num) if debug else None
+                            print("player_action:", player_action) if debug else None
 
                             if False:
                                 show_sth(home_obs, player_action)
@@ -248,7 +269,7 @@ class ActorVSComputer:
                                 teacher_logits, teacher_select_units_num, teacher_new_memory = teacher_step
                                 print("teacher_logits:", teacher_logits) if debug else None
 
-                                assert teacher_select_units_num == player_select_units_num
+                                #assert teacher_select_units_num == player_select_units_num
                             else:
                                 teacher_logits = None
 
@@ -373,7 +394,7 @@ class ActorVSComputer:
 
                                 results[outcome + 1] += 1
 
-                            print("{:d} get reward".format(self.idx), reward) if 0 else None
+                            print("agent_{:d} get reward".format(self.idx), reward) if 0 else None
 
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
                             # them here
@@ -661,19 +682,27 @@ def test(on_server=False, replay_path=None):
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
         player.agent.set_rl_training(IS_TRAINING)
+        device_learner = torch.device("cuda:0" if ON_GPU else "cpu")
         if ON_GPU:
-            player.agent.agent_nn.to(DEVICE)
+            player.agent.agent_nn.to(device_learner)
 
-        teacher = get_supervised_agent(player.race, model_type="sl", restore=RESTORE)
+        teacher = get_supervised_agent(player.race, model_type="sl", restore=True)
+        device_teacher = torch.device("cuda:0" if False else "cpu")
         if ON_GPU:
-            teacher.agent_nn.to(DEVICE)
+            teacher.agent_nn.to(device_teacher)
 
         buffer_lock = threading.Lock()
         learner = Learner(player, max_time_for_training=60 * 60 * 24, lr=LR, is_training=IS_TRAINING, 
                           buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
-                          no_replay_learn=NO_REPLAY_LEARN)
+                          no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
+                          count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
+                          use_random_sample=USE_RANDOM_SAMPLE)
         learners.append(learner)
-        actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
+        #actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
+        for z in range(ACTOR_NUMS):
+            device = torch.device("cuda:" + str(z + 2) if False else "cpu")
+            actor = ActorVSComputer(player, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
+            actors.append(actor)
 
     threads = []
     for l in learners:
