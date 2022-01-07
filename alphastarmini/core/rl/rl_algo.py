@@ -268,7 +268,6 @@ def vtrace_from_importance_weights(
     pg_advantages = (clipped_pg_rhos * (rewards + discounts * vs_t_plus_1 - values))
 
     del clipped_pg_rhos, rewards, discounts, vs_t_plus_1, values, vs_minus_v_xs
-    gc.collect()
 
     # Make sure no gradients backpropagated through the returned values.
     return VTraceReturns(vs=vs.detach(), pg_advantages=pg_advantages.detach())
@@ -323,7 +322,6 @@ def entropy(all_logits, selected_mask=None, entity_mask=None, unit_type_entity_m
 
     del all_logits, policy_logits, log_policy, policy
     del selected_mask, entity_mask, unit_type_entity_mask
-    gc.collect()
 
     return x
 
@@ -348,7 +346,6 @@ def kl(all_logits, selected_mask=None, entity_mask=None,
 
     del all_logits, student_logits, teacher_logits, s_logprobs, t_logprobs, teacher_probs
     del selected_mask, entity_mask, unit_type_entity_mask
-    gc.collect()
 
     return x
 
@@ -420,8 +417,6 @@ def log_prob(logits, actions, mask_used, outlier_remove=True):
         loss_result = torch.sum(loss_result, dim=-1)
 
         del selected_mask
-
-    gc.collect()
 
     return -loss_result
 

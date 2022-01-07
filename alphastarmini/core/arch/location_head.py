@@ -261,6 +261,8 @@ class LocationHead(nn.Module):
             else:
                 x = self.us_4_original(x)
 
+        del ar_map, map_skip, autoregressive_embedding
+
         # AlphaStar: Those final logits are flattened and sampled (masking out invalid locations using `action_type`, 
         # AlphaStar: such as those outside the camera for build actions) with temperature 0.8 
         # AlphaStar: to get the actual target position.
@@ -308,6 +310,8 @@ class LocationHead(nn.Module):
                 # target_location[i] = np.array([target_location_x.item(), target_location_y.item()])
                 target_location[i] = np.array([target_location_x.item(), target_location_y.item()])
 
+            del location_id
+
             target_location = torch.tensor(target_location, device=device).long()
             target_location[no_target_location_mask] = torch.tensor([self.output_map_size - 1, self.output_map_size - 1], device=device)
 
@@ -316,6 +320,8 @@ class LocationHead(nn.Module):
 
         target_location_logits = target_location_logits.reshape(-1, self.output_map_size, self.output_map_size)
         target_location_logits = target_location_logits * target_location_mask.float().unsqueeze(-1)
+
+        del action_type, y, target_location_mask, no_target_location_mask
 
         return target_location_logits, target_location
 

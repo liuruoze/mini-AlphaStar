@@ -240,7 +240,6 @@ class Agent(object):
         del state, action_gt, gt_select_units_num, hidden_state
         del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits
         del baselinelist, action_pred, entity_nums, units, target_unit, target_location, unit_types_one
-        gc.collect()
 
         return action_logits, select_units_num, new_state
 
@@ -269,7 +268,6 @@ class Agent(object):
 
         del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits
         del action_pred, entity_nums, units, target_unit, target_location, unit_types_one
-        gc.collect()
 
         return baselinelist, action_logits, select_units_num, new_state
 

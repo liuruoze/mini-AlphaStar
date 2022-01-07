@@ -240,7 +240,6 @@ class AlphaStarAgent(RandomAgent):
         func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
 
         del state
-        gc.collect()
 
         return func_call, action, action_logits, hidden_state, select_units_num, entity_num
 
@@ -258,7 +257,6 @@ class AlphaStarAgent(RandomAgent):
                                                                                                      single_inference=True,
                                                                                                      hidden_state=hidden_state)
         del state, action_gt, gt_select_units_num, hidden_state
-        gc.collect()
 
         return action_logits
 
@@ -446,7 +444,6 @@ class AlphaStarAgent(RandomAgent):
                                                                                         baseline_state=baseline_state, 
                                                                                         baseline_opponent_state=baseline_opponent_state)
             del state, action, select_units_num, memory, baseline_state, baseline_opponent_state
-            gc.collect()
 
             logits_list.append(logits)
             baseline_list.append(baselines)
@@ -486,6 +483,5 @@ class AlphaStarAgent(RandomAgent):
 
         del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits
         del action_type_list, delay_list, queue_list, units_list, target_unit_list, target_location_list
-        gc.collect()
 
         return policy_logits, baseline_list, select_units_num_all, entity_nums_all

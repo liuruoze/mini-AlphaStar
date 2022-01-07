@@ -69,7 +69,6 @@ def entropy_loss(target_logits, trajectories, selected_mask, entity_mask):
         del x
 
     del mask, unit_type_entity_mask, selected_mask, entity_mask
-    gc.collect()
 
     return loss
 
@@ -90,7 +89,6 @@ def human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask
         del x, t_logits
 
     del mask, unit_type_entity_mask, selected_mask, entity_mask
-    gc.collect()
 
     return loss
 
@@ -125,7 +123,6 @@ def get_kl_or_entropy(target_logits, field, func, mask, selected_mask, entity_ma
     x = torch.mean(x * mask)
 
     del logits, t_logits, all_logits, mask
-    gc.collect()
 
     return x
 
@@ -147,7 +144,6 @@ def human_policy_kl_loss_action(target_logits, trajectories):
     kl = torch.mean(kl * mask)
 
     del seconds, flag, mask, logits, t_logits
-    gc.collect()
 
     return kl
 
@@ -165,7 +161,6 @@ def td_lambda_loss(baselines, rewards, trajectories, device):
     result = returns - baselines[:-1]
 
     del discounts, baselines, rewards, returns
-    gc.collect()
 
     return 0.5 * torch.mean(torch.square(result))
 
@@ -264,7 +259,6 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
 
     del trajectories, discounts, unit_type_entity_mask, reward
     del values, returns, selected_mask, entity_mask, mask_provided
-    gc.collect()
 
     return loss
 
@@ -295,7 +289,6 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
 
     del trajectories, discounts, unit_type_entity_mask, rewards
     del values, selected_mask, entity_mask, mask_provided
-    gc.collect()
 
     return loss
 
@@ -343,7 +336,6 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
 
     del behavior_log_prob, target_logits, behavior_logits, all_logits, target_logits_all
     del actions, selected_mask, entity_mask, unit_type_entity_mask
-    gc.collect()
 
     return target_log_prob, clipped_rhos, masks
 
@@ -408,8 +400,8 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
         loss_actor_critic += (baseline_cost * baseline_loss + pg_cost * pg_loss)
 
         reward_index += 1
+
         del baseline_loss, pg_loss, rewards
-        gc.collect()
 
     # Upgo Loss:
     # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
@@ -454,7 +446,6 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     print("loss_all:", loss_all.item()) if 1 else None
 
     del loss_actor_critic, loss_upgo, loss_kl, loss_ent
-    gc.collect()
 
     return loss_all
 

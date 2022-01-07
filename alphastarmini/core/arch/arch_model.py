@@ -213,7 +213,6 @@ class ArchModel(nn.Module):
         del action_type, delay, queue, units, target_unit, target_location
         del entity_embeddings, autoregressive_embedding
         del map_skip
-        gc.collect()
 
         if return_logits:
 
@@ -321,7 +320,6 @@ class ArchModel(nn.Module):
 
         del gt_action, gt_action_type, gt_delay, gt_queue, entity_embeddings, gt_units, gt_select_units_num, autoregressive_embedding
         del map_skip, gt_target_unit, embedded_entity
-        gc.collect()
 
         if multi_gpu_supvised_learning:
             return action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \

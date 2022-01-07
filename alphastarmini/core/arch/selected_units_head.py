@@ -3,6 +3,8 @@
 
 " Selected Units Head."
 
+import gc
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -91,7 +93,8 @@ class SelectedUnitsHead(nn.Module):
         unit_types_one_hot = L.action_can_apply_to_selected_mask(action_type).to(device)
 
         # the_func_embed shape: [batch_size x 256]
-        the_func_embed = F.relu(self.func_embed(unit_types_one_hot))  
+        the_func_embed = F.relu(self.func_embed(unit_types_one_hot))
+        del unit_types_one_hot
 
         # AlphaStar: It also computes a mask of which units can be selected, initialised to allow selecting all entities 
         # that exist (including enemy units).
@@ -139,6 +142,8 @@ class SelectedUnitsHead(nn.Module):
             # use calculation to replace new_variable
             key_main_part = key * flag
             key = key_main_part + key_end_part
+
+            del padding_end, flag, end_embedding, key_main_part, key_end_part
 
         # calculate the average of keys (consider the entity_num)
         key_mask = mask.unsqueeze(dim=2).repeat(1, 1, key.shape[-1])
@@ -197,6 +202,7 @@ class SelectedUnitsHead(nn.Module):
 
             # entity_logits shape: [batch_size x entity_size]
             entity_logits = y.div(self.temperature)
+            del y
             print("entity_logits:", entity_logits) if debug else None
             print("entity_logits.shape:", entity_logits.shape) if debug else None
 
@@ -255,6 +261,7 @@ class SelectedUnitsHead(nn.Module):
             # AlphaStar: and added to `autoregressive_embedding` for subsequent iterations.
             # autoregressive_embedding: [batch_size x autoregressive_embedding_size]
             autoregressive_embedding = autoregressive_embedding + t * ~is_end.unsqueeze(dim=1)
+            del t
             print("autoregressive_embedding:", autoregressive_embedding) if debug else None
 
             # QUESTION: When to break?
@@ -286,6 +293,7 @@ class SelectedUnitsHead(nn.Module):
                                     dtype=units.dtype, device=units.device)
             pad_units[:, :, 0] = entity_size - 1  # None index, the same as -1
             units = torch.cat([units, pad_units], dim=1)
+            del pad_units, pad_units_logits
 
         # AlphaStar: If `action_type` does not involve selecting units, this head is ignored.
 
@@ -303,6 +311,8 @@ class SelectedUnitsHead(nn.Module):
 
         print("select_units_num:", select_units_num) if debug else None
         print("autoregressive_embedding:", autoregressive_embedding) if debug else None
+
+        del select_unit_mask, no_select_units_index, mask, is_end, key_mask, key_avg
 
         return units_logits, units, autoregressive_embedding, select_units_num
 
@@ -334,6 +344,7 @@ class SelectedUnitsHead(nn.Module):
 
         # the_func_embed shape: [batch_size x 256]
         the_func_embed = F.relu(self.func_embed(unit_types_one_hot))  
+        del unit_types_one_hot
 
         # AlphaStar: It also computes a mask of which units can be selected, initialised to allow selecting all entities 
         # that exist (including enemy units).
@@ -381,6 +392,7 @@ class SelectedUnitsHead(nn.Module):
             # use calculation to replace new_variable
             key_main_part = key * flag
             key = key_main_part + key_end_part
+            del padding_end, flag, end_embedding, key_main_part, key_end_part
 
         # calculate the average of keys (consider the entity_num)
         key_mask = mask.unsqueeze(dim=2).repeat(1, 1, key.shape[-1])
@@ -448,6 +460,7 @@ class SelectedUnitsHead(nn.Module):
 
             # entity_logits shape: [batch_size x entity_size]
             entity_logits = y.div(self.temperature)
+            del y
             print('entity_logits', entity_logits) if debug else None
             print('entity_logits.shape', entity_logits.shape) if debug else None
 
@@ -491,6 +504,7 @@ class SelectedUnitsHead(nn.Module):
                 # go from 0.02 to 0.25！
                 # TODO, whether should be select_mask[:, i + 1] or select_mask[:, i] ?
                 autoregressive_embedding = autoregressive_embedding + t * selected_mask[:, i + 1].unsqueeze(dim=1)
+                del t
                 print("autoregressive_embedding:", autoregressive_embedding) if debug else None
 
         # in SL, we make the selected can have 1 more, like 12 + 1
@@ -526,6 +540,8 @@ class SelectedUnitsHead(nn.Module):
 
         # remove the EOF
         select_units_num = select_units_num - 1
+
+        del selected_mask, select_unit_mask, no_select_units_index, mask, units_logits_list, key_mask, key_avg
 
         return units_logits, None, autoregressive_embedding, select_units_num
 
