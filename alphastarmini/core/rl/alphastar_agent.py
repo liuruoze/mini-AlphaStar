@@ -276,7 +276,7 @@ class AlphaStarAgent(RandomAgent):
         ]
 
         device = self.agent_nn.device()
-        print("unroll device:", device) if 1 else None
+        print("unroll device:", device) if debug else None
 
         # trajectories shape: list of trajectory
         policy_logits = None
@@ -314,8 +314,8 @@ class AlphaStarAgent(RandomAgent):
             select_units_num_traj.extend(traj.player_select_units_num)
             entity_nums_traj.extend(traj.entity_num)
 
-        print('batch_size', batch_size)
-        print('seq_length', seq_length)
+        print('batch_size', batch_size) if debug else None
+        print('seq_length', seq_length) if debug else None
 
         # add the state
         entity_state_list = []
@@ -408,9 +408,9 @@ class AlphaStarAgent(RandomAgent):
         baseline_list = []
 
         for i in range(seq_length):
-            entity_state = entity_state_all[:, i]
-            statistical_state = [s[:, i] for s in statistical_state_all]
-            map_state = map_state_all[:, i]
+            entity_state = entity_state_all[:, i].float()
+            statistical_state = [s[:, i].float() for s in statistical_state_all]
+            map_state = map_state_all[:, i].float()
 
             state = MsState(entity_state=entity_state, statistical_state=statistical_state, map_state=map_state)
 

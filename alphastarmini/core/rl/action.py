@@ -245,6 +245,27 @@ class ArgsAction(object):
         self.target_unit = self.target_unit.to(device)
         self.target_location = self.target_location.to(device)
 
+    def detach(self):
+        self.action_type = self.action_type.detach()
+        self.delay = self.delay.detach()
+        self.queue = self.queue.detach()
+        self.units = self.units.detach()
+        self.target_unit = self.target_unit.detach()
+        self.target_location = self.target_location.detach()
+
+        return self
+
+    def clone(self):
+        action_type = self.action_type.detach().clone()
+        delay = self.delay.detach().clone()
+        queue = self.queue.detach().clone()
+        units = self.units.detach().clone()
+        target_unit = self.target_unit.detach().clone()
+        target_location = self.target_location.detach().clone()
+
+        return ArgsAction(action_type, delay, queue, units, 
+                          target_unit, target_location)
+
 
 class ArgsActionLogits(object):
     '''
@@ -286,6 +307,27 @@ class ArgsActionLogits(object):
         self.units = self.units.to(device).float()
         self.target_unit = self.target_unit.to(device).float()
         self.target_location = self.target_location.to(device).float()
+
+    def detach(self):
+        self.action_type = self.action_type.detach()
+        self.delay = self.delay.detach()
+        self.queue = self.queue.detach()
+        self.units = self.units.detach()
+        self.target_unit = self.target_unit.detach()
+        self.target_location = self.target_location.detach()
+
+        return self
+
+    def clone(self):
+        action_type = self.action_type.detach().clone()
+        delay = self.delay.detach().clone()
+        queue = self.queue.detach().clone()
+        units = self.units.detach().clone()
+        target_unit = self.target_unit.detach().clone()
+        target_location = self.target_location.detach().clone()
+
+        return ArgsActionLogits(action_type, delay, queue, units, 
+                                target_unit, target_location)
 
     @property    
     def device(self):

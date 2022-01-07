@@ -22,6 +22,7 @@ from torch.optim import Adam, RMSprop
 from tensorboardX import SummaryWriter
 
 from alphastarmini.core.rl.rl_loss import loss_function
+from alphastarmini.core.rl import rl_utils as RU
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import RL_Training_Hyper_Parameters as THP
@@ -81,52 +82,58 @@ class Learner:
         self.trajectories.append(trajectory)
 
     def update_parameters(self):
+        if not self.is_rl_training:
+            return 
+
         agent = self.player.agent
         batch_size = AHP.batch_size
         sample_size = self.count_of_batches * batch_size
 
+        print("begin backward") if 1 else None
+        agent.agent_nn.model.train()  # for BN and dropout
+
+        trajectories = None
         for ep_id in range(self.num_epochs):
-            # TODO: use random samping
+
+            print('len(self.trajectories)', len(self.trajectories)) if 1 else None
+
+            # use random samping
             with self.buffer_lock:
                 if self.use_random_sample:
                     random.shuffle(self.trajectories)
+
+                #trajectories = RU.namedtuple_deepcopy(self.trajectories[:sample_size])
                 trajectories = self.trajectories[:sample_size]
 
-            if self.is_rl_training:
-                agent.agent_nn.model.train()  # for BN and dropout
-                print("begin backward") if debug else None
+            print('len(trajectories)', len(trajectories)) if 1 else None
 
-                for batch_id in range(self.count_of_batches):
-                    print('len(trajectories)', len(trajectories))
+            for batch_id in range(self.count_of_batches):
+                update_trajectories = trajectories[batch_id * batch_size: (batch_id + 1) * batch_size]
+                print('len(update_trajectories)', len(update_trajectories)) if 1 else None
 
-                    update_trajectories = trajectories[batch_id * batch_size: (batch_id + 1) * batch_size]
-                    print('len(update_trajectories)', len(update_trajectories))
+                # with torch.autograd.set_detect_anomaly(True):
+                loss = loss_function(agent, update_trajectories, self.use_opponent_state, self.no_replay_learn)
+                print("loss.device:", loss.device) if debug else None
+                print("loss:", loss.item()) if 1 else None
 
-                    # with torch.autograd.set_detect_anomaly(True):
-                    loss = loss_function(agent, update_trajectories, self.use_opponent_state, self.no_replay_learn)
-                    print("loss:", loss) if debug else None
+                self.optimizer.zero_grad()
+                loss.backward() 
+                self.optimizer.step()
 
-                    self.optimizer.zero_grad()
-                    loss.backward() 
-                    self.optimizer.step()
+                self.writer.add_scalar('learner/loss', loss.item(), agent.steps)
+                agent.steps += AHP.batch_size * AHP.sequence_length
 
-                    self.writer.add_scalar('learner/loss', loss.item(), agent.steps)
-                    agent.steps += AHP.batch_size * AHP.sequence_length
+                del loss, update_trajectories
 
-                    del loss, update_trajectories
-
-                del trajectories
-                gc.collect()
-
-                agent.agent_nn.model.eval()  # for BN and dropout 
-                print("end backward") if debug else None
-
-                # we use new ways to save
-                if agent.steps % (1 * AHP.batch_size * AHP.sequence_length) == 0:
-                    torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
+            del trajectories
 
         with self.buffer_lock:
             self.trajectories = self.trajectories[sample_size:]
+
+        agent.agent_nn.model.eval() 
+        torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
+        gc.collect()
+        print("end backward") if 1 else None
 
     def start(self):
         self.thread.start()

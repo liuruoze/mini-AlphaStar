@@ -1,5 +1,5 @@
 import os
-USED_DEVICES = "2,3,4,5,6,7"  # if your want to use CPU in a server with GPU, change "0" to "-1"
+USED_DEVICES = "0,1,2,3,4,5,6,7"  # if your want to use CPU in a server with GPU, change "0" to "-1"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = USED_DEVICES
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
@@ -40,12 +40,6 @@ from alphastarmini.core.arch import agent
 from alphastarmini.core.arch import baseline
 
 from alphastarmini.core.sl import load_pickle
-
-from alphastarmini.core.rl import action
-from alphastarmini.core.rl import env_utils
-from alphastarmini.core.rl import actor
-from alphastarmini.core.rl import against_computer
-from alphastarmini.core.rl import pseudo_reward
 
 import param as P
 

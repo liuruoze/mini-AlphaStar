@@ -296,14 +296,14 @@ class ScalarEncoder(nn.Module):
         embedded_scalar_list.append(x)
 
         # race: Both races are embedded into a one-hot with maximum 5, and embedded through a linear of size 32 and a ReLU.
-        x = F.relu(self.home_race_fc(home_race))
+        x = F.relu(self.home_race_fc(home_race.float()))
         del home_race
         embedded_scalar_list.append(x)
         # The embedding is also added to `scalar_context`.
         scalar_context_list.append(x)
 
         # race: Both races are embedded into a one-hot with maximum 5, and embedded through a linear of size 32 and a ReLU.
-        x = F.relu(self.away_race_fc(away_race))
+        x = F.relu(self.away_race_fc(away_race.float()))
         del away_race
         # TODO: During training, the opponent's requested race is hidden in 10% of matches, to simulate playing against the Random race.
         embedded_scalar_list.append(x)

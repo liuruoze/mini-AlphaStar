@@ -138,6 +138,12 @@ class SpatialEncoder(nn.Module):
             scatter_map, reduced = torch.split(x, [self.scatter_volume, channels - self.scatter_volume], dim=1)
             scatter_entity = self.scatter(scatter_map, entity_embeddings)
 
+            print('scatter_entity', scatter_entity) if 1 else None
+            print('scatter_entity.shape', scatter_entity.shape) if 1 else None
+
+            print('reduced', reduced) if 1 else None
+            print('reduced.shape', reduced.shape) if 1 else None
+
             x = torch.cat([scatter_entity, reduced], dim=1)
             del scatter_entity, reduced
 

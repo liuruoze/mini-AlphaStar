@@ -233,7 +233,7 @@ def get_useful_masks(select_units_num, entity_num, device):
 
 def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, entity_mask, device):
     """Computes the split upgo policy gradient loss."""
-    print('sum_upgo_loss') if 1 else None
+    print('sum_upgo_loss') if debug else None
 
     trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
     discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
@@ -252,7 +252,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
             weighted_advantage = ((returns - values) * clipped_rhos).reshape(-1)
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean()
-        print('field', field, 'loss_val', loss_field.item()) if 1 else None
+        print('field', field, 'loss_val', loss_field.item()) if debug else None
 
         loss = loss + loss_field * FIELDS_WEIGHT[i]
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
@@ -265,7 +265,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
 
 def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selected_mask, entity_mask, device):
     """Computes the split v-trace policy gradient loss."""
-    print('sum_vtrace_pg_loss') if 1 else None
+    print('sum_vtrace_pg_loss') if debug else None
 
     trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
     discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
@@ -282,7 +282,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
             weighted_advantage = RA.vtrace_advantages(clipped_rhos, rewards, discounts, values, baselines[-1])[1].reshape(-1)
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean()
-        print('field', field, 'loss_val', loss_field.item()) if 1 else None
+        print('field', field, 'loss_val', loss_field.item()) if debug else None
 
         loss = loss + loss_field * FIELDS_WEIGHT[i]
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
@@ -359,9 +359,9 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     selected_mask, entity_mask = get_useful_masks(target_select_units_num, target_entity_num, device)
 
     # note, we change the structure of the trajectories
+    # shape before: [dict_name x batch_size x seq_size]
     trajectories = RU.stack_namedtuple(trajectories) 
 
-    # shape before: [dict_name x batch_size x seq_size]
     # shape after: [dict_name x seq_size x batch_size]
     trajectories = RU.namedtuple_zip(trajectories) 
 
@@ -380,10 +380,10 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
                 break
 
         pg_cost, baseline_cost, reward_name = costs_and_rewards
-        print("reward_name:", reward_name) if 1 else None
+        print("reward_name:", reward_name) if debug else None
 
         rewards = PR.compute_pseudoreward(trajectories, reward_name, device)
-        print("rewards:", rewards) if 0 else None
+        print("rewards:", rewards) if debug else None
 
         # The action_type argument, delay, and all other arguments are separately updated 
         # using a separate ("split") VTrace Actor-Critic losses. The weighting of these 
@@ -408,7 +408,6 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     UPGO_WEIGHT = 1.0
     baseline_winloss = baselines[0]
     loss_upgo = UPGO_WEIGHT * sum_upgo_loss(target_logits, trajectories, baseline_winloss, selected_mask, entity_mask, device)
-
     del baselines
 
     # Distillation Loss:
@@ -424,7 +423,6 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     action_type_kl_loss = human_policy_kl_loss_action(target_logits, trajectories)
 
     loss_kl = ALL_KL_COST * all_kl_loss + ACTION_TYPE_KL_COST * action_type_kl_loss
-
     del all_kl_loss, action_type_kl_loss
 
     # Entropy Loss:
@@ -435,15 +433,16 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     # note: we want to maximize the entropy so we gradient descent the -entropy. Original AlphaStar pseudocode is wrong
     # AlphaStar: loss_ent = entropy_loss(trajectories.behavior_logits, trajectories.masks)
     loss_ent = ENT_WEIGHT * (- entropy_loss(target_logits, trajectories, selected_mask, entity_mask))
+    del trajectories, selected_mask, entity_mask, target_logits
 
     loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
-    #loss_all = -loss_all
 
-    print("loss_actor_critic:", loss_actor_critic.item()) if 1 else None
-    print("loss_upgo:", loss_upgo.item()) if 1 else None
-    print("loss_kl:", loss_kl.item()) if 1 else None
-    print("loss_ent:", loss_ent.item()) if 1 else None
-    print("loss_all:", loss_all.item()) if 1 else None
+    if False:
+        print("loss_actor_critic:", loss_actor_critic.item()) if debug else None
+        print("loss_upgo:", loss_upgo.item()) if debug else None
+        print("loss_kl:", loss_kl.item()) if debug else None
+        print("loss_ent:", loss_ent.item()) if debug else None
+        print("loss_all:", loss_all.item()) if debug else None
 
     del loss_actor_critic, loss_upgo, loss_kl, loss_ent
 

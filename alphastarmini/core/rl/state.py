@@ -50,16 +50,17 @@ class MsState(object):
         return [self.entity_state, self.statistical_state, self.map_state]
 
     def to(self, device):
-
-        print('self.entity_state.device:', self.entity_state.device) if debug else None
         self.entity_state = self.entity_state.to(device).float()
-        print('self.entity_state.device:', self.entity_state.device) if debug else None
-
         self.statistical_state = [s.to(device).float() for s in self.statistical_state]
-
         self.map_state = self.map_state.to(device).float()
-
         # note there is nothing retun!
+
+    def clone(self):
+        entity_state = self.entity_state.detach().clone()
+        statistical_state = [s.detach().clone() for s in self.statistical_state]
+        map_state = self.map_state.detach().clone()
+
+        return MsState(entity_state, statistical_state, map_state)
 
     @property
     def shape(self):

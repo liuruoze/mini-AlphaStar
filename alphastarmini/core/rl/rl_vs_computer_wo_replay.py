@@ -50,7 +50,7 @@ if SIMPLE_TEST:
     ACTOR_NUMS = 1
     GAME_STEPS_PER_EPISODE = 900    # 9000
 else:
-    MAX_EPISODES = 5
+    MAX_EPISODES = 1
     ACTOR_NUMS = 4
     GAME_STEPS_PER_EPISODE = 18000    # 9000    
 
@@ -62,8 +62,10 @@ LR = 1e-5
 BUFFER_SIZE = 1  # 100
 COUNT_OF_BATCHES = 1  # 10
 
-NUM_EPOCHS = 1  # 20
+NUM_EPOCHS = 2  # 20
 USE_RANDOM_SAMPLE = True
+
+UPDATE_PARAMS_INTERVAL = 60
 
 RESTORE = True
 SAVE_STATISTIC = True
@@ -112,7 +114,7 @@ class ActorVSComputer:
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/",
-                 update_params_interval=30):
+                 update_params_interval=UPDATE_PARAMS_INTERVAL):
         self.player = player
         self.player.add_actor(self)
         self.idx = idx
@@ -149,328 +151,330 @@ class ActorVSComputer:
     # background
     def run(self):
         try:
-            self.is_running = True
+            with torch.no_grad():
+                self.is_running = True
 
-            """A run loop to have agents and an environment interact."""
-            total_frames = 0
-            total_episodes = 0
+                """A run loop to have agents and an environment interact."""
+                total_frames = 0
+                total_episodes = 0
 
-            # the total numberv_for_all_episodes as [loss, draw, win]
-            results = [0, 0, 0]
+                # the total numberv_for_all_episodes as [loss, draw, win]
+                results = [0, 0, 0]
 
-            # statistic list
-            food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, steps_list = [], [], [], [], [], []
+                # statistic list
+                food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, steps_list = [], [], [], [], [], []
 
-            training_start_time = time()
-            print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(training_start_time)))
+                training_start_time = time()
+                print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(training_start_time)))
 
-            # use max_episodes to end the loop
-            while time() - training_start_time < self.max_time_for_training:
-                agents = [self.agent]
+                # use max_episodes to end the loop
+                while time() - training_start_time < self.max_time_for_training:
+                    agents = [self.agent]
 
-                with self.create_env_one_player(self.player) as env:
+                    with self.create_env_one_player(self.player) as env:
 
-                    # set the obs and action spec
-                    observation_spec = env.observation_spec()
-                    action_spec = env.action_spec()
+                        # set the obs and action spec
+                        observation_spec = env.observation_spec()
+                        action_spec = env.action_spec()
 
-                    for agent, obs_spec, act_spec in zip(agents, observation_spec, action_spec):
-                        agent.setup(obs_spec, act_spec)
+                        for agent, obs_spec, act_spec in zip(agents, observation_spec, action_spec):
+                            agent.setup(obs_spec, act_spec)
 
-                    self.teacher.setup(self.agent.obs_spec, self.agent.action_spec)
+                        self.teacher.setup(self.agent.obs_spec, self.agent.action_spec)
 
-                    print('player:', self.player) if debug else None
-                    print('opponent:', "Computer bot") if debug else None
+                        print('player:', self.player) if debug else None
+                        print('opponent:', "Computer bot") if debug else None
 
-                    trajectory = []
+                        trajectory = []
 
-                    update_params_timer = time()
+                        update_params_timer = time()
 
-                    opponent_start_time = time()  # in seconds.
-                    print("opponent_start_time before reset:", strftime("%Y-%m-%d %H:%M:%S", localtime(opponent_start_time)))
+                        opponent_start_time = time()  # in seconds.
+                        print("opponent_start_time before reset:", strftime("%Y-%m-%d %H:%M:%S", localtime(opponent_start_time)))
 
-                    # one opponent match (may include several games) defaultly lasts for no more than 2 hour
-                    while time() - opponent_start_time < self.max_time_per_one_opponent:
+                        # one opponent match (may include several games) defaultly lasts for no more than 2 hour
+                        while time() - opponent_start_time < self.max_time_per_one_opponent:
 
-                        # Note: the pysc2 environment don't return z
-                        # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
-                        total_episodes += 1
-                        print("total_episodes:", total_episodes)
+                            # Note: the pysc2 environment don't return z
+                            # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
+                            total_episodes += 1
+                            print("total_episodes:", total_episodes)
 
-                        timesteps = env.reset()
-                        for a in agents:
-                            a.reset()
+                            timesteps = env.reset()
+                            for a in agents:
+                                a.reset()
 
-                        [home_obs] = timesteps
-                        is_final = home_obs.last()
+                            [home_obs] = timesteps
+                            is_final = home_obs.last()
 
-                        player_memory = self.agent.initial_state()
-                        #teacher_memory = self.teacher.initial_state()
+                            player_memory = self.agent.initial_state()
+                            #teacher_memory = self.teacher.initial_state()
 
-                        episode_frames = 0
+                            episode_frames = 0
 
-                        # initial build order
-                        player_bo = []
+                            # initial build order
+                            player_bo = []
 
-                        # default outcome is 0 (means draw)
-                        outcome = 0
+                            # default outcome is 0 (means draw)
+                            outcome = 0
 
-                        # initial last list
-                        last_list = [0, 0, 0]
+                            # initial last list
+                            last_list = [0, 0, 0]
 
-                        # points for defined reward
-                        points, last_points = 0, None
+                            # points for defined reward
+                            points, last_points = 0, None
 
-                        # in one episode (game)
-                        start_episode_time = time()  # in seconds.
-                        print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
+                            # in one episode (game)
+                            start_episode_time = time()  # in seconds.
+                            print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
 
-                        while not is_final:
-                            total_frames += 1
-                            episode_frames += 1
+                            while not is_final:
+                                total_frames += 1
+                                episode_frames += 1
 
-                            t = time()
+                                t = time()
 
-                            # every 10s, the actor get the params from the learner
-                            if time() - update_params_timer > self.update_params_interval:
-                                print("agent_{:d} update params".format(self.idx)) if 1 else None
-                                self.agent.set_weights(self.player.agent.get_weights())
-                                update_params_timer = time()
+                                # every 10s, the actor get the params from the learner
+                                if time() - update_params_timer > self.update_params_interval:
+                                    print("agent_{:d} update params".format(self.idx)) if debug else None
+                                    self.agent.set_weights(self.player.agent.get_weights())
+                                    update_params_timer = time()
 
-                            state = self.agent.agent_nn.preprocess_state_all(home_obs.observation, 
-                                                                             build_order=player_bo, 
-                                                                             last_list=last_list)
-                            baseline_state = self.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
+                                state = self.agent.agent_nn.preprocess_state_all(home_obs.observation, 
+                                                                                 build_order=player_bo, 
+                                                                                 last_list=last_list)
+                                baseline_state = self.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
 
-                            with torch.no_grad():
-                                player_function_call, player_action, player_logits, \
-                                    player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(state, player_memory)
-
-                            print("player_function_call:", player_function_call) if debug else None
-                            print("player_action.delay:", player_action.delay) if debug else None
-                            print("entity_num:", entity_num) if debug else None
-                            print("player_select_units_num:", player_select_units_num) if debug else None
-                            print("player_action:", player_action) if debug else None
-
-                            if False:
-                                show_sth(home_obs, player_action)
-
-                            expected_delay = player_action.delay.item()
-                            step_mul = max(1, expected_delay)
-                            print("step_mul:", step_mul) if debug else None
-
-                            print('run_loop, t1', time() - t) if speed else None
-                            t = time()
-
-                            if True:
                                 with torch.no_grad():
-                                    teacher_logits = self.teacher.step_based_on_actions(state, player_memory, player_action, player_select_units_num)
+                                    player_current_memory = tuple(h.detach().clone() for h in player_memory)
+                                    player_state = state.clone()
+                                    player_function_call, player_action, player_logits, \
+                                        player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(player_state, player_current_memory)
 
-                                print("teacher_logits:", teacher_logits) if debug else None
+                                print("player_function_call:", player_function_call) if debug else None
+                                print("player_action.delay:", player_action.delay) if debug else None
+                                print("entity_num:", entity_num) if debug else None
+                                print("player_select_units_num:", player_select_units_num) if debug else None
+                                print("player_action:", player_action) if debug else None
 
-                                #assert teacher_select_units_num == player_select_units_num
-                            else:
-                                teacher_logits = None
+                                if False:
+                                    show_sth(home_obs, player_action)
 
-                            print('run_loop, t2', time() - t) if speed else None
-                            t = time()
+                                expected_delay = player_action.delay.item()
+                                step_mul = max(1, expected_delay)
+                                print("step_mul:", step_mul) if debug else None
 
-                            env_actions = [player_function_call]
+                                print('run_loop, t1', time() - t) if speed else None
+                                t = time()
 
-                            player_action_spec = action_spec[0]
-                            action_masks = RU.get_mask(player_action, player_action_spec)
-                            unit_type_entity_mask = RU.get_unit_type_mask(player_action, home_obs.observation)
-                            print('unit_type_entity_mask', unit_type_entity_mask) if debug else None
+                                with torch.no_grad():
+                                    teacher_memory = tuple(h.detach().clone() for h in player_memory)
+                                    teacher_state = state.clone()
+                                    teacher_action = player_action.clone()
+                                    teacher_select_units_num = player_select_units_num.clone()
+                                    teacher_logits = self.teacher.step_based_on_actions(teacher_state, teacher_memory, teacher_action, teacher_select_units_num)
+                                    print("teacher_logits:", teacher_logits) if debug else None
 
-                            z = None
+                                print('run_loop, t2', time() - t) if speed else None
+                                t = time()
 
-                            print('run_loop, t3', time() - t) if speed else None
-                            t = time()
+                                env_actions = [player_function_call]
 
-                            timesteps = env.step(env_actions, step_mul=STEP_MUL)  # STEP_MUL step_mul
-                            [home_next_obs] = timesteps
+                                player_action_spec = action_spec[0]
+                                action_masks = RU.get_mask(player_action, player_action_spec)
+                                unit_type_entity_mask = RU.get_unit_type_mask(player_action, home_obs.observation)
+                                print('unit_type_entity_mask', unit_type_entity_mask) if debug else None
 
-                            reward = home_next_obs.reward
-                            print("reward: ", reward) if 0 else None
+                                z = None
 
-                            print('run_loop, t4', time() - t) if speed else None
-                            t = time()
+                                print('run_loop, t3', time() - t) if speed else None
+                                t = time()
 
-                            is_final = home_next_obs.last()
+                                timesteps = env.step(env_actions, step_mul=STEP_MUL)  # STEP_MUL step_mul
+                                [home_next_obs] = timesteps
 
-                            # calculate the build order
-                            player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
-                            print("player build order:", player_bo) if debug else None
+                                reward = home_next_obs.reward
+                                print("reward: ", reward) if 0 else None
 
-                            print('run_loop, t5', time() - t) if speed else None
-                            t = time()
+                                print('run_loop, t4', time() - t) if speed else None
+                                t = time()
 
-                            # calculate the unit counts of bag
-                            player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
-                            print("player unit count of bow:", sum(player_ucb)) if debug else None
+                                is_final = home_next_obs.last()
 
-                            print('run_loop, t6', time() - t) if speed else None
-                            t = time()
+                                # calculate the build order
+                                player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
+                                print("player build order:", player_bo) if debug else None
 
-                            game_loop = home_obs.observation.game_loop[0]
-                            print("game_loop", game_loop) if debug else None
+                                print('run_loop, t5', time() - t) if speed else None
+                                t = time()
 
-                            points = get_points(home_next_obs)
+                                # calculate the unit counts of bag
+                                player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
+                                print("player unit count of bow:", sum(player_ucb)) if debug else None
 
-                            if USE_DEFINED_REWARD_AS_REWARD:
-                                if last_points is not None:
-                                    reward = points - last_points
-                                else:
-                                    reward = 0
-                            last_points = points
+                                print('run_loop, t6', time() - t) if speed else None
+                                t = time()
 
-                            if is_final:
-                                outcome = home_next_obs.reward
+                                game_loop = home_obs.observation.game_loop[0]
+                                print("game_loop", game_loop) if debug else None
 
-                                if SAVE_REPLAY:
-                                    env.save_replay(self.replay_dir)
+                                points = get_points(home_next_obs)
 
-                                if not USE_RESULT_REWARD:
-                                    final_points = get_points(home_next_obs)
-                                    print('agent_', self.idx, ' defined_reward:', final_points) if debug else None
-
-                                    episode_return = final_points
-                                else:
-                                    final_outcome = outcome
-                                    print('agent_', self.idx, ' reward:', final_outcome) if 1 else None
-
-                                    episode_return = final_outcome
-
-                                with self.results_lock:
-                                    self.coordinator.send_episode_results(self.idx, total_episodes, episode_return)
-
-                                self.writer.add_scalar('agent_' + str(self.idx) + '/episode_return', episode_return, total_episodes)
-
-                                if SAVE_STATISTIC:
-                                    o = home_next_obs.observation
-                                    p = o['player']
-
-                                    food_used = p['food_used']
-                                    army_count = p['army_count']
-
-                                    collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
-                                    collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
-
-                                    collected_points = collected_minerals + collected_vespene
-
-                                    used_minerals = np.sum(o['score_by_category']['used_minerals'])
-                                    used_vespene = np.sum(o['score_by_category']['used_vespene'])
-
-                                    used_points = used_minerals + used_vespene
-
-                                    killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
-                                    killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
-
-                                    killed_points = killed_minerals + killed_vespene
-
-                                    if killed_points > WIN_THRESHOLD:
-                                        outcome = 1
-                                        if not USE_DEFINED_REWARD_AS_REWARD:
-                                            reward = outcome
-
-                                    food_used_list.append(food_used)
-                                    army_count_list.append(army_count)
-                                    collected_points_list.append(collected_points)
-                                    used_points_list.append(used_points)
-                                    killed_points_list.append(killed_points)
-                                    steps_list.append(game_loop)
-
-                                    end_episode_time = time()  # in seconds.
-                                    end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(end_episode_time))
-
-                                    statistic = 'Agent ID: {} | Bot Difficulty: {} | Episode: [{}/{}] | food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
-                                        self.idx, DIFFICULTY, total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
-
-                                    statistic = end_episode_time + " " + statistic
-
-                                    with open(OUTPUT_FILE, 'a') as file:
-                                        file.write(statistic)
-
-                                results[outcome + 1] += 1
-
-                            print("agent_{:d} get reward".format(self.idx), reward) if 0 else None
-
-                            # note, original AlphaStar pseudo-code has some mistakes, we modified 
-                            # them here
-                            traj_step = Trajectory(
-                                state=state,
-                                baseline_state=baseline_state,
-                                baseline_state_op=None,  # when fighting with computer, we don't use opponent state
-                                memory=player_memory,
-                                z=z,
-                                masks=action_masks,
-                                unit_type_entity_mask=unit_type_entity_mask,
-                                action=player_action,
-                                behavior_logits=player_logits,
-                                teacher_logits=teacher_logits,      
-                                is_final=is_final,                                          
-                                reward=reward,
-                                player_select_units_num=player_select_units_num,
-                                entity_num=entity_num,
-                                build_order=player_bo,
-                                z_build_order=None,  # we change it to the sampled build order
-                                unit_counts=player_ucb,  # player_ucb,
-                                z_unit_counts=None,  # player_ucb,  # we change it to the sampled unit counts
-                                game_loop=game_loop,
-                                last_list=last_list,
-                            )
-
-                            del state, baseline_state, player_memory, z
-                            del action_masks, unit_type_entity_mask, player_logits, teacher_logits
-                            del player_select_units_num, entity_num
-
-                            if self.is_training:
-                                trajectory.append(traj_step)
-
-                            player_memory = tuple(h.detach() for h in player_new_memory)
-                            home_obs = home_next_obs
-                            last_delay = expected_delay
-                            last_action_type = player_action.action_type.item()
-                            last_repeat_queued = player_action.queue.item()
-                            last_list = [last_delay, last_action_type, last_repeat_queued]
-
-                            del player_action, player_new_memory
-
-                            if self.is_training and len(trajectory) >= AHP.sequence_length:                    
-                                trajectories = RU.stack_namedtuple(trajectory)
-
-                                if self.player.learner is not None:
-                                    if self.player.learner.is_running:
-
-                                        print("Learner send_trajectory!") if debug else None
-
-                                        with self.buffer_lock:
-                                            self.player.learner.send_trajectory(trajectories)
-                                            trajectory = []
+                                if USE_DEFINED_REWARD_AS_REWARD:
+                                    if last_points is not None:
+                                        reward = points - last_points
                                     else:
-                                        print("Learner stops!")
+                                        reward = 0
+                                last_points = points
 
-                                        print("Actor also stops!")
-                                        return
+                                if is_final:
+                                    outcome = home_next_obs.reward
 
-                            # use max_frames to end the loop
-                            # whether to stop the run
-                            if self.max_frames and total_frames >= self.max_frames:
-                                print("Beyond the max_frames, return!")
-                                raise Exception
+                                    if SAVE_REPLAY:
+                                        env.save_replay(self.replay_dir)
+
+                                    if not USE_RESULT_REWARD:
+                                        final_points = get_points(home_next_obs)
+                                        print('agent_', self.idx, ' defined_reward:', final_points) if debug else None
+
+                                        episode_return = final_points
+                                    else:
+                                        final_outcome = outcome
+                                        print('agent_', self.idx, ' reward:', final_outcome) if 1 else None
+
+                                        episode_return = final_outcome
+
+                                    with self.results_lock:
+                                        self.coordinator.send_episode_results(self.idx, total_episodes, episode_return)
+
+                                    self.writer.add_scalar('agent_' + str(self.idx) + '/episode_return', episode_return, total_episodes)
+
+                                    if SAVE_STATISTIC:
+                                        o = home_next_obs.observation
+                                        p = o['player']
+
+                                        food_used = p['food_used']
+                                        army_count = p['army_count']
+
+                                        collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
+                                        collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
+
+                                        collected_points = collected_minerals + collected_vespene
+
+                                        used_minerals = np.sum(o['score_by_category']['used_minerals'])
+                                        used_vespene = np.sum(o['score_by_category']['used_vespene'])
+
+                                        used_points = used_minerals + used_vespene
+
+                                        killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
+                                        killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
+
+                                        killed_points = killed_minerals + killed_vespene
+
+                                        if killed_points > WIN_THRESHOLD:
+                                            outcome = 1
+                                            if not USE_DEFINED_REWARD_AS_REWARD:
+                                                reward = outcome
+
+                                        food_used_list.append(food_used)
+                                        army_count_list.append(army_count)
+                                        collected_points_list.append(collected_points)
+                                        used_points_list.append(used_points)
+                                        killed_points_list.append(killed_points)
+                                        steps_list.append(game_loop)
+
+                                        end_episode_time = time()  # in seconds.
+                                        end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(end_episode_time))
+
+                                        statistic = 'Agent ID: {} | Bot Difficulty: {} | Episode: [{}/{}] | food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
+                                            self.idx, DIFFICULTY, total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
+
+                                        statistic = end_episode_time + " " + statistic
+
+                                        with open(OUTPUT_FILE, 'a') as file:
+                                            file.write(statistic)
+
+                                    results[outcome + 1] += 1
+
+                                print("agent_{:d} get reward".format(self.idx), reward) if 0 else None
+
+                                # note, original AlphaStar pseudo-code has some mistakes, we modified 
+                                # them here
+
+                                traj_step = Trajectory(
+                                    state=state,
+                                    baseline_state=baseline_state,
+                                    baseline_state_op=None,  # when fighting with computer, we don't use opponent state
+                                    memory=player_memory,
+                                    z=z,
+                                    masks=action_masks,
+                                    unit_type_entity_mask=unit_type_entity_mask,
+                                    action=player_action,
+                                    behavior_logits=player_logits.clone(),
+                                    teacher_logits=teacher_logits.clone(),      
+                                    is_final=is_final,                                          
+                                    reward=reward,
+                                    player_select_units_num=player_select_units_num,
+                                    entity_num=entity_num,
+                                    build_order=player_bo,
+                                    z_build_order=None,  # we change it to the sampled build order
+                                    unit_counts=player_ucb,  # player_ucb,
+                                    z_unit_counts=None,  # player_ucb,  # we change it to the sampled unit counts
+                                    game_loop=game_loop,
+                                    last_list=last_list,
+                                )
+
+                                del state, baseline_state, player_memory, z
+                                del action_masks, unit_type_entity_mask, player_logits, teacher_logits
+                                del player_select_units_num, entity_num
+
+                                if self.is_training:
+                                    trajectory.append(traj_step)
+
+                                player_memory = tuple(h.detach().clone() for h in player_new_memory)
+                                home_obs = home_next_obs
+                                last_delay = expected_delay
+                                last_action_type = player_action.action_type.item()
+                                last_repeat_queued = player_action.queue.item()
+                                last_list = [last_delay, last_action_type, last_repeat_queued]
+
+                                del player_action, player_new_memory
+
+                                if self.is_training and len(trajectory) >= AHP.sequence_length:                    
+                                    trajectories = RU.stack_namedtuple(trajectory)
+
+                                    if self.player.learner is not None:
+                                        if self.player.learner.is_running:
+
+                                            print("Learner send_trajectory!") if debug else None
+
+                                            with self.buffer_lock:
+                                                self.player.learner.send_trajectory(trajectories)
+                                                trajectory = []
+                                        else:
+                                            print("Learner stops!")
+
+                                            print("Actor also stops!")
+                                            return
+
+                                # use max_frames to end the loop
+                                # whether to stop the run
+                                if self.max_frames and total_frames >= self.max_frames:
+                                    print("Beyond the max_frames, return!")
+                                    raise Exception
+
+                                # use max_frames_per_episode to end the episode
+                                if self.max_frames_per_episode and episode_frames >= self.max_frames_per_episode:
+                                    print("Beyond the max_frames_per_episode, break!")
+                                    break
+
+                            with self.results_lock:
+                                self.coordinator.only_send_outcome(self.player, outcome)
 
                             # use max_frames_per_episode to end the episode
-                            if self.max_frames_per_episode and episode_frames >= self.max_frames_per_episode:
-                                print("Beyond the max_frames_per_episode, break!")
-                                break
-
-                        with self.results_lock:
-                            self.coordinator.only_send_outcome(self.player, outcome)
-
-                        # use max_frames_per_episode to end the episode
-                        if self.max_episodes and total_episodes >= self.max_episodes:
-                            print("Beyond the max_episodes, return!")
-                            raise Exception
+                            if self.max_episodes and total_episodes >= self.max_episodes:
+                                print("Beyond the max_episodes, return!")
+                                raise Exception
 
         except Exception as e:
             # print("ActorLoop.run() Exception cause return, Detials of the Exception:", e)
@@ -688,12 +692,12 @@ def test(on_server=False, replay_path=None):
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
         player.agent.set_rl_training(IS_TRAINING)
-        device_learner = torch.device("cuda:0" if ON_GPU else "cpu")
+        device_learner = torch.device("cuda:0" if False else "cpu")
         if ON_GPU:
             player.agent.agent_nn.to(device_learner)
 
         teacher = get_supervised_agent(player.race, model_type="sl", restore=True)
-        device_teacher = torch.device("cuda:1" if True else "cpu")
+        device_teacher = torch.device("cuda:0" if False else "cpu")
         if ON_GPU:
             teacher.agent_nn.to(device_teacher)
 
@@ -704,9 +708,10 @@ def test(on_server=False, replay_path=None):
                           count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
                           use_random_sample=USE_RANDOM_SAMPLE)
         learners.append(learner)
+
         #actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
         for z in range(ACTOR_NUMS):
-            device = torch.device("cuda:" + str(z + 2) if True else "cpu")
+            device = torch.device("cuda:" + str(1) if False else "cpu")
             actor = ActorVSComputer(player, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
             actors.append(actor)
 

@@ -110,10 +110,28 @@ def namedtuple_zip(trajectory):
     return new
 
 
-def namedtuple_deepcopy(trajectory):
-    try: 
-        d = [copy.deepcopy(z) for z in trajectory]
-        new = Trajectory._make(d)
+def namedtuple_deepcopy(trajectories):
+    try:
+        # shape before: [batch_size x dict_name x seq_size]
+        # 
+        #trajectory = stack_namedtuple(trajectories)
+        batch_list = [] 
+        for trajectory in trajectories:
+            d = [copy.deepcopy(z) for z in trajectory]
+            new = Trajectory._make(d)
+            batch_list.append(new)
+
+        # batch_list = [] 
+        # for batch_item in batch_seq_trajectory:
+        #     seq_list = []
+        #     for seq_item in batch_item:
+        #         d = [copy.deepcopy(z) for z in seq_item]
+        #         d = Trajectory._make(d)
+        #         seq_list.append(d)
+        #         del seq_item
+        #     del batch_item
+        #     batch_list.append(seq_list)
+        # del batch_seq_trajectory
 
     except Exception as e:
         print("namedtuple_zip Exception cause return, Detials of the Exception:", e)
@@ -121,7 +139,7 @@ def namedtuple_deepcopy(trajectory):
 
         return None
 
-    return new
+    return batch_list
 
 
 def get_unit_type_mask(action, obs):
