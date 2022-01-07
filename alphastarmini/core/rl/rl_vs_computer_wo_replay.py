@@ -4,7 +4,7 @@
 " Train for RL by fighting against built-in AI (computer), using no replays"
 
 from time import time, sleep, strftime, localtime
-
+import gc
 import os
 import random
 import traceback
@@ -50,7 +50,7 @@ if SIMPLE_TEST:
     ACTOR_NUMS = 1
     GAME_STEPS_PER_EPISODE = 900    # 9000
 else:
-    MAX_EPISODES = 25
+    MAX_EPISODES = 35
     ACTOR_NUMS = 4
     GAME_STEPS_PER_EPISODE = 18000    # 9000    
 
@@ -205,7 +205,7 @@ class ActorVSComputer:
                         is_final = home_obs.last()
 
                         player_memory = self.agent.initial_state()
-                        teacher_memory = self.teacher.initial_state()
+                        #teacher_memory = self.teacher.initial_state()
 
                         episode_frames = 0
 
@@ -242,15 +242,13 @@ class ActorVSComputer:
                                                                              last_list=last_list)
                             baseline_state = self.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
 
-                            player_step = self.agent.step_from_state(state, player_memory)
-                            player_function_call, player_action, player_logits, \
-                                player_new_memory, player_select_units_num, entity_num = player_step
+                            with torch.no_grad():
+                                player_function_call, player_action, player_logits, \
+                                    player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(state, player_memory)
 
                             print("player_function_call:", player_function_call) if debug else None
-
                             print("player_action.delay:", player_action.delay) if debug else None
                             print("entity_num:", entity_num) if debug else None
-
                             print("player_select_units_num:", player_select_units_num) if debug else None
                             print("player_action:", player_action) if debug else None
 
@@ -265,8 +263,9 @@ class ActorVSComputer:
                             t = time()
 
                             if True:
-                                teacher_step = self.teacher.step_based_on_actions(state, teacher_memory, player_action, player_select_units_num)
-                                teacher_logits, teacher_select_units_num, teacher_new_memory = teacher_step
+                                with torch.no_grad():
+                                    teacher_logits = self.teacher.step_based_on_actions(state, player_memory, player_action, player_select_units_num)
+
                                 print("teacher_logits:", teacher_logits) if debug else None
 
                                 #assert teacher_select_units_num == player_select_units_num
@@ -420,6 +419,11 @@ class ActorVSComputer:
                                 game_loop=game_loop,
                                 last_list=last_list,
                             )
+
+                            del state, baseline_state, player_memory, z
+                            del action_masks, unit_type_entity_mask, player_logits, teacher_logits
+                            del player_select_units_num, entity_num
+
                             if self.is_training:
                                 trajectory.append(traj_step)
 
@@ -429,6 +433,8 @@ class ActorVSComputer:
                             last_action_type = player_action.action_type.item()
                             last_repeat_queued = player_action.queue.item()
                             last_list = [last_delay, last_action_type, last_repeat_queued]
+
+                            del player_action, player_new_memory
 
                             if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = RU.stack_namedtuple(trajectory)
@@ -687,7 +693,7 @@ def test(on_server=False, replay_path=None):
             player.agent.agent_nn.to(device_learner)
 
         teacher = get_supervised_agent(player.race, model_type="sl", restore=True)
-        device_teacher = torch.device("cuda:0" if False else "cpu")
+        device_teacher = torch.device("cuda:1" if True else "cpu")
         if ON_GPU:
             teacher.agent_nn.to(device_teacher)
 
@@ -700,7 +706,7 @@ def test(on_server=False, replay_path=None):
         learners.append(learner)
         #actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
         for z in range(ACTOR_NUMS):
-            device = torch.device("cuda:" + str(z + 2) if False else "cpu")
+            device = torch.device("cuda:" + str(z + 2) if True else "cpu")
             actor = ActorVSComputer(player, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
             actors.append(actor)
 

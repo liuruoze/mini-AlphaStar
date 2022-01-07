@@ -3,6 +3,8 @@
 
 " ArchModel."
 
+import gc
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -153,6 +155,8 @@ class ArchModel(nn.Module):
         print('available_actions:', available_actions) if debug else None
         print('available_actions.shape:', available_actions.shape) if debug else None
 
+        del state
+
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
                                               batch_size, sequence_length, hidden_state)
         print('lstm_output.shape:', lstm_output.shape) if debug else None
@@ -171,6 +175,9 @@ class ArchModel(nn.Module):
 
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
+
+        del embedded_entity, embedded_spatial, embedded_scalar
+
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head(autoregressive_embedding, 
                                                                                                    action_type, 
                                                                                                    entity_embeddings, 
@@ -201,6 +208,12 @@ class ArchModel(nn.Module):
 
         print('entity_nums.shape:', entity_nums.shape) if debug else None
         print('select_units_num.shape:', select_units_num.shape) if debug else None
+
+        del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits
+        del action_type, delay, queue, units, target_unit, target_location
+        del entity_embeddings, autoregressive_embedding
+        del map_skip
+        gc.collect()
 
         if return_logits:
 
@@ -236,8 +249,13 @@ class ArchModel(nn.Module):
 
         available_actions_id = 6  # available_actions is at position 6
         available_actions = state.statistical_state[available_actions_id]  
+
+        del state
+
         lstm_output, hidden_state = self.core(embedded_scalar, embedded_entity, embedded_spatial, 
                                               batch_size, sequence_length, hidden_state)
+
+        del embedded_scalar, embedded_spatial
 
         if gt_is_one_hot:
             # TODO: remove these unzero
@@ -301,9 +319,14 @@ class ArchModel(nn.Module):
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)
 
+        del gt_action, gt_action_type, gt_delay, gt_queue, entity_embeddings, gt_units, gt_select_units_num, autoregressive_embedding
+        del map_skip, gt_target_unit, embedded_entity
+        gc.collect()
+
         if multi_gpu_supvised_learning:
             return action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \
                 units_logits, target_unit_logits, target_location_logits, select_units_num, hidden_state, unit_types_one
+
         elif baseline_state is not None:
             winloss_baseline_value = self.winloss_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
             build_order_baseline_value = self.build_order_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)

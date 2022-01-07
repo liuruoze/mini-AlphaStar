@@ -7,6 +7,7 @@
 import traceback
 import collections
 import itertools
+import gc
 
 import numpy as np
 
@@ -50,9 +51,7 @@ def filter_by_for_lists(action_fields, target_list, device):
 
 
 def filter_by_for_masks(action_fields, target_mask, device):
-    index = ACTION_FIELDS.index(action_fields)
-    mask = torch.tensor(target_mask, device=device)
-    return mask[:, :, index]
+    return torch.tensor(target_mask, device=device)[:, :, ACTION_FIELDS.index(action_fields)]
 
 
 def entropy_loss(target_logits, trajectories, selected_mask, entity_mask):
@@ -67,6 +66,10 @@ def entropy_loss(target_logits, trajectories, selected_mask, entity_mask):
     for i, field in enumerate(ACTION_FIELDS):  
         x = get_kl_or_entropy(target_logits, field, RA.entropy, mask, selected_mask, entity_mask, unit_type_entity_mask)
         loss = loss + x * FIELDS_WEIGHT[i]
+        del x
+
+    del mask, unit_type_entity_mask, selected_mask, entity_mask
+    gc.collect()
 
     return loss
 
@@ -84,12 +87,16 @@ def human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask
         t_logits = filter_by_for_lists(field, trajectories.teacher_logits, device) 
         x = get_kl_or_entropy(target_logits, field, RA.kl, mask, selected_mask, entity_mask, unit_type_entity_mask, t_logits)
         loss = loss + x * FIELDS_WEIGHT[i]
+        del x, t_logits
+
+    del mask, unit_type_entity_mask, selected_mask, entity_mask
+    gc.collect()
 
     return loss
 
 
 def get_kl_or_entropy(target_logits, field, func, mask, selected_mask, entity_mask, unit_type_entity_mask, t_logits=None):
-    logits = getattr(target_logits, field) 
+    logits = getattr(target_logits, field)
     logits = logits.view(AHP.sequence_length * AHP.batch_size, *tuple(logits.shape[2:]))
     all_logits = [logits]
     if t_logits is not None:
@@ -116,6 +123,10 @@ def get_kl_or_entropy(target_logits, field, func, mask, selected_mask, entity_ma
 
     mask = mask[:, :, ACTION_FIELDS.index(field)].view(-1, 1)
     x = torch.mean(x * mask)
+
+    del logits, t_logits, all_logits, mask
+    gc.collect()
+
     return x
 
 
@@ -135,6 +146,9 @@ def human_policy_kl_loss_action(target_logits, trajectories):
     kl = RA.kl([logits, t_logits]).sum(dim=-1) * flag
     kl = torch.mean(kl * mask)
 
+    del seconds, flag, mask, logits, t_logits
+    gc.collect()
+
     return kl
 
 
@@ -149,6 +163,9 @@ def td_lambda_loss(baselines, rewards, trajectories, device):
     with torch.no_grad():
         returns = RA.lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
     result = returns - baselines[:-1]
+
+    del discounts, baselines, rewards, returns
+    gc.collect()
 
     return 0.5 * torch.mean(torch.square(result))
 
@@ -187,6 +204,8 @@ def transpose_target_logits(target_logits):
         logits = logits.transpose(0, 1).contiguous()
         logits = logits.view(AHP.sequence_length, AHP.batch_size, *tuple(logits.shape[2:]))
         setattr(target_logits, field, logits)
+
+    del logits
     return target_logits
 
 
@@ -196,8 +215,7 @@ def transpose_baselines(baseline_list):
 
 
 def transpose_sth(x):
-    x = x.view(AHP.batch_size, AHP.sequence_length)
-    x = x.transpose(0, 1).contiguous()
+    x = x.view(AHP.batch_size, AHP.sequence_length).transpose(0, 1).contiguous()
     return x
 
 
@@ -212,6 +230,8 @@ def get_useful_masks(select_units_num, entity_num, device):
 
     selected_mask = selected_mask.reshape(AHP.sequence_length, AHP.batch_size, AHP.max_selected)
     entity_mask = entity_mask.reshape(AHP.sequence_length, AHP.batch_size, AHP.max_entities)
+
+    del select_units_num, entity_num
 
     return selected_mask, entity_mask
 
@@ -240,7 +260,11 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
         print('field', field, 'loss_val', loss_field.item()) if 1 else None
 
         loss = loss + loss_field * FIELDS_WEIGHT[i]
-        del loss_field
+        del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
+
+    del trajectories, discounts, unit_type_entity_mask, reward
+    del values, returns, selected_mask, entity_mask, mask_provided
+    gc.collect()
 
     return loss
 
@@ -267,7 +291,11 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
         print('field', field, 'loss_val', loss_field.item()) if 1 else None
 
         loss = loss + loss_field * FIELDS_WEIGHT[i]
-        del loss_field
+        del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
+
+    del trajectories, discounts, unit_type_entity_mask, rewards
+    del values, selected_mask, entity_mask, mask_provided
+    gc.collect()
 
     return loss
 
@@ -312,6 +340,10 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
     if field == 'units':
         clipped_rhos = clipped_rhos.reshape(seqbatch_shape, -1).sum(dim=-1)
     clipped_rhos = clipped_rhos.reshape(sequence_length, batch_size)
+
+    del behavior_log_prob, target_logits, behavior_logits, all_logits, target_logits_all
+    del actions, selected_mask, entity_mask, unit_type_entity_mask
+    gc.collect()
 
     return target_log_prob, clipped_rhos, masks
 
@@ -376,12 +408,16 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
         loss_actor_critic += (baseline_cost * baseline_loss + pg_cost * pg_loss)
 
         reward_index += 1
+        del baseline_loss, pg_loss, rewards
+        gc.collect()
 
     # Upgo Loss:
     # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
     UPGO_WEIGHT = 1.0
     baseline_winloss = baselines[0]
     loss_upgo = UPGO_WEIGHT * sum_upgo_loss(target_logits, trajectories, baseline_winloss, selected_mask, entity_mask, device)
+
+    del baselines
 
     # Distillation Loss:
     # There is an distillation loss with weight 2e-3 on all action arguments, to match the output logits of the fine-tuned supervised policy 
@@ -396,6 +432,8 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     action_type_kl_loss = human_policy_kl_loss_action(target_logits, trajectories)
 
     loss_kl = ALL_KL_COST * all_kl_loss + ACTION_TYPE_KL_COST * action_type_kl_loss
+
+    del all_kl_loss, action_type_kl_loss
 
     # Entropy Loss:
     # There is an entropy loss with weight 1e-4 on all action arguments, masked by which arguments are possible for a given action type.
@@ -416,6 +454,7 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     print("loss_all:", loss_all.item()) if 1 else None
 
     del loss_actor_critic, loss_upgo, loss_kl, loss_ent
+    gc.collect()
 
     return loss_all
 

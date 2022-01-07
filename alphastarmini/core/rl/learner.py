@@ -7,6 +7,7 @@
 
 from time import time, sleep, strftime, localtime
 
+import gc
 import os
 import traceback
 import threading
@@ -114,6 +115,7 @@ class Learner:
 
                     loss = None
                     del loss, update_trajectories
+                    gc.collect()
 
                 del trajectories
 

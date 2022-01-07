@@ -7,6 +7,7 @@
 import traceback
 import collections
 import itertools
+import gc
 
 import numpy as np
 
@@ -147,6 +148,8 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
     if reverse:
         result = reverse_seq(result)
 
+    del elems
+
     return result
 
 
@@ -264,6 +267,9 @@ def vtrace_from_importance_weights(
 
     pg_advantages = (clipped_pg_rhos * (rewards + discounts * vs_t_plus_1 - values))
 
+    del clipped_pg_rhos, rewards, discounts, vs_t_plus_1, values, vs_minus_v_xs
+    gc.collect()
+
     # Make sure no gradients backpropagated through the returned values.
     return VTraceReturns(vs=vs.detach(), pg_advantages=pg_advantages.detach())
 
@@ -315,6 +321,10 @@ def entropy(all_logits, selected_mask=None, entity_mask=None, unit_type_entity_m
     x = remove_outlier(x, outlier_remove)
     x = -policy * x
 
+    del all_logits, policy_logits, log_policy, policy
+    del selected_mask, entity_mask, unit_type_entity_mask
+    gc.collect()
+
     return x
 
 
@@ -336,13 +346,15 @@ def kl(all_logits, selected_mask=None, entity_mask=None,
     x = remove_outlier(x, outlier_remove)
     x = teacher_probs * x
 
+    del all_logits, student_logits, teacher_logits, s_logprobs, t_logprobs, teacher_probs
+    del selected_mask, entity_mask, unit_type_entity_mask
+    gc.collect()
+
     return x
 
 
 def compute_cliped_importance_weights(target_log_prob, behavior_log_prob):
-    rho = torch.exp(target_log_prob - behavior_log_prob)
-    clip_rho = torch.clamp(rho, max=1.)
-    return clip_rho 
+    return torch.clamp(torch.exp(target_log_prob - behavior_log_prob), max=1.)
 
 
 def remove_outlier(x, remove=False):
@@ -353,6 +365,8 @@ def remove_outlier(x, remove=False):
         if outlier_mask.any() > 0:
             index = outlier_mask.nonzero(as_tuple=True)
             print("x[index]:", x[index]) if 1 else None
+            del index
+    del outlier_mask
     return x
 
 
@@ -379,18 +393,23 @@ def log_prob(logits, actions, mask_used, outlier_remove=True):
     if len(actions.shape) == 3:
         actions = actions.view(-1, actions.shape[-1])
 
+    del unit_type_entity_mask
+
     def cross_entropy_mask_class(pred, soft_targets, mask=None):
         x = - soft_targets * F.log_softmax(pred, dim=-1)
         if mask is not None:
             x = x * mask
         x = remove_outlier(x, outlier_remove)
-        x = torch.sum(x, -1)  
+        x = torch.sum(x, -1)
+        del soft_targets, pred
         return x
 
     # actions: shape [BATCH_SIZE, 1] to [BATCH_SIZE]
     actions = torch.squeeze(actions, dim=-1)
     actions = F.one_hot(actions, num_classes=logits.shape[-1])
     loss_result = cross_entropy_mask_class(logits, actions, entity_mask)
+
+    del logits, actions, entity_mask
 
     if selected_mask is not None:
         selected_mask = selected_mask.view(-1, selected_mask.shape[-1])
@@ -399,6 +418,10 @@ def log_prob(logits, actions, mask_used, outlier_remove=True):
 
         loss_result = loss_result * selected_mask
         loss_result = torch.sum(loss_result, dim=-1)
+
+        del selected_mask
+
+    gc.collect()
 
     return -loss_result
 

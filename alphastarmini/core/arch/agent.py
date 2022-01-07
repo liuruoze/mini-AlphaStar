@@ -3,6 +3,8 @@
 
 " Agent."
 
+import gc
+
 from time import time
 
 import numpy as np
@@ -217,7 +219,7 @@ class Agent(object):
         batch_size = 1 if single_inference else batch_size
         sequence_length = 1 if single_inference else sequence_length
 
-        _, action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
+        baselinelist, action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
             delay_logits, queue_logits, \
             units_logits, target_unit_logits, \
             target_location_logits, select_units_num, new_state, unit_types_one = self.model.sl_forward(state, 
@@ -234,6 +236,11 @@ class Agent(object):
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)
+
+        del state, action_gt, gt_select_units_num, hidden_state
+        del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits
+        del baselinelist, action_pred, entity_nums, units, target_unit, target_location, unit_types_one
+        gc.collect()
 
         return action_logits, select_units_num, new_state
 
@@ -259,6 +266,10 @@ class Agent(object):
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)
+
+        del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits
+        del action_pred, entity_nums, units, target_unit, target_location, unit_types_one
+        gc.collect()
 
         return baselinelist, action_logits, select_units_num, new_state
 
