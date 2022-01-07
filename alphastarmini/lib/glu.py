@@ -36,7 +36,9 @@ class GLU(nn.Module):
 
         # gated_input shape: [batch_size x input_size]
         output = self.fc_2(gated_input)
-        # output shape: [batch_size x output_size]
+
+        del context, x, gate, gated_input
+
         return output
 
 

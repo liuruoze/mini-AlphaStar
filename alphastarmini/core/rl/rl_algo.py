@@ -250,6 +250,7 @@ def vtrace_from_importance_weights(
         return torch.cat(res)
 
     vs_minus_v_xs = scan(foo=scanfunc, x=sequences, initial_value=initial_values)
+    del scanfunc, sequences, initial_values
 
     # Reverse the results back to original order.
     vs_minus_v_xs = torch.flip(vs_minus_v_xs, dims=[0])
@@ -267,7 +268,7 @@ def vtrace_from_importance_weights(
 
     pg_advantages = (clipped_pg_rhos * (rewards + discounts * vs_t_plus_1 - values))
 
-    del clipped_pg_rhos, rewards, discounts, vs_t_plus_1, values, vs_minus_v_xs
+    del clipped_pg_rhos, rewards, discounts, vs_t_plus_1, values, vs_minus_v_xs, bootstrap_value
 
     # Make sure no gradients backpropagated through the returned values.
     return VTraceReturns(vs=vs.detach(), pg_advantages=pg_advantages.detach())
@@ -363,7 +364,9 @@ def remove_outlier(x, remove=False):
             index = outlier_mask.nonzero(as_tuple=True)
             print("x[index]:", x[index]) if 1 else None
             del index
+
     del outlier_mask
+
     return x
 
 

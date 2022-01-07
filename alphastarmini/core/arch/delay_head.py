@@ -64,6 +64,7 @@ class DelayHead(nn.Module):
         if delay is None:
             delay_probs = self.softmax(delay_logits)        
             delay = torch.multinomial(delay_probs, 1)
+            del delay_probs
 
         # AlphaStar: Similar to `action_type`, `delay` is projected to a 1D tensor of size 1024 through 
         # a 2-layer (each with size 256) linear network with ReLUs, and added to `autoregressive_embedding`
@@ -76,6 +77,8 @@ class DelayHead(nn.Module):
 
         # the operation may auto broadcasting, so we need a test
         autoregressive_embedding = autoregressive_embedding + t
+
+        del delay_one_hot, x, z, t
 
         return delay_logits, delay, autoregressive_embedding
 

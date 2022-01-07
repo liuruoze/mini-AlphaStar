@@ -113,25 +113,20 @@ class Learner:
                     self.writer.add_scalar('learner/loss', loss.item(), agent.steps)
                     agent.steps += AHP.batch_size * AHP.sequence_length
 
-                    loss = None
                     del loss, update_trajectories
-                    gc.collect()
 
                 del trajectories
+                gc.collect()
 
                 agent.agent_nn.model.eval()  # for BN and dropout 
                 print("end backward") if debug else None
 
                 # we use new ways to save
-                # torch.save(agent.agent_nn.model, SAVE_PATH + "" + ".pkl")
                 if agent.steps % (1 * AHP.batch_size * AHP.sequence_length) == 0:
                     torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
         with self.buffer_lock:
             self.trajectories = self.trajectories[sample_size:]
-
-        # agent.steps += self.count_of_batches * AHP.batch_size * AHP.sequence_length  # num_steps(trajectories)
-        # self.player.agent.set_weights(self.optimizer.minimize(loss))
 
     def start(self):
         self.thread.start()

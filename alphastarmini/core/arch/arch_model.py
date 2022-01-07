@@ -211,8 +211,7 @@ class ArchModel(nn.Module):
 
         del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits
         del action_type, delay, queue, units, target_unit, target_location
-        del entity_embeddings, autoregressive_embedding
-        del map_skip
+        del entity_embeddings, autoregressive_embedding, map_skip
 
         if return_logits:
 

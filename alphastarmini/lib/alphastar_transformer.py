@@ -68,6 +68,8 @@ class Encoder(nn.Module):
         for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(enc_output, mask=mask)
 
+        del enc_slf_attn
+
         return enc_output,
 
 
@@ -97,6 +99,8 @@ class EncoderLayer(nn.Module):
 
         ffn_out = self.drop2(ffn_out)
         out = self.ln2(out_1 + ffn_out)
+
+        del att_out, out_1, ffn_out
 
         return out, enc_slf_attn
 

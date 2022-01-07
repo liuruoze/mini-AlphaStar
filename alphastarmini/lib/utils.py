@@ -710,7 +710,7 @@ def positional_encoding(max_position, embedding_size, add_batch_dim=False):
         # after: [1 x max_position x embedding_size]
         angle_rads = angle_rads[np.newaxis, ...]
 
-    #return_tensor = torch.tensor(angle_rads, dtype=torch.float)
+    del positions
 
     return angle_rads
 

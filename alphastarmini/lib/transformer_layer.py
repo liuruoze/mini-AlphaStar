@@ -32,6 +32,7 @@ class ScaledDotProductAttention(nn.Module):
         # atten: (b, n, lq, lk),
         if mask is not None:
             attn = attn.masked_fill(mask == 0, self.biasval)
+            del mask
 
         attn = self.dropout(F.softmax(attn, dim=-1))
 
@@ -99,6 +100,8 @@ class MultiHeadAttention(nn.Module):
         # q: (b, lq, (n*dv)) \matmul ((n*dv), dm) = (b, lq, dm)
         # note, q has the same shape as when it enter in
         q = self.fc(q)
+
+        del mask, k, v, 
 
         return q, attn
 

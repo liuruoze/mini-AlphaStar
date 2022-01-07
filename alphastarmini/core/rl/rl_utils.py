@@ -7,6 +7,7 @@
 import os
 import traceback
 import collections
+import copy
 
 import numpy as np
 
@@ -109,6 +110,20 @@ def namedtuple_zip(trajectory):
     return new
 
 
+def namedtuple_deepcopy(trajectory):
+    try: 
+        d = [copy.deepcopy(z) for z in trajectory]
+        new = Trajectory._make(d)
+
+    except Exception as e:
+        print("namedtuple_zip Exception cause return, Detials of the Exception:", e)
+        print(traceback.format_exc())
+
+        return None
+
+    return new
+
+
 def get_unit_type_mask(action, obs):
     function_id = action.action_type.item()
     obs_list = [obs]
@@ -116,6 +131,7 @@ def get_unit_type_mask(action, obs):
 
     unit_type_masks = get_batch_unit_type_mask(action_types, obs_list)
     unit_type_mask = unit_type_masks[0].reshape(-1)
+    del unit_type_masks
     return unit_type_mask
 
 
@@ -135,16 +151,20 @@ def get_batch_unit_type_mask(action_types, obs_list):
         if info_1["selected_units"]:
             set_1 = set(info_1["avail_unit_type_id"])
             set_2 = set(info_2["selected_type"])
+            del info_1, info_2
             set_all = set.union(set_1, set_2)
+            del set_1, set_2
             print('set all', set_all) if debug else None
 
             raw_units_types = obs_list[idx]["raw_units"][:, FeatureUnit.unit_type]
             for i, t in enumerate(raw_units_types):
                 if t in set_all and i < AHP.max_entities:
                     unit_type_mask[0, i] = 1
+            del raw_units_types
         unit_type_mask_list.append(unit_type_mask)
 
     unit_type_masks = np.concatenate(unit_type_mask_list, axis=0)
+    del unit_type_mask_list
     return unit_type_masks
 
 

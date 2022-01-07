@@ -16,7 +16,6 @@ from s2clientprotocol import common_pb2 as com_pb
 
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race
 
-from alphastarmini.core.rl.env_utils import SC2Environment, get_env_outcome
 from alphastarmini.core.rl.rl_utils import Trajectory, get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
 from alphastarmini.core.rl import rl_utils as U

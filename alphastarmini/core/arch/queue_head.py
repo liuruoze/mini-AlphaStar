@@ -64,6 +64,7 @@ class QueueHead(nn.Module):
         if queue is None:
             queue_probs = self.softmax(queue_logits) 
             queue = torch.multinomial(queue_probs, 1)
+            del queue_probs
 
         # similar to action_type here, change it to one_hot version
         queue_one_hot = L.tensor_one_hot(queue, self.max_queue)
@@ -75,19 +76,13 @@ class QueueHead(nn.Module):
         z = self.relu(self.fc_4(z))
         t = self.project(z)
 
-        # make sure autoregressive_embedding has the same shape as y, prevent the auto broadcasting
-        assert autoregressive_embedding.shape == t.shape
-
         # AlphaStar: and the projected `queued` is not added to `autoregressive_embedding` 
         # if queuing is not possible for the chosen `action_type`
         # note: projected `queued` is not added to `autoregressive_embedding` if queuing is not 
         # possible for the chosen `action_type`
-        assert action_type.shape[0] == autoregressive_embedding.shape[0]
-
         mask = L.action_can_be_queued_mask(action_type).float()
-        assert len(action_type.shape) == 2 
-
         autoregressive_embedding = autoregressive_embedding + mask * t
+        del queue_one_hot, x, z, t, mask
 
         return queue_logits, queue, autoregressive_embedding
 

@@ -218,7 +218,9 @@ class EntityEncoder(nn.Module):
             field_encoding_list.append(was_targeted_encoding)
 
             entity_array_list.append(field_encoding_list)
+            del field_encoding_list
 
+        del entity_list
         print('preprocess_numpy, t1', time() - t) if speed else None
         t = time()
 
@@ -372,6 +374,8 @@ class EntityEncoder(nn.Module):
         idx += 1 
 
         all_entities_array = np.concatenate(field_encoding_list, axis=1)
+        del field_encoding_list
+
         # count how many real entities we have
         real_entities_size = all_entities_array.shape[0]
 
@@ -381,6 +385,7 @@ class EntityEncoder(nn.Module):
             bias = np.zeros((bias_length, AHP.embedding_size))
             bias[:, :] = cls.bias_value
             all_entities_array = np.concatenate([all_entities_array, bias], axis=0)
+            del bias
 
         all_entities_array = all_entities_array.astype(np.float32)
         print('preprocess_numpy, all_entities_array', time() - t) if speed else None
@@ -406,6 +411,7 @@ class EntityEncoder(nn.Module):
 
         # entity_num: [batch_seq_size]
         entity_num = torch.sum(tmp_y, dim=1, keepdim=False)
+        del tmp_x, tmp_y
 
         # make sure we can have max to AHP.max_entities - 2 (510)
         # this is we must use a 512 one-hot to represent the entity_nums
@@ -413,10 +419,10 @@ class EntityEncoder(nn.Module):
         # so we at most have 510 entities.
         entity_num_numpy = np.minimum(AHP.max_entities - 2, entity_num.cpu().numpy())
         entity_num = torch.tensor(entity_num_numpy, dtype=entity_num.dtype, device=entity_num.device)
+        del entity_num_numpy
 
         # this means for each batch, there are how many real enetities
         print('entity_num:', entity_num) if debug else None
-        assert entity_num.min() > 0
 
         # generate the mask for transformer
         mask = torch.arange(0, self.max_entities).float()
@@ -427,13 +433,10 @@ class EntityEncoder(nn.Module):
 
         # mask: [batch_size, max_entities]
         mask = mask < entity_num.unsqueeze(dim=1)
-        print('mask:', mask) if debug else None
-        print('mask.shape:', mask.shape) if debug else None
 
         masked_x = x * mask.unsqueeze(-1)
         unit_types = masked_x[:, :, :SCHP.max_unit_type]
-        print('unit_types:', unit_types) if debug else None
-        print('unit_types.shape:', unit_types.shape) if debug else None
+        del masked_x
 
         unit_types_one_list = []
         for i, batch in enumerate(unit_types):
@@ -446,10 +449,10 @@ class EntityEncoder(nn.Module):
             placeholder = (placeholder * SCHP.max_unit_type).to(device).reshape(1, -1)
             unit_types_one = torch.cat([unit_types_one, placeholder], dim=1)
             unit_types_one_list.append(unit_types_one)
+            del placeholder
 
         unit_types_one = torch.cat(unit_types_one_list, dim=0)
-        print('unit_types_one:', unit_types_one) if debug else None
-        print('unit_types_one.shape:', unit_types_one.shape) if debug else None
+        del unit_types, unit_types_one_list
 
         # assert the input shape is : batch_seq_size x entities_size x embeding_size
         # note: because the feature size of entity is not equal to 256, so it can not fed into transformer directly.
@@ -491,7 +494,7 @@ class EntityEncoder(nn.Module):
         # is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`
         # embedded_entity: [batch_size, fc1_output_size]
         embedded_entity = F.relu(self.fc1(z))
-        print('embedded_entity.shape:', embedded_entity.shape) if debug else None
+        del tran_mask, mask, masked_out, x, out, z
 
         if return_unit_types:
             return entity_embeddings, embedded_entity, entity_num, unit_types_one

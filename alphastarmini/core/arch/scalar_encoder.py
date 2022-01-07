@@ -108,22 +108,16 @@ class ScalarEncoder(nn.Module):
         home_race = np.zeros((1, 5))
         if "home_race_requested" in obs:
             home_race_requested = obs["home_race_requested"].item()
-            print('home_race_requested:', home_race_requested) if debug else None
         else:
             home_race_requested = 0
-        assert home_race_requested >= 0 and home_race_requested <= 4
         home_race[0, home_race_requested] = 1
-        print('home_race:', home_race) if debug else None
 
         away_race = np.zeros((1, 5))
         if "away_race_requested" in obs:
             away_race_requested = obs["away_race_requested"].item()
-            print('away_race_requested:', away_race_requested) if debug else None
         else:
             away_race_requested = 0
-        assert away_race_requested >= 0 and away_race_requested <= 4
         away_race[0, away_race_requested] = 1
-        print('away_race:', away_race) if debug else None
 
         if "action_result" in obs:
             action_result = obs["action_result"]
@@ -172,6 +166,7 @@ class ScalarEncoder(nn.Module):
 
             # note, we use postionoal encoding here for half of time encoding
             time[0, embedding_size:] = time_encoding_2
+            del time_encoding_1, time_encoding_2
         else:
             # transform game_loop to 64 binary vecoter
             time_encoding = L.unpackbits_for_largenumber(game_loop, num_bits=SFS.time).astype(np.float32).reshape(1, -1)
@@ -179,6 +174,7 @@ class ScalarEncoder(nn.Module):
 
             # note, we use binary encoding here for all of time encoding
             time = time_encoding
+            del time_encoding
 
         # note: if we use raw action, this key doesn't exist
         # the_available_actions = obs["available_actions"] 
@@ -186,14 +182,6 @@ class ScalarEncoder(nn.Module):
         available_actions = np.ones((1, SFS.available_actions))
         if cls.use_human_knowledge_for_available_actions:
             available_actions = AAA.get_available_actions_raw_data(obs)
-            print('available_actions:', available_actions) if debug else None
-            print('available_actions.shape:', available_actions.shape) if debug else None
-
-            test = False
-            if test:
-                available_actions_tensor = torch.tensor(available_actions)
-                available_action_type = torch.nonzero(available_actions_tensor.long(), as_tuple=True)[-1].unsqueeze(dim=1)
-                print('available_action_type', available_action_type) if debug else None
 
         # implement the unit_counts_bow
         unit_counts_bow = L.calculate_unit_counts_bow_numpy(obs)
@@ -287,6 +275,10 @@ class ScalarEncoder(nn.Module):
         scalar_list.append(last_action_type)
         scalar_list.append(last_repeat_queued)
 
+        del agent_statistics, home_race, away_race, upgrades, enemy_upgrades, time
+        del available_actions, unit_counts_bow, mmr, units_buildings, effects
+        del beginning_build_order, last_delay, last_action_type, last_repeat_queued
+
         return scalar_list
 
     def forward(self, scalar_list):
@@ -299,18 +291,20 @@ class ScalarEncoder(nn.Module):
 
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
         the_log_statistics = torch.log(agent_statistics + 1)
-
         x = F.relu(self.statistics_fc(the_log_statistics))
+        del agent_statistics, the_log_statistics
         embedded_scalar_list.append(x)
 
         # race: Both races are embedded into a one-hot with maximum 5, and embedded through a linear of size 32 and a ReLU.
         x = F.relu(self.home_race_fc(home_race))
+        del home_race
         embedded_scalar_list.append(x)
         # The embedding is also added to `scalar_context`.
         scalar_context_list.append(x)
 
         # race: Both races are embedded into a one-hot with maximum 5, and embedded through a linear of size 32 and a ReLU.
         x = F.relu(self.away_race_fc(away_race))
+        del away_race
         # TODO: During training, the opponent's requested race is hidden in 10% of matches, to simulate playing against the Random race.
         embedded_scalar_list.append(x)
         # The embedding is also added to `scalar_context`.
@@ -320,10 +314,12 @@ class ScalarEncoder(nn.Module):
 
         # upgrades: The boolean vector of whether an upgrade is present is embedded through a linear of size 128 and a ReLU
         x = F.relu(self.upgrades_fc(upgrades))
+        del upgrades
         embedded_scalar_list.append(x)
 
         # enemy_upgrades: Embedded the same as upgrades
         x = F.relu(self.enemy_upgrades_fc(enemy_upgrades))
+        del enemy_upgrades
         embedded_scalar_list.append(x)
 
         # time: A transformer positional encoder encoded the time into a 1D tensor of size 64
@@ -336,6 +332,7 @@ class ScalarEncoder(nn.Module):
         # then the Blink action may be available (even though in practice it may be on cooldown). 
         # The boolean vector of action availability is passed through a linear of size 64 and a ReLU.
         x = F.relu(self.available_actions_fc(available_actions))
+        del available_actions
         embedded_scalar_list.append(x)
         # The embedding is also added to `scalar_context`
         scalar_context_list.append(x)
@@ -344,11 +341,13 @@ class ScalarEncoder(nn.Module):
         # The unit count vector is embedded by square rooting, passing through a linear layer, and passing through a ReLU
         unit_counts_bow = torch.sqrt(unit_counts_bow)
         x = F.relu(self.unit_counts_bow_fc(unit_counts_bow))
+        del unit_counts_bow
         embedded_scalar_list.append(x)
 
         # mmr: During supervised learning, this is the MMR of the player we are trying to imitate. Elsewhere, this is fixed at 6200. 
         # MMR is mapped to a one-hot of min(mmr / 1000, 6) with maximum 6, then passed through a linear of size 64 and a ReLU
         x = F.relu(self.mmr_fc(mmr))
+        del mmr
         embedded_scalar_list.append(x)
 
         # cumulative_statistics: The cumulative statistics (including units, buildings, effects, and upgrades) are preprocessed 
@@ -357,14 +356,17 @@ class ScalarEncoder(nn.Module):
         # and each subvector is passed through a linear of size 32 and a ReLU, and concatenated together.
         # The embedding is also added to `scalar_context`
         x = F.relu(self.units_buildings_fc(units_buildings))
+        del units_buildings
         embedded_scalar_list.append(x)
         scalar_context_list.append(x)
 
         x = F.relu(self.effects_fc(effects))
+        del effects
         embedded_scalar_list.append(x)
         scalar_context_list.append(x)
 
         x = F.relu(self.upgrade_fc(upgrade))
+        del upgrade
         embedded_scalar_list.append(x)
         scalar_context_list.append(x)
 
@@ -404,32 +406,35 @@ class ScalarEncoder(nn.Module):
 
         embedded_scalar_list.append(x)
         scalar_context_list.append(x)
+        del x, mask, bo_sum, seq
 
         # last_delay: The delay between when we last acted and the current observation, in game steps. 
         # This may be different from what we requested due to network latency or APM limits. 
         # It is encoded into a one-hot with maximum 128 and passed through a linear of size 64 and a ReLU
         x = F.relu(self.last_delay_fc(last_delay))
+        del last_delay
         embedded_scalar_list.append(x)
 
         # last_action_type: The last action type is encoded into a one-hot with maximum equal 
         # to the number of possible actions, and passed through a linear of size 128 and a ReLU
         x = F.relu(self.last_action_type_fc(last_action_type))
+        del last_action_type
         embedded_scalar_list.append(x)
 
         # last_repeat_queued: Some other action arguments (queued and repeat) are one-hots with 
         # maximum equal to the number of possible values for those arguments, 
         # and jointly passed through a linear of size 256 and ReLU
         x = F.relu(self.last_repeat_queued_fc(last_repeat_queued))
+        del last_repeat_queued
         embedded_scalar_list.append(x)
-
-        # for x in embedded_scalar_list:
-        #    print('embedded_scalar shape:', x.shape)
 
         embedded_scalar = torch.cat(embedded_scalar_list, dim=1)
         embedded_scalar_out = F.relu(self.fc_1(embedded_scalar))
 
         scalar_context = torch.cat(scalar_context_list, dim=1)
         scalar_context_out = F.relu(self.fc_2(scalar_context))
+
+        del embedded_scalar_list, scalar_context_list, embedded_scalar, scalar_context
 
         return embedded_scalar_out, scalar_context_out
 

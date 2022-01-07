@@ -87,6 +87,7 @@ class SpatialEncoder(nn.Module):
 
         # [batch_size x entity_size x reduced_embedding_size(e.g. 16)]
         reduced_entity_embeddings = F.relu(self.conv1(entity_embeddings.transpose(1, 2))).transpose(1, 2)
+        del entity_embeddings
 
         # then scattered into a map layer so that the size 32 vector at a specific 
         # location corresponds to the units placed there.
@@ -109,6 +110,7 @@ class SpatialEncoder(nn.Module):
         # Question: This has a problem, the first element of index 0 will be averaged everywhere
         # Solution: use zero_bias to remove
         scatter_mid = reduced_entity_embeddings.gather(1, scatter_index.long())
+        del reduced_entity_embeddings, scatter_index
         print('scatter_mid', scatter_mid[0, :16, :4]) if debug else None
 
         scatter_mid = scatter_mid.reshape(batch_size, self.scatter_volume, 
@@ -122,6 +124,7 @@ class SpatialEncoder(nn.Module):
             scatter_result = torch.sum(scatter_mid, dim=1)
 
         scatter_result = scatter_result.permute(0, 3, 1, 2)
+        del scatter_mid
 
         return scatter_result 
 
@@ -134,12 +137,9 @@ class SpatialEncoder(nn.Module):
             # the first 4 channels are scatter map
             scatter_map, reduced = torch.split(x, [self.scatter_volume, channels - self.scatter_volume], dim=1)
             scatter_entity = self.scatter(scatter_map, entity_embeddings)
-            print('scatter_entity', scatter_entity) if debug else None
-            print('scatter_entity.shape', scatter_entity.shape) if debug else None
-            print('reduced', reduced) if debug else None
-            print('reduced.shape', reduced.shape) if debug else None
 
             x = torch.cat([scatter_entity, reduced], dim=1)
+            del scatter_entity, reduced
 
         # After preprocessing, the planes are concatenated, projected to 32 channels 
         # by a 2D convolution with kernel size 1, passed through a ReLU
@@ -184,6 +184,8 @@ class SpatialEncoder(nn.Module):
         # and a ReLU, which becomes `embedded_spatial`.
         x = self.fc(x)
         embedded_spatial = F.relu(x)
+
+        del x
 
         return map_skip, embedded_spatial
 
@@ -252,6 +254,8 @@ class SpatialEncoder(nn.Module):
 
         map_data = np.concatenate([scatter_map, camera_map, height_map, visibility, creep, entity_owners, 
                                    alerts, pathable, buildable], axis=-1)  # the channel is at the last axis
+
+        del scatter_map, camera_map, height_map, visibility, creep, entity_owners, alerts, pathable, buildable
 
         # NWHC to NCHW
         map_data = np.transpose(map_data, [0, 3, 1, 2])

@@ -105,6 +105,7 @@ class ActionTypeHead(nn.Module):
                 for i, a in enumerate(action_type):
                     action_type_mask[i, a.item()] = True
             action_type_logits = action_type_logits + (~action_type_mask * (-1e9))
+            del action_type_mask
 
         # AlphaStar: `action_type` is sampled from these logits using a multinomial with temperature 0.8. 
         # Note that during supervised learning, `action_type` will be the ground truth human action 
@@ -120,6 +121,7 @@ class ActionTypeHead(nn.Module):
 
             action_type = torch.multinomial(action_type_probs.reshape(batch_size, -1), 1)
             action_type = action_type.reshape(batch_size, -1)
+            del action_type_probs
 
         # change action_type to one_hot version
         action_type_one_hot = L.tensor_one_hot(action_type, self.max_action_num)
@@ -137,8 +139,9 @@ class ActionTypeHead(nn.Module):
         t = self.glu_3(lstm_output, scalar_context)
 
         # the add operation may auto broadcasting, so we need an assert test
-        assert z.shape == t.shape
         autoregressive_embedding = z + t
+
+        del action_type_one_hot, lstm_output, scalar_context, x, z, t
 
         return action_type_logits, action_type, autoregressive_embedding
 

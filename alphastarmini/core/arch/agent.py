@@ -88,6 +88,8 @@ class Agent(object):
         state = MsState(entity_state=batch_entities_tensor, 
                         statistical_state=scalar_list, map_state=map_data)
 
+        del batch_entities_tensor, scalar_list, map_data
+
         return state
 
     def preprocess_baseline_state(self, home_obs, away_obs, build_order=None):
@@ -164,9 +166,10 @@ class Agent(object):
         # idle production and work time, total value of units and structure, total destroyed value of units and structures, 
         # total collected minerals and vespene, rate of minerals and vespene collection, and total spent minerals and vespene
         cumulative_score = torch.tensor(np.array(obs['score_cumulative']), dtype=torch.float32).reshape(1, -1)
-        print('cumulative_score', cumulative_score) if debug else None
-
         baseline_state.append(cumulative_score)
+
+        del scalar_list, cumulative_score
+
         return baseline_state
 
     @staticmethod
@@ -201,6 +204,8 @@ class Agent(object):
 
         print('preprocess_state_all, t5', time() - t) if speed else None
         t = time()
+
+        del batch_entities_tensor, scalar_list, map_data
 
         return state
 
@@ -355,6 +360,8 @@ class Agent(object):
         # we assume single inference
         target_location = action.target_location.cpu().detach().reshape(-1).numpy().tolist()
         print('target_location:', target_location) if debug else None
+
+        del action, select_units_num
 
         need_args = action_spec.functions[function_id].args
         args = []

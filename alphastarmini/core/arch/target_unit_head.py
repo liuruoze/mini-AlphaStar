@@ -152,7 +152,7 @@ class TargetUnitHead(nn.Module):
 
         target_unit_logits[no_target_unit_mask] = 0.  # a magic number
 
-        del y, mask, key, query, action_type, unit_types_one_hot, the_func_embed
+        del x, y, mask, key, query, action_type, unit_types_one_hot, the_func_embed
 
         return target_unit_logits, target_unit
 

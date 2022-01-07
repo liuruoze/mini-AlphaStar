@@ -92,27 +92,25 @@ class Baseline(nn.Module):
         embedded_scalar_list = []
 
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
-        print("agent_statistics:", agent_statistics) if debug else None
         the_log_statistics = torch.log(agent_statistics + 1)
-        print("the_log_statistics:", the_log_statistics) if debug else None
-
         x = F.relu(self.statistics_fc(the_log_statistics))
+        del agent_statistics, the_log_statistics
         embedded_scalar_list.append(x)
 
-        print("cumulative_score:", cumulative_score) if debug else None
         score_log_statistics = torch.log(cumulative_score + 1)
-        print("score_log_statistics:", score_log_statistics) if debug else None
-
         x = F.relu(self.cumulatscore_fc(score_log_statistics))
+        del cumulative_score, score_log_statistics
         embedded_scalar_list.append(x)
 
         # upgrades: The boolean vector of whether an upgrade is present is embedded through a linear of size 128 and a ReLU
         x = F.relu(self.upgrades_fc(upgrades))
+        del upgrades
         embedded_scalar_list.append(x)
 
         # unit_counts_bow: A bag-of-words unit count from `entity_list`. 
         # The unit count vector is embedded by square rooting, passing through a linear layer, and passing through a ReLU
         x = F.relu(self.unit_counts_bow_fc(unit_counts_bow))
+        del unit_counts_bow
         embedded_scalar_list.append(x)
 
         # cumulative_statistics: The cumulative statistics (including units, buildings, effects, and upgrades) are preprocessed 
@@ -131,7 +129,9 @@ class Baseline(nn.Module):
         if self.baseline_type == "upgrades" or self.baseline_type == "build_order":    
             x = F.relu(self.upgrade_fc(upgrade))
             cumulative_statistics.append(x)
+
         embedded_scalar_list.extend(cumulative_statistics)
+        del units_buildings, effects, upgrade, cumulative_statistics
 
         # beginning_build_order: The first 20 constructed entities are converted to a 2D tensor of size 
         # [20, num_entity_types], concatenated with indices and the binary encodings 
@@ -169,28 +169,30 @@ class Baseline(nn.Module):
         embedded_scalar_list.append(x)
         embedded_scalar = torch.cat(embedded_scalar_list, dim=1)
 
-        print("self.baseline_type:", self.baseline_type) if debug else None
-        print("embedded_scalar.shape:", embedded_scalar.shape) if debug else None
+        del x, mask, bo_sum, seq, embedded_scalar_list
 
         return embedded_scalar
 
     def forward(self, lstm_output, various_observations, opponent_observations=None):
         # check and improve it
         player_scalar_out = self.pre_forward(various_observations)
+        del various_observations
 
         # AlphaStar: The baseline extracts those same observations from `opponent_observations`.
         if opponent_observations is not None:
             opponenet_scalar_out = self.pre_forward(opponent_observations)
+            del opponent_observations
         else:
-            print("opponent_observations is:", opponent_observations) if debug else None
             opponenet_scalar_out = torch.zeros_like(player_scalar_out)
 
         # AlphaStar: These features are all concatenated together to yield `action_type_input`
         action_type_input = torch.cat([lstm_output, player_scalar_out, opponenet_scalar_out], dim=1)
+        del lstm_output, player_scalar_out, opponenet_scalar_out
         print("action_type_input.shape:", action_type_input.shape) if debug else None
 
         # AlphaStar: passed through a linear of size 256
         x = self.embed_fc(action_type_input)
+        del action_type_input
         print("x.shape:", x.shape) if debug else None
 
         # AlphaStar: then passed through 16 ResBlocks with 256 hidden units and layer normalization,
@@ -211,6 +213,8 @@ class Baseline(nn.Module):
         # AlphaStar: This baseline value is transformed by ((2.0 / PI) * atan((PI / 2.0) * baseline)) and is used as the baseline value
         out = (2.0 / np.pi) * torch.atan((np.pi / 2.0) * baseline)
         print("out:", out) if debug else None
+
+        del x, baseline
 
         return out
 

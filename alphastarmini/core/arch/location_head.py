@@ -200,13 +200,9 @@ class LocationHead(nn.Module):
         x, map_skip = map_skip[0], map_skip[1:]
         batch_size = x.shape[0]
 
-        assert autoregressive_embedding.shape[0] == action_type.shape[0]
-        assert autoregressive_embedding.shape[0] == x.shape[0]
-
         reshap_size = x.shape[-1]
         reshape_channels = int(AHP.autoregressive_embedding_size / (reshap_size * reshap_size))
         ar_map = autoregressive_embedding.reshape(batch_size, -1, reshap_size, reshap_size)
-        print("ar_map.shape:", ar_map.shape) if debug else None
 
         # AlphaStar: and the two are concatenated together along the channel dimension,
         # map skip shape: (-1, 128, 16, 16)
@@ -292,9 +288,6 @@ class LocationHead(nn.Module):
 
         if target_location is None:
             target_location_probs = self.softmax(target_location_logits)
-            print("target_location_probs:", target_location_probs) if debug else None
-            print("target_location_probs.shape:", target_location_probs.shape) if debug else None
-
             location_id = torch.multinomial(target_location_probs, num_samples=1, replacement=True)
 
             target_location = np.zeros([batch_size, 2])
@@ -304,24 +297,20 @@ class LocationHead(nn.Module):
 
                 target_location_y = row_number
                 target_location_x = col_number
-                print("target_location_x, target_location_y", target_location_x, target_location_y) if debug else None
+
                 # note! sc2 and pysc2 all accept the position as [x, y], so x be the first, y be the last!
                 # below is right! so the location point map to the point in the matrix!
                 # target_location[i] = np.array([target_location_x.item(), target_location_y.item()])
                 target_location[i] = np.array([target_location_x.item(), target_location_y.item()])
 
             del location_id
-
             target_location = torch.tensor(target_location, device=device).long()
             target_location[no_target_location_mask] = torch.tensor([self.output_map_size - 1, self.output_map_size - 1], device=device)
-
-            print('target_location', target_location) if debug else None
-            print('target_location.shape', target_location.shape) if debug else None
 
         target_location_logits = target_location_logits.reshape(-1, self.output_map_size, self.output_map_size)
         target_location_logits = target_location_logits * target_location_mask.float().unsqueeze(-1)
 
-        del action_type, y, target_location_mask, no_target_location_mask
+        del action_type, x, y, target_location_mask, no_target_location_mask
 
         return target_location_logits, target_location
 
