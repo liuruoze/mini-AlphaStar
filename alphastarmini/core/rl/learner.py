@@ -112,9 +112,14 @@ class Learner:
                 print('len(update_trajectories)', len(update_trajectories)) if 1 else None
 
                 # with torch.autograd.set_detect_anomaly(True):
-                loss = loss_function(agent, update_trajectories, self.use_opponent_state, self.no_replay_learn)
+                loss, loss_dict = loss_function(agent, update_trajectories, self.use_opponent_state, self.no_replay_learn)
                 print("loss.device:", loss.device) if debug else None
                 print("loss:", loss.item()) if 1 else None
+
+                if True:
+                    for i, k in loss_dict.items():
+                        print(i, k) if 1 else None
+                        self.writer.add_scalar('learner/' + i, k, agent.steps)
 
                 self.optimizer.zero_grad()
                 loss.backward() 

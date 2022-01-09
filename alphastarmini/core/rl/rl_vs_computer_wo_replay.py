@@ -50,19 +50,19 @@ if SIMPLE_TEST:
     ACTOR_NUMS = 1
     GAME_STEPS_PER_EPISODE = 900    # 9000
 else:
-    MAX_EPISODES = 1
+    MAX_EPISODES = 6
     ACTOR_NUMS = 4
     GAME_STEPS_PER_EPISODE = 18000    # 9000    
 
 USE_DEFINED_REWARD_AS_REWARD = True
 USE_RESULT_REWARD = False
 REWARD_SCALE = 0.0001
-LR = 1e-5
+LR = 1e-5  # 0  # 1e-5
 
 BUFFER_SIZE = 1  # 100
 COUNT_OF_BATCHES = 1  # 10
 
-NUM_EPOCHS = 2  # 20
+NUM_EPOCHS = 1  # 20
 USE_RANDOM_SAMPLE = True
 
 UPDATE_PARAMS_INTERVAL = 60
@@ -95,7 +95,7 @@ if torch.backends.cudnn.is_available():
     print('cudnn available')
     print('cudnn version', torch.backends.cudnn.version())
     torch.backends.cudnn.enabled = True
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False
 
 # torch.manual_seed(RANDOM_SEED)
 # np.random.seed(RANDOM_SEED)
@@ -692,12 +692,12 @@ def test(on_server=False, replay_path=None):
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
         player.agent.set_rl_training(IS_TRAINING)
-        device_learner = torch.device("cuda:0" if False else "cpu")
+        device_learner = torch.device("cuda:0" if True else "cpu")
         if ON_GPU:
             player.agent.agent_nn.to(device_learner)
 
         teacher = get_supervised_agent(player.race, model_type="sl", restore=True)
-        device_teacher = torch.device("cuda:0" if False else "cpu")
+        device_teacher = torch.device("cuda:1" if True else "cpu")
         if ON_GPU:
             teacher.agent_nn.to(device_teacher)
 
@@ -711,7 +711,7 @@ def test(on_server=False, replay_path=None):
 
         #actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
         for z in range(ACTOR_NUMS):
-            device = torch.device("cuda:" + str(1) if False else "cpu")
+            device = torch.device("cuda:" + str(1) if True else "cpu")
             actor = ActorVSComputer(player, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
             actors.append(actor)
 

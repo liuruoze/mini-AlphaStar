@@ -129,6 +129,7 @@ class SpatialEncoder(nn.Module):
         return scatter_result 
 
     def forward(self, x, entity_embeddings=None):
+        device = next(self.parameters()).device
 
         # scatter_map may cause a NaN bug in SL training, now we don't use it
         if entity_embeddings is not None:
@@ -138,13 +139,17 @@ class SpatialEncoder(nn.Module):
             scatter_map, reduced = torch.split(x, [self.scatter_volume, channels - self.scatter_volume], dim=1)
             scatter_entity = self.scatter(scatter_map, entity_embeddings)
 
-            print('scatter_entity', scatter_entity) if 1 else None
-            print('scatter_entity.shape', scatter_entity.shape) if 1 else None
+            batch_size = scatter_entity.shape[0]
 
-            print('reduced', reduced) if 1 else None
-            print('reduced.shape', reduced.shape) if 1 else None
+            if P.handle_cuda_error:  # and batch_size != 1:
+                reduced = reduced.to('cpu')
+                scatter_entity = scatter_entity.to('cpu')
 
             x = torch.cat([scatter_entity, reduced], dim=1)
+
+            if P.handle_cuda_error:  # and batch_size != 1:
+                x = x.to(device)
+
             del scatter_entity, reduced
 
         # After preprocessing, the planes are concatenated, projected to 32 channels 

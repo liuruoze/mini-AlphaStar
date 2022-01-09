@@ -14,3 +14,5 @@ replay_path = "data/Replays/filtered_replays_1/"
 Batch_Scale = 16
 Seq_Scale = 16
 Select_Scale = 4
+
+handle_cuda_error = False
