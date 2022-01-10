@@ -17,9 +17,6 @@ from alphastarmini.core.arch import baseline
 from alphastarmini.core.sl import load_pickle
 
 from alphastarmini.core.rl import action
-from alphastarmini.core.rl import env_utils
-from alphastarmini.core.rl import actor
-from alphastarmini.core.rl import against_computer
 from alphastarmini.core.rl import pseudo_reward
 from alphastarmini.core.rl import rl_algo
 from alphastarmini.core.rl import rl_loss
@@ -47,7 +44,7 @@ if __name__ == '__main__':
 
     # arch_model.test()
     # agent.test()
-    # rl_algo.test()
+    rl_algo.test()
     # rl_loss.test()
 
     print('test over')

@@ -54,8 +54,8 @@ else:
     ACTOR_NUMS = 4
     GAME_STEPS_PER_EPISODE = 18000    # 9000    
 
-USE_DEFINED_REWARD_AS_REWARD = True
-USE_RESULT_REWARD = False
+USE_DEFINED_REWARD_AS_REWARD = False
+USE_RESULT_REWARD = True
 REWARD_SCALE = 0.0001
 LR = 1e-5  # 0  # 1e-5
 
@@ -72,6 +72,11 @@ SAVE_STATISTIC = True
 DIFFICULTY = 1
 RANDOM_SEED = 1
 
+# model path
+MODEL_TYPE = "rl"
+MODEL_PATH = "./model/"
+OUTPUT_FILE = './outputs/rl_vs_computer_wo_replay.txt'
+
 VERSION = SCHP.game_version
 MAP_NAME = SCHP.map_name
 STEP_MUL = 8
@@ -82,11 +87,6 @@ IS_TRAINING = True
 WIN_THRESHOLD = 4000
 USE_OPPONENT_STATE = False
 NO_REPLAY_LEARN = True
-
-# model path
-MODEL_TYPE = "sl"
-MODEL_PATH = "./model/"
-OUTPUT_FILE = './outputs/rl_vs_computer_wo_replay.txt'
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -330,25 +330,6 @@ class ActorVSComputer:
                                 if is_final:
                                     outcome = home_next_obs.reward
 
-                                    if SAVE_REPLAY:
-                                        env.save_replay(self.replay_dir)
-
-                                    if not USE_RESULT_REWARD:
-                                        final_points = get_points(home_next_obs)
-                                        print('agent_', self.idx, ' defined_reward:', final_points) if debug else None
-
-                                        episode_return = final_points
-                                    else:
-                                        final_outcome = outcome
-                                        print('agent_', self.idx, ' reward:', final_outcome) if 1 else None
-
-                                        episode_return = final_outcome
-
-                                    with self.results_lock:
-                                        self.coordinator.send_episode_results(self.idx, total_episodes, episode_return)
-
-                                    self.writer.add_scalar('agent_' + str(self.idx) + '/episode_return', episode_return, total_episodes)
-
                                     if SAVE_STATISTIC:
                                         o = home_next_obs.observation
                                         p = o['player']
@@ -371,10 +352,15 @@ class ActorVSComputer:
 
                                         killed_points = killed_minerals + killed_vespene
 
-                                        if killed_points > WIN_THRESHOLD:
+                                        if outcome == 1:
+                                            pass
+                                        elif outcome == 0 and killed_points > WIN_THRESHOLD:
                                             outcome = 1
-                                            if not USE_DEFINED_REWARD_AS_REWARD:
-                                                reward = outcome
+                                        else:
+                                            outcome = -1
+
+                                        if not USE_DEFINED_REWARD_AS_REWARD:
+                                            reward = outcome
 
                                         food_used_list.append(food_used)
                                         army_count_list.append(army_count)
@@ -383,20 +369,21 @@ class ActorVSComputer:
                                         killed_points_list.append(killed_points)
                                         steps_list.append(game_loop)
 
-                                        end_episode_time = time()  # in seconds.
-                                        end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(end_episode_time))
-
-                                        statistic = 'Agent ID: {} | Bot Difficulty: {} | Episode: [{}/{}] | food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
-                                            self.idx, DIFFICULTY, total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
-
-                                        statistic = end_episode_time + " " + statistic
-
-                                        with open(OUTPUT_FILE, 'a') as file:
-                                            file.write(statistic)
-
                                     results[outcome + 1] += 1
+                                    print("agent_{:d} get final reward".format(self.idx), reward) if 1 else None
+                                    print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
-                                print("agent_{:d} get reward".format(self.idx), reward) if 0 else None
+                                    final_points = get_points(home_next_obs)
+                                    self.writer.add_scalar('agent_' + str(self.idx) + '/episode_return', final_points, total_episodes)
+                                    with self.results_lock:
+                                        self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
+
+                                    final_outcome = outcome
+                                    self.writer.add_scalar('agent_' + str(self.idx) + '/episode_return', final_outcome, total_episodes)
+                                    with self.results_lock:
+                                        self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
+                                else:
+                                    print("agent_{:d} get reward".format(self.idx), reward) if debug else None
 
                                 # note, original AlphaStar pseudo-code has some mistakes, we modified 
                                 # them here

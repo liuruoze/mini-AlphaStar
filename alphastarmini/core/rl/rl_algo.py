@@ -40,31 +40,19 @@ def reverse_seq(sequence):
 
 def lambda_returns(values_tp1, rewards, discounts, lambdas=0.8):
     """Computes lambda returns.
-
-    Refer to the following for a similar function:
-    https://github.com/deepmind/trfl/blob/2c07ac22512a16715cc759f0072be43a5d12ae45/trfl/value_ops.py#L74
     """
     # assert v_tp1 = torch.concat([values[1:, :], torch.unsqueeze(bootstrap_value, 0)], axis=0)
     # `back_prop=False` prevents gradients flowing into values and
     # bootstrap_value, which is what you want when using the bootstrapped
     # lambda-returns in an update as targets for values.
-    return multistep_forward_view(
-        rewards,
-        discounts,
-        values_tp1,
-        lambdas,
-        back_prop=False,
-        name="0.8_lambda_returns")
+    return multistep_forward_view(rewards, discounts, values_tp1, lambdas)
 
 
-def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
-                           back_prop=True, 
-                           name="multistep_forward_view_op"):
+def multistep_forward_view(rewards, pcontinues, state_values, lambda_,):
     """Evaluates complex backups (forward view of eligibility traces).
       ```python
-      result[t] = rewards[t] +
-          pcontinues[t]*(lambda_[t]*result[t+1] + (1-lambda_[t])*state_values[t])
-      result[last] = rewards[last] + pcontinues[last]*state_values[last]
+      result[t] = rewards[t] + pcontinues[t] * (lambda_[t] * result[t+1] + (1-lambda_[t]) * state_values[t])
+      result[last] = rewards[last] + pcontinues[last] * state_values[last]
       ```
       This operation evaluates multistep returns where lambda_ parameter controls
       mixing between full returns and boostrapping.
@@ -74,26 +62,44 @@ def multistep_forward_view(rewards, pcontinues, state_values, lambda_,
       pcontinues: Tensor of shape `[T, B]` containing discounts.
       state_values: Tensor of shape `[T, B]` containing state values.
       lambda_: Mixing parameter lambda.
-          The parameter can either be a scalar or a Tensor of shape `[T, B]`
-          if mixing is a function of state.
-      back_prop: Whether to backpropagate.
-      name: Sets the name_scope for this op.
     Returns:
         Tensor of shape `[T, B]` containing multistep returns.
     """
+    # Regroup:
+    #   result[t] = (rewards[t] + pcontinues[t]*(1-lambda_)*state_values[t]) +
+    #               pcontinues[t]*lambda_*result[t + 1]
+    # Define:
+    #   sequence[t] = rewards[t] + pcontinues[t]*(1-lambda_)*state_values[t]
+    #   discount[t] = pcontinues[t]*lambda_
+    # Substitute:
+    #   result[t] = sequence[t] + discount[t]*result[t + 1]
+    # Boundary condition:
+    #   result[last] = rewards[last] + pcontinues[last]*state_values[last]
+    # Add and subtract the same quantity at BC:
+    #   state_values[last] =
+    #       lambda_*state_values[last] + (1-lambda_)*state_values[last]
+    # This makes:
+    #   result[last] =
+    #       (rewards[last] + pcontinues[last]*(1-lambda_)*state_values[last]) +
+    #       pcontinues[last]*lambda_*state_values[last]
+    # Substitute in definitions for sequence and discount:
+    #   result[last] = sequence[last] + discount[last]*state_values[last]
+    # Define:
+    #   initial_value=state_values[last]
+    # We get the following recurrent relationship:
+    #   result[last] = sequence[last] + discount[last] * initial_value
+    #   result[k] = sequence[k] + discount[k] * result[k + 1]
+    # This matches the form of scan_discounted_sum:
+    #   result = scan_sum_with_discount(sequence, discount,
+    #                                   initial_value = state_values[last])
+
     sequence = rewards + pcontinues * state_values * (1 - lambda_)
     discount = pcontinues * lambda_
 
-    initial_value = state_values[-1]
-
-    return scan_discounted_sum(sequence, discount, initial_value,
-                               reverse=True, 
-                               back_prop=back_prop)
+    return scan_discounted_sum(sequence, discount, state_values[-1], reverse=True)
 
 
-def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
-                        back_prop=True,
-                        name="scan_discounted_sum"):
+def scan_discounted_sum(sequence, decay, initial_value, reverse=False):
     """Evaluates a cumulative discounted sum along dimension 0.
       ```python
       if reverse = False:
@@ -110,8 +116,6 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
       decay: Tensor of shape `[T, B, ...]` containing decays/discounts.
       initial_value: Tensor of shape `[B, ...]` containing initial value.
       reverse: Whether to process the sum in a reverse order.
-      back_prop: Whether to backpropagate.
-      name: Sets the name_scope for this op.
     Returns:
       Cumulative sum with discount. Same shape and type as `sequence`.
     """
@@ -120,12 +124,6 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
     if reverse:
         elems = [reverse_seq(s) for s in elems]
         [sequence, decay] = elems
-
-    # another implementions
-    # result = torch.empty_like(sequence)
-    # result[0] = sequence[0] + decay[0] * initial_value
-    # for i in range(len(result) - 1):
-    #     result[i + 1] = sequence[i + 1] + decay[i + 1] * result[i]
 
     elems = [s.unsqueeze(0) for s in elems]
     elems = torch.cat(elems, dim=0) 
@@ -156,13 +154,10 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False,
 def vtrace_advantages(clipped_rhos, rewards, discounts, values, bootstrap_value):
     """Computes v-trace return advantages.
 
-    Refer to the following for a similar function:
-    https://github.com/deepmind/trfl/blob/40884d4bb39f99e4a642acdbe26113914ad0acec/trfl/vtrace_ops.py#L154
     see below function "vtrace_from_importance_weights"
     """
-    return vtrace_from_importance_weights(rhos=clipped_rhos, discounts=discounts,
-                                          rewards=rewards, values=values,
-                                          bootstrap_value=bootstrap_value)
+    return vtrace_from_importance_weights(rhos=clipped_rhos, discounts=discounts, rewards=rewards, 
+                                          values=values, bootstrap_value=bootstrap_value)
 
 
 VTraceReturns = collections.namedtuple('VTraceReturns', 'vs pg_advantages')
@@ -170,8 +165,7 @@ VTraceReturns = collections.namedtuple('VTraceReturns', 'vs pg_advantages')
 
 def vtrace_from_importance_weights(
         rhos, discounts, rewards, values, bootstrap_value,
-        clip_rho_threshold=1.0, clip_pg_rho_threshold=1.0,
-        name='vtrace_from_importance_weights'):
+        clip_rho_threshold=1.0, clip_pg_rho_threshold=1.0):
     r"""
     https://github.com/deepmind/trfl/blob/40884d4bb39f99e4a642acdbe26113914ad0acec/trfl/vtrace_ops.py#L154
     V-trace from log importance weights.Calculates V-trace actor critic targets as described in
@@ -233,6 +227,7 @@ def vtrace_from_importance_weights(
     def scanfunc(acc, sequence_item):
         discount_t, c_t, delta_t = sequence_item
         return delta_t + discount_t * c_t * acc
+
     initial_values = torch.zeros_like(bootstrap_value, device=bootstrap_value.device)
 
     # our implemented scan function for pytorch
@@ -274,7 +269,7 @@ def vtrace_from_importance_weights(
     return VTraceReturns(vs=vs.detach(), pg_advantages=pg_advantages.detach())
 
 
-def upgo_returns(values, rewards, discounts, bootstrap):
+def upgo_returns(values, rewards, discounts, bootstrap, debug=False):
     """Computes the UPGO return targets.
 
     Args:
@@ -290,16 +285,27 @@ def upgo_returns(values, rewards, discounts, bootstrap):
     # next_values. Shape [T, B].
     next_values = torch.cat([values[1:], bootstrap.unsqueeze(dim=0)], dim=0)
 
+    print("next_values:", next_values) if debug else None
+    print("rewards:", rewards) if debug else None
+    print("discounts:", discounts) if debug else None
+    print("discounts * next_values:", discounts * next_values) if debug else None
+    print("rewards + discounts * next_values:", rewards + discounts * next_values) if debug else None
+    print("values:", values) if debug else None
+    print("(rewards + discounts * next_values) >= values:", (rewards + discounts * next_values) >= values) if debug else None
+
     # Upgo can be viewed as a lambda return! The trace continues (i.e. lambda =
     # 1.0) if r_t + V_tp1 > V_t. original G_t = r_t +  
     lambdas = (rewards + discounts * next_values) >= values
+    print("lambdas:", lambdas) if debug else None
 
     # change the bool tensor to float tensor
     lambdas = lambdas.float()
+    print("lambdas:", lambdas) if debug else None
 
     # Shift lambdas left one slot, such that V_t matches indices with lambda_tp1.
     # lambdas = np.concatenate((lambdas[1:], np.ones_like(lambdas[-1:])), axis=0)
     lambdas = torch.cat([lambdas[1:], torch.ones_like(lambdas[-1:], device=lambdas.device)], dim=0)
+    print("lambdas:", lambdas) if debug else None
 
     return lambda_returns(next_values, rewards, discounts, lambdas)
 
@@ -424,9 +430,10 @@ def log_prob(logits, actions, mask_used, outlier_remove=True):
     return -loss_result
 
 
-def test():
+def test(debug=True):
 
-    test_td_lamda_loss = False
+    test_td_lamda_loss = True
+    test_upgo_return = True
 
     if test_td_lamda_loss:
         batch_size = 2
@@ -434,9 +441,9 @@ def test():
 
         device = 'cpu'
 
-        is_final = [[0, 0], [0, 0], [0, 0], [0, 0]]
-        baselines = [[2, 1], [3, 4], [0, 5], [2, 7]]
-        rewards = [[0, 0], [0, 0], [0, 1], [-1, 0]]
+        is_final = [[0, 0], [0, 1], [1, 0], [0, 0]]
+        baselines = [[-0.5, 0.90], [-0.7, 0.95], [-0.95, 0.5], [0.5, 0.6]]
+        rewards = [[0, 0], [0, 1], [-1, 0], [0, 0]]
 
         baselines = torch.tensor(baselines, dtype=torch.float, device=device)
         rewards = torch.tensor(rewards, dtype=torch.float, device=device)
@@ -469,10 +476,10 @@ def test():
 
             returns = torch.empty_like(rewards_short)
 
-            returns[-1, :] = rewards_short[-1, :] + boostrapvales[-1, :]
+            returns[-1, :] = rewards_short[-1, :] + discounts[-1, :] * boostrapvales[-1, :]
             for t in reversed(range(rewards_short.shape[0] - 1)):
-                returns[t, :] = rewards_short[t, :] + lambdas * returns[t + 1, :] \
-                    + (1 - lambdas) * boostrapvales[t, :]
+                returns[t, :] = rewards_short[t, :] + discounts[t, :] * (lambdas * returns[t + 1, :] +
+                                                                         (1 - lambdas) * boostrapvales[t, :])
             print("returns:", returns) if debug else None
 
             result = returns.detach() - baselines[:-1]
@@ -480,3 +487,36 @@ def test():
 
             td_lambda_loss_2 = 0.5 * torch.pow(result, 2).mean()
             print('td_lambda_loss_2', td_lambda_loss_2)
+
+    if test_upgo_return:
+        batch_size = 2
+        seq_len = 4
+
+        device = 'cpu'
+
+        is_final = [[0, 0], [0, 1], [1, 0], [0, 0]]
+        baselines = [[-0.5, 0.90], [-0.7, 0.95], [-0.95, 0.5], [0.5, 0.6]]
+        rewards = [[0, 0], [0, 1], [-1, 0], [0, 0]]
+
+        baselines = torch.tensor(baselines, dtype=torch.float, device=device)
+        rewards = torch.tensor(rewards, dtype=torch.float, device=device)
+
+        discounts = ~np.array(is_final[:-1], dtype=np.bool)  # note the discount is not the similar indicies as in lamda returns
+        discounts = torch.tensor(discounts, dtype=torch.float, device=device)
+
+        rewards_short = rewards[:-1]
+
+        if 1:
+            values = baselines[:-1]
+            bootstrap = baselines[-1]
+
+            returns = upgo_returns(values, rewards_short, discounts, bootstrap)
+
+            returns = returns.detach()
+            print("upgo returns:", returns) if debug else None
+
+            result = returns - values
+            print("upgo result:", result) if debug else None
+
+        if 2:
+            pass
