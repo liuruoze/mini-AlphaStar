@@ -374,12 +374,12 @@ class ActorVSComputer:
                                     print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
                                     final_points = get_points(home_next_obs)
-                                    self.writer.add_scalar('agent_' + str(self.idx) + '/episode_return', final_points, total_episodes)
+                                    self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
                                     with self.results_lock:
                                         self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
 
                                     final_outcome = outcome
-                                    self.writer.add_scalar('agent_' + str(self.idx) + '/episode_return', final_outcome, total_episodes)
+                                    self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
                                     with self.results_lock:
                                         self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
                                 else:

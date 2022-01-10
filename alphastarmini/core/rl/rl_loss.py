@@ -225,7 +225,7 @@ def transpose_sth(x):
 def get_useful_masks(select_units_num, entity_num, device):
     selected_mask = torch.arange(AHP.max_selected, device=device).float()
     selected_mask = selected_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
-    selected_mask = selected_mask < select_units_num.reshape(-1).unsqueeze(dim=-1)
+    selected_mask = selected_mask < (select_units_num + 1).reshape(-1).unsqueeze(dim=-1)
 
     entity_mask = torch.arange(AHP.max_entities, device=device).float()
     entity_mask = entity_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
@@ -457,7 +457,7 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     loss_dict.update({"loss_ent:": loss_ent.item()})
     del trajectories, selected_mask, entity_mask, target_logits
 
-    loss_all = loss_actor_critic + loss_ent + loss_kl  # loss_actor_critic + loss_upgo + loss_kl + loss_ent
+    loss_all = loss_actor_critic + loss_ent + loss_kl + loss_upgo  # loss_actor_critic + loss_upgo + loss_kl + loss_ent
 
     # if False:
     #     print("loss_actor_critic:", loss_actor_critic.item()) if debug else None

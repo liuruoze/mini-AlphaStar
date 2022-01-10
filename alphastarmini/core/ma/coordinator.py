@@ -43,14 +43,14 @@ class Coordinator:
         self.episode_points[agent_idx - 1, episode_id] = results
         single_episode_points = self.episode_points[:, episode_id]
         if not (single_episode_points == (-1e9)).any():
-            self.writer.add_scalar('coordinator/points', np.mean(single_episode_points), episode_id)
+            self.writer.add_scalar('coordinator/points', np.mean(single_episode_points), episode_id + 1)
 
     def send_episode_outcome(self, agent_idx, episode_nums, results): 
         episode_id = episode_nums - 1
         self.episode_outcome[agent_idx - 1, episode_id] = results
         single_episode_outcome = self.episode_outcome[:, episode_id]
         if not (single_episode_outcome == (-1e9)).any():
-            self.writer.add_scalar('coordinator/outcome', np.mean(single_episode_outcome), episode_id)
+            self.writer.add_scalar('coordinator/outcome', np.mean(single_episode_outcome), episode_id + 1)
 
     def send_outcome(self, home_player, away_player, outcome):
         self.league.update(home_player, away_player, outcome)

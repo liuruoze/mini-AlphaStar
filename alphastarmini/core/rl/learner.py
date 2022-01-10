@@ -132,11 +132,12 @@ class Learner:
 
             del trajectories
 
+            torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
+
         with self.buffer_lock:
             self.trajectories = self.trajectories[sample_size:]
 
         agent.agent_nn.model.eval() 
-        torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
         gc.collect()
         print("end backward") if 1 else None
 
