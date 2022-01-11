@@ -253,6 +253,8 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
     [selected_mask, entity_mask] = [a[:-1] for a in [selected_mask, entity_mask]]
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
+    fields_weight = [1, 0, 1, 0, 1, 1]
+
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
         target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
@@ -262,7 +264,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
         loss_field = loss_field.mean()
         print('field', field, 'loss_val', loss_field.item()) if debug else None
 
-        loss = loss + loss_field * FIELDS_WEIGHT[i]
+        loss = loss + loss_field * fields_weight[i]
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
 
     del trajectories, discounts, unit_type_entity_mask, reward
@@ -283,6 +285,8 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     [rewards, selected_mask, entity_mask] = [a[:-1] for a in [rewards, selected_mask, entity_mask]]
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
+    fields_weight = [1, 0, 1, 0, 1, 1]
+
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
         target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
@@ -292,7 +296,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
         loss_field = loss_field.mean()
         print('field', field, 'loss_val', loss_field.item()) if debug else None
 
-        loss = loss + loss_field * FIELDS_WEIGHT[i]
+        loss = loss + loss_field * fields_weight[i]
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
 
     del trajectories, discounts, unit_type_entity_mask, rewards
@@ -411,7 +415,7 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
         print("loss_vtrace:", loss_vtrace) if debug else None
 
         loss_dict.update({reward_name + "-loss_vtrace:": loss_vtrace.item()})
-        loss_actor_critic += 0 * (loss_vtrace)
+        loss_actor_critic += 1 * (loss_vtrace)
 
         reward_index += 1
 
