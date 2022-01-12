@@ -163,7 +163,7 @@ def td_lambda_loss(baselines, rewards, trajectories, device):
     print('baselines', baselines) if 1 else None
 
     result = returns - baselines[:-1]
-    print('result', result) if 1 else None
+    print('result', result) if 0 else None
 
     del discounts, baselines, rewards, returns
 
@@ -352,7 +352,8 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
     return target_log_prob, clipped_rhos, masks
 
 
-def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=False):
+def loss_function(agent, trajectories, use_opponent_state=True, 
+                  no_replay_learn=False, only_update_baseline=False):
     """Computes the loss of trajectories given weights."""
 
     # target_logits: ArgsActionLogits
@@ -377,8 +378,6 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
     # shape after: [dict_name x seq_size x batch_size]
     trajectories = RU.namedtuple_zip(trajectories) 
 
-    loss_actor_critic = 0.
-
     # We use a number of actor-critic losses - one for the winloss baseline, which
     # outputs the probability of victory, and one for each pseudo-reward
     # associated with following the human strategy statistic z.
@@ -389,6 +388,8 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
 
     # Vtrace Loss:
     reward_index = 0
+    loss_actor_critic = 0.
+
     for baseline, costs_and_rewards in zip(baselines, BASELINE_COSTS_AND_REWARDS):
         if no_replay_learn:
             if reward_index != 0:
@@ -404,30 +405,29 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
         # using a separate ("split") VTrace Actor-Critic losses. 
         loss_baseline = td_lambda_loss(baseline, rewards, trajectories, device)
         loss_baseline = baseline_cost * loss_baseline
-        print("loss_baseline:", loss_baseline) if debug else None
-
         loss_dict.update({reward_name + "-loss_baseline:": loss_baseline.item()})
-        loss_actor_critic += 1 * loss_baseline
+        loss_actor_critic += loss_baseline
 
         # we add vtrace loss
+        vtrace_weight = 0 if only_update_baseline else 1
         loss_vtrace = sum_vtrace_loss(target_logits, trajectories, baseline, rewards, selected_mask, entity_mask, device)
-        loss_vtrace = vtrace_cost * loss_vtrace 
-        print("loss_vtrace:", loss_vtrace) if debug else None
-
+        loss_vtrace = vtrace_cost * loss_vtrace
+        loss_vtrace = vtrace_weight * loss_vtrace
         loss_dict.update({reward_name + "-loss_vtrace:": loss_vtrace.item()})
-        loss_actor_critic += 1 * (loss_vtrace)
-
+        loss_actor_critic += loss_vtrace
         reward_index += 1
-
         del loss_baseline, loss_vtrace, rewards
 
     # Upgo Loss:
     # The weighting of these updates will be considered 1.0. action_type, delay, and other arguments are 
     # also similarly separately updated using UPGO, in the same way as the VTrace Actor-Critic loss, with relative weight 1.0. 
     # AlphaStar: loss_upgo = UPGO_WEIGHT * split_upgo_loss(target_logits, baselines.winloss_baseline, trajectories)
-    UPGO_WEIGHT = 1.0
-    baseline_winloss = baselines[0]
-    loss_upgo = UPGO_WEIGHT * sum_upgo_loss(target_logits, trajectories, baseline_winloss, selected_mask, entity_mask, device)
+    UPGO_COST = 1.0
+    winloss_baseline = baselines[0]
+    upgo_weight = 0 if only_update_baseline else 1
+    loss_upgo = sum_upgo_loss(target_logits, trajectories, winloss_baseline, selected_mask, entity_mask, device)
+    loss_upgo = UPGO_COST * loss_upgo
+    loss_upgo = upgo_weight * loss_upgo
     loss_dict.update({"loss_upgo:": loss_upgo.item()})
     del baselines
 
@@ -441,35 +441,30 @@ def loss_function(agent, trajectories, use_opponent_state=True, no_replay_learn=
 
     # for all arguments
     all_kl_loss = human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask)
+    all_kl_loss = ALL_KL_COST * all_kl_loss
     loss_dict.update({"all_kl_loss:": all_kl_loss.item()})
 
     action_type_kl_loss = human_policy_kl_loss_action(target_logits, trajectories)
+    action_type_kl_loss = ACTION_TYPE_KL_COST * action_type_kl_loss
     loss_dict.update({"action_type_kl_loss:": action_type_kl_loss.item()})
 
-    loss_kl = ALL_KL_COST * all_kl_loss + ACTION_TYPE_KL_COST * action_type_kl_loss
+    loss_kl = all_kl_loss + action_type_kl_loss
     loss_dict.update({"loss_kl:": loss_kl.item()})
     del all_kl_loss, action_type_kl_loss
 
     # Entropy Loss:
     # There is an entropy loss with weight 1e-4 on all action arguments, masked by which arguments are possible for a given action type.
     # Thus ENT_WEIGHT = 1e-4
-    ENT_WEIGHT = 1e-4
+    ENT_COST = 1e-4
 
     # note: we want to maximize the entropy so we gradient descent the -entropy. Original AlphaStar pseudocode is wrong
     # AlphaStar: loss_ent = entropy_loss(trajectories.behavior_logits, trajectories.masks)
-    loss_ent = ENT_WEIGHT * (- entropy_loss(target_logits, trajectories, selected_mask, entity_mask))
+    loss_ent = -entropy_loss(target_logits, trajectories, selected_mask, entity_mask)
+    loss_ent = ENT_COST * loss_ent
     loss_dict.update({"loss_ent:": loss_ent.item()})
     del trajectories, selected_mask, entity_mask, target_logits
 
-    loss_all = loss_actor_critic + loss_ent + loss_kl + loss_upgo  # loss_actor_critic + loss_upgo + loss_kl + loss_ent
-
-    # if False:
-    #     print("loss_actor_critic:", loss_actor_critic.item()) if debug else None
-    #     print("loss_upgo:", loss_upgo.item()) if debug else None
-    #     print("loss_kl:", loss_kl.item()) if debug else None
-    #     print("loss_ent:", loss_ent.item()) if debug else None
-    #     print("loss_all:", loss_all.item()) if debug else None
-
+    loss_all = loss_actor_critic + loss_upgo + loss_kl + loss_ent
     del loss_actor_critic, loss_upgo, loss_kl, loss_ent
 
     return loss_all, loss_dict

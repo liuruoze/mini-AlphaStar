@@ -46,30 +46,32 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 2
-    ACTOR_NUMS = 1
-    GAME_STEPS_PER_EPISODE = 900    # 9000
+    MAX_EPISODES = 4
+    ACTOR_NUMS = 2
+    GAME_STEPS_PER_EPISODE = 100  
 else:
     MAX_EPISODES = 6
     ACTOR_NUMS = 4
-    GAME_STEPS_PER_EPISODE = 18000    # 9000    
+    GAME_STEPS_PER_EPISODE = 18000 
+
+DIFFICULTY = 2
+ONLY_UPDATE_BASELINE = False
+LR = 1e-5  # 0  # 1e-5
 
 USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
-REWARD_SCALE = 1e-4
-LR = 1e-5  # 0  # 1e-5
+REWARD_SCALE = 1e-3
 
 BUFFER_SIZE = 1  # 100
 COUNT_OF_BATCHES = 1  # 10
 
 NUM_EPOCHS = 1  # 20
-USE_RANDOM_SAMPLE = True
+USE_RANDOM_SAMPLE = False
 
 UPDATE_PARAMS_INTERVAL = 60
 
 RESTORE = True
 SAVE_STATISTIC = True
-DIFFICULTY = 1
 RANDOM_SEED = 1
 
 # model path
@@ -246,10 +248,12 @@ class ActorVSComputer:
                                 baseline_state = self.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
 
                                 with torch.no_grad():
-                                    player_current_memory = tuple(h.detach().clone() for h in player_memory)
-                                    player_state = state.clone()
+                                    # player_current_memory = tuple(h.detach().clone() for h in player_memory)
+                                    # player_state = state.clone()
+                                    # player_function_call, player_action, player_logits, \
+                                    #     player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(player_state, player_current_memory)
                                     player_function_call, player_action, player_logits, \
-                                        player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(player_state, player_current_memory)
+                                        player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(state, player_memory)
 
                                 print("player_function_call:", player_function_call) if debug else None
                                 print("player_action.delay:", player_action.delay) if debug else None
@@ -264,19 +268,14 @@ class ActorVSComputer:
                                 step_mul = max(1, expected_delay)
                                 print("step_mul:", step_mul) if debug else None
 
-                                print('run_loop, t1', time() - t) if speed else None
-                                t = time()
-
                                 with torch.no_grad():
-                                    teacher_memory = tuple(h.detach().clone() for h in player_memory)
-                                    teacher_state = state.clone()
-                                    teacher_action = player_action.clone()
-                                    teacher_select_units_num = player_select_units_num.clone()
-                                    teacher_logits = self.teacher.step_based_on_actions(teacher_state, teacher_memory, teacher_action, teacher_select_units_num)
+                                    # teacher_memory = tuple(h.detach().clone() for h in player_memory)
+                                    # teacher_state = state.clone()
+                                    # teacher_action = player_action.clone()
+                                    # teacher_select_units_num = player_select_units_num.clone()
+                                    # teacher_logits = self.teacher.step_based_on_actions(teacher_state, teacher_memory, teacher_action, teacher_select_units_num)
+                                    teacher_logits = self.teacher.step_based_on_actions(state, player_memory, player_action, player_select_units_num)
                                     print("teacher_logits:", teacher_logits) if debug else None
-
-                                print('run_loop, t2', time() - t) if speed else None
-                                t = time()
 
                                 env_actions = [player_function_call]
 
@@ -287,17 +286,11 @@ class ActorVSComputer:
 
                                 z = None
 
-                                print('run_loop, t3', time() - t) if speed else None
-                                t = time()
-
                                 timesteps = env.step(env_actions, step_mul=STEP_MUL)  # STEP_MUL step_mul
                                 [home_next_obs] = timesteps
 
                                 reward = home_next_obs.reward
                                 print("reward: ", reward) if 0 else None
-
-                                print('run_loop, t4', time() - t) if speed else None
-                                t = time()
 
                                 is_final = home_next_obs.last()
 
@@ -305,15 +298,8 @@ class ActorVSComputer:
                                 player_bo = L.calculate_build_order(player_bo, home_obs.observation, home_next_obs.observation)
                                 print("player build order:", player_bo) if debug else None
 
-                                print('run_loop, t5', time() - t) if speed else None
-                                t = time()
-
                                 # calculate the unit counts of bag
-                                player_ucb = L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
-                                print("player unit count of bow:", sum(player_ucb)) if debug else None
-
-                                print('run_loop, t6', time() - t) if speed else None
-                                t = time()
+                                player_ucb = None  # L.calculate_unit_counts_bow(home_obs.observation).reshape(-1).numpy().tolist()
 
                                 game_loop = home_obs.observation.game_loop[0]
                                 print("game_loop", game_loop) if debug else None
@@ -330,58 +316,55 @@ class ActorVSComputer:
                                 if is_final:
                                     outcome = home_next_obs.reward
 
-                                    if SAVE_STATISTIC:
-                                        o = home_next_obs.observation
-                                        p = o['player']
+                                    o = home_next_obs.observation
+                                    p = o['player']
 
-                                        food_used = p['food_used']
-                                        army_count = p['army_count']
+                                    food_used = p['food_used']
+                                    army_count = p['army_count']
 
-                                        collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
-                                        collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
+                                    collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
+                                    collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
 
-                                        collected_points = collected_minerals + collected_vespene
+                                    collected_points = collected_minerals + collected_vespene
 
-                                        used_minerals = np.sum(o['score_by_category']['used_minerals'])
-                                        used_vespene = np.sum(o['score_by_category']['used_vespene'])
+                                    used_minerals = np.sum(o['score_by_category']['used_minerals'])
+                                    used_vespene = np.sum(o['score_by_category']['used_vespene'])
 
-                                        used_points = used_minerals + used_vespene
+                                    used_points = used_minerals + used_vespene
 
-                                        killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
-                                        killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
+                                    killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
+                                    killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
 
-                                        killed_points = killed_minerals + killed_vespene
+                                    killed_points = killed_minerals + killed_vespene
 
-                                        if outcome == 1:
-                                            pass
-                                        elif outcome == 0 and killed_points > WIN_THRESHOLD:
-                                            outcome = 1
-                                        else:
-                                            outcome = -1
+                                    if outcome == 1:
+                                        pass
+                                    elif outcome == 0 and killed_points > WIN_THRESHOLD:
+                                        outcome = 1
+                                    else:
+                                        outcome = -1
 
-                                        if not USE_DEFINED_REWARD_AS_REWARD:
-                                            reward = outcome
+                                    if not USE_DEFINED_REWARD_AS_REWARD:
+                                        reward = outcome
 
-                                        food_used_list.append(food_used)
-                                        army_count_list.append(army_count)
-                                        collected_points_list.append(collected_points)
-                                        used_points_list.append(used_points)
-                                        killed_points_list.append(killed_points)
-                                        steps_list.append(game_loop)
+                                    food_used_list.append(food_used)
+                                    army_count_list.append(army_count)
+                                    collected_points_list.append(collected_points)
+                                    used_points_list.append(used_points)
+                                    killed_points_list.append(killed_points)
+                                    steps_list.append(game_loop)
 
                                     results[outcome + 1] += 1
                                     print("agent_{:d} get final reward".format(self.idx), reward) if 1 else None
                                     print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
-                                    final_points = get_points(home_next_obs)
+                                    final_points = killed_points * REWARD_SCALE
                                     self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
-                                    with self.results_lock:
-                                        self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
+                                    self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
 
                                     final_outcome = outcome
                                     self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
-                                    with self.results_lock:
-                                        self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
+                                    self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
                                 else:
                                     print("agent_{:d} get reward".format(self.idx), reward) if debug else None
 
@@ -397,15 +380,15 @@ class ActorVSComputer:
                                     masks=action_masks,
                                     unit_type_entity_mask=unit_type_entity_mask,
                                     action=player_action,
-                                    behavior_logits=player_logits.clone(),
-                                    teacher_logits=teacher_logits.clone(),      
+                                    behavior_logits=player_logits,
+                                    teacher_logits=teacher_logits,      
                                     is_final=is_final,                                          
                                     reward=reward,
                                     player_select_units_num=player_select_units_num,
                                     entity_num=entity_num,
                                     build_order=player_bo,
                                     z_build_order=None,  # we change it to the sampled build order
-                                    unit_counts=player_ucb,  # player_ucb,
+                                    unit_counts=None,     # player_ucb,  # player_ucb,
                                     z_unit_counts=None,  # player_ucb,  # we change it to the sampled unit counts
                                     game_loop=game_loop,
                                     last_list=last_list,
@@ -418,7 +401,8 @@ class ActorVSComputer:
                                 if self.is_training:
                                     trajectory.append(traj_step)
 
-                                player_memory = tuple(h.detach().clone() for h in player_new_memory)
+                                #player_memory = tuple(h.detach().clone() for h in player_new_memory)
+                                player_memory = player_new_memory
                                 home_obs = home_next_obs
                                 last_delay = expected_delay
                                 last_action_type = player_action.action_type.item()
@@ -434,10 +418,9 @@ class ActorVSComputer:
                                         if self.player.learner.is_running:
 
                                             print("Learner send_trajectory!") if debug else None
-
-                                            with self.buffer_lock:
-                                                self.player.learner.send_trajectory(trajectories)
-                                                trajectory = []
+                                            # with self.buffer_lock:
+                                            self.player.learner.send_trajectory(trajectories)
+                                            trajectory = []
                                         else:
                                             print("Learner stops!")
 
@@ -689,11 +672,11 @@ def test(on_server=False, replay_path=None):
             teacher.agent_nn.to(device_teacher)
 
         buffer_lock = threading.Lock()
-        learner = Learner(player, max_time_for_training=60 * 60 * 24, lr=LR, is_training=IS_TRAINING, 
+        learner = Learner(player, max_time_for_training=60 * 60 * 24 * 7, lr=LR, is_training=IS_TRAINING, 
                           buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
                           no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
                           count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
-                          use_random_sample=USE_RANDOM_SAMPLE)
+                          use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE)
         learners.append(learner)
 
         #actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])

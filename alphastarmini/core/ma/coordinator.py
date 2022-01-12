@@ -7,6 +7,8 @@
 
 import numpy as np
 
+import torch
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False
@@ -35,6 +37,8 @@ class Coordinator:
         self.writer = writer
 
     def set_uninitialed_results(self, actor_nums, episode_nums):
+        self.actor_nums = actor_nums
+        self.episode_nums = episode_nums
         self.episode_points = np.ones([actor_nums, episode_nums], dtype=np.float) * (-1e9)
         self.episode_outcome = np.ones([actor_nums, episode_nums], dtype=np.float) * (-1e9)
 
@@ -51,6 +55,17 @@ class Coordinator:
         single_episode_outcome = self.episode_outcome[:, episode_id]
         if not (single_episode_outcome == (-1e9)).any():
             self.writer.add_scalar('coordinator/outcome', np.mean(single_episode_outcome), episode_id + 1)
+            update_id = int(episode_id / 2)
+            self.update_winrate(update_id)
+
+    def update_winrate(self, update_id):
+        scale = 2
+        episode_winrate = np.transpose(self.episode_outcome).reshape([int(self.episode_nums / scale), int(self.actor_nums * scale)])
+        single_episode_outcome = episode_winrate[update_id]
+        if not (single_episode_outcome == (-1e9)).any():
+            win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
+            self.writer.add_scalar('coordinator/winrate', win_rate, update_id + 1)
+        del episode_winrate
 
     def send_outcome(self, home_player, away_player, outcome):
         self.league.update(home_player, away_player, outcome)

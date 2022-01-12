@@ -46,7 +46,8 @@ class Learner:
                  is_training=True, buffer_lock=None, writer=None,
                  use_opponent_state=True, no_replay_learn=False, 
                  num_epochs=THP.num_epochs, count_of_batches=1,
-                 buffer_size=10, use_random_sample=False):
+                 buffer_size=10, use_random_sample=False,
+                 only_update_baseline=False):
         self.player = player
         self.player.set_learner(self)
         self.trajectories = []
@@ -74,6 +75,7 @@ class Learner:
         self.count_of_batches = count_of_batches
         self.buffer_size = buffer_size
         self.use_random_sample = use_random_sample
+        self.only_update_baseline = only_update_baseline
 
     def get_parameters(self):
         return self.player.agent.get_parameters()
@@ -98,12 +100,12 @@ class Learner:
             print('len(self.trajectories)', len(self.trajectories)) if 1 else None
 
             # use random samping
-            with self.buffer_lock:
-                if self.use_random_sample:
-                    random.shuffle(self.trajectories)
+            # with self.buffer_lock:
+            #     if self.use_random_sample:
+            #         random.shuffle(self.trajectories)
 
-                #trajectories = RU.namedtuple_deepcopy(self.trajectories[:sample_size])
-                trajectories = self.trajectories[:sample_size]
+            #trajectories = RU.namedtuple_deepcopy(self.trajectories[:sample_size])
+            trajectories = self.trajectories[:sample_size]
 
             print('len(trajectories)', len(trajectories)) if 1 else None
 
@@ -112,7 +114,8 @@ class Learner:
                 print('len(update_trajectories)', len(update_trajectories)) if 1 else None
 
                 # with torch.autograd.set_detect_anomaly(True):
-                loss, loss_dict = loss_function(agent, update_trajectories, self.use_opponent_state, self.no_replay_learn)
+                loss, loss_dict = loss_function(agent, update_trajectories, 
+                                                self.use_opponent_state, self.no_replay_learn, self.only_update_baseline)
                 print("loss.device:", loss.device) if debug else None
                 print("loss:", loss.item()) if 1 else None
 
@@ -134,11 +137,11 @@ class Learner:
 
             torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
-        with self.buffer_lock:
-            self.trajectories = self.trajectories[sample_size:]
+        # with self.buffer_lock:
 
+        self.trajectories = self.trajectories[sample_size:]
         agent.agent_nn.model.eval() 
-        gc.collect()
+
         print("end backward") if 1 else None
 
     def start(self):
@@ -171,7 +174,7 @@ class Learner:
                             self.update_parameters()
                             print("learner end updating parameters") if debug else None
 
-                        sleep(1)
+                        sleep(0.05)
                     else:
                         print("Actor stops!") if debug else None
 
