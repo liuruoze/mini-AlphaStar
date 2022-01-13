@@ -48,7 +48,7 @@ SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     MAX_EPISODES = 4
     ACTOR_NUMS = 2
-    GAME_STEPS_PER_EPISODE = 100  
+    GAME_STEPS_PER_EPISODE = 300  
 else:
     MAX_EPISODES = 6
     ACTOR_NUMS = 4
@@ -169,6 +169,10 @@ class ActorVSComputer:
                 training_start_time = time()
                 print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(training_start_time)))
 
+                # judge the trajectory whether contains final
+                is_final_trajectory = False
+                is_win_trajectory = False
+
                 # use max_episodes to end the loop
                 while time() - training_start_time < self.max_time_for_training:
                     agents = [self.agent]
@@ -248,10 +252,6 @@ class ActorVSComputer:
                                 baseline_state = self.agent.agent_nn.get_baseline_state_from_multi_source_state(home_obs.observation, state)
 
                                 with torch.no_grad():
-                                    # player_current_memory = tuple(h.detach().clone() for h in player_memory)
-                                    # player_state = state.clone()
-                                    # player_function_call, player_action, player_logits, \
-                                    #     player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(player_state, player_current_memory)
                                     player_function_call, player_action, player_logits, \
                                         player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(state, player_memory)
 
@@ -269,11 +269,6 @@ class ActorVSComputer:
                                 print("step_mul:", step_mul) if debug else None
 
                                 with torch.no_grad():
-                                    # teacher_memory = tuple(h.detach().clone() for h in player_memory)
-                                    # teacher_state = state.clone()
-                                    # teacher_action = player_action.clone()
-                                    # teacher_select_units_num = player_select_units_num.clone()
-                                    # teacher_logits = self.teacher.step_based_on_actions(teacher_state, teacher_memory, teacher_action, teacher_select_units_num)
                                     teacher_logits = self.teacher.step_based_on_actions(state, player_memory, player_action, player_select_units_num)
                                     print("teacher_logits:", teacher_logits) if debug else None
 
@@ -365,6 +360,10 @@ class ActorVSComputer:
                                     final_outcome = outcome
                                     self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
                                     self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
+
+                                    is_final_trajectory = True
+                                    if outcome == 1:
+                                        is_win_trajectory = True 
                                 else:
                                     print("agent_{:d} get reward".format(self.idx), reward) if debug else None
 
@@ -399,6 +398,7 @@ class ActorVSComputer:
                                 del player_select_units_num, entity_num
 
                                 if self.is_training:
+                                    print('is_final_trajectory', is_final_trajectory)
                                     trajectory.append(traj_step)
 
                                 #player_memory = tuple(h.detach().clone() for h in player_new_memory)
@@ -416,16 +416,27 @@ class ActorVSComputer:
 
                                     if self.player.learner is not None:
                                         if self.player.learner.is_running:
-
                                             print("Learner send_trajectory!") if debug else None
                                             # with self.buffer_lock:
                                             self.player.learner.send_trajectory(trajectories)
-                                            trajectory = []
+
+                                            if is_final_trajectory:
+                                                self.player.learner.send_final_trajectory(trajectories)
+
+                                            if is_win_trajectory:
+                                                self.player.learner.send_win_trajectory(trajectories)
+
                                         else:
                                             print("Learner stops!")
 
                                             print("Actor also stops!")
                                             return
+
+                                    trajectory = []
+                                    del trajectories
+
+                                    is_final_trajectory = False
+                                    is_win_trajectory = False
 
                                 # use max_frames to end the loop
                                 # whether to stop the run
@@ -522,120 +533,6 @@ def get_points(obs):
     points = points * REWARD_SCALE
 
     return points
-
-
-def show_sth(home_obs, player_action):
-    obs = home_obs.observation
-    raw_units = obs["raw_units"]
-
-    selected_units = player_action.units.reshape(-1)
-
-    selected_units = selected_units.detach().cpu().numpy().tolist()
-    print('selected_units', selected_units) if debug else None
-
-    unit_type_list = []
-    for i in selected_units:
-        if i < len(raw_units):
-            u = raw_units[i]
-            unit_type = u.unit_type
-            unit_type_name = sc2_units.get_unit_type(unit_type).name
-            unit_type_list.append(unit_type_name)
-        else:
-            print('find a EOF!') if debug else None     
-
-    print('unit_type_list', unit_type_list) if debug else None     
-
-
-def injected_function_call(home_obs, env, function_call):
-    # for testing
-
-    obs = home_obs.observation
-    raw_units = obs["raw_units"]
-
-    function = function_call.function
-    # note, this "function" is a IntEnum
-    # change it to int by "int(function)" or "function.value"
-    # or show the string by "function.name"
-    func_name = function.name
-
-    [select, target, max_num] = RAMP.SMALL_MAPPING.get(func_name, [None, None, 1])
-    print('select, target, max_num', select, target, max_num) if debug else None
-
-    # select, target, min_num = RAMP.select_and_target_unit_type_for_protoss_actions(function_call)
-    # print('select, target, min_num', select, target, min_num) if debug else None
-
-    select_candidate = []
-    target_candidate = []
-
-    nexus_u = None
-
-    for u in raw_units:
-        if u.alliance == 1:
-            if u.unit_type == 59:  # Nexus
-                nexus_u = u
-                print('nexus_u', nexus_u.x, nexus_u.y) if debug else None
-        if select is not None:
-            if not isinstance(select, list):
-                select = [select]
-            if u.alliance == 1:
-                if u.unit_type in select:
-                    select_candidate.append(u.tag)
-
-        if target is not None:
-            if not isinstance(target, list):
-                target = [target]
-            if u.unit_type in target:
-                if u.display_type == 1:  # visible
-                    target_candidate.append(u.tag)
-
-    unit_tags = []
-    if len(select_candidate) > 0:
-        print('select_candidate', select_candidate)
-        if max_num == 1:
-            unit_tags = [random.choice(select_candidate)]
-        elif max_num > 1:
-            unit_tags = select_candidate[0:max_num - 1]
-
-    if len(target_candidate) > 0:   
-        print('target_candidate', target_candidate) 
-        target_tag = random.choice(target_candidate)
-
-    sc2_action = env._features[0].transform_action(obs, function_call)  
-    print("sc2_action before transformed:", sc2_action) if debug else None
-
-    if sc2_action.HasField("action_raw"):
-        raw_act = sc2_action.action_raw
-        if raw_act.HasField("unit_command"):
-            uc = raw_act.unit_command
-            # to judge a repteated field whether has 
-            # use the following way
-            if len(uc.unit_tags) != 0:
-                # can not assign, must use unit_tags[:]=[xx tag]
-                uc.unit_tags[:] = unit_tags
-
-            # we use fixed target unit tag only for Harvest_Gather_unit action
-            if uc.HasField("target_unit_tag"):
-                if len(target_candidate) > 0:    
-                    uc.target_unit_tag = target_tag
-
-            if uc.HasField("target_world_space_pos"):
-                twsp = uc.target_world_space_pos
-                rand_x = random.randint(-10, 10)
-                rand_y = random.randint(-10, 10)
-
-                if func_name != "Attack_pt":  # build buildings
-                    print('nexus_u', nexus_u.x, nexus_u.y) if debug else None
-                    # these value are considered in minimap unit
-                    twsp.x = (35 + rand_x * 1)
-                    twsp.y = (55 + rand_y * 1)  
-                    # AbysaalReef is [152 x 136]
-                else:                        # attack point
-                    twsp.x = 50
-                    twsp.y = 22                 
-
-    print("sc2_action after transformed:", sc2_action) if debug else None
-
-    return sc2_action
 
 
 def test(on_server=False, replay_path=None):

@@ -51,6 +51,8 @@ class Learner:
         self.player = player
         self.player.set_learner(self)
         self.trajectories = []
+        self.final_trajectories = []
+        self.win_trajectories = []
 
         # PyTorch code
         self.optimizer = Adam(self.get_parameters(), 
@@ -83,46 +85,112 @@ class Learner:
     def send_trajectory(self, trajectory):
         self.trajectories.append(trajectory)
 
+    def send_final_trajectory(self, trajectory):
+        self.final_trajectories.append(trajectory)
+
+    def send_win_trajectory(self, trajectory):
+        self.win_trajectories.append(trajectory)        
+
+    def get_normal_trajectories(self):
+        batch_size = AHP.batch_size
+        sample_size = self.count_of_batches * batch_size
+
+        trajectories = []
+
+        trajectories_reduced = self.trajectories[:sample_size]
+        trajectories.extend(trajectories_reduced)
+        del trajectories_reduced
+
+        assert len(trajectories) == sample_size
+
+        # update self.trajectories
+        if len(self.trajectories) > 0:
+            self.trajectories = self.trajectories[sample_size:]
+
+        return trajectories
+
+    def get_mixed_trajectories(self):
+        batch_size = AHP.batch_size
+        sample_size = self.count_of_batches * batch_size
+
+        split_ratio = [0.7, 0.2, 0.1]
+        sample_final = min(1, int(sample_size * split_ratio[1]))
+        sample_win = min(1, int(sample_size * split_ratio[2]))
+
+        print('len(self.trajectories)', len(self.trajectories)) if 1 else None
+        print('len(self.final_trajectories)', len(self.final_trajectories)) if 1 else None
+        print('len(self.win_trajectories)', len(self.win_trajectories)) if 1 else None
+
+        trajectories = []
+
+        reduce_sample_size = sample_size
+        if len(self.win_trajectories) > 0:
+            random.shuffle(self.win_trajectories)
+            trajectories_win = self.win_trajectories[:sample_win]
+            trajectories_win_length = len(trajectories_win)
+            reduce_sample_size = sample_size - trajectories_win_length
+            trajectories.extend(trajectories_win)
+            del trajectories_win
+
+            # update self.win_trajectories
+            if len(self.win_trajectories) > 128:
+                self.win_trajectories = self.win_trajectories[sample_win:]
+
+        if len(self.final_trajectories) > 0:
+            random.shuffle(self.final_trajectories)
+            trajectories_final = self.final_trajectories[:sample_final]
+            trajectories_final_length = len(trajectories_final)
+            reduce_sample_size = reduce_sample_size - trajectories_final_length
+            trajectories.extend(trajectories_final)
+            del trajectories_final
+
+            # update self.final_trajectories
+            if len(self.final_trajectories) > 64:
+                self.final_trajectories = self.final_trajectories[sample_final:]
+
+        if self.use_random_sample:
+            random.shuffle(self.trajectories)
+        trajectories_reduced = self.trajectories[:reduce_sample_size]
+        trajectories.extend(trajectories_reduced)
+        del trajectories_reduced
+
+        assert len(trajectories) == sample_size
+
+        # update self.trajectories
+        if len(self.trajectories) > 0:
+            self.trajectories = self.trajectories[reduce_sample_size:]
+
+        return trajectories
+
     def update_parameters(self):
         if not self.is_rl_training:
             return 
 
         agent = self.player.agent
         batch_size = AHP.batch_size
-        sample_size = self.count_of_batches * batch_size
 
-        print("begin backward") if 1 else None
+        # test mixed trajectories
+        trajectories = self.get_mixed_trajectories()
+        print('len(trajectories)', len(trajectories)) if 1 else None
+
         agent.agent_nn.model.train()  # for BN and dropout
+        print("begin backward") if 1 else None
 
-        trajectories = None
         for ep_id in range(self.num_epochs):
-
-            print('len(self.trajectories)', len(self.trajectories)) if 1 else None
-
-            # use random samping
-            # with self.buffer_lock:
-            #     if self.use_random_sample:
-            #         random.shuffle(self.trajectories)
-
-            #trajectories = RU.namedtuple_deepcopy(self.trajectories[:sample_size])
-            trajectories = self.trajectories[:sample_size]
-
-            print('len(trajectories)', len(trajectories)) if 1 else None
 
             for batch_id in range(self.count_of_batches):
                 update_trajectories = trajectories[batch_id * batch_size: (batch_id + 1) * batch_size]
                 print('len(update_trajectories)', len(update_trajectories)) if 1 else None
 
                 # with torch.autograd.set_detect_anomaly(True):
-                loss, loss_dict = loss_function(agent, update_trajectories, 
-                                                self.use_opponent_state, self.no_replay_learn, self.only_update_baseline)
+                loss, loss_dict = loss_function(agent, update_trajectories, self.use_opponent_state, 
+                                                self.no_replay_learn, self.only_update_baseline)
                 print("loss.device:", loss.device) if debug else None
                 print("loss:", loss.item()) if 1 else None
 
-                if True:
-                    for i, k in loss_dict.items():
-                        print(i, k) if 1 else None
-                        self.writer.add_scalar('learner/' + i, k, agent.steps)
+                for i, k in loss_dict.items():
+                    print(i, k) if 1 else None
+                    self.writer.add_scalar('learner/' + i, k, agent.steps)
 
                 self.optimizer.zero_grad()
                 loss.backward() 
@@ -133,15 +201,10 @@ class Learner:
 
                 del loss, update_trajectories
 
-            del trajectories
+        del trajectories
+        torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
-            torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
-
-        # with self.buffer_lock:
-
-        self.trajectories = self.trajectories[sample_size:]
-        agent.agent_nn.model.eval() 
-
+        agent.agent_nn.model.eval()
         print("end backward") if 1 else None
 
     def start(self):
@@ -169,7 +232,7 @@ class Learner:
                     if actor_is_running:
                         print('learner trajectories size:', len(self.trajectories)) if debug else None
 
-                        if len(self.trajectories) >= self.buffer_size * AHP.batch_size:
+                        if len(self.trajectories) >= self.buffer_size * self.count_of_batches * AHP.batch_size:
                             print("learner begin to update parameters") if debug else None
                             self.update_parameters()
                             print("learner end updating parameters") if debug else None
