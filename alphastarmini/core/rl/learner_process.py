@@ -10,7 +10,7 @@ from time import time, sleep, strftime, localtime
 import gc
 import os
 import traceback
-import threading
+from multiprocessing import Process, Manager, Lock
 import itertools
 import datetime
 import random
@@ -20,6 +20,8 @@ import torch
 from torch.optim import Adam, RMSprop
 
 from tensorboardX import SummaryWriter
+
+from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
 
 from alphastarmini.core.rl.rl_loss import loss_function
 from alphastarmini.core.rl import rl_utils as RU
@@ -38,37 +40,52 @@ if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
 SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S", localtime()))
 
+# gpu setting
+ON_GPU = torch.cuda.is_available()
+DEVICE = torch.device("cuda:0" if ON_GPU else "cpu")
+if torch.backends.cudnn.is_available():
+    print('cudnn available')
+    print('cudnn version', torch.backends.cudnn.version())
+    torch.backends.cudnn.enabled = True
+    torch.backends.cudnn.benchmark = False
 
-class Learner:
+
+class LearnerProcess:
     """Learner worker that updates agent parameters based on trajectories."""
 
-    def __init__(self, player, max_time_for_training=60 * 3, lr=THP.learning_rate,
-                 is_training=True, buffer_lock=None, writer=None,
+    def __init__(self, max_time_for_training=60 * 3, lr=THP.learning_rate,
+                 is_training=True, 
                  use_opponent_state=True, no_replay_learn=False, 
                  num_epochs=THP.num_epochs, count_of_batches=1,
                  buffer_size=10, use_random_sample=False,
-                 only_update_baseline=False):
-        self.player = player
-        self.player.set_learner(self)
-        self.trajectories = []
-        self.final_trajectories = []
-        self.win_trajectories = []
+                 only_update_baseline=False,
+                 trajectories=None, final_trajectories=None,
+                 win_trajectories=None):
+
+        learner = RU.get_supervised_agent(Race.protoss, model_type="sl", restore=True)
+        learner.set_rl_training(is_training)
+        device_learner = torch.device("cuda:0" if True else "cpu")
+        if ON_GPU:
+            learner.agent_nn.to(device_learner)
+
+        self.learner = learner
+
+        self.trajectories = trajectories
+        self.final_trajectories = final_trajectories
+        self.win_trajectories = win_trajectories
 
         # PyTorch code
         self.optimizer = Adam(self.get_parameters(), 
                               lr=lr, betas=(THP.beta1, THP.beta2), 
                               eps=THP.epsilon, weight_decay=THP.weight_decay)
 
-        self.thread = threading.Thread(target=self.run, args=())
-        self.thread.daemon = True                            # Daemonize thread
+        self.process = Process(target=self.run, args=())
+        self.process.daemon = True                           
 
         self.max_time_for_training = max_time_for_training
         self.is_running = False
 
         self.is_rl_training = is_training
-
-        self.buffer_lock = buffer_lock
-        self.writer = writer
 
         self.use_opponent_state = use_opponent_state
         self.no_replay_learn = no_replay_learn
@@ -79,8 +96,12 @@ class Learner:
         self.use_random_sample = use_random_sample
         self.only_update_baseline = only_update_baseline
 
+        now = datetime.datetime.now()
+        summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+        self.writer = SummaryWriter(summary_path)
+
     def get_parameters(self):
-        return self.player.agent.get_parameters()
+        return self.learner.get_parameters()
 
     def send_trajectory(self, trajectory):
         self.trajectories.append(trajectory)
@@ -89,7 +110,7 @@ class Learner:
         self.final_trajectories.append(trajectory)
 
     def send_win_trajectory(self, trajectory):
-        self.win_trajectories.append(trajectory)        
+        self.win_trajectories.append(trajectory)
 
     def get_normal_trajectories(self):
         batch_size = AHP.batch_size
@@ -166,12 +187,13 @@ class Learner:
         if not self.is_rl_training:
             return 
 
-        agent = self.player.agent
+        agent = self.learner
         batch_size = AHP.batch_size
 
         # test mixed trajectories
-        trajectories = self.get_mixed_trajectories()
-        #trajectories = self.get_normal_trajectories()
+        #trajectories = self.get_mixed_trajectories()
+        trajectories = self.get_normal_trajectories()
+
         print('len(trajectories)', len(trajectories)) if 1 else None
 
         agent.agent_nn.model.train()  # for BN and dropout
@@ -209,7 +231,7 @@ class Learner:
         print("end backward") if 1 else None
 
     def start(self):
-        self.thread.start()
+        self.process.start()
 
     # background
     def run(self):
@@ -220,30 +242,15 @@ class Learner:
             while time() - start_time < self.max_time_for_training:
                 try:
                     # if at least one actor is running, the learner would not stop
-                    actor_is_running = False
-                    if len(self.player.actors) == 0:
-                        actor_is_running = True
 
-                    for actor in self.player.actors:
-                        if actor.is_start:
-                            actor_is_running = actor_is_running | actor.is_running
-                        else:
-                            actor_is_running = actor_is_running | 1
+                    print('learner trajectories size:', len(self.trajectories)) if debug else None
 
-                    if actor_is_running:
-                        print('learner trajectories size:', len(self.trajectories)) if debug else None
+                    if len(self.trajectories) >= self.buffer_size * self.count_of_batches * AHP.batch_size:
+                        print("learner begin to update parameters") if debug else None
+                        self.update_parameters()
+                        print("learner end updating parameters") if debug else None
 
-                        if len(self.trajectories) >= self.buffer_size * self.count_of_batches * AHP.batch_size:
-                            print("learner begin to update parameters") if debug else None
-                            self.update_parameters()
-                            print("learner end updating parameters") if debug else None
-
-                        sleep(0.05)
-                    else:
-                        print("Actor stops!") if debug else None
-
-                        print("Learner also stops!") if debug else None
-                        return
+                    sleep(0.05)
 
                 except Exception as e:
                     print("Learner.run() Exception cause break, Detials of the Exception:", e) if debug else None
