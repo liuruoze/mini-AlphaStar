@@ -22,6 +22,8 @@ from alphastarmini.core.rl import rl_algo as RA
 from alphastarmini.core.rl import rl_utils as RU
 from alphastarmini.core.rl import pseudo_reward as PR
 
+from alphastarmini.lib import utils as L
+
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Label_Size as LS
@@ -42,8 +44,6 @@ ACTION_FIELDS = [
     'target_location',
 ]
 FIELDS_WEIGHT = [1, 0, 1, 1, 1, 1]
-
-SELECTED_UNITS_PLUS_ONE = False
 
 
 def filter_by_for_lists(action_fields, target_list, device):
@@ -101,7 +101,9 @@ def get_kl_or_entropy(target_logits, field, func, mask, selected_mask, entity_ma
         all_logits.append(t_logits)
 
     if field == "units":
-        all_logits = [logit.view(AHP.sequence_length * AHP.batch_size, AHP.max_selected, AHP.max_entities) for logit in all_logits]
+        #all_logits = [change_units_logits(logit, select_units_num, entity_nums) for logit in all_logits]
+        max_selected = AHP.max_selected + 1
+        all_logits = [logit.view(AHP.sequence_length * AHP.batch_size, max_selected, AHP.max_entities) for logit in all_logits]
     elif field == "target_unit":
         all_logits = [logit.view(AHP.sequence_length * AHP.batch_size * 1, AHP.max_entities) for logit in all_logits]     
     elif field == "target_location":
@@ -223,15 +225,17 @@ def transpose_sth(x):
 
 
 def get_useful_masks(select_units_num, entity_num, device):
-    selected_mask = torch.arange(AHP.max_selected, device=device).float()
+    max_selected = AHP.max_selected + 1
+    extend_select_units_num = select_units_num + 1
+    selected_mask = torch.arange(max_selected, device=device).float()
     selected_mask = selected_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
-    selected_mask = selected_mask < (select_units_num + 1).reshape(-1).unsqueeze(dim=-1)
+    selected_mask = selected_mask < extend_select_units_num.reshape(-1).unsqueeze(dim=-1)
 
     entity_mask = torch.arange(AHP.max_entities, device=device).float()
     entity_mask = entity_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
     entity_mask = entity_mask < entity_num.reshape(-1).unsqueeze(dim=-1)
 
-    selected_mask = selected_mask.reshape(AHP.sequence_length, AHP.batch_size, AHP.max_selected)
+    selected_mask = selected_mask.reshape(AHP.sequence_length, AHP.batch_size, max_selected)
     entity_mask = entity_mask.reshape(AHP.sequence_length, AHP.batch_size, AHP.max_entities)
 
     del select_units_num, entity_num
@@ -253,7 +257,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
     [selected_mask, entity_mask] = [a[:-1] for a in [selected_mask, entity_mask]]
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
-    fields_weight = [1, 0, 1, 1, 1, 1]
+    fields_weight = [1, 0, 0, 0, 0, 0]
 
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
@@ -285,7 +289,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     [rewards, selected_mask, entity_mask] = [a[:-1] for a in [rewards, selected_mask, entity_mask]]
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
-    fields_weight = [1, 0, 1, 0, 1, 1]
+    fields_weight = [1, 0, 0, 0, 0, 0]
 
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
@@ -305,6 +309,30 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     return loss
 
 
+def change_units_and_logits(behavior_logits, gt_units, select_units_num, entity_nums):
+    [batch_size, select_size, units_size] = behavior_logits.shape
+    padding = torch.zeros(batch_size, 1, units_size, dtype=behavior_logits.dtype, device=behavior_logits.device)
+    token = torch.tensor(AHP.max_entities - 1, dtype=torch.long, device=padding.device)
+
+    padding[:, 0] = L.tensor_one_hot(token, units_size).reshape(-1).float()
+    behavior_logits = torch.cat([behavior_logits, padding], dim=1)
+    select_units_num = select_units_num.reshape(-1).long()
+    entity_nums = entity_nums.reshape(-1).long()
+
+    behavior_logits[torch.arange(batch_size), select_units_num] = L.tensor_one_hot(entity_nums, units_size).float()
+    gt_units = gt_units.long()
+
+    padding = torch.zeros(batch_size, 1, 1, dtype=gt_units.dtype, device=gt_units.device)
+    token = torch.tensor(AHP.max_entities - 1, dtype=padding.dtype, device=padding.device)
+    padding[:, 0] = token
+
+    gt_units = torch.cat([gt_units, padding], dim=1)
+    gt_units[torch.arange(batch_size), select_units_num] = entity_nums.unsqueeze(dim=1)
+    gt_units = gt_units.long()
+
+    return behavior_logits, gt_units
+
+
 def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
     target_logits = getattr(target_logits_all, field)[:-1]
     device = target_logits.device
@@ -318,10 +346,15 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
     behavior_logits = filter_by_for_lists(field, trajectories.behavior_logits, device)
     actions = filter_by_for_lists(field, trajectories.action, device)
     masks = filter_by_for_masks(field, trajectories.masks, device)
+    max_selected = AHP.max_selected + 1
 
     all_logits = [target_logits, behavior_logits]
     if field == "units":
-        all_logits = [logit.reshape(sequence_length * batch_size, AHP.max_selected, AHP.max_entities) for logit in all_logits]
+        select_units_num = torch.tensor(trajectories.player_select_units_num, dtype=torch.float32, device=device)
+        entity_num = torch.tensor(trajectories.entity_num, dtype=torch.float32, device=device)
+        modified_behavior_logits, actions = change_units_and_logits(behavior_logits, actions, select_units_num, entity_num)
+        all_logits = [target_logits, modified_behavior_logits]
+        all_logits = [logit.reshape(sequence_length * batch_size, max_selected, AHP.max_entities) for logit in all_logits]
         mask_used = [selected_mask, entity_mask, unit_type_entity_mask]
     elif field == "target_unit":
         all_logits = [logit.reshape(sequence_length * batch_size, 1, AHP.max_entities) for logit in all_logits]
@@ -337,8 +370,8 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
 
     [target_logits, behavior_logits] = all_logits
 
-    target_log_prob = RA.log_prob(target_logits, actions, mask_used)
-    behavior_log_prob = RA.log_prob(behavior_logits, actions, mask_used)
+    target_log_prob = RA.log_prob(target_logits, actions, mask_used, max_selected)
+    behavior_log_prob = RA.log_prob(behavior_logits, actions, mask_used, max_selected)
     with torch.no_grad():
         clipped_rhos = RA.compute_cliped_importance_weights(target_log_prob, behavior_log_prob)
 

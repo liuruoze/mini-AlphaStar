@@ -46,9 +46,9 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 4
-    ACTOR_NUMS = 2
-    GAME_STEPS_PER_EPISODE = 300  
+    MAX_EPISODES = 2
+    ACTOR_NUMS = 1
+    GAME_STEPS_PER_EPISODE = 500  
 else:
     MAX_EPISODES = 6
     ACTOR_NUMS = 4
@@ -334,8 +334,13 @@ class ActorVSComputer:
 
                                     if outcome == 1:
                                         pass
-                                    elif outcome == 0 and killed_points > WIN_THRESHOLD:
-                                        outcome = 1
+                                    elif outcome == 0:
+                                        if killed_points > WIN_THRESHOLD:
+                                            outcome = 1
+                                        # elif killed_points > 1000 and killed_points < WIN_THRESHOLD:
+                                        #     outcome = 0
+                                        # else:
+                                        #     outcome = -1
                                     else:
                                         outcome = -1
 
@@ -398,7 +403,7 @@ class ActorVSComputer:
                                 del player_select_units_num, entity_num
 
                                 if self.is_training:
-                                    print('is_final_trajectory', is_final_trajectory)
+                                    print('is_final_trajectory', is_final_trajectory) if debug else None
                                     trajectory.append(traj_step)
 
                                 #player_memory = tuple(h.detach().clone() for h in player_new_memory)

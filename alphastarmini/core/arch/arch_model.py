@@ -294,7 +294,22 @@ class ArchModel(nn.Module):
             gt_action_type = gt_action.action_type
             gt_delay = gt_action.delay
             gt_queue = gt_action.queue
+
             gt_units = gt_action.units
+            padding = torch.zeros(batch_size, 1, 1, dtype=gt_units.dtype, device=gt_units.device)
+            token = torch.tensor(AHP.max_entities - 1, dtype=padding.dtype, device=padding.device)
+            padding[:, 0] = token
+
+            gt_units = torch.cat([gt_units, padding], dim=1)
+
+            print('gt_select_units_num', gt_select_units_num) if debug else None
+            print('gt_units', gt_units) if debug else None
+            print('gt_units.shape', gt_units.shape) if debug else None
+
+            gt_units[torch.arange(batch_size), gt_select_units_num] = entity_nums.unsqueeze(dim=1)
+            print('gt_units', gt_units) if debug else None
+            print('gt_units.shape', gt_units.shape) if debug else None            
+
             gt_target_unit = gt_action.target_unit
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions, gt_action_type)

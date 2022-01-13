@@ -170,7 +170,8 @@ class Learner:
         batch_size = AHP.batch_size
 
         # test mixed trajectories
-        trajectories = self.get_mixed_trajectories()
+        #trajectories = self.get_mixed_trajectories()
+        trajectories = self.get_normal_trajectories()
         print('len(trajectories)', len(trajectories)) if 1 else None
 
         agent.agent_nn.model.train()  # for BN and dropout

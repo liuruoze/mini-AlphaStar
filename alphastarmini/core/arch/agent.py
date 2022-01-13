@@ -237,7 +237,8 @@ class Agent(object):
                                                                                                            multi_gpu_supvised_learning=False)
 
         # the mimic_forward will added one entity into the max selected size, so we shoulde substract one
-        units_logits = units_logits[:, :-1, :]
+        # units_logits = units_logits[:, :-1, :]
+
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)
@@ -266,7 +267,8 @@ class Agent(object):
                                                                                                            baseline_opponent_state=baseline_opponent_state)
 
         # the mimic_forward will added one entity into the max selected size, so we shoulde substract one
-        units_logits = units_logits[:, :-1, :]
+        # units_logits = units_logits[:, :-1, :]
+
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)

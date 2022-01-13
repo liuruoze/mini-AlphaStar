@@ -376,7 +376,7 @@ def remove_outlier(x, remove=False):
     return x
 
 
-def log_prob(logits, actions, mask_used, outlier_remove=True):
+def log_prob(logits, actions, mask_used, max_selected, outlier_remove=True):
     """Returns the log probability of taking an action given the logits."""
     [selected_mask, entity_mask, unit_type_entity_mask] = mask_used
 
@@ -420,7 +420,7 @@ def log_prob(logits, actions, mask_used, outlier_remove=True):
     if selected_mask is not None:
         selected_mask = selected_mask.view(-1, selected_mask.shape[-1])
         if len(loss_result.shape) == 1:
-            loss_result = loss_result.view(-1, AHP.max_selected)
+            loss_result = loss_result.view(-1, max_selected)
 
         loss_result = loss_result * selected_mask
         loss_result = torch.sum(loss_result, dim=-1)
