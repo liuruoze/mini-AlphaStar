@@ -8,7 +8,7 @@ import gc
 import os
 import random
 import traceback
-import threading
+from multiprocessing import Process, Manager, Lock
 import datetime
 
 import numpy as np
@@ -22,7 +22,7 @@ from pysc2.lib import actions as sc2_actions
 from pysc2.lib import units as sc2_units
 
 from alphastarmini.core.rl.rl_utils import Trajectory, get_supervised_agent
-from alphastarmini.core.rl.learner import Learner
+from alphastarmini.core.rl.learner_process import LearnerProcess
 from alphastarmini.core.rl import rl_utils as RU
 
 from alphastarmini.lib import utils as L
@@ -77,7 +77,7 @@ RANDOM_SEED = 1
 # model path
 MODEL_TYPE = "rl"
 MODEL_PATH = "./model/"
-OUTPUT_FILE = './outputs/rl_vs_computer_wo_replay.txt'
+OUTPUT_FILE = './outputs/rl_vs_inner_bot.txt'
 
 VERSION = SCHP.game_version
 MAP_NAME = SCHP.map_name
@@ -105,24 +105,32 @@ if torch.backends.cudnn.is_available():
 # TODO: fix the bug ValueError: The game didn't advance to the expected game loop. Expected: 2512, got: 2507
 
 
-class ActorVSComputer:
+class ActorVSComputerProcess:
     """A single actor loop that generates trajectories by playing with built-in AI (computer).
 
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, device, coordinator, teacher, idx, buffer_lock=None, results_lock=None, writer=None, max_time_for_training=60 * 60 * 24,
+    def __init__(self, idx, 
+                 trajectories=None, final_trajectories=None,
+                 win_trajectories=None,
+                 max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/",
                  update_params_interval=UPDATE_PARAMS_INTERVAL):
-        self.player = player
-        self.player.add_actor(self)
+
         self.idx = idx
+
+        teacher = get_supervised_agent(Race.protoss, model_type="sl", restore=True)
+        device_teacher = torch.device("cuda:1" if True else "cpu")
+        if ON_GPU:
+            teacher.agent_nn.to(device_teacher)
         self.teacher = teacher
-        self.coordinator = coordinator
-        self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)
+
+        self.agent = get_supervised_agent(Race.protoss, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)
+        device = torch.device("cuda:" + str(1) if True else "cpu")
         if ON_GPU:
             self.agent.agent_nn.to(device)
 
@@ -133,22 +141,22 @@ class ActorVSComputer:
         self.max_episodes = max_episodes
         self.is_training = is_training
 
-        self.thread = threading.Thread(target=self.run, args=())
+        self.process = Process(target=self.run, args=())
 
-        self.thread.daemon = True                            # Daemonize thread
-        self.buffer_lock = buffer_lock
-        self.results_lock = results_lock
-
+        self.process.daemon = True                            
         self.is_running = True
         self.is_start = False
 
         self.replay_dir = replay_dir
-        self.writer = writer
         self.update_params_interval = update_params_interval
+
+        self.trajectories = trajectories
+        self.final_trajectories = final_trajectories
+        self.win_trajectories = win_trajectories
 
     def start(self):
         self.is_start = True
-        self.thread.start()
+        self.process.start()
 
     # background
     def run(self):
@@ -177,7 +185,7 @@ class ActorVSComputer:
                 while time() - training_start_time < self.max_time_for_training:
                     agents = [self.agent]
 
-                    with self.create_env_one_player(self.player) as env:
+                    with self.create_env_one_player() as env:
 
                         # set the obs and action spec
                         observation_spec = env.observation_spec()
@@ -188,7 +196,6 @@ class ActorVSComputer:
 
                         self.teacher.setup(self.agent.obs_spec, self.agent.action_spec)
 
-                        print('player:', self.player) if debug else None
                         print('opponent:', "Computer bot") if debug else None
 
                         trajectory = []
@@ -243,7 +250,7 @@ class ActorVSComputer:
                                 # every 10s, the actor get the params from the learner
                                 if time() - update_params_timer > self.update_params_interval:
                                     print("agent_{:d} update params".format(self.idx)) if debug else None
-                                    self.agent.set_weights(self.player.agent.get_weights())
+                                    # self.agent.set_weights(self.player.agent.get_weights())
                                     update_params_timer = time()
 
                                 state = self.agent.agent_nn.preprocess_state_all(home_obs.observation, 
@@ -359,12 +366,12 @@ class ActorVSComputer:
                                     print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
                                     final_points = killed_points * REWARD_SCALE
-                                    self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
-                                    self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
+                                    #self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
+                                    #self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
 
                                     final_outcome = outcome
-                                    self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
-                                    self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
+                                    #self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
+                                    #self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
 
                                     is_final_trajectory = True
                                     if outcome == 1:
@@ -419,23 +426,15 @@ class ActorVSComputer:
                                 if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                     trajectories = RU.stack_namedtuple(trajectory)
 
-                                    if self.player.learner is not None:
-                                        if self.player.learner.is_running:
-                                            print("Learner send_trajectory!") if debug else None
-                                            # with self.buffer_lock:
-                                            self.player.learner.send_trajectory(trajectories)
+                                    print("Learner send_trajectory!") if debug else None
+                                    # with self.buffer_lock:
+                                    self.trajectories.append(trajectory)
 
-                                            if is_final_trajectory:
-                                                self.player.learner.send_final_trajectory(trajectories)
+                                    if is_final_trajectory:
+                                        self.final_trajectories.append(trajectory)
 
-                                            if is_win_trajectory:
-                                                self.player.learner.send_win_trajectory(trajectories)
-
-                                        else:
-                                            print("Learner stops!")
-
-                                            print("Actor also stops!")
-                                            return
+                                    if is_win_trajectory:
+                                        self.win_trajectories.append(trajectory)    
 
                                     trajectory = []
                                     del trajectories
@@ -454,9 +453,6 @@ class ActorVSComputer:
                                     print("Beyond the max_frames_per_episode, break!")
                                     break
 
-                            with self.results_lock:
-                                self.coordinator.only_send_outcome(self.player, outcome)
-
                             # use max_frames_per_episode to end the episode
                             if self.max_episodes and total_episodes >= self.max_episodes:
                                 print("Beyond the max_episodes, return!")
@@ -474,31 +470,22 @@ class ActorVSComputer:
             total_time = time() - training_start_time
             #print('agent_', self.idx, "total_time: ", total_time / 60.0, "min") if debug else None
 
-            if SAVE_STATISTIC: 
-                self.coordinator.send_eval_results(self.player, DIFFICULTY, food_used_list, army_count_list, collected_points_list, 
-                                                   used_points_list, killed_points_list, steps_list, total_time)
-
             self.is_running = False
 
     # create env function
-    def create_env_one_player(self, player, game_steps_per_episode=GAME_STEPS_PER_EPISODE, 
+    def create_env_one_player(self, player=None, game_steps_per_episode=GAME_STEPS_PER_EPISODE, 
                               step_mul=STEP_MUL, version=VERSION, 
                               map_name=MAP_NAME, random_seed=RANDOM_SEED):
 
         player_aif = AgentInterfaceFormat(**AAIFP._asdict())
         agent_interface_format = [player_aif]
 
-        # create env
-        print('map name:', map_name) 
-        print('player.name:', player.name)
-        print('player.race:', player.race)
-
         sc2_computer = Bot([Race.terran],
                            Difficulty(DIFFICULTY),
                            [BotBuild.random])
 
         env = SC2Env(map_name=map_name,
-                     players=[Agent(player.race, player.name),
+                     players=[Agent(Race.protoss, "test1"),
                               sc2_computer],
                      step_mul=step_mul,
                      game_steps_per_episode=game_steps_per_episode,
@@ -541,68 +528,49 @@ def get_points(obs):
 
 
 def test(on_server=False, replay_path=None):
-    league = League(
-        initial_agents={
-            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)
-            for race in [Race.protoss]
-        },
-        main_players=1, 
-        main_exploiters=0,
-        league_exploiters=0)
-
-    now = datetime.datetime.now()
-    summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
-    writer = SummaryWriter(summary_path)
-
-    results_lock = threading.Lock()
-    coordinator = Coordinator(league, output_file=OUTPUT_FILE, results_lock=results_lock, writer=writer)
-    coordinator.set_uninitialed_results(actor_nums=ACTOR_NUMS, episode_nums=MAX_EPISODES)
-
     learners = []
     actors = []
 
-    for idx in range(league.get_learning_players_num()):
-        player = league.get_learning_player(idx)
-        player.agent.set_rl_training(IS_TRAINING)
-        device_learner = torch.device("cuda:0" if True else "cpu")
-        if ON_GPU:
-            player.agent.agent_nn.to(device_learner)
+    with Manager() as manager:
 
-        teacher = get_supervised_agent(player.race, model_type="sl", restore=True)
-        device_teacher = torch.device("cuda:1" if True else "cpu")
-        if ON_GPU:
-            teacher.agent_nn.to(device_teacher)
+        trajectories = manager.list()
+        final_trajectories = manager.list()
+        win_trajectories = manager.list()
 
-        buffer_lock = threading.Lock()
-        learner = Learner(player, max_time_for_training=60 * 60 * 24 * 7, lr=LR, is_training=IS_TRAINING, 
-                          buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
-                          no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
-                          count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
-                          use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE)
-        learners.append(learner)
+        for idx in range(1):
 
-        #actors.extend([ActorVSComputer(player, coordinator, teacher, z + 1, buffer_lock, results_lock, writer) for z in range(ACTOR_NUMS)])
-        for z in range(ACTOR_NUMS):
-            device = torch.device("cuda:" + str(1) if True else "cpu")
-            actor = ActorVSComputer(player, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
-            actors.append(actor)
+            buffer_lock = Lock()
+            learner = LearnerProcess(max_time_for_training=60 * 60 * 24 * 7, lr=LR, is_training=IS_TRAINING, 
+                                     use_opponent_state=USE_OPPONENT_STATE,
+                                     no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
+                                     count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
+                                     use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE,
+                                     trajectories=trajectories, final_trajectories=final_trajectories,
+                                     win_trajectories=win_trajectories)
+            learners.append(learner)
 
-    threads = []
-    for l in learners:
-        l.start()
-        threads.append(l.thread)
-        sleep(1)
-    for a in actors:
-        a.start()
-        threads.append(a.thread)
-        sleep(1)
+            for z in range(ACTOR_NUMS):
+                actor = ActorVSComputerProcess(z + 1, 
+                                               trajectories, final_trajectories,
+                                               win_trajectories)
+                actors.append(actor)
 
-    try: 
-        # Wait for training to finish.
-        for t in threads:
-            t.join()
+        processes = []
+        for l in learners:
+            l.start()
+            processes.append(l.process)
+            sleep(1)
+        for a in actors:
+            a.start()
+            processes.append(a.process)
+            sleep(1)
 
-        coordinator.write_eval_results()
+        try: 
+            # Wait for training to finish.
+            for t in processes:
+                t.join()
 
-    except Exception as e: 
-        print("Exception Handled in Main, Detials of the Exception:", e)
+            coordinator.write_eval_results()
+
+        except Exception as e: 
+            print("Exception Handled in Main, Detials of the Exception:", e)
