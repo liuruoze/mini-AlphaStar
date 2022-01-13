@@ -237,12 +237,12 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
             delay_logits, queue_logits, \
             units_logits, target_unit_logits, \
             target_location_logits, select_units_num, \
-            hidden_state, unit_types_one = model.sl_forward(state, 
-                                                            action_gt, 
-                                                            gt_select_units_num,
-                                                            batch_size=batch_size, 
-                                                            sequence_length=seq_len, 
-                                                            multi_gpu_supvised_learning=True)
+            hidden_state, unit_types_one = model.mimic_forward(state, 
+                                                               action_gt, 
+                                                               gt_select_units_num,
+                                                               batch_size=batch_size, 
+                                                               sequence_length=seq_len, 
+                                                               multi_gpu_supvised_learning=True)
 
         if use_masked_loss:
             # masked loss

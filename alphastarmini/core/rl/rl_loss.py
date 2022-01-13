@@ -253,7 +253,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
     [selected_mask, entity_mask] = [a[:-1] for a in [selected_mask, entity_mask]]
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
-    fields_weight = [1, 0, 1, 0, 1, 1]
+    fields_weight = [1, 0, 1, 1, 1, 1]
 
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):

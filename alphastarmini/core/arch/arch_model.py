@@ -231,9 +231,9 @@ class ArchModel(nn.Module):
 
         return action, hidden_state, select_units_num, entity_nums
 
-    def sl_forward(self, state, gt_action, gt_select_units_num, 
-                   gt_is_one_hot=True, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None,
-                   baseline_state=None, baseline_opponent_state=None):
+    def mimic_forward(self, state, gt_action, gt_select_units_num, 
+                      gt_is_one_hot=True, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None,
+                      baseline_state=None, baseline_opponent_state=None):
         '''
         # inspired by the DI-star project
         # injected the args of ground truth into the forward calculation
@@ -302,12 +302,12 @@ class ArchModel(nn.Module):
         queue_logits, _, autoregressive_embedding = self.queue_head(autoregressive_embedding, gt_action_type, embedded_entity, gt_queue)
 
         # selected_units_head is special, we use forward_sl function
-        units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head.sl_forward(autoregressive_embedding, 
-                                                                                                              gt_action_type, 
-                                                                                                              entity_embeddings, 
-                                                                                                              entity_nums,
-                                                                                                              gt_units,
-                                                                                                              gt_select_units_num)
+        units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head.mimic_forward(autoregressive_embedding, 
+                                                                                                                 gt_action_type, 
+                                                                                                                 entity_embeddings, 
+                                                                                                                 entity_nums,
+                                                                                                                 gt_units,
+                                                                                                                 gt_select_units_num)
 
         target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, 
                                                                 gt_action_type, entity_embeddings, entity_nums, gt_target_unit)

@@ -316,7 +316,7 @@ class SelectedUnitsHead(nn.Module):
 
         return units_logits, units, autoregressive_embedding, select_units_num
 
-    def sl_forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num, units, select_units_num):
+    def mimic_forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num, units, select_units_num):
         '''
         Inputs:
             autoregressive_embedding: [batch_size x autoregressive_embedding_size]
