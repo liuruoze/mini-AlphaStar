@@ -50,11 +50,13 @@ SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     MAX_EPISODES = 1
     ACTOR_NUMS = 2
+    PARALLEL = 2
     GAME_STEPS_PER_EPISODE = 300  
 else:
-    MAX_EPISODES = 1
-    ACTOR_NUMS = 1
-    GAME_STEPS_PER_EPISODE = 180
+    MAX_EPISODES = 6
+    ACTOR_NUMS = 2
+    PARALLEL = 2
+    GAME_STEPS_PER_EPISODE = 18000
 
 DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
@@ -113,16 +115,19 @@ class ActorVSComputer:
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, device, coordinator, teacher, idx, buffer_lock=None, results_lock=None, writer=None, max_time_for_training=60 * 60 * 24,
+    def __init__(self, player, queue, device, coordinator, teacher, idx, buffer_lock=None, results_lock=None, 
+                 writer=None, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/",
-                 update_params_interval=UPDATE_PARAMS_INTERVAL):
+                 update_params_interval=UPDATE_PARAMS_INTERVAL,
+                 need_save_result=False):
         self.player = player
         self.player.add_actor(self)
         self.idx = idx
         self.teacher = teacher
+        self.queue = queue
         self.coordinator = coordinator
         self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
         # if ON_GPU:
@@ -147,6 +152,7 @@ class ActorVSComputer:
         self.replay_dir = replay_dir
         self.writer = writer
         self.update_params_interval = update_params_interval
+        self.need_save_result = need_save_result
 
     def start(self):
         self.is_start = True
@@ -339,10 +345,10 @@ class ActorVSComputer:
                                     elif outcome == 0:
                                         if killed_points > WIN_THRESHOLD:
                                             outcome = 1
-                                        # elif killed_points > 1000 and killed_points < WIN_THRESHOLD:
-                                        #     outcome = 0
-                                        # else:
-                                        #     outcome = -1
+                                        elif killed_points > 1000 and killed_points < WIN_THRESHOLD:
+                                            outcome = 0
+                                        else:
+                                            outcome = -1
                                     else:
                                         outcome = -1
 
@@ -361,12 +367,16 @@ class ActorVSComputer:
                                     print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
                                     final_points = killed_points * REWARD_SCALE
-                                    self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
-                                    self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
+                                    if self.need_save_result:
+                                        self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
+                                        self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
 
                                     final_outcome = outcome
-                                    self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
-                                    self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
+                                    if self.need_save_result:
+                                        self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
+                                        self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
+
+                                    self.queue.put(outcome)
 
                                     is_final_trajectory = True
                                     if outcome == 1:
@@ -542,10 +552,16 @@ def get_points(obs):
     return points
 
 
-def worker(rank, model_1, device_1, model_2, device_2):
+def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_learner, model_teacher, device_teacher):
+    with synchronizer:
+        print('module name:', "worker")
+        print('parent process:', os.getppid())
+        print('process id:', os.getpid())
+
     league = League(
         initial_agents={
-            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=False, device=device_1)
+            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, 
+                                       restore=False, device=device_learner)
             for race in [Race.protoss]
         },
         main_players=1, 
@@ -565,7 +581,7 @@ def worker(rank, model_1, device_1, model_2, device_2):
 
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
-        player.agent.agent_nn.model = model_1
+        player.agent.agent_nn.model = model_learner
         player.agent.set_rl_training(IS_TRAINING)
 
         buffer_lock = threading.Lock()
@@ -576,12 +592,12 @@ def worker(rank, model_1, device_1, model_2, device_2):
                           use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE)
         learners.append(learner)
 
-        teacher = get_supervised_agent(player.race, model_type="sl", restore=False, device=device_2)
-        teacher.agent_nn.model = model_2
+        teacher = get_supervised_agent(player.race, model_type="sl", restore=False, device=device_teacher)
+        teacher.agent_nn.model = model_teacher
 
         for z in range(ACTOR_NUMS):
-            device = torch.device("cuda:" + str(6) if False else "cpu")
-            actor = ActorVSComputer(player, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
+            device = torch.device("cuda:" + str(1) if use_cuda_device else "cpu")
+            actor = ActorVSComputer(player, queue, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
             actors.append(actor)
 
     threads = []
@@ -605,43 +621,104 @@ def worker(rank, model_1, device_1, model_2, device_2):
         print("Exception Handled in Main, Detials of the Exception:", e)
 
 
-def test(on_server=False, replay_path=None):
+def Parameter_Server(synchronizer, queue, model, log_path, model_path):
+    with synchronizer:
+        print('module name:', "Parameter_Server")
+        print('parent process:', os.getppid())
+        print('process id:', os.getpid())
 
-    device_learner = torch.device("cuda:7" if False else "cpu")
+    writer = SummaryWriter(log_path)
+
+    update_counter = 0
+    max_win_rate = 0.
+    latest_win_rate = 0.
+
+    TRAIN_ITERS = 120
+
+    result_list = []
+    win_num = 0
+
+    try: 
+        while update_counter < TRAIN_ITERS:
+
+            sleep(5)
+            result = queue.get(timeout=120)
+
+            result_list.append(result)
+            if result == 1:
+                win_num += 1
+
+            print("Parameter_Server result_list", result_list) if 1 else None
+
+            torch.save(model.state_dict(), model_path + ".pth")
+            update_counter += 1
+
+    except Exception as e: 
+        print("Exception Handled in Main, Detials of the Exception:", e)
+
+    finally:
+        max_win_rate = win_num / (len(result_list) + 1e-9)
+        latest_win_rate = win_num / (len(result_list) + 1e-9)
+
+        print("max_win_rate", max_win_rate) if 1 else None
+        print("latest_win_rate", latest_win_rate) if 1 else None
+
+
+def test(on_server=False, replay_path=None):
+    if SIMPLE_TEST:
+        use_cuda_device = False
+    else:
+        use_cuda_device = True
+
+    mp.set_start_method('spawn')
+
+    model_save_type = "rl"
+    model_save_path = os.path.join("./model/", model_save_type + "_" + strftime("%y-%m-%d_%H-%M-%S", localtime()))
+
+    now = datetime.datetime.now()
+    log_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+
+    device_learner = torch.device("cuda:0" if use_cuda_device else "cpu")
     league = League(
         initial_agents={
-            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device_learner)
+            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, 
+                                       restore=RESTORE, device=device_learner)
             for race in [Race.protoss]
         },
         main_players=1, 
         main_exploiters=0,
         league_exploiters=0)
 
-    # NOTE: this is required for the ``fork`` method to work
-    # model.share_memory()
-    mp.set_start_method('spawn')
-
     player = league.get_learning_player(0)
     player.agent.set_rl_training(IS_TRAINING)
     if ON_GPU:
         player.agent.agent_nn.to(device_learner)
 
-    player.agent.agent_nn.model.share_memory()
+    model_learner = player.agent.agent_nn.model
+    model_learner.share_memory()
 
-    device_teacher = torch.device("cuda:1" if False else "cpu")
-    teacher = get_supervised_agent(player.race, model_type="sl", restore=True, device=device_teacher)
+    device_teacher = torch.device("cuda:1" if use_cuda_device else "cpu")
+    teacher = get_supervised_agent(player.race, model_type="sl", 
+                                   restore=True, device=device_teacher)
     if ON_GPU:
         teacher.agent_nn.to(device_teacher)
 
-    teacher.agent_nn.model.share_memory()
+    model_teacher = teacher.agent_nn.model
+    model_teacher.share_memory()
 
-    num_processes = 2
+    #synchronizer = mp.Barrier(PARALLEL + 1)
+    synchronizer = mp.Lock()
     processes = []
+    q = mp.Queue(maxsize=256 * 24)
 
-    for rank in range(num_processes):
-        p = mp.Process(target=worker, args=(rank, player.agent.agent_nn.model, device_learner, teacher.agent_nn.model, device_teacher))
+    for rank in range(PARALLEL):
+        p = mp.Process(target=Worker, args=(synchronizer, rank, q, use_cuda_device, model_learner, device_learner, model_teacher, device_teacher))
         p.start()
         processes.append(p)
+
+    ps = mp.Process(target=Parameter_Server, args=(synchronizer, q, model_learner, log_path, model_save_path))
+    ps.start()
+    processes.append(ps)
 
     for p in processes:
         p.join()

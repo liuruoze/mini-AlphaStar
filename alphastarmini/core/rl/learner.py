@@ -47,7 +47,8 @@ class Learner:
                  use_opponent_state=True, no_replay_learn=False, 
                  num_epochs=THP.num_epochs, count_of_batches=1,
                  buffer_size=10, use_random_sample=False,
-                 only_update_baseline=False):
+                 only_update_baseline=False,
+                 need_save_result=False):
         self.player = player
         self.player.set_learner(self)
         self.trajectories = []
@@ -78,6 +79,8 @@ class Learner:
         self.buffer_size = buffer_size
         self.use_random_sample = use_random_sample
         self.only_update_baseline = only_update_baseline
+
+        self.need_save_result = need_save_result
 
     def get_parameters(self):
         return self.player.agent.get_parameters()
@@ -169,9 +172,10 @@ class Learner:
         agent = self.player.agent
         batch_size = AHP.batch_size
 
-        # test mixed trajectories
-        trajectories = self.get_mixed_trajectories()
-        #trajectories = self.get_normal_trajectories()
+        # test mixed trajectories, it does not well
+        # trajectories = self.get_mixed_trajectories()
+
+        trajectories = self.get_normal_trajectories()
         print('len(trajectories)', len(trajectories)) if 1 else None
 
         agent.agent_nn.model.train()  # for BN and dropout
@@ -189,21 +193,25 @@ class Learner:
                 print("loss.device:", loss.device) if debug else None
                 print("loss:", loss.item()) if 1 else None
 
-                for i, k in loss_dict.items():
-                    print(i, k) if 1 else None
-                    self.writer.add_scalar('learner/' + i, k, agent.steps)
+                if self.need_save_result:
+                    for i, k in loss_dict.items():
+                        print(i, k) if 1 else None
+                        self.writer.add_scalar('learner/' + i, k, agent.steps)
 
                 self.optimizer.zero_grad()
                 loss.backward() 
                 self.optimizer.step()
 
-                self.writer.add_scalar('learner/loss', loss.item(), agent.steps)
-                agent.steps += AHP.batch_size * AHP.sequence_length
+                if self.need_save_result:
+                    self.writer.add_scalar('learner/loss', loss.item(), agent.steps)
+                    agent.steps += AHP.batch_size * AHP.sequence_length
 
                 del loss, update_trajectories
 
         del trajectories
-        torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
+
+        if self.need_save_result:
+            torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
         agent.agent_nn.model.eval()
         print("end backward") if 1 else None

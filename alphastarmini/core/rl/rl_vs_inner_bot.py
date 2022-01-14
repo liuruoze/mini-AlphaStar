@@ -337,10 +337,10 @@ class ActorVSComputer:
                                     elif outcome == 0:
                                         if killed_points > WIN_THRESHOLD:
                                             outcome = 1
-                                        # elif killed_points > 1000 and killed_points < WIN_THRESHOLD:
-                                        #     outcome = 0
-                                        # else:
-                                        #     outcome = -1
+                                        elif killed_points > 1000 and killed_points < WIN_THRESHOLD:
+                                            outcome = 0
+                                        else:
+                                            outcome = -1
                                     else:
                                         outcome = -1
 
