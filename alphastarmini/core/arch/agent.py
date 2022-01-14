@@ -47,6 +47,11 @@ class Agent(object):
         if weights is not None:
             self.set_weights(weights)
 
+    # def __init__(self, model, idx):
+    #     self.model = model
+    #     self.hidden_state = None
+    #     self.idx = idx
+
     def init_hidden_state(self):
         if self.model is not None:
             return self.model.init_hidden_state()

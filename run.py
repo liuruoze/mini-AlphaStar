@@ -68,8 +68,8 @@ if __name__ == '__main__':
     # rl_vs_inner_bot.test(on_server=P.on_server, replay_path=P.replay_path)
 
     # 4. we use SL model to do reinforcement learning against computer
-    from alphastarmini.core.rl import rl_vs_inner_bot_process
-    rl_vs_inner_bot_process.test(on_server=P.on_server, replay_path=P.replay_path)
+    from alphastarmini.core.rl import rl_vs_inner_bot_mp
+    rl_vs_inner_bot_mp.test(on_server=P.on_server, replay_path=P.replay_path)
 
     # # 5. we use RL environment to evaluate SL model
     # from alphastarmini.core.rl import rl_eval_rl

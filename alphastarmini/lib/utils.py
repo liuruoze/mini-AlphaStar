@@ -242,7 +242,7 @@ def load_the_model(model_path):
     return model
 
 
-def initial_model_state_dict(model_type, path, model):
+def initial_model_state_dict(model_type, path, model, device):
     models = list(filter(lambda x: model_type in x, os.listdir(path)))
     if len(models) == 0:
         print("No models are found!")
@@ -251,10 +251,6 @@ def initial_model_state_dict(model_type, path, model):
     models.sort()    
     model_path = os.path.join(path, models[-1])
     print("load model from {}".format(model_path))
-
-    device = 'cpu'
-    if torch.cuda.is_available():
-        device = 'cuda:0'
 
     model.load_state_dict(torch.load(model_path, map_location=device), strict=False) 
 

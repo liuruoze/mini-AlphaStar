@@ -54,14 +54,14 @@ TRAJECTORY_FIELDS = [
 Trajectory = collections.namedtuple('Trajectory', TRAJECTORY_FIELDS)
 
 
-def get_supervised_agent(race, path="./model/", model_type="sl", restore=True):
+def get_supervised_agent(race, device, path="./model/", model_type="sl", restore=True):
     as_agent = AlphaStarAgent(name='supervised', race=race, initial_weights=None)
 
     if restore:
         # sl_model = load_latest_model(model_type=model_type, path=path)
         # if sl_model is not None:
         #     as_agent.agent_nn.model = sl_model
-        initial_model_state_dict(model_type=model_type, path=path, model=as_agent.agent_nn.model)
+        initial_model_state_dict(model_type=model_type, path=path, model=as_agent.agent_nn.model, device=device)
 
     return as_agent
 

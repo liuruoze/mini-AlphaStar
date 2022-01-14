@@ -60,12 +60,13 @@ class Coordinator:
 
     def update_winrate(self, update_id):
         scale = 2
-        episode_winrate = np.transpose(self.episode_outcome).reshape([int(self.episode_nums / scale), int(self.actor_nums * scale)])
-        single_episode_outcome = episode_winrate[update_id]
-        if not (single_episode_outcome == (-1e9)).any():
-            win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
-            self.writer.add_scalar('coordinator/winrate', win_rate, update_id + 1)
-        del episode_winrate
+        if self.episode_nums >= 2:
+            episode_winrate = np.transpose(self.episode_outcome).reshape([int(self.episode_nums / scale), int(self.actor_nums * scale)])
+            single_episode_outcome = episode_winrate[update_id]
+            if not (single_episode_outcome == (-1e9)).any():
+                win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
+                self.writer.add_scalar('coordinator/winrate', win_rate, update_id + 1)
+            del episode_winrate
 
     def send_outcome(self, home_player, away_player, outcome):
         self.league.update(home_player, away_player, outcome)
