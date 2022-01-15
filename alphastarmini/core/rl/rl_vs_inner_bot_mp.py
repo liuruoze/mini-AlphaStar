@@ -48,13 +48,13 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 1
+    MAX_EPISODES = 4
     ACTOR_NUMS = 2
     PARALLEL = 2
     GAME_STEPS_PER_EPISODE = 300  
 else:
-    MAX_EPISODES = 6
-    ACTOR_NUMS = 2
+    MAX_EPISODES = 20
+    ACTOR_NUMS = 4
     PARALLEL = 2
     GAME_STEPS_PER_EPISODE = 18000
 
@@ -65,6 +65,7 @@ LR = 1e-5  # 0  # 1e-5
 USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
 REWARD_SCALE = 1e-3
+WINRATE_SCALE = 2
 
 BUFFER_SIZE = 1  # 100
 COUNT_OF_BATCHES = 1  # 10
@@ -79,7 +80,7 @@ SAVE_STATISTIC = True
 RANDOM_SEED = 1
 
 # model path
-MODEL_TYPE = "sl"
+MODEL_TYPE = "rl"
 MODEL_PATH = "./model/"
 OUTPUT_FILE = './outputs/rl_vs_inner_bot.txt'
 
@@ -122,7 +123,7 @@ class ActorVSComputer:
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/",
                  update_params_interval=UPDATE_PARAMS_INTERVAL,
-                 need_save_result=False):
+                 need_save_result=True):
         self.player = player
         self.player.add_actor(self)
         self.idx = idx
@@ -369,12 +370,14 @@ class ActorVSComputer:
                                     final_points = killed_points * REWARD_SCALE
                                     if self.need_save_result:
                                         self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
-                                        self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
+                                        with self.results_lock:
+                                            self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
 
                                     final_outcome = outcome
                                     if self.need_save_result:
                                         self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
-                                        self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
+                                        with self.results_lock:
+                                            self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
 
                                     self.queue.put(outcome)
 
@@ -434,13 +437,13 @@ class ActorVSComputer:
                                     if self.player.learner is not None:
                                         if self.player.learner.is_running:
                                             print("Learner send_trajectory!") if debug else None
-                                            # with self.buffer_lock:
-                                            self.player.learner.send_trajectory(trajectories)
+                                            with self.buffer_lock:
+                                                self.player.learner.send_trajectory(trajectories)
 
-                                            if is_final_trajectory:
+                                            if 0 and is_final_trajectory:
                                                 self.player.learner.send_final_trajectory(trajectories)
 
-                                            if is_win_trajectory:
+                                            if 0 and is_win_trajectory:
                                                 self.player.learner.send_win_trajectory(trajectories)
 
                                         else:
@@ -475,7 +478,7 @@ class ActorVSComputer:
                                 raise Exception
 
         except Exception as e:
-            # print("ActorLoop.run() Exception cause return, Detials of the Exception:", e)
+            print("ActorLoop.run() Exception cause return, Detials of the Exception:", e)
             print(traceback.format_exc())
             pass
 
@@ -487,8 +490,10 @@ class ActorVSComputer:
             #print('agent_', self.idx, "total_time: ", total_time / 60.0, "min") if debug else None
 
             if SAVE_STATISTIC: 
-                self.coordinator.send_eval_results(self.player, DIFFICULTY, food_used_list, army_count_list, collected_points_list, 
-                                                   used_points_list, killed_points_list, steps_list, total_time)
+                with self.results_lock:
+                    self.coordinator.send_eval_results(self.player, DIFFICULTY, food_used_list, army_count_list, 
+                                                       collected_points_list, used_points_list, 
+                                                       killed_points_list, steps_list, total_time)
 
             self.is_running = False
 
@@ -573,52 +578,62 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
     writer = SummaryWriter(summary_path)
 
     results_lock = threading.Lock()
-    coordinator = Coordinator(league, output_file=OUTPUT_FILE, results_lock=results_lock, writer=writer)
+    coordinator = Coordinator(league, winrate_scale=WINRATE_SCALE, output_file=OUTPUT_FILE, results_lock=results_lock, writer=writer)
     coordinator.set_uninitialed_results(actor_nums=ACTOR_NUMS, episode_nums=MAX_EPISODES)
 
     learners = []
     actors = []
 
-    for idx in range(league.get_learning_players_num()):
-        player = league.get_learning_player(idx)
-        player.agent.agent_nn.model = model_learner
-        player.agent.set_rl_training(IS_TRAINING)
+    try:
 
-        buffer_lock = threading.Lock()
-        learner = Learner(player, max_time_for_training=60 * 60 * 24 * 7, lr=LR, is_training=IS_TRAINING, 
-                          buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
-                          no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
-                          count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
-                          use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE)
-        learners.append(learner)
+        for idx in range(league.get_learning_players_num()):
+            player = league.get_learning_player(idx)
+            player.agent.agent_nn.model = model_learner
+            if use_cuda_device:
+                player.agent.agent_nn.model.to("cuda:" + str(rank))
+            player.agent.set_rl_training(IS_TRAINING)
 
-        teacher = get_supervised_agent(player.race, model_type="sl", restore=False, device=device_teacher)
-        teacher.agent_nn.model = model_teacher
+            buffer_lock = threading.Lock()
+            learner = Learner(player, max_time_for_training=60 * 60 * 24 * 7, lr=LR, is_training=IS_TRAINING, 
+                              buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
+                              no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
+                              count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
+                              use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE)
+            learners.append(learner)
 
-        for z in range(ACTOR_NUMS):
-            device = torch.device("cuda:" + str(1) if use_cuda_device else "cpu")
-            actor = ActorVSComputer(player, queue, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
-            actors.append(actor)
+            teacher = get_supervised_agent(player.race, model_type="sl", restore=False, device=device_teacher)
+            teacher.agent_nn.model = model_teacher
+            if use_cuda_device:
+                teacher.agent_nn.model.to("cuda:" + str(rank))
 
-    threads = []
-    for l in learners:
-        l.start()
-        threads.append(l.thread)
-        sleep(1)
-    for a in actors:
-        a.start()
-        threads.append(a.thread)
-        sleep(1)
+            for z in range(ACTOR_NUMS):
+                device = torch.device("cuda:" + str(rank) if use_cuda_device else "cpu")
+                actor = ActorVSComputer(player, queue, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
+                actors.append(actor)
 
-    try: 
+        threads = []
+        for l in learners:
+            l.start()
+            threads.append(l.thread)
+            sleep(1)
+        for a in actors:
+            a.start()
+            threads.append(a.thread)
+            sleep(1)
+
         # Wait for training to finish.
         for t in threads:
             t.join()
 
         coordinator.write_eval_results()
 
-    except Exception as e: 
-        print("Exception Handled in Main, Detials of the Exception:", e)
+    except Exception as e:
+        print("Worker Exception cause return, Detials of the Exception:", e)
+        print(traceback.format_exc())
+        pass
+
+    finally:
+        pass
 
 
 def Parameter_Server(synchronizer, queue, model, log_path, model_path):
@@ -633,16 +648,27 @@ def Parameter_Server(synchronizer, queue, model, log_path, model_path):
     max_win_rate = 0.
     latest_win_rate = 0.
 
-    TRAIN_ITERS = 120
+    train_iters = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
     result_list = []
     win_num = 0
+    static_num = WINRATE_SCALE * ACTOR_NUMS * PARALLEL
+
+    assert train_iters % static_num == 0
+
+    episode_outcome = np.ones([int(train_iters / static_num), static_num], dtype=np.float) * (-1e9)
+
+    # https://stackoverflow.com/questions/312443/how-do-you-split-a-list-or-iterable-into-evenly-sized-chunks
+    def chunks(lst, n):
+        """Yield successive n-sized chunks from lst."""
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
 
     try: 
-        while update_counter < TRAIN_ITERS:
+        while update_counter < train_iters:
 
             sleep(5)
-            result = queue.get(timeout=120)
+            result = queue.get(timeout=60 * 30)
 
             result_list.append(result)
             if result == 1:
@@ -650,18 +676,50 @@ def Parameter_Server(synchronizer, queue, model, log_path, model_path):
 
             print("Parameter_Server result_list", result_list) if 1 else None
 
-            torch.save(model.state_dict(), model_path + ".pth")
+            row = int(update_counter / static_num)
+            col = int(update_counter % static_num)
+
+            episode_outcome[row, col] = result
+            print("episode_outcome", episode_outcome) if 1 else None
+
+            single_episode_outcome = episode_outcome[row]
+            if not (single_episode_outcome == (-1e9)).any():
+                win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
+                print("win_rate", win_rate) if 1 else None
+
+                writer.add_scalar('all_winrate', win_rate, update_counter + 1)
+
+                if win_rate > max_win_rate:
+                    torch.save(model.state_dict(), model_path + ".pth")
+                    max_win_rate = win_rate
+
+                latest_win_rate = win_rate
+
             update_counter += 1
 
     except Exception as e: 
-        print("Exception Handled in Main, Detials of the Exception:", e)
+        print("Parameter_Server Exception cause return, Detials of the Exception:", e)
+        print(traceback.format_exc())
+        pass
 
     finally:
-        max_win_rate = win_num / (len(result_list) + 1e-9)
-        latest_win_rate = win_num / (len(result_list) + 1e-9)
+        pass
+        # max_win_rate = win_num / (len(result_list) + 1e-9)
+        # latest_win_rate = win_num / (len(result_list) + 1e-9)
 
-        print("max_win_rate", max_win_rate) if 1 else None
-        print("latest_win_rate", latest_win_rate) if 1 else None
+        # chunk_list = chunks(result_list, static_num)
+        # win_rate_list = []
+        # for i, chunk in enumerate(chunk_list):
+        #     win_num = chunk.count(1)
+        #     win_rate = win_num / (len(chunk) + 1e-9)
+        #     win_rate_list.append(win_rate)
+        #     writer.add_scalar('all_winrate', win_rate, i + 1)
+
+        # max_win_rate = max(win_rate_list)
+        # latest_win_rate = win_rate_list[-1]
+
+        # print("max_win_rate", max_win_rate) if 1 else None
+        # print("latest_win_rate", latest_win_rate) if 1 else None
 
 
 def test(on_server=False, replay_path=None):

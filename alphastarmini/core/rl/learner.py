@@ -48,7 +48,7 @@ class Learner:
                  num_epochs=THP.num_epochs, count_of_batches=1,
                  buffer_size=10, use_random_sample=False,
                  only_update_baseline=False,
-                 need_save_result=False):
+                 need_save_result=True):
         self.player = player
         self.player.set_learner(self)
         self.trajectories = []

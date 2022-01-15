@@ -17,7 +17,8 @@ debug = False
 class Coordinator:
     """Central worker that maintains payoff matrix and assigns new matches."""
 
-    def __init__(self, league, output_file=None, results_lock=None, writer=None):
+    def __init__(self, league, winrate_scale, output_file=None, results_lock=None, 
+                 writer=None):
         self.league = league
 
         self.food_used_list = []
@@ -35,6 +36,8 @@ class Coordinator:
         self.results_lock = results_lock
         self.output_file = output_file
         self.writer = writer
+
+        self.winrate_scale = winrate_scale
 
     def set_uninitialed_results(self, actor_nums, episode_nums):
         self.actor_nums = actor_nums
@@ -59,7 +62,7 @@ class Coordinator:
             self.update_winrate(update_id)
 
     def update_winrate(self, update_id):
-        scale = 2
+        scale = self.winrate_scale
         if self.episode_nums >= 2:
             episode_winrate = np.transpose(self.episode_outcome).reshape([int(self.episode_nums / scale), int(self.actor_nums * scale)])
             single_episode_outcome = episode_winrate[update_id]
