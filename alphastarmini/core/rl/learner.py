@@ -100,6 +100,9 @@ class Learner:
 
         trajectories = []
 
+        if self.use_random_sample:
+            random.shuffle(self.trajectories)
+
         trajectories_reduced = self.trajectories[:sample_size]
         trajectories.extend(trajectories_reduced)
         del trajectories_reduced
@@ -174,6 +177,8 @@ class Learner:
 
         # test mixed trajectories, it does not well
         # trajectories = self.get_mixed_trajectories()
+
+        print('len(self.trajectories)', len(self.trajectories)) if 1 else None
 
         trajectories = self.get_normal_trajectories()
         print('len(trajectories)', len(trajectories)) if 1 else None

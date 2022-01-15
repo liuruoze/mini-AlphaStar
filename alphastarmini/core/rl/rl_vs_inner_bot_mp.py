@@ -48,12 +48,12 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 4
+    MAX_EPISODES = 2
     ACTOR_NUMS = 2
     PARALLEL = 2
     GAME_STEPS_PER_EPISODE = 300  
 else:
-    MAX_EPISODES = 20
+    MAX_EPISODES = 10
     ACTOR_NUMS = 4
     PARALLEL = 2
     GAME_STEPS_PER_EPISODE = 18000
@@ -67,11 +67,19 @@ USE_RESULT_REWARD = True
 REWARD_SCALE = 1e-3
 WINRATE_SCALE = 2
 
-BUFFER_SIZE = 1  # 100
-COUNT_OF_BATCHES = 1  # 10
+USE_BUFFER = True
+if USE_BUFFER:
+    BUFFER_SIZE = 3  # 100
+    COUNT_OF_BATCHES = 1  # 10
+    NUM_EPOCHS = 2  # 20
+    USE_RANDOM_SAMPLE = True
+else:
+    BUFFER_SIZE = 1  # 100
+    COUNT_OF_BATCHES = 1  # 10
+    NUM_EPOCHS = 1  # 20
+    USE_RANDOM_SAMPLE = False
 
-NUM_EPOCHS = 1  # 20
-USE_RANDOM_SAMPLE = False
+STEP_MUL = 16
 
 UPDATE_PARAMS_INTERVAL = 60
 
@@ -86,7 +94,6 @@ OUTPUT_FILE = './outputs/rl_vs_inner_bot.txt'
 
 VERSION = SCHP.game_version
 MAP_NAME = SCHP.map_name
-STEP_MUL = 8
 
 SAVE_REPLAY = False
 IS_TRAINING = True
@@ -684,7 +691,7 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
                 win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
                 print("win_rate", win_rate) if 1 else None
 
-                writer.add_scalar('all_winrate', win_rate, update_counter + 1)
+                writer.add_scalar('all_winrate', win_rate, row + 1)
 
                 if win_rate > max_win_rate:
                     torch.save(model.state_dict(), model_path + ".pth")
