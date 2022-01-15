@@ -636,11 +636,14 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
         pass
 
 
-def Parameter_Server(synchronizer, queue, model, log_path, model_path):
+def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, model_path):
     with synchronizer:
         print('module name:', "Parameter_Server")
         print('parent process:', os.getppid())
         print('process id:', os.getpid())
+
+    # if use_cuda_device:
+    #     model.to("cuda:" + str(7))
 
     writer = SummaryWriter(log_path)
 
@@ -657,12 +660,6 @@ def Parameter_Server(synchronizer, queue, model, log_path, model_path):
     assert train_iters % static_num == 0
 
     episode_outcome = np.ones([int(train_iters / static_num), static_num], dtype=np.float) * (-1e9)
-
-    # https://stackoverflow.com/questions/312443/how-do-you-split-a-list-or-iterable-into-evenly-sized-chunks
-    def chunks(lst, n):
-        """Yield successive n-sized chunks from lst."""
-        for i in range(0, len(lst), n):
-            yield lst[i:i + n]
 
     try: 
         while update_counter < train_iters:
@@ -704,22 +701,6 @@ def Parameter_Server(synchronizer, queue, model, log_path, model_path):
 
     finally:
         pass
-        # max_win_rate = win_num / (len(result_list) + 1e-9)
-        # latest_win_rate = win_num / (len(result_list) + 1e-9)
-
-        # chunk_list = chunks(result_list, static_num)
-        # win_rate_list = []
-        # for i, chunk in enumerate(chunk_list):
-        #     win_num = chunk.count(1)
-        #     win_rate = win_num / (len(chunk) + 1e-9)
-        #     win_rate_list.append(win_rate)
-        #     writer.add_scalar('all_winrate', win_rate, i + 1)
-
-        # max_win_rate = max(win_rate_list)
-        # latest_win_rate = win_rate_list[-1]
-
-        # print("max_win_rate", max_win_rate) if 1 else None
-        # print("latest_win_rate", latest_win_rate) if 1 else None
 
 
 def test(on_server=False, replay_path=None):
@@ -774,7 +755,7 @@ def test(on_server=False, replay_path=None):
         p.start()
         processes.append(p)
 
-    ps = mp.Process(target=Parameter_Server, args=(synchronizer, q, model_learner, log_path, model_save_path))
+    ps = mp.Process(target=Parameter_Server, args=(synchronizer, q, use_cuda_device, model_learner, log_path, model_save_path))
     ps.start()
     processes.append(ps)
 
