@@ -60,14 +60,16 @@ else:
 
 DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
-LR = 1e-5  # 0  # 1e-5
+BASELINE_WEIGHT = 0.05
+LR = 5e-6  # 0  # 1e-5
+WEIGHT_DECAY = 1e-5
 
 USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
 REWARD_SCALE = 1e-3
 WINRATE_SCALE = 2
 
-USE_BUFFER = True
+USE_BUFFER = False
 if USE_BUFFER:
     BUFFER_SIZE = 3  # 100
     COUNT_OF_BATCHES = 1  # 10
@@ -81,14 +83,14 @@ else:
 
 STEP_MUL = 16
 
-UPDATE_PARAMS_INTERVAL = 60
+UPDATE_PARAMS_INTERVAL = 30
 
 RESTORE = True
 SAVE_STATISTIC = True
 RANDOM_SEED = 1
 
 # model path
-MODEL_TYPE = "rl"
+MODEL_TYPE = "sl"
 MODEL_PATH = "./model/"
 OUTPUT_FILE = './outputs/rl_vs_inner_bot.txt'
 
@@ -601,7 +603,8 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
             player.agent.set_rl_training(IS_TRAINING)
 
             buffer_lock = threading.Lock()
-            learner = Learner(player, max_time_for_training=60 * 60 * 24 * 7, lr=LR, is_training=IS_TRAINING, 
+            learner = Learner(player, max_time_for_training=60 * 60 * 24 * 7, lr=LR, 
+                              weight_decay=WEIGHT_DECAY, baseline_weight=BASELINE_WEIGHT, is_training=IS_TRAINING, 
                               buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
                               no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
                               count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
@@ -657,6 +660,7 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
     update_counter = 0
     max_win_rate = 0.
     latest_win_rate = 0.
+    win_rate_list = []
 
     train_iters = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
@@ -692,6 +696,7 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
                 print("win_rate", win_rate) if 1 else None
 
                 writer.add_scalar('all_winrate', win_rate, row + 1)
+                win_rate_list.append(win_rate)
 
                 if win_rate > max_win_rate:
                     torch.save(model.state_dict(), model_path + ".pth")
@@ -707,7 +712,12 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
         pass
 
     finally:
-        pass
+        print("Parameter_Server end:")
+        print("--------------------")
+        print("win_rate_list:", win_rate_list)
+        print("max_win_rate:", max_win_rate)
+        print("latest_win_rate:", latest_win_rate)
+        print("--------------------")
 
 
 def test(on_server=False, replay_path=None):

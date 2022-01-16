@@ -243,40 +243,6 @@ def get_useful_masks(select_units_num, entity_num, device):
     return selected_mask, entity_mask
 
 
-def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, entity_mask, device):
-    """Computes the split upgo policy gradient loss."""
-    print('sum_upgo_loss') if debug else None
-
-    trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
-    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
-    unit_type_entity_mask = torch.tensor(np.array(trajectories.unit_type_entity_mask), dtype=torch.float32, device=device)
-    reward = torch.tensor(np.array(trajectories.reward), dtype=torch.float32, device=device)
-
-    values = baselines[:-1]
-    returns = RA.upgo_returns(values, reward, discounts, baselines[-1])
-    [selected_mask, entity_mask] = [a[:-1] for a in [selected_mask, entity_mask]]
-    mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
-
-    fields_weight = [1, 0, 0, 0, 0, 0]
-
-    loss = 0.
-    for i, field in enumerate(ACTION_FIELDS):
-        target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
-        with torch.no_grad():
-            weighted_advantage = ((returns - values) * clipped_rhos).reshape(-1)
-        loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
-        loss_field = loss_field.mean()
-        print('field', field, 'loss_val', loss_field.item()) if debug else None
-
-        loss = loss + loss_field * fields_weight[i]
-        del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
-
-    del trajectories, discounts, unit_type_entity_mask, reward
-    del values, returns, selected_mask, entity_mask, mask_provided
-
-    return loss
-
-
 def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selected_mask, entity_mask, device):
     """Computes the split v-trace policy gradient loss."""
     print('sum_vtrace_pg_loss') if debug else None
@@ -289,7 +255,8 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     [rewards, selected_mask, entity_mask] = [a[:-1] for a in [rewards, selected_mask, entity_mask]]
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
-    fields_weight = [1, 0, 0, 0, 0, 0]
+    #fields_weight = [1, 0, 1, 0, 1, 1]
+    fields_weight = [0, 0, 0, 0, 0, 0]
 
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
@@ -305,6 +272,41 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
 
     del trajectories, discounts, unit_type_entity_mask, rewards
     del values, selected_mask, entity_mask, mask_provided
+
+    return loss
+
+
+def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, entity_mask, device):
+    """Computes the split upgo policy gradient loss."""
+    print('sum_upgo_loss') if debug else None
+
+    trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
+    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
+    unit_type_entity_mask = torch.tensor(np.array(trajectories.unit_type_entity_mask), dtype=torch.float32, device=device)
+    reward = torch.tensor(np.array(trajectories.reward), dtype=torch.float32, device=device)
+
+    values = baselines[:-1]
+    returns = RA.upgo_returns(values, reward, discounts, baselines[-1])
+    [selected_mask, entity_mask] = [a[:-1] for a in [selected_mask, entity_mask]]
+    mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
+
+    #fields_weight = [0, 0, 0, 0, 0, 0]
+    fields_weight = [1, 0, 1, 0, 1, 1]
+
+    loss = 0.
+    for i, field in enumerate(ACTION_FIELDS):
+        target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
+        with torch.no_grad():
+            weighted_advantage = ((returns - values) * clipped_rhos).reshape(-1)
+        loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
+        loss_field = loss_field.mean()
+        print('field', field, 'loss_val', loss_field.item()) if debug else None
+
+        loss = loss + loss_field * fields_weight[i]
+        del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
+
+    del trajectories, discounts, unit_type_entity_mask, reward
+    del values, returns, selected_mask, entity_mask, mask_provided
 
     return loss
 
@@ -386,7 +388,8 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
 
 
 def loss_function(agent, trajectories, use_opponent_state=True, 
-                  no_replay_learn=False, only_update_baseline=False):
+                  no_replay_learn=False, only_update_baseline=False,
+                  learner_baseline_weight=1):
     """Computes the loss of trajectories given weights."""
 
     # target_logits: ArgsActionLogits
@@ -436,8 +439,10 @@ def loss_function(agent, trajectories, use_opponent_state=True,
 
         # The action_type argument, delay, and all other arguments are separately updated 
         # using a separate ("split") VTrace Actor-Critic losses. 
+        baseline_weight = learner_baseline_weight
         loss_baseline = td_lambda_loss(baseline, rewards, trajectories, device)
         loss_baseline = baseline_cost * loss_baseline
+        loss_baseline = baseline_weight * loss_baseline
         loss_dict.update({reward_name + "-loss_baseline:": loss_baseline.item()})
         loss_actor_critic += loss_baseline
 

@@ -42,7 +42,8 @@ SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S",
 class Learner:
     """Learner worker that updates agent parameters based on trajectories."""
 
-    def __init__(self, player, max_time_for_training=60 * 3, lr=THP.learning_rate,
+    def __init__(self, player, max_time_for_training=60 * 3, lr=THP.learning_rate, 
+                 weight_decay=THP.weight_decay, baseline_weight=1,
                  is_training=True, buffer_lock=None, writer=None,
                  use_opponent_state=True, no_replay_learn=False, 
                  num_epochs=THP.num_epochs, count_of_batches=1,
@@ -58,7 +59,7 @@ class Learner:
         # PyTorch code
         self.optimizer = Adam(self.get_parameters(), 
                               lr=lr, betas=(THP.beta1, THP.beta2), 
-                              eps=THP.epsilon, weight_decay=THP.weight_decay)
+                              eps=THP.epsilon, weight_decay=weight_decay)
 
         self.thread = threading.Thread(target=self.run, args=())
         self.thread.daemon = True                            # Daemonize thread
@@ -81,6 +82,7 @@ class Learner:
         self.only_update_baseline = only_update_baseline
 
         self.need_save_result = need_save_result
+        self.baseline_weight = baseline_weight
 
     def get_parameters(self):
         return self.player.agent.get_parameters()
@@ -194,7 +196,8 @@ class Learner:
 
                 # with torch.autograd.set_detect_anomaly(True):
                 loss, loss_dict = loss_function(agent, update_trajectories, self.use_opponent_state, 
-                                                self.no_replay_learn, self.only_update_baseline)
+                                                self.no_replay_learn, self.only_update_baseline,
+                                                self.baseline_weight)
                 print("loss.device:", loss.device) if debug else None
                 print("loss:", loss.item()) if 1 else None
 
