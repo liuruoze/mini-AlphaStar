@@ -256,13 +256,14 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
     #fields_weight = [1, 0, 1, 0, 1, 1]
-    fields_weight = [0, 0, 0, 0, 0, 0]
+    fields_weight = [1, 0, 1, 0, 1, 1]
 
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
         target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
         with torch.no_grad():
             weighted_advantage = RA.vtrace_advantages(clipped_rhos, rewards, discounts, values, baselines[-1])[1].reshape(-1)
+
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean()
         print('field', field, 'loss_val', loss_field.item()) if debug else None
@@ -298,6 +299,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
         target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
         with torch.no_grad():
             weighted_advantage = ((returns - values) * clipped_rhos).reshape(-1)
+
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean()
         print('field', field, 'loss_val', loss_field.item()) if debug else None

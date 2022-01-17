@@ -151,13 +151,14 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False):
     return result
 
 
-def vtrace_advantages(clipped_rhos, rewards, discounts, values, bootstrap_value):
+def vtrace_advantages(clipped_rhos, rewards, discounts, values, bootstrap_value, lamda=0.8):
     """Computes v-trace return advantages.
 
     see below function "vtrace_from_importance_weights"
     """
     return vtrace_from_importance_weights(rhos=clipped_rhos, discounts=discounts, rewards=rewards, 
-                                          values=values, bootstrap_value=bootstrap_value)
+                                          values=values, bootstrap_value=bootstrap_value,
+                                          lamda=lamda)
 
 
 VTraceReturns = collections.namedtuple('VTraceReturns', 'vs pg_advantages')
@@ -165,7 +166,7 @@ VTraceReturns = collections.namedtuple('VTraceReturns', 'vs pg_advantages')
 
 def vtrace_from_importance_weights(
         rhos, discounts, rewards, values, bootstrap_value,
-        clip_rho_threshold=1.0, clip_pg_rho_threshold=1.0):
+        clip_rho_threshold=1.0, clip_pg_rho_threshold=1.0, lamda=0.8):
     r"""
     https://github.com/deepmind/trfl/blob/40884d4bb39f99e4a642acdbe26113914ad0acec/trfl/vtrace_ops.py#L154
     V-trace from log importance weights.Calculates V-trace actor critic targets as described in
@@ -226,7 +227,7 @@ def vtrace_from_importance_weights(
     # of the given trajectory.
     def scanfunc(acc, sequence_item):
         discount_t, c_t, delta_t = sequence_item
-        return delta_t + discount_t * c_t * acc
+        return delta_t + lamda * discount_t * c_t * acc
 
     initial_values = torch.zeros_like(bootstrap_value, device=bootstrap_value.device)
 
@@ -267,6 +268,27 @@ def vtrace_from_importance_weights(
 
     # Make sure no gradients backpropagated through the returned values.
     return VTraceReturns(vs=vs.detach(), pg_advantages=pg_advantages.detach())
+
+
+def simple_vtrace_advantages(clipped_rhos, rewards, discounts, values, bootstrap):
+    '''Inspried by DI-Star '''
+    lamda = 0.8  # 0.8
+
+    bootstrap = bootstrap.unsqueeze(0)
+
+    all_values = torch.cat([values, bootstrap], dim=0)
+    values_tp1 = all_values[1:]
+    delta = clipped_rhos * (rewards + discounts * values_tp1 - values)
+
+    value_vtrace = torch.empty_like(all_values)
+    value_vtrace[-1] = bootstrap
+    for i in range(all_values.shape[0] - 2, -1, -1):
+        value_vtrace[i] = all_values[i] + delta[i] + discounts[i] * lamda * clipped_rhos[i] * \
+            (value_vtrace[i + 1] - all_values[i + 1])
+
+    values_vtrace_tp1 = value_vtrace[1:]
+    advantages = clipped_rhos * (rewards + discounts * values_vtrace_tp1 - values)
+    return (value_vtrace[:-1].detach(), advantages.detach())
 
 
 def upgo_returns(values, rewards, discounts, bootstrap, debug=False):
@@ -434,6 +456,7 @@ def test(debug=True):
 
     test_td_lamda_loss = True
     test_upgo_return = True
+    test_vtrace_advantage = True
 
     if test_td_lamda_loss:
         batch_size = 2
@@ -520,3 +543,41 @@ def test(debug=True):
 
         if 2:
             pass
+
+    if test_vtrace_advantage:
+        batch_size = 2
+        seq_len = 4
+
+        device = 'cpu'
+
+        is_final = [[0, 0], [0, 1], [1, 0], [0, 0]]
+        baselines = [[-0.5, 0.90], [-0.7, 0.95], [-0.95, 0.5], [0.5, 0.6]]
+        rewards = [[0, 0], [0, 1], [-1, 0], [0, 0]]
+
+        baselines = torch.tensor(baselines, dtype=torch.float, device=device)
+        rewards = torch.tensor(rewards, dtype=torch.float, device=device)
+
+        discounts = ~np.array(is_final[:-1], dtype=np.bool)  # note the discount is not the similar indicies as in lamda returns
+        discounts = torch.tensor(discounts, dtype=torch.float, device=device)
+
+        rewards_short = rewards[:-1]
+        values = baselines[:-1]
+        bootstrap = baselines[-1]
+
+        if 1:
+            clipped_rhos = [[0.95, 0.99], [0.976, 1], [0.90, 0.74]]
+            clipped_rhos = torch.tensor(clipped_rhos, dtype=torch.float, device=device)
+
+            weighted_advantage = vtrace_advantages(clipped_rhos, rewards_short, discounts, values, bootstrap)[1]
+
+            print('weighted_advantage_1', weighted_advantage) if debug else None
+            print('weighted_advantage_1.shape', weighted_advantage.shape) if debug else None
+
+        if 2:
+            clipped_rhos = [[0.95, 0.99], [0.976, 1], [0.90, 0.74]]
+            clipped_rhos = torch.tensor(clipped_rhos, dtype=torch.float, device=device)
+
+            weighted_advantage = simple_vtrace_advantages(clipped_rhos, rewards_short, discounts, values, bootstrap)[1]
+
+            print('weighted_advantage_2', weighted_advantage) if debug else None
+            print('weighted_advantage_2.shape', weighted_advantage.shape) if debug else None            
