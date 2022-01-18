@@ -255,7 +255,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     [rewards, selected_mask, entity_mask] = [a[:-1] for a in [rewards, selected_mask, entity_mask]]
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
-    #fields_weight = [1, 0, 1, 0, 1, 1]
+    #fields_weight = [0, 0, 0, 0, 0, 0]
     fields_weight = [1, 0, 1, 0, 1, 1]
 
     loss = 0.
