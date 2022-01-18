@@ -53,15 +53,18 @@ if SIMPLE_TEST:
     PARALLEL = 1
     GAME_STEPS_PER_EPISODE = 500  
 else:
-    MAX_EPISODES = 14
+    MAX_EPISODES = 4
     ACTOR_NUMS = 4
-    PARALLEL = 2
+    PARALLEL = 8 + 6 * 2
     GAME_STEPS_PER_EPISODE = 18000
+
+STATIC_NUM = 16
+TRAIN_ITERS = STATIC_NUM * 10  # MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
 DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
 BASELINE_WEIGHT = 1
-LR = 5e-6  # 0  # 1e-5
+LR = 1e-5  # 1e-5
 WEIGHT_DECAY = 1e-5
 
 USE_DEFINED_REWARD_AS_REWARD = False
@@ -85,6 +88,7 @@ STEP_MUL = 16
 
 UPDATE_PARAMS_INTERVAL = 30
 
+USE_UPDATE_LOCK = False
 RESTORE = True
 SAVE_STATISTIC = True
 RANDOM_SEED = 1
@@ -103,6 +107,7 @@ IS_TRAINING = True
 WIN_THRESHOLD = 4000
 USE_OPPONENT_STATE = False
 NO_REPLAY_LEARN = True
+NEED_SAVE_RESULT = False
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -132,7 +137,7 @@ class ActorVSComputer:
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/",
                  update_params_interval=UPDATE_PARAMS_INTERVAL,
-                 need_save_result=True):
+                 need_save_result=NEED_SAVE_RESULT):
         self.player = player
         self.player.add_actor(self)
         self.idx = idx
@@ -593,13 +598,21 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
     learners = []
     actors = []
 
+    if rank < 8:
+        cuda_device = "cuda:" + str(rank)
+    else:
+        new_rank = (rank - 8) % 6 + 2
+        cuda_device = "cuda:" + str(new_rank)
+
+    process_lock = synchronizer if USE_UPDATE_LOCK else None
+
     try:
 
         for idx in range(league.get_learning_players_num()):
             player = league.get_learning_player(idx)
             player.agent.agent_nn.model = model_learner
             if use_cuda_device:
-                player.agent.agent_nn.model.to("cuda:" + str(rank))
+                player.agent.agent_nn.model.to(cuda_device)
             player.agent.set_rl_training(IS_TRAINING)
 
             buffer_lock = threading.Lock()
@@ -608,16 +621,17 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
                               buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
                               no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
                               count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
-                              use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE)
+                              use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE,
+                              need_save_result=NEED_SAVE_RESULT, process_lock=process_lock)
             learners.append(learner)
 
             teacher = get_supervised_agent(player.race, model_type="sl", restore=False, device=device_teacher)
             teacher.agent_nn.model = model_teacher
             if use_cuda_device:
-                teacher.agent_nn.model.to("cuda:" + str(rank))
+                teacher.agent_nn.model.to(cuda_device)
 
             for z in range(ACTOR_NUMS):
-                device = torch.device("cuda:" + str(rank) if use_cuda_device else "cpu")
+                device = torch.device(cuda_device if use_cuda_device else "cpu")
                 actor = ActorVSComputer(player, queue, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
                 actors.append(actor)
 
@@ -661,11 +675,8 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
     result_list = []
     win_num = 0
 
-    train_iters = MAX_EPISODES * ACTOR_NUMS * PARALLEL
-    static_num = WINRATE_SCALE * ACTOR_NUMS * PARALLEL
-
-    print('train_iters', train_iters) if 1 else None
-    print('static_num', train_iters) if 1 else None
+    train_iters = TRAIN_ITERS 
+    static_num = STATIC_NUM  # WINRATE_SCALE * ACTOR_NUMS * PARALLEL
     assert train_iters % static_num == 0
     episode_outcome = np.ones([int(train_iters / static_num), static_num], dtype=np.float) * (-1e9)
 
@@ -679,24 +690,25 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
             if result == 1:
                 win_num += 1
 
-            print("Parameter_Server result_list", result_list) if 1 else None
+            print("Parameter_Server result_list", result_list) if debug else None
 
             row = int(update_counter / static_num)
             col = int(update_counter % static_num)
 
             episode_outcome[row, col] = result
-            print("episode_outcome", episode_outcome) if 1 else None
+            print("episode_outcome", episode_outcome) if debug else None
 
             single_episode_outcome = episode_outcome[row]
             if not (single_episode_outcome == (-1e9)).any():
                 win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
-                print("win_rate", win_rate) if 1 else None
+                print("win_rate", win_rate) if debug else None
 
                 writer.add_scalar('all_winrate', win_rate, row + 1)
                 win_rate_list.append(win_rate)
 
                 if win_rate > max_win_rate:
-                    torch.save(model.state_dict(), model_path + ".pth")
+                    with synchronizer:
+                        torch.save(model.state_dict(), model_path + ".pth")
                     max_win_rate = win_rate
 
                 latest_win_rate = win_rate
@@ -712,8 +724,8 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
         print("Parameter_Server end:")
         print("--------------------")
         print("win_rate_list:", win_rate_list)
-        print("max_win_rate:", max_win_rate)
         print("latest_win_rate:", latest_win_rate)
+        print("max_win_rate:", max_win_rate)
         print("--------------------")
 
 

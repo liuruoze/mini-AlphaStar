@@ -161,16 +161,16 @@ def td_lambda_loss(baselines, rewards, trajectories, device):
     with torch.no_grad():
         returns = RA.lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
 
-    print('returns', returns) if 1 else None
-    print('baselines', baselines) if 1 else None
+    print('returns', returns) if debug else None
+    print('baselines', baselines) if debug else None
 
     result = returns - baselines[:-1]
-    print('result', result) if 0 else None
+    print('result', result) if debug else None
 
     del discounts, baselines, rewards, returns
 
     td_lambda_loss = 0.5 * torch.mean(torch.square(result))
-    print('td_lambda_loss', td_lambda_loss.item()) if 1 else None
+    print('td_lambda_loss', td_lambda_loss.item()) if debug else None
 
     return td_lambda_loss
 
@@ -437,7 +437,7 @@ def loss_function(agent, trajectories, use_opponent_state=True,
         print("reward_name:", reward_name) if debug else None
 
         rewards = PR.compute_pseudoreward(trajectories, reward_name, device)
-        print("rewards:", rewards) if 1 else None
+        print("rewards:", rewards) if debug else None
 
         # The action_type argument, delay, and all other arguments are separately updated 
         # using a separate ("split") VTrace Actor-Critic losses. 

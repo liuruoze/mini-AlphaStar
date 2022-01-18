@@ -28,13 +28,10 @@ class QueueHead(nn.Module):
 
     def __init__(self, input_size=AHP.autoregressive_embedding_size, 
                  original_256=AHP.original_256,
-                 max_queue=SFS.last_repeat_queued, is_sl_training=True, temperature=0.8):
+                 max_queue=SFS.last_repeat_queued, is_sl_training=True, temperature=AHP.temperature):
         super().__init__()
         self.is_sl_training = is_sl_training
-        if not self.is_sl_training:
-            self.temperature = temperature
-        else:
-            self.temperature = 1.0
+        self.temperature = temperature
 
         self.fc_1 = nn.Linear(input_size, original_256)  # with relu
         self.fc_2 = nn.Linear(original_256, original_256)  # with relu
@@ -66,7 +63,7 @@ class QueueHead(nn.Module):
         # AlphaStar: the size of `queued_logits` is 2 (for queueing and not queueing),
         queue_logits = self.embed_fc(x)
 
-        temperature = 0.8 if self.is_rl_training else 1
+        temperature = self.temperature if self.is_rl_training else 1
         queue_logits = queue_logits / temperature
 
         if queue is None:

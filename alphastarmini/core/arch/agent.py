@@ -171,8 +171,8 @@ class Agent(object):
         # idle production and work time, total value of units and structure, total destroyed value of units and structures, 
         # total collected minerals and vespene, rate of minerals and vespene collection, and total spent minerals and vespene
         cumulative_score = torch.tensor(np.array(obs['score_cumulative']), dtype=torch.float32).reshape(1, -1)
-        print('cumulative_score', cumulative_score) if 1 else None
-        print('cumulative_score.shape', cumulative_score.shape) if 1 else None
+        print('cumulative_score', cumulative_score) if debug else None
+        print('cumulative_score.shape', cumulative_score.shape) if debug else None
 
         baseline_state.append(cumulative_score)
         del scalar_list, cumulative_score

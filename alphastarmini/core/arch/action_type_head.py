@@ -36,16 +36,13 @@ class ActionTypeHead(nn.Module):
     '''
 
     def __init__(self, lstm_dim=AHP.lstm_hidden_dim, n_resblocks=AHP.n_resblocks, 
-                 is_sl_training=True, temperature=0.8, original_256=AHP.original_256,
+                 is_sl_training=True, temperature=AHP.temperature, original_256=AHP.original_256,
                  max_action_num=LS.action_type_encoding, context_size=AHP.context_size, 
                  autoregressive_embedding_size=AHP.autoregressive_embedding_size,
                  use_action_type_mask=AHP.use_action_type_mask):
         super().__init__()
         self.is_sl_training = is_sl_training
-        if not self.is_sl_training:
-            self.temperature = temperature
-        else:
-            self.temperature = 1.0
+        self.temperature = temperature
 
         self.embed_fc = nn.Linear(lstm_dim, original_256)  # with relu
         self.resblock_stack = nn.ModuleList([
@@ -106,7 +103,7 @@ class ActionTypeHead(nn.Module):
         # AlphaStar: `action_type` is sampled from these logits using a multinomial with temperature 0.8. 
         # Note that during supervised learning, `action_type` will be the ground truth human action 
         # type, and temperature is 1.0 (and similarly for all other arguments).
-        temperature = 0.8 if self.is_rl_training else 1
+        temperature = self.temperature if self.is_rl_training else 1
         action_type_logits = action_type_logits / temperature
         print('action_type_logits:', action_type_logits) if debug else None
         print('action_type_logits.shape:', action_type_logits.shape) if debug else None

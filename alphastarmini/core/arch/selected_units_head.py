@@ -32,15 +32,12 @@ class SelectedUnitsHead(nn.Module):
 
     def __init__(self, embedding_size=AHP.entity_embedding_size, 
                  max_number_of_unit_types=SCHP.max_unit_type, is_sl_training=True, 
-                 temperature=0.8, max_selected=AHP.max_selected,
+                 temperature=AHP.temperature, max_selected=AHP.max_selected,
                  original_256=AHP.original_256, original_32=AHP.original_32,
                  autoregressive_embedding_size=AHP.autoregressive_embedding_size):
         super().__init__()
         self.is_sl_training = is_sl_training
-        if not self.is_sl_training:
-            self.temperature = temperature
-        else:
-            self.temperature = 1.0
+        self.temperature = temperature
 
         self.max_number_of_unit_types = max_number_of_unit_types
         self.func_embed = nn.Linear(max_number_of_unit_types, original_256)  # with relu
@@ -205,7 +202,7 @@ class SelectedUnitsHead(nn.Module):
             # y shape: [batch_size x entity_size]
             entity_logits = y.masked_fill(~mask, -1e9)
 
-            temperature = 0.8 if self.is_rl_training else 1
+            temperature = self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature
             del y
             print("entity_logits:", entity_logits) if debug else None
@@ -463,7 +460,7 @@ class SelectedUnitsHead(nn.Module):
             # y shape: [batch_size x entity_size]
             entity_logits = y.masked_fill(~mask, -1e9)
 
-            temperature = 0.8 if self.is_rl_training else 1
+            temperature = self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature
             del y
             print('entity_logits', entity_logits) if debug else None

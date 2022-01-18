@@ -49,7 +49,7 @@ class Learner:
                  num_epochs=THP.num_epochs, count_of_batches=1,
                  buffer_size=10, use_random_sample=False,
                  only_update_baseline=False,
-                 need_save_result=True):
+                 need_save_result=True, process_lock=None):
         self.player = player
         self.player.set_learner(self)
         self.trajectories = []
@@ -83,6 +83,7 @@ class Learner:
 
         self.need_save_result = need_save_result
         self.baseline_weight = baseline_weight
+        self.process_lock = process_lock
 
     def get_parameters(self):
         return self.player.agent.get_parameters()
@@ -180,26 +181,26 @@ class Learner:
         # test mixed trajectories, it does not well
         # trajectories = self.get_mixed_trajectories()
 
-        print('len(self.trajectories)', len(self.trajectories)) if 1 else None
+        print('len(self.trajectories)', len(self.trajectories)) if debug else None
 
         trajectories = self.get_normal_trajectories()
-        print('len(trajectories)', len(trajectories)) if 1 else None
+        print('len(trajectories)', len(trajectories)) if debug else None
 
         agent.agent_nn.model.train()  # for BN and dropout
-        print("begin backward") if 1 else None
+        print("begin backward") if debug else None
 
         for ep_id in range(self.num_epochs):
 
             for batch_id in range(self.count_of_batches):
                 update_trajectories = trajectories[batch_id * batch_size: (batch_id + 1) * batch_size]
-                print('len(update_trajectories)', len(update_trajectories)) if 1 else None
+                print('len(update_trajectories)', len(update_trajectories)) if debug else None
 
                 # with torch.autograd.set_detect_anomaly(True):
                 loss, loss_dict = loss_function(agent, update_trajectories, self.use_opponent_state, 
                                                 self.no_replay_learn, self.only_update_baseline,
                                                 self.baseline_weight)
                 print("loss.device:", loss.device) if debug else None
-                print("loss:", loss.item()) if 1 else None
+                print("loss:", loss.item()) if debug else None
 
                 if self.need_save_result:
                     for i, k in loss_dict.items():
@@ -207,8 +208,12 @@ class Learner:
                         self.writer.add_scalar('learner/' + i, k, agent.steps)
 
                 self.optimizer.zero_grad()
-                loss.backward() 
-                self.optimizer.step()
+                loss.backward()
+                if self.process_lock is not None:
+                    with self.process_lock:
+                        self.optimizer.step()
+                else:
+                    self.optimizer.step()
 
                 if self.need_save_result:
                     self.writer.add_scalar('learner/loss', loss.item(), agent.steps)
@@ -222,7 +227,7 @@ class Learner:
             torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
         agent.agent_nn.model.eval()
-        print("end backward") if 1 else None
+        print("end backward") if debug else None
 
     def start(self):
         self.thread.start()
