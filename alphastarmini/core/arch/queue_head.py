@@ -49,6 +49,11 @@ class QueueHead(nn.Module):
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=-1)
 
+        self.is_rl_training = False
+
+    def set_rl_training(self, staus):
+        self.is_rl_training = staus
+
     def forward(self, autoregressive_embedding, action_type, embedded_entity=None, queue=None):
         # AlphaStar: Queued Head is similar to the delay head except a temperature of 0.8 
         # AlphaStar: is applied to the logits before sampling,
@@ -59,7 +64,10 @@ class QueueHead(nn.Module):
 
         # note: temperature is used here, compared to delay head
         # AlphaStar: the size of `queued_logits` is 2 (for queueing and not queueing),
-        queue_logits = self.embed_fc(x).div(self.temperature)
+        queue_logits = self.embed_fc(x)
+
+        temperature = 0.8 if self.is_rl_training else 1
+        queue_logits = queue_logits / temperature
 
         if queue is None:
             queue_probs = self.softmax(queue_logits) 

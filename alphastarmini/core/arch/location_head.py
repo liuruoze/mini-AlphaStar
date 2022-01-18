@@ -181,6 +181,11 @@ class LocationHead(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
+        self.is_rl_training = False
+
+    def set_rl_training(self, staus):
+        self.is_rl_training = staus
+
     def forward(self, autoregressive_embedding, action_type, map_skip, target_location=None):    
         '''
         Inputs:
@@ -263,11 +268,10 @@ class LocationHead(nn.Module):
         # AlphaStar: such as those outside the camera for build actions) with temperature 0.8 
         # AlphaStar: to get the actual target position.
         # x shape: (-1, 1, 256, 256)
-        y = x.reshape(batch_size, 1 * self.output_map_size * self.output_map_size)
+        target_location_logits = x.reshape(batch_size, 1 * self.output_map_size * self.output_map_size)
 
-        device = next(self.parameters()).device
-
-        target_location_logits = y.div(self.temperature)
+        temperature = 0.8 if self.is_rl_training else 1
+        target_location_logits = target_location_logits / temperature
         print("target_location_logits:", target_location_logits) if debug else None
         print("target_location_logits.shape:", target_location_logits.shape) if debug else None
 
@@ -286,6 +290,7 @@ class LocationHead(nn.Module):
         # mask_fill_value = -1e32  # a very small number
         # target_location_logits = target_location_logits.masked_fill((1 - mask).bool(), mask_fill_value)
 
+        device = next(self.parameters()).device
         if target_location is None:
             target_location_probs = self.softmax(target_location_logits)
             location_id = torch.multinomial(target_location_probs, num_samples=1, replacement=True)
@@ -310,7 +315,7 @@ class LocationHead(nn.Module):
         target_location_logits = target_location_logits.reshape(-1, self.output_map_size, self.output_map_size)
         target_location_logits = target_location_logits * target_location_mask.float().unsqueeze(-1)
 
-        del action_type, x, y, target_location_mask, no_target_location_mask
+        del action_type, x, target_location_mask, no_target_location_mask
 
         return target_location_logits, target_location
 

@@ -87,6 +87,7 @@ class ScalarFeature(enum.IntEnum):
     last_delay = 13
     last_action_type = 14
     last_repeat_queued = 15
+    cumulative_score = 16
 
 
 # for the scalar feature
@@ -95,7 +96,8 @@ ScalarFeatureSize = namedtuple('ScalarFeatureSize', ['agent_statistics', 'home_r
                                                      'available_actions', 'unit_counts_bow', 
                                                      'mmr', 'units_buildings', 'effects',
                                                      'upgrade', 'beginning_build_order',
-                                                     'last_delay', 'last_action_type', 'last_repeat_queued'])
+                                                     'last_delay', 'last_action_type', 'last_repeat_queued',
+                                                     'cumulative_score'])
 
 
 class ConstSize(object):
@@ -362,7 +364,8 @@ Scalar_Feature_Size = ScalarFeatureSize(agent_statistics=10,
                                         * ConstSize.All_Units_Size,
                                         last_delay=128,
                                         last_action_type=ConstSize.Actions_Size,
-                                        last_repeat_queued=2)
+                                        last_repeat_queued=2,
+                                        cumulative_score=13)
 
 Label_Size = LabelSize(action_type_encoding=Scalar_Feature_Size.available_actions,
                        delay_encoding=Scalar_Feature_Size.last_delay,

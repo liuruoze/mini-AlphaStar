@@ -39,12 +39,9 @@ class ActionTypeHead(nn.Module):
                  is_sl_training=True, temperature=0.8, original_256=AHP.original_256,
                  max_action_num=LS.action_type_encoding, context_size=AHP.context_size, 
                  autoregressive_embedding_size=AHP.autoregressive_embedding_size,
-                 use_action_type_mask=AHP.use_action_type_mask, is_rl_training=False):
+                 use_action_type_mask=AHP.use_action_type_mask):
         super().__init__()
-        # TODO: make is_sl_training effective 
-        self.is_rl_training = is_rl_training
-        self.is_sl_training = not self.is_rl_training
-
+        self.is_sl_training = is_sl_training
         if not self.is_sl_training:
             self.temperature = temperature
         else:
@@ -67,20 +64,16 @@ class ActionTypeHead(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
 
         self.use_action_type_mask = use_action_type_mask
+        self.is_rl_training = False
 
     def set_rl_training(self, staus):
         self.is_rl_training = staus
 
     def forward(self, lstm_output, scalar_context, action_type_mask=None, action_type=None):
         batch_size = lstm_output.shape[0]
-        #seq_size = lstm_output.shape[1]
-
-        print("lstm_output.shape:", lstm_output.shape) if debug else None
-        print("scalar_context.shape:", scalar_context.shape) if debug else None
 
         # AlphaStar: The action type head embeds `lstm_output` into a 1D tensor of size 256
         x = self.embed_fc(lstm_output)
-        print("x.shape:", x.shape) if debug else None
 
         # AlphaStar: passes it through 16 ResBlocks with layer normalization each of size 256, and applies a ReLU. 
         # QUESTION: There is no map, how to use resblocks?
@@ -107,19 +100,26 @@ class ActionTypeHead(nn.Module):
             action_type_logits = action_type_logits + (~action_type_mask * (-1e9))
             del action_type_mask
 
+        print('action_type_logits:', action_type_logits) if debug else None
+        print('action_type_logits.shape:', action_type_logits.shape) if debug else None
+
         # AlphaStar: `action_type` is sampled from these logits using a multinomial with temperature 0.8. 
         # Note that during supervised learning, `action_type` will be the ground truth human action 
         # type, and temperature is 1.0 (and similarly for all other arguments).
-        action_type_logits = action_type_logits / self.temperature
-        print('action_type_logits after temperature:', action_type_logits) if debug else None
+        temperature = 0.8 if self.is_rl_training else 1
+        action_type_logits = action_type_logits / temperature
+        print('action_type_logits:', action_type_logits) if debug else None
+        print('action_type_logits.shape:', action_type_logits.shape) if debug else None
 
         # note, torch.multinomial need samples to non-negative, finite and have a non-zero sum
         # which is different with tf.multinomial which can accept negative values like log(action_type_probs)
         if action_type is None:
             action_type_probs = self.softmax(action_type_logits)
-            print('action_type_probs', action_type_probs) if debug else None
+            action_type_probs = action_type_probs.reshape(batch_size, -1)
+            print('action_type_probs:', action_type_probs) if debug else None
+            print('action_type_probs.shape:', action_type_probs.shape) if debug else None
 
-            action_type = torch.multinomial(action_type_probs.reshape(batch_size, -1), 1)
+            action_type = torch.multinomial(action_type_probs, 1)
             action_type = action_type.reshape(batch_size, -1)
             del action_type_probs
 

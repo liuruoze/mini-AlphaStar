@@ -48,7 +48,7 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 1
+    MAX_EPISODES = 2
     ACTOR_NUMS = 1
     PARALLEL = 1
     GAME_STEPS_PER_EPISODE = 500  
@@ -327,7 +327,7 @@ class ActorVSComputer:
                                 last_points = points
 
                                 if is_final:
-                                    outcome = home_next_obs.reward
+                                    game_outcome = home_next_obs.reward
 
                                     o = home_next_obs.observation
                                     p = o['player']
@@ -350,9 +350,9 @@ class ActorVSComputer:
 
                                     killed_points = killed_minerals + killed_vespene
 
-                                    if outcome == 1:
+                                    if game_outcome == 1:
                                         pass
-                                    elif outcome == 0:
+                                    elif game_outcome == 0:
                                         if killed_points > WIN_THRESHOLD:
                                             outcome = 1
                                         elif killed_points > 1000 and killed_points < WIN_THRESHOLD:
@@ -652,24 +652,21 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
         print('parent process:', os.getppid())
         print('process id:', os.getpid())
 
-    # if use_cuda_device:
-    #     model.to("cuda:" + str(7))
-
     writer = SummaryWriter(log_path)
 
     update_counter = 0
     max_win_rate = 0.
     latest_win_rate = 0.
     win_rate_list = []
-
-    train_iters = MAX_EPISODES * ACTOR_NUMS * PARALLEL
-
     result_list = []
     win_num = 0
+
+    train_iters = MAX_EPISODES * ACTOR_NUMS * PARALLEL
     static_num = WINRATE_SCALE * ACTOR_NUMS * PARALLEL
 
+    print('train_iters', train_iters) if 1 else None
+    print('static_num', train_iters) if 1 else None
     assert train_iters % static_num == 0
-
     episode_outcome = np.ones([int(train_iters / static_num), static_num], dtype=np.float) * (-1e9)
 
     try: 

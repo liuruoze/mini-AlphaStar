@@ -32,8 +32,8 @@ class Baseline(nn.Module):
     '''
 
     def __init__(self, baseline_type='winloss',
-                 n_statistics=10,
-                 n_cumulatscore=13,
+                 n_statistics=SFS.agent_statistics,
+                 n_cumulatscore=SFS.cumulative_score,
                  baseline_input=AHP.winloss_baseline_input_size,
                  n_upgrades=SFS.upgrades, 
                  n_units_buildings=SFS.unit_counts_bow, 
@@ -235,6 +235,7 @@ def test():
     beginning_build_order = torch.randn(batch_size, SCHP.count_beginning_build_order, 
                                         int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
 
+    cumulative_score = torch.ones(batch_size, SFS.cumulative_score)
     scalar_list.append(agent_statistics)
     scalar_list.append(upgrades)
     scalar_list.append(unit_counts_bow)
@@ -242,6 +243,7 @@ def test():
     scalar_list.append(effects)
     scalar_list.append(upgrade)
     scalar_list.append(beginning_build_order)
+    scalar_list.append(cumulative_score)
 
     opponenet_scalar_out = scalar_list
 

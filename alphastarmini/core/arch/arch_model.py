@@ -108,6 +108,11 @@ class ArchModel(nn.Module):
 
     def set_rl_training(self, staus):
         self.action_type_head.set_rl_training(staus)
+        self.delay_head.set_rl_training(staus)
+        self.queue_head.set_rl_training(staus)
+        self.selected_units_head.set_rl_training(staus)
+        self.target_unit_head.set_rl_training(staus)
+        self.location_head.set_rl_training(staus)
 
     def count_parameters(self):  
         # https://discuss.pytorch.org/t/how-do-i-check-the-number-of-parameters-of-a-model/4325/7
@@ -370,9 +375,9 @@ def test():
     time = torch.randn(batch_size, SFS.time)
 
     available_actions = torch.randn(batch_size, SFS.available_actions)
-    unit_counts_bow = torch.randn(batch_size, SFS.unit_counts_bow)
+    unit_counts_bow = torch.ones(batch_size, SFS.unit_counts_bow)
     mmr = torch.randn(batch_size, SFS.mmr)
-    units_buildings = torch.randn(batch_size, SFS.units_buildings)
+    units_buildings = torch.ones(batch_size, SFS.units_buildings) 
     effects = torch.randn(batch_size, SFS.effects)
     upgrade = torch.randn(batch_size, SFS.upgrade)
 
@@ -445,6 +450,7 @@ def test():
     upgrade = torch.randn(batch_size, SFS.upgrade)
     beginning_build_order = torch.randn(batch_size, SCHP.count_beginning_build_order, 
                                         int(SFS.beginning_build_order / SCHP.count_beginning_build_order))
+    cumulative_score = torch.ones(batch_size, SFS.cumulative_score)
 
     scalar_list.append(agent_statistics)
     scalar_list.append(upgrades)
@@ -453,13 +459,14 @@ def test():
     scalar_list.append(effects)
     scalar_list.append(upgrade)
     scalar_list.append(beginning_build_order)
+    scalar_list.append(cumulative_score)
 
     opponenet_scalar_out = scalar_list
 
-    action_logits, action, _, select_units_num = arch_model.forward(state, 
-                                                                    batch_size=AHP.batch_size, 
-                                                                    sequence_length=AHP.sequence_length, 
-                                                                    return_logits=True)
+    action_logits, action, _, select_units_num, _ = arch_model.forward(state, 
+                                                                       batch_size=AHP.batch_size, 
+                                                                       sequence_length=AHP.sequence_length, 
+                                                                       return_logits=True)
 
     if action.action_type is not None:
         print("action:", action.action_type) if debug else None
@@ -475,6 +482,7 @@ def test():
     # Thus shape = [24, number_of_action_types=564]
     print("action_logits.action_type.shape:", action_logits.action_type.shape) if debug else None
 
+    arch_model.set_rl_training(True)
     optimizer = Adam(arch_model.parameters(), lr=1e-4)
     with torch.autograd.set_detect_anomaly(True):
         hidden_state = None
@@ -489,10 +497,10 @@ def test():
                 hidden_state = (h.detach(), c.detach())
 
             baseline_value, action_logits, \
-                action, new_hidden_state, select_units_num = arch_model.forward(state, hidden_state=hidden_state, 
-                                                                                return_logits=True, baseline_state=scalar_list, 
-                                                                                baseline_opponent_state=opponenet_scalar_out, 
-                                                                                return_baseline=True)
+                action, new_hidden_state, select_units_num, _ = arch_model.forward(state, hidden_state=hidden_state, 
+                                                                                   return_logits=True, baseline_state=scalar_list, 
+                                                                                   baseline_opponent_state=opponenet_scalar_out, 
+                                                                                   return_baseline=True)
             optimizer.zero_grad()
             print("action_logits.action_type:", action_logits.action_type) if debug else None
             print("action_logits.action_type.shape:", action_logits.action_type.shape) if debug else None

@@ -66,6 +66,11 @@ class SelectedUnitsHead(nn.Module):
         nn.init.uniform_(self.new_variable, b=0.)
         #nn.init.uniform_(self.new_variable, b=1. / original_32)
 
+        self.is_rl_training = False
+
+    def set_rl_training(self, staus):
+        self.is_rl_training = staus
+
     def forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num):
         '''
         Inputs:
@@ -125,7 +130,7 @@ class SelectedUnitsHead(nn.Module):
         end_index = entity_num
 
         # replace the EOF with the new_variable 
-        # TODO: use calculation to achieve it
+        # use calculation to achieve it
         if False:
             key[torch.arange(batch_size), end_index] = self.new_variable
         else:
@@ -151,7 +156,7 @@ class SelectedUnitsHead(nn.Module):
         print("key_avg:", key_avg) if debug else None
         print("key_avg.shape:", key_avg.shape) if debug else None
 
-        # TODO: creates a new variable corresponding to ending unit selection.
+        # creates a new variable corresponding to ending unit selection.
         # QUESTION: how to do that?
         # ANSWER: referred by the DI-star project, please see self.new_variable in init() method
         units_logits = []
@@ -198,10 +203,10 @@ class SelectedUnitsHead(nn.Module):
             # original mask usage is wrong, we should not let 0 * logits, zero value logit is still large! 
             # we use a very big negetive value replaced by logits, like -1e9
             # y shape: [batch_size x entity_size]
-            y = y.masked_fill(~mask, -1e9)
+            entity_logits = y.masked_fill(~mask, -1e9)
 
-            # entity_logits shape: [batch_size x entity_size]
-            entity_logits = y.div(self.temperature)
+            temperature = 0.8 if self.is_rl_training else 1
+            entity_logits = entity_logits / temperature
             del y
             print("entity_logits:", entity_logits) if debug else None
             print("entity_logits.shape:", entity_logits.shape) if debug else None
@@ -375,7 +380,7 @@ class SelectedUnitsHead(nn.Module):
         end_index = entity_num
 
         # replace the EOF with the new_variable 
-        # TODO: use calculation to achieve it
+        # use calculation to achieve it
         if False:
             key[torch.arange(batch_size), end_index] = self.new_variable
         else:
@@ -400,7 +405,7 @@ class SelectedUnitsHead(nn.Module):
         print("key_avg:", key_avg) if debug else None
         print("key_avg.shape:", key_avg.shape) if debug else None
 
-        # TODO: creates a new variable corresponding to ending unit selection.
+        # creates a new variable corresponding to ending unit selection.
         # QUESTION: how to do that?
         # ANSWER: referred by the DI-star project, please see self.new_variable in init() method
         units_logits_list = []
@@ -456,10 +461,10 @@ class SelectedUnitsHead(nn.Module):
             # original mask usage is wrong, we should not let 0 * logits, zero value logit is still large! 
             # we use a very big negetive value replaced by logits, like -1e9
             # y shape: [batch_size x entity_size]
-            y = y.masked_fill(~mask, -1e9)
+            entity_logits = y.masked_fill(~mask, -1e9)
 
-            # entity_logits shape: [batch_size x entity_size]
-            entity_logits = y.div(self.temperature)
+            temperature = 0.8 if self.is_rl_training else 1
+            entity_logits = entity_logits / temperature
             del y
             print('entity_logits', entity_logits) if debug else None
             print('entity_logits.shape', entity_logits.shape) if debug else None
@@ -581,7 +586,7 @@ def test():
     print("units_num:", units_num) if debug else None
 
     units_logits, _, autoregressive_embedding, _ = \
-        selected_units_head.forward_sl(
+        selected_units_head.mimic_forward(
             autoregressive_embedding, action_type, entity_embeddings, entity_num, units, units_num)
 
     if units_logits is not None:

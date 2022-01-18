@@ -48,6 +48,11 @@ class DelayHead(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
+        self.is_rl_training = False
+
+    def set_rl_training(self, staus):
+        self.is_rl_training = staus
+
     def forward(self, autoregressive_embedding, delay=None):
         # AlphaStar: `autoregressive_embedding` is decoded using a 2-layer (each with size 256) 
         # linear network with ReLUs,

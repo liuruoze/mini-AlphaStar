@@ -54,6 +54,11 @@ class TargetUnitHead(nn.Module):
 
         self.softmax = nn.Softmax(dim=-1)
 
+        self.is_rl_training = False
+
+    def set_rl_training(self, staus):
+        self.is_rl_training = staus
+
     def forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num, target_unit=None):
         '''
         Inputs:
@@ -125,10 +130,10 @@ class TargetUnitHead(nn.Module):
         y = y.squeeze(-1)
 
         # fill the entity which should be selected a very large negetive value 
-        y = y.masked_fill(~mask, -1e9)
+        target_unit_logits = y.masked_fill(~mask, -1e9)
 
-        # target_unit_logits shape: [batch_size x entity_size]
-        target_unit_logits = y.div(self.temperature)
+        temperature = 0.8 if self.is_rl_training else 1
+        target_unit_logits = target_unit_logits / temperature
         print("target_unit_logits:", target_unit_logits) if debug else None
         print("target_unit_logits.shape:", target_unit_logits.shape) if debug else None
 

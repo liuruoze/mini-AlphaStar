@@ -44,9 +44,6 @@ from alphastarmini.core.sl import load_pickle
 import param as P
 
 if __name__ == '__main__':
-    # if we don't add this line, it may cause running time error while in Windows
-    # torch.multiprocessing.freeze_support()
-
     print("run init")
 
     # ------------------------

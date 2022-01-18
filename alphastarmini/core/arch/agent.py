@@ -171,8 +171,10 @@ class Agent(object):
         # idle production and work time, total value of units and structure, total destroyed value of units and structures, 
         # total collected minerals and vespene, rate of minerals and vespene collection, and total spent minerals and vespene
         cumulative_score = torch.tensor(np.array(obs['score_cumulative']), dtype=torch.float32).reshape(1, -1)
-        baseline_state.append(cumulative_score)
+        print('cumulative_score', cumulative_score) if 1 else None
+        print('cumulative_score.shape', cumulative_score.shape) if 1 else None
 
+        baseline_state.append(cumulative_score)
         del scalar_list, cumulative_score
 
         return baseline_state
@@ -465,9 +467,9 @@ def test():
     time = torch.randn(batch_size, SFS.time)
 
     available_actions = torch.randn(batch_size, SFS.available_actions)
-    unit_counts_bow = torch.randn(batch_size, SFS.unit_counts_bow)
+    unit_counts_bow = torch.ones(batch_size, SFS.unit_counts_bow)
     mmr = torch.randn(batch_size, SFS.mmr)
-    units_buildings = torch.randn(batch_size, SFS.units_buildings)
+    units_buildings = torch.ones(batch_size, SFS.units_buildings)
     effects = torch.randn(batch_size, SFS.effects)
     upgrade = torch.randn(batch_size, SFS.upgrade)
 
@@ -532,7 +534,7 @@ def test():
     # action = agent.action_by_state(state)
     # print("action is:", action) if debug else None
 
-    action_logits, actions, hidden_state, select_units_num = agent.action_logits_by_state(state)
+    action_logits, actions, hidden_state, select_units_num, _ = agent.action_logits_by_state(state)
     print("action_logits is:", action_logits) if debug else None
     print("actions is:", actions) if debug else None
 

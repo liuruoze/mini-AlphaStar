@@ -339,6 +339,10 @@ class ScalarEncoder(nn.Module):
 
         # unit_counts_bow: A bag-of-words unit count from `entity_list`. 
         # The unit count vector is embedded by square rooting, passing through a linear layer, and passing through a ReLU
+        # note make sure unit_counts_bow all >= 0, otherwise torch.sqrt will produce nan !
+        print('unit_counts_bow', unit_counts_bow) if debug else None
+        assert (unit_counts_bow >= 0).all()
+
         unit_counts_bow = torch.sqrt(unit_counts_bow)
         x = F.relu(self.unit_counts_bow_fc(unit_counts_bow))
         del unit_counts_bow
@@ -381,7 +385,6 @@ class ScalarEncoder(nn.Module):
 
         batch_size = beginning_build_order.shape[0]
 
-        # TODO: add the seq info
         seq = torch.arange(SCHP.count_beginning_build_order)
         seq = L.tensor_one_hot(seq, SCHP.count_beginning_build_order)
         seq = seq.unsqueeze(0).repeat(batch_size, 1, 1).to(beginning_build_order.device)
@@ -406,7 +409,7 @@ class ScalarEncoder(nn.Module):
 
         embedded_scalar_list.append(x)
         scalar_context_list.append(x)
-        del x, mask, bo_sum, seq
+        del mask, bo_sum, seq
 
         # last_delay: The delay between when we last acted and the current observation, in game steps. 
         # This may be different from what we requested due to network latency or APM limits. 
@@ -434,7 +437,7 @@ class ScalarEncoder(nn.Module):
         scalar_context = torch.cat(scalar_context_list, dim=1)
         scalar_context_out = F.relu(self.fc_2(scalar_context))
 
-        del embedded_scalar_list, scalar_context_list, embedded_scalar, scalar_context
+        del x, embedded_scalar_list, scalar_context_list, embedded_scalar, scalar_context
 
         return embedded_scalar_out, scalar_context_out
 
@@ -455,9 +458,9 @@ def test(debug=False):
     time = torch.randn(batch_size, SFS.time)
 
     available_actions = torch.randn(batch_size, SFS.available_actions)
-    unit_counts_bow = torch.randn(batch_size, SFS.unit_counts_bow)
+    unit_counts_bow = torch.ones(batch_size, SFS.unit_counts_bow)
     mmr = torch.randn(batch_size, SFS.mmr)
-    units_buildings = torch.randn(batch_size, SFS.units_buildings)
+    units_buildings = torch.ones(batch_size, SFS.units_buildings)
     effects = torch.randn(batch_size, SFS.effects)
     upgrade = torch.randn(batch_size, SFS.upgrade)
 
