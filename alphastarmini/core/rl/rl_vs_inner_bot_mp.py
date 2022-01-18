@@ -48,19 +48,22 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 2
+    MAX_EPISODES = 5
     ACTOR_NUMS = 1
-    PARALLEL = 1
+    PARALLEL = 2
     GAME_STEPS_PER_EPISODE = 500  
+    MAX_FRAMES = 500 * 5
 else:
-    MAX_EPISODES = 4
+    MAX_EPISODES = 2 * 10
     ACTOR_NUMS = 4
-    PARALLEL = 8 + 6 * 2
+    PARALLEL = 8 + 6 * 1
     GAME_STEPS_PER_EPISODE = 18000
+    MAX_FRAMES = 18000 * 2
 
 STATIC_NUM = 16
-TRAIN_ITERS = STATIC_NUM * 10  # MAX_EPISODES * ACTOR_NUMS * PARALLEL
+TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
+USE_UPDATE_LOCK = True
 DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
 BASELINE_WEIGHT = 1
@@ -72,9 +75,9 @@ USE_RESULT_REWARD = True
 REWARD_SCALE = 1e-3
 WINRATE_SCALE = 2
 
-USE_BUFFER = False
+USE_BUFFER = True
 if USE_BUFFER:
-    BUFFER_SIZE = 3  # 100
+    BUFFER_SIZE = 10  # 100
     COUNT_OF_BATCHES = 1  # 10
     NUM_EPOCHS = 2  # 20
     USE_RANDOM_SAMPLE = True
@@ -88,7 +91,6 @@ STEP_MUL = 16
 
 UPDATE_PARAMS_INTERVAL = 30
 
-USE_UPDATE_LOCK = False
 RESTORE = True
 SAVE_STATISTIC = True
 RANDOM_SEED = 1
@@ -133,7 +135,7 @@ class ActorVSComputer:
     def __init__(self, player, queue, device, coordinator, teacher, idx, buffer_lock=None, results_lock=None, 
                  writer=None, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
-                 max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
+                 max_frames_per_episode=22.4 * 60 * 15, max_frames=MAX_FRAMES, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/",
                  update_params_interval=UPDATE_PARAMS_INTERVAL,
@@ -258,8 +260,6 @@ class ActorVSComputer:
                             print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
 
                             while not is_final:
-                                total_frames += 1
-                                episode_frames += 1
 
                                 t = time()
 
@@ -306,6 +306,8 @@ class ActorVSComputer:
 
                                 timesteps = env.step(env_actions, step_mul=STEP_MUL)  # STEP_MUL step_mul
                                 [home_next_obs] = timesteps
+                                total_frames += 1 * STEP_MUL
+                                episode_frames += 1 * STEP_MUL
 
                                 reward = home_next_obs.reward
                                 print("reward: ", reward) if 0 else None
@@ -369,6 +371,8 @@ class ActorVSComputer:
 
                                     if not USE_DEFINED_REWARD_AS_REWARD:
                                         reward = outcome
+                                        if outcome == 0:
+                                            reward = (killed_points - 1000) / 3000.0
 
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
@@ -403,6 +407,16 @@ class ActorVSComputer:
 
                                 # note, original AlphaStar pseudo-code has some mistakes, we modified 
                                 # them here
+
+                                if True:
+                                    state.to('cpu')
+                                    baseline_state = [l.to('cpu') for l in baseline_state]
+                                    player_memory = [l.to('cpu') for l in player_memory]
+                                    player_logits.to('cpu')
+                                    teacher_logits.to('cpu')
+                                    player_action.to('cpu')
+                                    player_select_units_num = player_select_units_num.to('cpu')
+                                    entity_num = entity_num.to('cpu')
 
                                 traj_step = Trajectory(
                                     state=state,
@@ -492,8 +506,8 @@ class ActorVSComputer:
                                 raise Exception
 
         except Exception as e:
-            print("ActorLoop.run() Exception cause return, Detials of the Exception:", e)
-            print(traceback.format_exc())
+            print("ActorLoop.run() Exception cause return, Detials of the Exception:", e) if debug else None
+            print(traceback.format_exc()) if 1 else None
             pass
 
         finally:
@@ -503,7 +517,7 @@ class ActorVSComputer:
             total_time = time() - training_start_time
             #print('agent_', self.idx, "total_time: ", total_time / 60.0, "min") if debug else None
 
-            if SAVE_STATISTIC: 
+            if debug and SAVE_STATISTIC: 
                 with self.results_lock:
                     self.coordinator.send_eval_results(self.player, DIFFICULTY, food_used_list, army_count_list, 
                                                        collected_points_list, used_points_list, 
@@ -589,7 +603,7 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
 
     now = datetime.datetime.now()
     summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "_" + str(rank) + "/"
-    writer = SummaryWriter(summary_path)
+    writer = SummaryWriter(summary_path) if NEED_SAVE_RESULT else None
 
     results_lock = threading.Lock()
     coordinator = Coordinator(league, winrate_scale=WINRATE_SCALE, output_file=OUTPUT_FILE, results_lock=results_lock, writer=writer)
@@ -649,7 +663,7 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
         for t in threads:
             t.join()
 
-        coordinator.write_eval_results()
+        # coordinator.write_eval_results()
 
     except Exception as e:
         print("Worker Exception cause return, Detials of the Exception:", e)
@@ -701,7 +715,7 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
             single_episode_outcome = episode_outcome[row]
             if not (single_episode_outcome == (-1e9)).any():
                 win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
-                print("win_rate", win_rate) if debug else None
+                print("row:", row, "winrate:", win_rate) if 1 else None
 
                 writer.add_scalar('all_winrate', win_rate, row + 1)
                 win_rate_list.append(win_rate)

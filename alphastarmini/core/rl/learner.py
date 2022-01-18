@@ -16,6 +16,8 @@ import datetime
 import random
 import copy
 
+import numpy as np
+
 import torch
 from torch.optim import Adam, RMSprop
 
@@ -103,10 +105,16 @@ class Learner:
 
         trajectories = []
 
-        if self.use_random_sample:
-            random.shuffle(self.trajectories)
+        # TODO: change the sampling method
+        # if self.use_random_sample:
+        #     random.shuffle(self.trajectories)
 
-        trajectories_reduced = self.trajectories[:sample_size]
+        if self.use_random_sample:
+            sample_index = np.random.choice(len(self.trajectories), sample_size, replace=False)
+            trajectories_reduced = [self.trajectories[i] for i in sample_index]
+        else:
+            trajectories_reduced = self.trajectories[:sample_size]
+
         trajectories.extend(trajectories_reduced)
         del trajectories_reduced
 
@@ -114,6 +122,7 @@ class Learner:
 
         # update self.trajectories
         if len(self.trajectories) > 0:
+            # first-in first out
             self.trajectories = self.trajectories[sample_size:]
 
         return trajectories
@@ -181,53 +190,55 @@ class Learner:
         # test mixed trajectories, it does not well
         # trajectories = self.get_mixed_trajectories()
 
-        print('len(self.trajectories)', len(self.trajectories)) if debug else None
+        print('len(self.trajectories)', len(self.trajectories)) if 1 else None
 
         trajectories = self.get_normal_trajectories()
-        print('len(trajectories)', len(trajectories)) if debug else None
+        print('len(trajectories)', len(trajectories)) if 1 else None
 
-        agent.agent_nn.model.train()  # for BN and dropout
-        print("begin backward") if debug else None
+        # agent.agent_nn.model.train()  # for BN and dropout
+        print("begin backward") if 1 else None
 
         for ep_id in range(self.num_epochs):
 
             for batch_id in range(self.count_of_batches):
                 update_trajectories = trajectories[batch_id * batch_size: (batch_id + 1) * batch_size]
-                print('len(update_trajectories)', len(update_trajectories)) if debug else None
+                print('len(update_trajectories)', len(update_trajectories)) if 1 else None
 
                 # with torch.autograd.set_detect_anomaly(True):
                 loss, loss_dict = loss_function(agent, update_trajectories, self.use_opponent_state, 
                                                 self.no_replay_learn, self.only_update_baseline,
                                                 self.baseline_weight)
-                print("loss.device:", loss.device) if debug else None
-                print("loss:", loss.item()) if debug else None
+                loss_dict_items = loss_dict.items()
+                loss_item = loss.item()
+
+                if self.process_lock is not None:            
+                    with self.process_lock:
+                        self.optimizer.zero_grad()
+                        loss.backward()
+                        self.optimizer.step()
+                else:
+                    self.optimizer.zero_grad()
+                    loss.backward()
+                    self.optimizer.step()
+
+                del loss, loss_dict, update_trajectories
+                print("loss:", loss_item) if 1 else None
 
                 if self.need_save_result:
-                    for i, k in loss_dict.items():
+                    self.writer.add_scalar('learner/loss', loss_item, agent.steps)
+                    for i, k in loss_dict_items:
                         print(i, k) if 1 else None
                         self.writer.add_scalar('learner/' + i, k, agent.steps)
 
-                self.optimizer.zero_grad()
-                loss.backward()
-                if self.process_lock is not None:
-                    with self.process_lock:
-                        self.optimizer.step()
-                else:
-                    self.optimizer.step()
-
-                if self.need_save_result:
-                    self.writer.add_scalar('learner/loss', loss.item(), agent.steps)
-                    agent.steps += AHP.batch_size * AHP.sequence_length
-
-                del loss, update_trajectories
+                agent.steps += AHP.batch_size * AHP.sequence_length
 
         del trajectories
 
         if self.need_save_result:
             torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
-        agent.agent_nn.model.eval()
-        print("end backward") if debug else None
+        # agent.agent_nn.model.eval()
+        print("end backward") if 1 else None
 
     def start(self):
         self.thread.start()

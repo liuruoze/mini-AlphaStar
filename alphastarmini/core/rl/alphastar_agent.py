@@ -305,14 +305,17 @@ class AlphaStarAgent(RandomAgent):
             print('cell', cell) if debug else None
 
             cell_traj.extend(cell)
+            del hidden, cell
 
             state_traj.extend(traj.state)
             baseline_state_traj.extend(traj.baseline_state)
             if use_opponent_state:
                 baseline_state_op_traj.extend(traj.baseline_state_op)
+
             actions_traj.extend(traj.action)
             select_units_num_traj.extend(traj.player_select_units_num)
             entity_nums_traj.extend(traj.entity_num)
+            del traj
 
         print('batch_size', batch_size) if debug else None
         print('seq_length', seq_length) if debug else None
@@ -418,6 +421,7 @@ class AlphaStarAgent(RandomAgent):
             hidden = hidden_all[:, i].transpose(0, 1).contiguous()  # .detach()
             cell = cell_all[:, i].transpose(0, 1).contiguous()  # .detach()
             memory = tuple([hidden, cell])
+            del hidden, cell
 
             baseline_state = [s[:, i].float() for s in baseline_state_all]
             if use_opponent_state:
