@@ -102,6 +102,7 @@ class Learner:
     def get_normal_trajectories(self):
         batch_size = AHP.batch_size
         sample_size = self.count_of_batches * batch_size
+        max_size = 3 * sample_size * self.buffer_size
 
         trajectories = []
 
@@ -121,9 +122,12 @@ class Learner:
         assert len(trajectories) == sample_size
 
         # update self.trajectories
-        if len(self.trajectories) > 0:
+        if len(self.trajectories) > 0 and len(self.trajectories) <= max_size:
             # first-in first out
             self.trajectories = self.trajectories[sample_size:]
+        elif len(self.trajectories) > max_size:
+            drop_size = len(self.trajectories) - max_size + sample_size
+            self.trajectories = self.trajectories[drop_size:]
 
         return trajectories
 
