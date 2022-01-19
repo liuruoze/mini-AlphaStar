@@ -54,11 +54,11 @@ if SIMPLE_TEST:
     GAME_STEPS_PER_EPISODE = 500  
     MAX_FRAMES = 500 * 5
 else:
-    MAX_EPISODES = 2 * 10
+    MAX_EPISODES = 4
     ACTOR_NUMS = 4
     PARALLEL = 8 + 6 * 1
     GAME_STEPS_PER_EPISODE = 18000
-    MAX_FRAMES = 18000 * 2
+    MAX_FRAMES = 18000 * MAX_EPISODES
 
 STATIC_NUM = 16
 TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
@@ -67,7 +67,7 @@ USE_UPDATE_LOCK = True
 DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
 BASELINE_WEIGHT = 1
-LR = 1e-5  # 1e-5
+LR = 1e-4  # 1e-5
 WEIGHT_DECAY = 1e-5
 
 USE_DEFINED_REWARD_AS_REWARD = False
@@ -77,14 +77,14 @@ WINRATE_SCALE = 2
 
 USE_BUFFER = True
 if USE_BUFFER:
-    BUFFER_SIZE = 5  # 100
-    COUNT_OF_BATCHES = 1  # 10
-    NUM_EPOCHS = 2  # 20
+    BUFFER_SIZE = 5 
+    COUNT_OF_BATCHES = 1
+    NUM_EPOCHS = 1
     USE_RANDOM_SAMPLE = True
 else:
-    BUFFER_SIZE = 1  # 100
-    COUNT_OF_BATCHES = 1  # 10
-    NUM_EPOCHS = 1  # 20
+    BUFFER_SIZE = 1
+    COUNT_OF_BATCHES = 1
+    NUM_EPOCHS = 1
     USE_RANDOM_SAMPLE = False
 
 STEP_MUL = 16
@@ -358,14 +358,19 @@ class ActorVSComputer:
                                     killed_points = killed_minerals + killed_vespene
 
                                     if game_outcome == 1:
-                                        pass
+                                        outcome = 1
                                     elif game_outcome == 0:
-                                        if killed_points > WIN_THRESHOLD:
-                                            outcome = 1
-                                        elif killed_points > 1000 and killed_points < WIN_THRESHOLD:
-                                            outcome = 0
-                                        else:
-                                            outcome = -1
+                                        with self.results_lock:
+                                            print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
+                                            print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
+                                            print("agent_{:d} get WIN_THRESHOLD".format(self.idx), WIN_THRESHOLD) if 1 else None
+                                            if killed_points > WIN_THRESHOLD:
+                                                outcome = 1
+                                            elif killed_points > 1000 and killed_points <= WIN_THRESHOLD:
+                                                outcome = 0
+                                            else:
+                                                outcome = -1
+                                            print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
                                     else:
                                         outcome = -1
 
@@ -373,6 +378,12 @@ class ActorVSComputer:
                                         reward = outcome
                                         if outcome == 0:
                                             reward = (killed_points - 1000) / 3000.0
+                                            with self.results_lock:
+                                                print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
+                                                print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
+                                                print("agent_{:d} get final outcome".format(self.idx), outcome) if 1 else None
+                                                print("agent_{:d} get reward".format(self.idx), reward) if 1 else None
+                                                print("agent_{:d} get reward_2".format(self.idx), (killed_points - 1000) / 3000.0) if 1 else None
 
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
@@ -497,8 +508,9 @@ class ActorVSComputer:
                                     print("Beyond the max_frames_per_episode, break!")
                                     break
 
-                            with self.results_lock:
-                                self.coordinator.only_send_outcome(self.player, outcome)
+                            if False:
+                                with self.results_lock:
+                                    self.coordinator.only_send_outcome(self.player, outcome)
 
                             # use max_frames_per_episode to end the episode
                             if self.max_episodes and total_episodes >= self.max_episodes:
@@ -646,7 +658,8 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
 
             for z in range(ACTOR_NUMS):
                 device = torch.device(cuda_device if use_cuda_device else "cpu")
-                actor = ActorVSComputer(player, queue, device, coordinator, teacher, z + 1, buffer_lock, results_lock, writer)
+                agent_id = rank * ACTOR_NUMS + z
+                actor = ActorVSComputer(player, queue, device, coordinator, teacher, agent_id, buffer_lock, results_lock, writer)
                 actors.append(actor)
 
         threads = []
@@ -715,7 +728,7 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
             single_episode_outcome = episode_outcome[row]
             if not (single_episode_outcome == (-1e9)).any():
                 win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
-                print("row:", row, "winrate:", win_rate) if 1 else None
+                print("Iter:", row, "Winrate:", win_rate) if 1 else None
 
                 writer.add_scalar('all_winrate', win_rate, row + 1)
                 win_rate_list.append(win_rate)
