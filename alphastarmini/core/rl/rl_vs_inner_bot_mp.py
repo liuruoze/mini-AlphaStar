@@ -65,11 +65,11 @@ else:
 STATIC_NUM = 16
 TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
-USE_UPDATE_LOCK = False
+USE_UPDATE_LOCK = True
 DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
 BASELINE_WEIGHT = 1
-LR = 1e-4  # 1e-5
+LR = 1e-5  # 1e-5
 WEIGHT_DECAY = 0
 
 USE_DEFINED_REWARD_AS_REWARD = False
@@ -77,7 +77,7 @@ USE_RESULT_REWARD = True
 REWARD_SCALE = 1e-3
 WINRATE_SCALE = 2
 
-USE_BUFFER = True
+USE_BUFFER = False
 if USE_BUFFER:
     BUFFER_SIZE = 10 
     COUNT_OF_BATCHES = 1
@@ -147,7 +147,9 @@ class ActorVSComputer:
         self.teacher = teacher
         self.queue = queue
         self.coordinator = coordinator
-        self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
+
+        self.agent = self.player.agent
+        #self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
         # if ON_GPU:
         #     self.agent.agent_nn.to(device)
 
@@ -265,10 +267,10 @@ class ActorVSComputer:
                                 t = time()
 
                                 # every 10s, the actor get the params from the learner
-                                if time() - update_params_timer > self.update_params_interval:
-                                    print("agent_{:d} update params".format(self.idx)) if debug else None
-                                    self.agent.set_weights(self.player.agent.get_weights())
-                                    update_params_timer = time()
+                                # if time() - update_params_timer > self.update_params_interval:
+                                #     print("agent_{:d} update params".format(self.idx)) if debug else None
+                                #     self.agent.set_weights(self.player.agent.get_weights())
+                                #     update_params_timer = time()
 
                                 state = self.agent.agent_nn.preprocess_state_all(home_obs.observation, 
                                                                                  build_order=player_bo, 
@@ -598,7 +600,7 @@ def get_points(obs):
     return points
 
 
-def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner, device_learner, model_teacher, device_teacher):
+def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner, device_learner, model_teacher=None, device_teacher=None):
     torch.manual_seed(RANDOM_SEED + rank)
 
     with synchronizer:
@@ -615,7 +617,7 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
     league = League(
         initial_agents={
             race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, 
-                                       restore=False, device=cuda_device)
+                                       restore=True, device=cuda_device)
             for race in [Race.protoss]
         },
         main_players=1, 
@@ -641,9 +643,10 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
             player = league.get_learning_player(idx)
 
             #player.agent.agent_nn.model = model_learner
-            player.agent.agent_nn.model.load_state_dict(model_learner.state_dict())
+            # player.agent.agent_nn.model.load_state_dict(model_learner.state_dict())
             if use_cuda_device:
                 player.agent.agent_nn.model.to(cuda_device)
+
             player.agent.set_rl_training(IS_TRAINING)
 
             buffer_lock = threading.Lock()
@@ -657,8 +660,8 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
                               need_save_result=NEED_SAVE_RESULT, process_lock=process_lock)
             learners.append(learner)
 
-            teacher = get_supervised_agent(player.race, model_type="sl", restore=False, device=cuda_device)
-            teacher.agent_nn.model = model_teacher
+            teacher = get_supervised_agent(player.race, model_type="sl", restore=True, device=cuda_device)
+            # teacher.agent_nn.model = model_teacher
             if use_cuda_device:
                 teacher.agent_nn.model.to(cuda_device)
 
@@ -806,14 +809,14 @@ def test(on_server=False, replay_path=None):
                                             eps=THP.epsilon, weight_decay=WEIGHT_DECAY)
         optimizer.share_memory()
 
-    device_teacher = torch.device("cuda:1" if use_cuda_device else "cpu")
-    teacher = get_supervised_agent(player.race, model_type="sl", 
-                                   restore=True, device=device_teacher)
-    if ON_GPU:
-        teacher.agent_nn.to(device_teacher)
+    # device_teacher = torch.device("cuda:1" if use_cuda_device else "cpu")
+    # teacher = get_supervised_agent(player.race, model_type="sl", 
+    #                                restore=True, device=device_teacher)
+    # if ON_GPU:
+    #     teacher.agent_nn.to(device_teacher)
 
-    model_teacher = teacher.agent_nn.model
-    model_teacher.share_memory()
+    # model_teacher = teacher.agent_nn.model
+    # model_teacher.share_memory()
 
     #synchronizer = mp.Barrier(PARALLEL + 1)
     synchronizer = mp.Lock()
@@ -821,7 +824,7 @@ def test(on_server=False, replay_path=None):
     q = mp.Queue(maxsize=256 * 24)
 
     for rank in range(PARALLEL):
-        p = mp.Process(target=Worker, args=(synchronizer, rank, optimizer, q, use_cuda_device, model_learner, device_learner, model_teacher, device_teacher))
+        p = mp.Process(target=Worker, args=(synchronizer, rank, optimizer, q, use_cuda_device, model_learner, device_learner))
         p.start()
         processes.append(p)
 

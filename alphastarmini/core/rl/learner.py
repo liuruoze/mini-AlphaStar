@@ -223,27 +223,10 @@ class Learner:
                 loss_dict_items = loss_dict.items()
                 loss_item = loss.item()
 
-                if self.process_lock is not None:            
-                    with self.process_lock:
-                        self.optimizer.zero_grad()
-                        loss.backward()
-                        if 0:
-                            for lp, gp in zip(local_model.parameters(), global_model.parameters()):
-                                if lp.grad is not None:
-                                    gp._grad = lp.grad.to(gp.device)
-                        else:
-                            SA.ensure_shared_grads(local_model, global_model)
-                        self.optimizer.step()
-                        local_model.load_state_dict(global_model.state_dict())
-                else:
+                with self.process_lock:
                     self.optimizer.zero_grad()
                     loss.backward()
-                    if 0:
-                        for lp, gp in zip(local_model.parameters(), global_model.parameters()):
-                            if lp.grad is not None:
-                                gp._grad = lp.grad.to(gp.device)
-                    else:
-                        SA.ensure_shared_grads(local_model, global_model)
+                    SA.ensure_shared_grads(local_model, global_model)
                     self.optimizer.step()
                     local_model.load_state_dict(global_model.state_dict())
 

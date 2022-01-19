@@ -107,9 +107,13 @@ def ensure_shared_grads(model, shared_model):
     '''
     https://github.com/ikostrikov/pytorch-a3c/blob/master/train.py
     '''
-    for param, shared_param in zip(model.parameters(),
-                                   shared_model.parameters()):
-        if shared_param.grad is not None:
-            return
-        if param.grad is not None:
-            shared_param._grad = param.grad.to(shared_param.device)
+    for param, shared_param in zip(model.named_parameters(),
+                                   shared_model.named_parameters()):
+        if shared_param[1].grad is not None:
+            print('shared_param is not None', shared_param[0])
+            continue
+        if param[1].grad is not None:
+            shared_param[1]._grad = param[1].grad.to(shared_param[1].device)
+        else:
+            pass
+            print('param grad is None', param[0]) if 0 else None
