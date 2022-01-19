@@ -25,6 +25,7 @@ from tensorboardX import SummaryWriter
 
 from alphastarmini.core.rl.rl_loss import loss_function
 from alphastarmini.core.rl import rl_utils as RU
+from alphastarmini.core.rl import shared_adam as SA
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import RL_Training_Hyper_Parameters as THP
@@ -44,7 +45,8 @@ SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S",
 class Learner:
     """Learner worker that updates agent parameters based on trajectories."""
 
-    def __init__(self, player, max_time_for_training=60 * 3, lr=THP.learning_rate, 
+    def __init__(self, player, optimizer, global_model, 
+                 max_time_for_training=60 * 3, lr=THP.learning_rate, 
                  weight_decay=THP.weight_decay, baseline_weight=1,
                  is_training=True, buffer_lock=None, writer=None,
                  use_opponent_state=True, no_replay_learn=False, 
@@ -59,9 +61,12 @@ class Learner:
         self.win_trajectories = []
 
         # PyTorch code
-        self.optimizer = Adam(self.get_parameters(), 
-                              lr=lr, betas=(THP.beta1, THP.beta2), 
-                              eps=THP.epsilon, weight_decay=weight_decay)
+        # self.optimizer = Adam(self.get_parameters(), 
+        #                       lr=lr, betas=(THP.beta1, THP.beta2), 
+        #                       eps=THP.epsilon, weight_decay=weight_decay)
+
+        self.optimizer = optimizer
+        self.global_model = global_model
 
         self.thread = threading.Thread(target=self.run, args=())
         self.thread.daemon = True                            # Daemonize thread
@@ -189,6 +194,9 @@ class Learner:
             return 
 
         agent = self.player.agent
+        local_model = agent.agent_nn.model
+        global_model = self.global_model
+
         batch_size = AHP.batch_size
 
         # test mixed trajectories, it does not well
@@ -219,11 +227,25 @@ class Learner:
                     with self.process_lock:
                         self.optimizer.zero_grad()
                         loss.backward()
+                        if 0:
+                            for lp, gp in zip(local_model.parameters(), global_model.parameters()):
+                                if lp.grad is not None:
+                                    gp._grad = lp.grad.to(gp.device)
+                        else:
+                            SA.ensure_shared_grads(local_model, global_model)
                         self.optimizer.step()
+                        local_model.load_state_dict(global_model.state_dict())
                 else:
                     self.optimizer.zero_grad()
                     loss.backward()
+                    if 0:
+                        for lp, gp in zip(local_model.parameters(), global_model.parameters()):
+                            if lp.grad is not None:
+                                gp._grad = lp.grad.to(gp.device)
+                    else:
+                        SA.ensure_shared_grads(local_model, global_model)
                     self.optimizer.step()
+                    local_model.load_state_dict(global_model.state_dict())
 
                 del loss, loss_dict, update_trajectories
                 print("loss:", loss_item) if 1 else None

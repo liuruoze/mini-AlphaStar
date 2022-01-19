@@ -26,6 +26,7 @@ from pysc2.lib import units as sc2_units
 from alphastarmini.core.rl.rl_utils import Trajectory, get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
 from alphastarmini.core.rl import rl_utils as RU
+from alphastarmini.core.rl import shared_adam as SA
 
 from alphastarmini.lib import utils as L
 
@@ -35,6 +36,7 @@ from alphastarmini.core.ma.coordinator import Coordinator
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
+from alphastarmini.lib.hyper_parameters import RL_Training_Hyper_Parameters as THP
 
 from alphastarmini.lib.sc2 import raw_actions_mapping_protoss as RAMP
 
@@ -63,12 +65,12 @@ else:
 STATIC_NUM = 16
 TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
-USE_UPDATE_LOCK = True
+USE_UPDATE_LOCK = False
 DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
 BASELINE_WEIGHT = 1
 LR = 1e-4  # 1e-5
-WEIGHT_DECAY = 1e-5
+WEIGHT_DECAY = 0
 
 USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
@@ -77,7 +79,7 @@ WINRATE_SCALE = 2
 
 USE_BUFFER = True
 if USE_BUFFER:
-    BUFFER_SIZE = 5 
+    BUFFER_SIZE = 10 
     COUNT_OF_BATCHES = 1
     NUM_EPOCHS = 1
     USE_RANDOM_SAMPLE = True
@@ -88,8 +90,7 @@ else:
     USE_RANDOM_SAMPLE = False
 
 STEP_MUL = 16
-
-UPDATE_PARAMS_INTERVAL = 30
+UPDATE_PARAMS_INTERVAL = 5
 
 RESTORE = True
 SAVE_STATISTIC = True
@@ -597,16 +598,24 @@ def get_points(obs):
     return points
 
 
-def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_learner, model_teacher, device_teacher):
+def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner, device_learner, model_teacher, device_teacher):
+    torch.manual_seed(RANDOM_SEED + rank)
+
     with synchronizer:
         print('module name:', "worker")
         print('parent process:', os.getppid())
         print('process id:', os.getpid())
 
+    if rank < 8:
+        cuda_device = "cuda:" + str(rank)
+    else:
+        new_rank = (rank - 8) % 6 + 2
+        cuda_device = "cuda:" + str(new_rank)
+
     league = League(
         initial_agents={
             race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, 
-                                       restore=False, device=device_learner)
+                                       restore=False, device=cuda_device)
             for race in [Race.protoss]
         },
         main_players=1, 
@@ -624,25 +633,22 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
     learners = []
     actors = []
 
-    if rank < 8:
-        cuda_device = "cuda:" + str(rank)
-    else:
-        new_rank = (rank - 8) % 6 + 2
-        cuda_device = "cuda:" + str(new_rank)
-
     process_lock = synchronizer if USE_UPDATE_LOCK else None
 
     try:
 
         for idx in range(league.get_learning_players_num()):
             player = league.get_learning_player(idx)
-            player.agent.agent_nn.model = model_learner
+
+            #player.agent.agent_nn.model = model_learner
+            player.agent.agent_nn.model.load_state_dict(model_learner.state_dict())
             if use_cuda_device:
                 player.agent.agent_nn.model.to(cuda_device)
             player.agent.set_rl_training(IS_TRAINING)
 
             buffer_lock = threading.Lock()
-            learner = Learner(player, max_time_for_training=60 * 60 * 24 * 7, lr=LR, 
+            learner = Learner(player, optimizer=optimizer, global_model=model_learner, 
+                              max_time_for_training=60 * 60 * 24 * 7, lr=LR, 
                               weight_decay=WEIGHT_DECAY, baseline_weight=BASELINE_WEIGHT, is_training=IS_TRAINING, 
                               buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
                               no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
@@ -651,7 +657,7 @@ def Worker(synchronizer, rank, queue, use_cuda_device, model_learner, device_lea
                               need_save_result=NEED_SAVE_RESULT, process_lock=process_lock)
             learners.append(learner)
 
-            teacher = get_supervised_agent(player.race, model_type="sl", restore=False, device=device_teacher)
+            teacher = get_supervised_agent(player.race, model_type="sl", restore=False, device=cuda_device)
             teacher.agent_nn.model = model_teacher
             if use_cuda_device:
                 teacher.agent_nn.model.to(cuda_device)
@@ -695,6 +701,8 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
 
     writer = SummaryWriter(log_path)
 
+    torch.manual_seed(RANDOM_SEED)
+
     update_counter = 0
     max_win_rate = 0.
     latest_win_rate = 0.
@@ -710,7 +718,7 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
     try: 
         while update_counter < train_iters:
 
-            sleep(5)
+            sleep(1)
             result = queue.get(timeout=60 * 30)
 
             result_list.append(result)
@@ -762,6 +770,7 @@ def test(on_server=False, replay_path=None):
     else:
         use_cuda_device = True
 
+    torch.manual_seed(RANDOM_SEED)
     mp.set_start_method('spawn')
 
     model_save_type = "rl"
@@ -789,6 +798,14 @@ def test(on_server=False, replay_path=None):
     model_learner = player.agent.agent_nn.model
     model_learner.share_memory()
 
+    if 0:
+        optimizer = SA.MorvanZhouSharedAdam(model_learner.parameters(), lr=LR, betas=(THP.beta1, THP.beta2), 
+                                            eps=THP.epsilon, weight_decay=WEIGHT_DECAY)
+    else:
+        optimizer = SA.IkostrikovSharedAdam(model_learner.parameters(), lr=LR, betas=(THP.beta1, THP.beta2), 
+                                            eps=THP.epsilon, weight_decay=WEIGHT_DECAY)
+        optimizer.share_memory()
+
     device_teacher = torch.device("cuda:1" if use_cuda_device else "cpu")
     teacher = get_supervised_agent(player.race, model_type="sl", 
                                    restore=True, device=device_teacher)
@@ -804,7 +821,7 @@ def test(on_server=False, replay_path=None):
     q = mp.Queue(maxsize=256 * 24)
 
     for rank in range(PARALLEL):
-        p = mp.Process(target=Worker, args=(synchronizer, rank, q, use_cuda_device, model_learner, device_learner, model_teacher, device_teacher))
+        p = mp.Process(target=Worker, args=(synchronizer, rank, optimizer, q, use_cuda_device, model_learner, device_learner, model_teacher, device_teacher))
         p.start()
         processes.append(p)
 
