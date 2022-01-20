@@ -333,7 +333,7 @@ def upgo_returns(values, rewards, discounts, bootstrap, debug=False):
 
 
 def entropy(all_logits, selected_mask=None, entity_mask=None, unit_type_entity_mask=None, 
-            outlier_remove=True):
+            outlier_remove=False):
     [policy_logits] = all_logits
     log_policy = F.log_softmax(policy_logits, dim=-1) 
     policy = torch.exp(log_policy)  # more stable than softmax(policy_logits)
@@ -346,8 +346,21 @@ def entropy(all_logits, selected_mask=None, entity_mask=None, unit_type_entity_m
     if unit_type_entity_mask is not None:
         x = x * unit_type_entity_mask
 
-    x = remove_outlier(x, outlier_remove)
     x = -policy * x
+
+    # if len(x.shape) == 3:
+    #     print('policy[0, 1, 44]', policy[0, 1, 44])
+    #     print('x[0, 1, 44]', x[0, 1, 44])
+    #     print('policy[2, 1, 40]', policy[2, 1, 40])
+    #     print('x[2, 1, 40]', x[2, 1, 40])
+
+    x = remove_outlier(x, outlier_remove)
+
+    # if len(x.shape) == 3:
+    #     print(stop)
+
+    #     print('entropy x', x)
+    #     print('x.shape', x.shape)
 
     del all_logits, policy_logits, log_policy, policy
     del selected_mask, entity_mask, unit_type_entity_mask
@@ -356,12 +369,24 @@ def entropy(all_logits, selected_mask=None, entity_mask=None, unit_type_entity_m
 
 
 def kl(all_logits, selected_mask=None, entity_mask=None, 
-       unit_type_entity_mask=None, outlier_remove=True):
+       unit_type_entity_mask=None, outlier_remove=False):
     [student_logits, teacher_logits] = all_logits
     s_logprobs = F.log_softmax(student_logits, dim=-1)
     t_logprobs = F.log_softmax(teacher_logits, dim=-1)
     teacher_probs = torch.exp(t_logprobs)  # more stable than softmax(teacher_logits)
     x = t_logprobs - s_logprobs
+
+    # if len(x.shape) == 3:
+    #     print('x[0, 1, 44]', x[0, 1, 44])
+    #     print('t_logprobs[0, 1, 44]', t_logprobs[0, 1, 44])
+    #     print('s_logprobs[0, 1, 44]', s_logprobs[0, 1, 44])
+    #     print('student_logits[0, 1, 44]', student_logits[0, 1, 44])
+    #     print('teacher_logits[0, 1, 44]', teacher_logits[0, 1, 44])
+
+    #     print('x[2, 1, 40]', x[2, 1, 40])
+
+    # print('kl x', x)
+    # print('x.shape', x.shape)
 
     if selected_mask is not None:
         x = x * selected_mask.unsqueeze(-1) 
@@ -390,7 +415,13 @@ def remove_outlier(x, remove=False):
     else:
         if outlier_mask.any() > 0:
             index = outlier_mask.nonzero(as_tuple=True)
+
+            print("index:", index) if 1 else None
+
             print("x[index]:", x[index]) if 1 else None
+
+            print(stop)
+
             del index
 
     del outlier_mask
@@ -398,14 +429,27 @@ def remove_outlier(x, remove=False):
     return x
 
 
-def log_prob(logits, actions, mask_used, max_selected, outlier_remove=True):
+def log_prob(logits, actions, mask_used, max_selected, show=False, outlier_remove=False):
     """Returns the log probability of taking an action given the logits."""
     [selected_mask, entity_mask, unit_type_entity_mask] = mask_used
 
+    # print('logits.shape', logits.shape) if show else None
+    # print('logits[0][0]', logits[0][0]) if show else None
+    # print('logits[0][1]', logits[0][1]) if show else None
+
+    # print('actions.shape', actions.shape) if show else None
+    # print('actions[0][0]', actions[0][0]) if show else None
+    # print('actions[0][1]', actions[0][1]) if show else None
+
     if unit_type_entity_mask is not None:
         unit_type_entity_mask = unit_type_entity_mask.reshape(-1, unit_type_entity_mask.shape[-1])
+        # print('unit_type_entity_mask[0]', unit_type_entity_mask[0]) if show else None
+        # print('unit_type_entity_mask.shape', unit_type_entity_mask.shape) if show else None
+
     if entity_mask is not None:
         entity_mask = entity_mask.reshape(-1, entity_mask.shape[-1])
+        # print('entity_mask[0]', entity_mask[0]) if show else None
+        # print('entity_mask.shape', entity_mask.shape) if show else None
 
     if len(logits.shape) == 3:
         select_size = logits.shape[1]
@@ -416,40 +460,111 @@ def log_prob(logits, actions, mask_used, max_selected, outlier_remove=True):
             entity_mask = entity_mask.unsqueeze(1).repeat(1, select_size, 1)
             unit_type_entity_mask = unit_type_entity_mask.view(-1, unit_type_entity_mask.shape[-1])
             entity_mask = entity_mask.view(-1, entity_mask.shape[-1])
-
             entity_mask = entity_mask * unit_type_entity_mask
+            # print('entity_mask[0]', entity_mask[0]) if show else None
+            # print('entity_mask.shape', entity_mask.shape) if show else None
+
     if len(actions.shape) == 3:
         actions = actions.view(-1, actions.shape[-1])
 
     del unit_type_entity_mask
 
     def cross_entropy_mask_class(pred, soft_targets, mask=None):
-        x = - soft_targets * F.log_softmax(pred, dim=-1)
-        if mask is not None:
-            x = x * mask
-        x = remove_outlier(x, outlier_remove)
+        x = F.log_softmax(pred, dim=-1)
+
+        # print('x[12]', x[12]) if show else None
+        # print('x[25]', x[25]) if show else None
+        # print('x.shape', x.shape) if show else None
+
+        x = - soft_targets * x
+
+        # print('x[12]', x[12]) if show else None
+        # print('x[25]', x[25]) if show else None
+        # print('x.shape', x.shape) if show else None
+
+        # if mask is not None:
+        #     x = x * mask
+
+        # print('mask[0]', mask[0]) if show else None
+        # print('mask[1]', mask[1]) if show else None
+        # print('mask.shape', mask.shape) if show else None
+        # print('x[0]', x[0]) if show else None
+        # print('x[1]', x[1]) if show else None
+        # print('x.shape', x.shape) if show else None
+
+        # print('x[0]', x[0]) if show else None
+        # print('x.shape', x.shape) if show else None        
+
         x = torch.sum(x, -1)
+        # print('x[0]', x[0]) if show else None
+        # print('x[1]', x[1]) if show else None
+        # print('x.shape', x.shape) if show else None
+
         del soft_targets, pred
+
         return x
+
+    # print('logits', logits[0]) if show else None
+    # print('logits.shape', logits.shape) if show else None
+
+    # print('actions', actions[0]) if show else None
+    # print('actions.shape', actions.shape) if show else None
 
     # actions: shape [BATCH_SIZE, 1] to [BATCH_SIZE]
     actions = torch.squeeze(actions, dim=-1)
     actions = F.one_hot(actions, num_classes=logits.shape[-1])
+
+    # print('actions[0]', actions[0]) if show else None
+    # print('actions[1]', actions[1]) if show else None
+    # print('actions.shape', actions.shape) if show else None
+
+    # print('logits[0]', logits[0]) if show else None
+    # print('logits[1]', logits[1]) if show else None
+    # print('logits.shape', logits.shape) if show else None
+
     loss_result = cross_entropy_mask_class(logits, actions, entity_mask)
 
     del logits, actions, entity_mask
 
     if selected_mask is not None:
         selected_mask = selected_mask.view(-1, selected_mask.shape[-1])
+
+        selected_mask_index = torch.sum(selected_mask.float(), dim=-1)
+        print('selected_mask_index', selected_mask_index) if show else None
+
+        select_index = selected_mask_index > 2
+
         if len(loss_result.shape) == 1:
             loss_result = loss_result.view(-1, max_selected)
 
+            #print(stop) if show else None
+
+        # print('loss_result[0]', loss_result[0]) if show else None
+        # print('loss_result.shape', loss_result.shape) if show else None    
+
         loss_result = loss_result * selected_mask
+
+        print('selected_mask[0]', selected_mask[0]) if show else None
+        print('selected_mask.shape', selected_mask.shape) if show else None
+
+        loss_result_2 = loss_result[select_index]
+        if len(loss_result_2):
+            print('loss_result_2', torch.sum(loss_result_2, dim=-1)) if show else None
+
+        loss_result = remove_outlier(loss_result, outlier_remove)
+
         loss_result = torch.sum(loss_result, dim=-1)
+
+        print('loss_result', loss_result) if show else None
 
         del selected_mask
 
-    return -loss_result
+    loss_result = -loss_result
+
+    # print('loss_result', loss_result[0]) if show else None
+    # print('loss_result.shape', loss_result.shape) if show else None
+
+    return loss_result
 
 
 def test(debug=True):
@@ -501,8 +616,8 @@ def test(debug=True):
 
             returns[-1, :] = rewards_short[-1, :] + discounts[-1, :] * boostrapvales[-1, :]
             for t in reversed(range(rewards_short.shape[0] - 1)):
-                returns[t, :] = rewards_short[t, :] + discounts[t, :] * (lambdas * returns[t + 1, :] +
-                                                                         (1 - lambdas) * boostrapvales[t, :])
+                returns[t, :] = rewards_short[t, :] + discounts[t, :] * (lambdas * returns[t + 1, :]
+                                                                         + (1 - lambdas) * boostrapvales[t, :])
             print("returns:", returns) if debug else None
 
             result = returns.detach() - baselines[:-1]

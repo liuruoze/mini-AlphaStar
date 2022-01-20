@@ -100,43 +100,49 @@ class IkostrikovSharedAdam(optim.Adam):
         return loss
 
 
-def show_grads(model, shared_model):
+def show_grads(model, shared_model, debug):
     '''
     https://github.com/ikostrikov/pytorch-a3c/blob/master/train.py
     '''
+    print('show_grads') if debug else None
     for param, shared_param in zip(model.named_parameters(),
                                    shared_model.named_parameters()):
-        print('param name', param[0])
-        print('param grad', param[1].grad)
-        print('shared_param name', shared_param[0])
-        print('shared_param grad', shared_param[1].grad)
+        print('param name', param[0]) if debug else None
+        print('param device', param[1].device) if debug else None
+        print('param grad', param[1].grad) if debug else None
+        print('shared_param name', shared_param[0]) if debug else None
+        print('shared_param device', shared_param[1].device) if debug else None
+        print('shared_param grad', shared_param[1].grad) if debug else None
         break
 
 
-def show_datas(model, shared_model):
+def show_datas(model, shared_model, debug):
     '''
     https://github.com/ikostrikov/pytorch-a3c/blob/master/train.py
     '''
+    print('show_datas') if debug else None
     for param, shared_param in zip(model.named_parameters(),
                                    shared_model.named_parameters()):
-        print('param name', param[0])
-        print('param grad', param[1].data)
-        print('shared_param name', shared_param[0])
-        print('shared_param grad', shared_param[1].data)
+        print('param name', param[0]) if debug else None
+        print('param device', param[1].device) if debug else None
+        print('param data', param[1].data) if debug else None
+        print('shared_param name', shared_param[0]) if debug else None
+        print('shared_param device', shared_param[1].device) if debug else None
+        print('shared_param data', shared_param[1].data) if debug else None
         break
 
 
-def ensure_shared_grads(model, shared_model):
+def ensure_shared_grads(model, shared_model, debug):
     '''
     https://github.com/ikostrikov/pytorch-a3c/blob/master/train.py
     '''
     for param, shared_param in zip(model.named_parameters(),
                                    shared_model.named_parameters()):
         if shared_param[1].grad is not None:
-            print('shared_param is not None', shared_param[0]) if 0 else None
+            print('shared_param is not None', shared_param[0]) if debug else None
             return
         if param[1].grad is not None:
             shared_param[1]._grad = param[1].grad.detach().to(shared_param[1].device)
         else:
             pass
-            print('param grad is None', param[0]) if 0 else None
+            print('param grad is None', param[0]) if debug else None

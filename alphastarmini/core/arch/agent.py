@@ -257,7 +257,8 @@ class Agent(object):
         return action_logits, select_units_num, new_state
 
     def action_logits_on_actions_for_unroll(self, state, action_gt, gt_select_units_num, hidden_state=None, 
-                                            batch_size=None, sequence_length=None, baseline_state=None, baseline_opponent_state=None):
+                                            batch_size=None, sequence_length=None, baseline_state=None, baseline_opponent_state=None,
+                                            show=False):
 
         baselinelist, action_pred, entity_nums, units, target_unit, target_location, action_type_logits, \
             delay_logits, queue_logits, \
@@ -271,7 +272,8 @@ class Agent(object):
                                                                                                            hidden_state=hidden_state,
                                                                                                            multi_gpu_supvised_learning=False,
                                                                                                            baseline_state=baseline_state, 
-                                                                                                           baseline_opponent_state=baseline_opponent_state)
+                                                                                                           baseline_opponent_state=baseline_opponent_state,
+                                                                                                           show=show)
 
         # the mimic_forward will added one entity into the max selected size, so we shoulde substract one
         # units_logits = units_logits[:, :-1, :]

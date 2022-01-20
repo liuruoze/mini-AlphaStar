@@ -45,7 +45,7 @@ SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S",
 class Learner:
     """Learner worker that updates agent parameters based on trajectories."""
 
-    def __init__(self, player, optimizer, global_model, 
+    def __init__(self, player, rank, cuda_device, optimizer, global_model, 
                  max_time_for_training=60 * 3, lr=THP.learning_rate, 
                  weight_decay=THP.weight_decay, baseline_weight=1,
                  is_training=True, buffer_lock=None, writer=None,
@@ -53,12 +53,19 @@ class Learner:
                  num_epochs=THP.num_epochs, count_of_batches=1,
                  buffer_size=10, use_random_sample=False,
                  only_update_baseline=False,
-                 need_save_result=True, process_lock=None):
+                 need_save_result=True, process_lock=None,
+                 update_params_interval=10):
         self.player = player
         self.player.set_learner(self)
+
+        self.rank = rank
+        self.cuda_device = cuda_device
+
         self.trajectories = []
         self.final_trajectories = []
         self.win_trajectories = []
+
+        self.update_params_interval = update_params_interval
 
         # PyTorch code
         # self.optimizer = Adam(self.get_parameters(), 
@@ -196,49 +203,71 @@ class Learner:
         agent = self.player.agent
         batch_size = AHP.batch_size
 
-        # test mixed trajectories, it does not well
-        # trajectories = self.get_mixed_trajectories()
+        learner_name = 'learner_' + str(self.rank)
 
-        print('len(self.trajectories)', len(self.trajectories)) if 1 else None
+        print(learner_name, 'len(self.trajectories)', len(self.trajectories)) if 1 else None
 
         trajectories = self.get_normal_trajectories()
-        print('len(trajectories)', len(trajectories)) if 1 else None
+        print(learner_name, 'len(trajectories)', len(trajectories)) if debug else None
 
         # agent.agent_nn.model.train()  # for BN and dropout
-        print("begin backward") if 1 else None
+        print(learner_name, "begin rl update") if debug else None
 
         for ep_id in range(self.num_epochs):
 
             for batch_id in range(self.count_of_batches):
                 update_trajectories = trajectories[batch_id * batch_size: (batch_id + 1) * batch_size]
-                print('len(update_trajectories)', len(update_trajectories)) if 1 else None
+                print(learner_name, 'len(update_trajectories)', len(update_trajectories)) if debug else None
 
-                # with torch.autograd.set_detect_anomaly(True):
-                loss, loss_dict = loss_function(agent, update_trajectories, self.use_opponent_state, 
-                                                self.no_replay_learn, self.only_update_baseline,
-                                                self.baseline_weight)
-                loss_dict_items = loss_dict.items()
-                loss_item = loss.item()
+                loss_dict_items = None
+                loss_item = None
 
                 with self.process_lock:
-                    self.optimizer.zero_grad()
+                    print(learner_name, "begin update") if debug else None
+                    SA.show_datas(agent.agent_nn.model, self.global_model, debug)
+                    SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
-                    loss.backward()
-
-                    SA.ensure_shared_grads(agent.agent_nn.model, self.global_model)
-
-                    self.optimizer.step()
-
+                    print(learner_name, "begin synchronize") if debug else None
                     agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
+                    SA.show_datas(agent.agent_nn.model, self.global_model, debug)
 
-                del loss, loss_dict, update_trajectories
-                print("loss:", loss_item) if 1 else None
+                    loss, loss_dict = loss_function(agent, update_trajectories, self.use_opponent_state, 
+                                                    self.no_replay_learn, self.only_update_baseline,
+                                                    self.baseline_weight)
+                    loss_dict_items = loss_dict.items()
+                    loss_item = loss.item()
+
+                    print(learner_name, "begin zero_grad") if debug else None
+                    self.optimizer.zero_grad()
+                    SA.show_grads(agent.agent_nn.model, self.global_model, debug)
+
+                    print(learner_name, "begin backward") if debug else None
+                    loss.backward()
+                    SA.show_grads(agent.agent_nn.model, self.global_model, debug)
+
+                    print(learner_name, "begin shared_grads") if debug else None
+                    SA.ensure_shared_grads(agent.agent_nn.model, self.global_model, debug)
+                    SA.show_grads(agent.agent_nn.model, self.global_model, debug)
+
+                    print(learner_name, "begin optimizer_step") if debug else None
+                    self.optimizer.step()
+                    SA.show_datas(agent.agent_nn.model, self.global_model, debug)
+
+                    print(learner_name, "begin load_state_dict") if debug else None
+                    agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
+                    SA.show_datas(agent.agent_nn.model, self.global_model, debug)
+
+                    del loss, loss_dict
+                    print(learner_name, "end update") if debug else None
+
+                del update_trajectories
+                print(learner_name, "loss:", loss_item) if debug else None
 
                 if self.need_save_result:
-                    self.writer.add_scalar('learner/loss', loss_item, agent.steps)
+                    self.writer.add_scalar('loss/' + learner_name, loss_item, agent.steps)
                     for i, k in loss_dict_items:
-                        print(i, k) if 1 else None
-                        self.writer.add_scalar('learner/' + i, k, agent.steps)
+                        print(i, k) if debug else None
+                        self.writer.add_scalar(learner_name + '/' + i, k, agent.steps)
 
                 agent.steps += AHP.batch_size * AHP.sequence_length
 
@@ -248,7 +277,7 @@ class Learner:
             torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
 
         # agent.agent_nn.model.eval()
-        print("end backward") if 1 else None
+        print(learner_name, "end rl update") if debug else None
 
     def start(self):
         self.thread.start()
@@ -257,6 +286,7 @@ class Learner:
     def run(self):
         try:
             start_time = time()
+            update_params_timer = time()
             self.is_running = True
 
             while time() - start_time < self.max_time_for_training:
@@ -274,6 +304,10 @@ class Learner:
 
                     if actor_is_running:
                         print('learner trajectories size:', len(self.trajectories)) if debug else None
+
+                        if time() - update_params_timer > self.update_params_interval:
+                            self.player.agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
+                            update_params_timer = time()
 
                         if len(self.trajectories) >= self.buffer_size * self.count_of_batches * AHP.batch_size:
                             print("learner begin to update parameters") if debug else None

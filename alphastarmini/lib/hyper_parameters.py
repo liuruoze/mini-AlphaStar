@@ -200,8 +200,8 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
 
 # mini-alphastar hyper parameters
 # Mini_Scale = P.Mini_Scale default is: 16 on laptop and 4 on server. use Batch_Scale, Seq_Scale, Select_Scale to replace it
-MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(16 * 10 / P.Batch_Scale),
-                                                     sequence_length=int(16 * 8 / P.Seq_Scale),
+MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(16 * 5 / P.Batch_Scale),
+                                                     sequence_length=int(16 * 4 / P.Seq_Scale),
                                                      max_selected=int(48 / P.Select_Scale),                                                    
                                                      max_entities=int(512),  # this value can not be downscaled, 
                                                      # if downscaled, we will miss many units.

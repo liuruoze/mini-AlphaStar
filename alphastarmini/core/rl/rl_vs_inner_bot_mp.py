@@ -16,6 +16,7 @@ import numpy as np
 
 import torch
 import torch.multiprocessing as mp
+import torch.nn.functional as F
 
 from tensorboardX import SummaryWriter
 
@@ -50,15 +51,15 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 5
+    MAX_EPISODES = 1
     ACTOR_NUMS = 1
-    PARALLEL = 2
-    GAME_STEPS_PER_EPISODE = 500  
-    MAX_FRAMES = 500 * 5
+    PARALLEL = 1
+    GAME_STEPS_PER_EPISODE = 18000  
+    MAX_FRAMES = 18000 * 5
 else:
-    MAX_EPISODES = 4 * 12
-    ACTOR_NUMS = 4
-    PARALLEL = 8 + 7 * 1
+    MAX_EPISODES = 16 * 2
+    ACTOR_NUMS = 1
+    PARALLEL = 8  # + 7 * 1
     GAME_STEPS_PER_EPISODE = 18000
     MAX_FRAMES = 18000 * MAX_EPISODES
 
@@ -67,11 +68,12 @@ TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
 USE_UPDATE_LOCK = True
 DIFFICULTY = 2
-ONLY_UPDATE_BASELINE = False
+ONLY_UPDATE_BASELINE = True
 BASELINE_WEIGHT = 1
-LR = 1e-5  # 1e-5
+LR = 1e-4  # 1e-5
 WEIGHT_DECAY = 0
 
+USE_MIDDLE_REWARD = True
 USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
 REWARD_SCALE = 1e-3
@@ -133,7 +135,8 @@ class ActorVSComputer:
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, queue, device, coordinator, teacher, idx, buffer_lock=None, results_lock=None, 
+    def __init__(self, player, queue, device, global_model, coordinator, 
+                 teacher, idx, buffer_lock=None, results_lock=None, 
                  writer=None, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=MAX_FRAMES, 
@@ -146,6 +149,7 @@ class ActorVSComputer:
         self.idx = idx
         self.teacher = teacher
         self.queue = queue
+        self.global_model = global_model
         self.coordinator = coordinator
 
         self.agent = self.player.agent
@@ -270,6 +274,7 @@ class ActorVSComputer:
                                 # if time() - update_params_timer > self.update_params_interval:
                                 #     print("agent_{:d} update params".format(self.idx)) if debug else None
                                 #     self.agent.set_weights(self.player.agent.get_weights())
+                                #     self.agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
                                 #     update_params_timer = time()
 
                                 state = self.agent.agent_nn.preprocess_state_all(home_obs.observation, 
@@ -283,9 +288,21 @@ class ActorVSComputer:
 
                                 print("player_function_call:", player_function_call) if debug else None
                                 print("player_action.delay:", player_action.delay) if debug else None
+
                                 print("entity_num:", entity_num) if debug else None
                                 print("player_select_units_num:", player_select_units_num) if debug else None
                                 print("player_action:", player_action) if debug else None
+
+                                # print("player_action.units:", player_action.units) if 1 else None
+                                # print("player_logits.units:", player_logits.units) if 1 else None
+                                # print("player_logits.units:", player_logits.units.shape) if 1 else None
+
+                                # print("player_logits.units[0]:", player_logits.units[0]) if 1 else None
+                                # print("player_logits.units[0][0]:", player_logits.units[0][0]) if 1 else None
+                                # print("F.soft_max(player_logits.units[0][0]):", F.softmax(player_logits.units[0][0])) if 1 else None
+                                # print("player_logits.units[0][1]:", player_logits.units[0][1]) if 1 else None
+                                # print("F.soft_max(player_logits.units[0][1]):", F.softmax(player_logits.units[0][1])) if 1 else None
+                                # print('stop', stop)
 
                                 if False:
                                     show_sth(home_obs, player_action)
@@ -312,7 +329,11 @@ class ActorVSComputer:
                                 total_frames += 1 * STEP_MUL
                                 episode_frames += 1 * STEP_MUL
 
-                                reward = home_next_obs.reward
+                                # fix the action delay
+                                player_action.delay = torch.tensor([[STEP_MUL]], dtype=player_action.delay.dtype,
+                                                                   device=player_action.delay.device)
+
+                                reward = float(home_next_obs.reward)
                                 print("reward: ", reward) if 0 else None
 
                                 is_final = home_next_obs.last()
@@ -329,11 +350,11 @@ class ActorVSComputer:
 
                                 points = get_points(home_next_obs)
 
-                                if USE_DEFINED_REWARD_AS_REWARD:
+                                if USE_MIDDLE_REWARD:
                                     if last_points is not None:
                                         reward = points - last_points
                                     else:
-                                        reward = 0
+                                        reward = 0.
                                 last_points = points
 
                                 if is_final:
@@ -358,7 +379,7 @@ class ActorVSComputer:
                                     killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
                                     killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
 
-                                    killed_points = killed_minerals + killed_vespene
+                                    killed_points = float(killed_minerals + killed_vespene)
 
                                     if game_outcome == 1:
                                         outcome = 1
@@ -378,7 +399,7 @@ class ActorVSComputer:
                                         outcome = -1
 
                                     if not USE_DEFINED_REWARD_AS_REWARD:
-                                        reward = outcome
+                                        reward = float(outcome)
                                         if outcome == 0:
                                             reward = killed_points / float(WIN_THRESHOLD)
                                             with self.results_lock:
@@ -386,7 +407,7 @@ class ActorVSComputer:
                                                 print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
                                                 print("agent_{:d} get final outcome".format(self.idx), outcome) if 1 else None
                                                 print("agent_{:d} get reward".format(self.idx), reward) if 1 else None
-                                                print("agent_{:d} get reward_2".format(self.idx), (killed_points - 1000) / 3000.0) if 1 else None
+                                                print("agent_{:d} get reward_2".format(self.idx), killed_points / float(WIN_THRESHOLD)) if 1 else None
 
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
@@ -399,7 +420,7 @@ class ActorVSComputer:
                                     print("agent_{:d} get final reward".format(self.idx), reward) if 1 else None
                                     print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
-                                    final_points = killed_points * REWARD_SCALE
+                                    final_points = killed_points / float(WIN_THRESHOLD)
                                     if self.need_save_result:
                                         self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
                                         with self.results_lock:
@@ -417,7 +438,7 @@ class ActorVSComputer:
                                     if outcome == 1:
                                         is_win_trajectory = True 
                                 else:
-                                    print("agent_{:d} get reward".format(self.idx), reward) if debug else None
+                                    pass
 
                                 # note, original AlphaStar pseudo-code has some mistakes, we modified 
                                 # them here
@@ -431,6 +452,9 @@ class ActorVSComputer:
                                     player_action.to('cpu')
                                     player_select_units_num = player_select_units_num.to('cpu')
                                     entity_num = entity_num.to('cpu')
+
+                                print("agent_{:d} get reward".format(self.idx), reward) if debug else None
+                                print("player_action.delay:", player_action.delay) if debug else None
 
                                 traj_step = Trajectory(
                                     state=state,
@@ -591,11 +615,11 @@ def get_points(obs):
 
     killed_points = killed_minerals + killed_vespene
 
-    points = float(collected_points + used_points + 2 * killed_points)
+    #points = float(collected_points + used_points + 2 * killed_points)
 
-    #points = float(killed_points)
+    points = float(killed_points) / float(WIN_THRESHOLD)
 
-    points = points * REWARD_SCALE
+   # points = points * REWARD_SCALE
 
     return points
 
@@ -609,10 +633,10 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
         print('process id:', os.getpid())
 
     if rank < 8:
-        cuda_device = "cuda:" + str(rank)
+        cuda_device = "cuda:" + str(rank) if use_cuda_device else 'cpu'
     else:
         new_rank = (rank - 8) % 7 + 1
-        cuda_device = "cuda:" + str(new_rank)
+        cuda_device = "cuda:" + str(new_rank) if use_cuda_device else 'cpu'
 
     league = League(
         initial_agents={
@@ -650,17 +674,20 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
             player.agent.set_rl_training(IS_TRAINING)
 
             buffer_lock = threading.Lock()
-            learner = Learner(player, optimizer=optimizer, global_model=model_learner, 
+            learner = Learner(player, rank, cuda_device, optimizer=optimizer, global_model=model_learner, 
                               max_time_for_training=60 * 60 * 24 * 7, lr=LR, 
                               weight_decay=WEIGHT_DECAY, baseline_weight=BASELINE_WEIGHT, is_training=IS_TRAINING, 
                               buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
                               no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
                               count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
                               use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE,
-                              need_save_result=NEED_SAVE_RESULT, process_lock=process_lock)
+                              need_save_result=NEED_SAVE_RESULT, process_lock=process_lock,
+                              update_params_interval=UPDATE_PARAMS_INTERVAL)
             learners.append(learner)
 
             teacher = get_supervised_agent(player.race, model_type="sl", restore=True, device=cuda_device)
+            teacher.set_rl_training(IS_TRAINING)
+
             # teacher.agent_nn.model = model_teacher
             if use_cuda_device:
                 teacher.agent_nn.model.to(cuda_device)
@@ -668,7 +695,7 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
             for z in range(ACTOR_NUMS):
                 device = torch.device(cuda_device if use_cuda_device else "cpu")
                 agent_id = rank * ACTOR_NUMS + z
-                actor = ActorVSComputer(player, queue, device, coordinator, teacher, agent_id, buffer_lock, results_lock, writer)
+                actor = ActorVSComputer(player, queue, device, model_learner, coordinator, teacher, agent_id, buffer_lock, results_lock, writer)
                 actors.append(actor)
 
         threads = []
@@ -703,15 +730,11 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
         print('process id:', os.getpid())
 
     writer = SummaryWriter(log_path)
-
     torch.manual_seed(RANDOM_SEED)
 
     update_counter = 0
-    max_win_rate = 0.
-    latest_win_rate = 0.
-    win_rate_list = []
-    result_list = []
-    win_num = 0
+    max_win_rate, latest_win_rate = 0., 0.
+    win_rate_list, result_list = [], []
 
     train_iters = TRAIN_ITERS 
     static_num = STATIC_NUM  # WINRATE_SCALE * ACTOR_NUMS * PARALLEL
@@ -720,14 +743,8 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
 
     try: 
         while update_counter < train_iters:
-
-            sleep(1)
             result = queue.get(timeout=60 * 30)
-
             result_list.append(result)
-            if result == 1:
-                win_num += 1
-
             print("Parameter_Server result_list", result_list) if debug else None
 
             row = int(update_counter / static_num)
@@ -744,10 +761,13 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
                 writer.add_scalar('all_winrate', win_rate, row + 1)
                 win_rate_list.append(win_rate)
 
-                if win_rate > max_win_rate:
+                if win_rate >= max_win_rate:
                     with synchronizer:
                         torch.save(model.state_dict(), model_path + ".pth")
                     max_win_rate = win_rate
+                elif ONLY_UPDATE_BASELINE:
+                    with synchronizer:
+                        torch.save(model.state_dict(), model_path + ".pth")
 
                 latest_win_rate = win_rate
 
@@ -809,16 +829,6 @@ def test(on_server=False, replay_path=None):
                                             eps=THP.epsilon, weight_decay=WEIGHT_DECAY)
         optimizer.share_memory()
 
-    # device_teacher = torch.device("cuda:1" if use_cuda_device else "cpu")
-    # teacher = get_supervised_agent(player.race, model_type="sl", 
-    #                                restore=True, device=device_teacher)
-    # if ON_GPU:
-    #     teacher.agent_nn.to(device_teacher)
-
-    # model_teacher = teacher.agent_nn.model
-    # model_teacher.share_memory()
-
-    #synchronizer = mp.Barrier(PARALLEL + 1)
     synchronizer = mp.Lock()
     processes = []
     q = mp.Queue(maxsize=256 * 24)

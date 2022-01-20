@@ -238,7 +238,7 @@ class ArchModel(nn.Module):
 
     def mimic_forward(self, state, gt_action, gt_select_units_num, 
                       gt_is_one_hot=True, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None,
-                      baseline_state=None, baseline_opponent_state=None):
+                      baseline_state=None, baseline_opponent_state=None, show=False):
         '''
         # inspired by the DI-star project
         # injected the args of ground truth into the forward calculation
@@ -322,12 +322,19 @@ class ArchModel(nn.Module):
         queue_logits, _, autoregressive_embedding = self.queue_head(autoregressive_embedding, gt_action_type, embedded_entity, gt_queue)
 
         # selected_units_head is special, we use forward_sl function
+        print('gt_units', gt_units) if show else None
+        print('gt_units.shape', gt_units.shape) if show else None
+
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head.mimic_forward(autoregressive_embedding, 
                                                                                                                  gt_action_type, 
                                                                                                                  entity_embeddings, 
                                                                                                                  entity_nums,
                                                                                                                  gt_units,
-                                                                                                                 gt_select_units_num)
+                                                                                                                 gt_select_units_num,
+                                                                                                                 show=show)
+
+        print('units_logits', units_logits) if show else None
+        print('units_logits.shape', units_logits.shape) if show else None
 
         target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, 
                                                                 gt_action_type, entity_embeddings, entity_nums, gt_target_unit)

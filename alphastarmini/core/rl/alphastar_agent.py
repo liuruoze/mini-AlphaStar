@@ -260,7 +260,7 @@ class AlphaStarAgent(RandomAgent):
 
         return action_logits
 
-    def rl_unroll(self, trajectories, use_opponent_state=True):
+    def rl_unroll(self, trajectories, use_opponent_state=True, show=False):
         """Unrolls the network over the trajectory.
 
         The actions taken by the agent and the initial state of the unroll are
@@ -446,7 +446,8 @@ class AlphaStarAgent(RandomAgent):
                                                                                         batch_size=batch_size, 
                                                                                         sequence_length=1,
                                                                                         baseline_state=baseline_state, 
-                                                                                        baseline_opponent_state=baseline_opponent_state)
+                                                                                        baseline_opponent_state=baseline_opponent_state,
+                                                                                        show=show)
             del state, action, select_units_num, memory, baseline_state, baseline_opponent_state
 
             logits_list.append(logits)
