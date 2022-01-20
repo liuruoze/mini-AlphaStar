@@ -85,9 +85,6 @@ class IkostrikovSharedAdam(optim.Adam):
                     grad = grad.add(group['weight_decay'], p.data)
 
                 # Decay the first and second moment running average coefficient
-                #exp_avg.mul_(beta1).add_(1 - beta1, grad)
-                #exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
-
                 exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=1 - beta2)
 
@@ -98,9 +95,35 @@ class IkostrikovSharedAdam(optim.Adam):
                 step_size = group['lr'] * math.sqrt(
                     bias_correction2) / bias_correction1
 
-                p.data.addcdiv_(-step_size, exp_avg, denom)
+                p.data.addcdiv_(exp_avg, denom, value=-step_size)
 
         return loss
+
+
+def show_grads(model, shared_model):
+    '''
+    https://github.com/ikostrikov/pytorch-a3c/blob/master/train.py
+    '''
+    for param, shared_param in zip(model.named_parameters(),
+                                   shared_model.named_parameters()):
+        print('param name', param[0])
+        print('param grad', param[1].grad)
+        print('shared_param name', shared_param[0])
+        print('shared_param grad', shared_param[1].grad)
+        break
+
+
+def show_datas(model, shared_model):
+    '''
+    https://github.com/ikostrikov/pytorch-a3c/blob/master/train.py
+    '''
+    for param, shared_param in zip(model.named_parameters(),
+                                   shared_model.named_parameters()):
+        print('param name', param[0])
+        print('param grad', param[1].data)
+        print('shared_param name', shared_param[0])
+        print('shared_param grad', shared_param[1].data)
+        break
 
 
 def ensure_shared_grads(model, shared_model):
@@ -110,10 +133,10 @@ def ensure_shared_grads(model, shared_model):
     for param, shared_param in zip(model.named_parameters(),
                                    shared_model.named_parameters()):
         if shared_param[1].grad is not None:
-            print('shared_param is not None', shared_param[0])
-            continue
+            print('shared_param is not None', shared_param[0]) if 0 else None
+            return
         if param[1].grad is not None:
-            shared_param[1]._grad = param[1].grad.to(shared_param[1].device)
+            shared_param[1]._grad = param[1].grad.detach().to(shared_param[1].device)
         else:
             pass
             print('param grad is None', param[0]) if 0 else None

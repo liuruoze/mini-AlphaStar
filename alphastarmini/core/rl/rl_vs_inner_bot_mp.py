@@ -56,9 +56,9 @@ if SIMPLE_TEST:
     GAME_STEPS_PER_EPISODE = 500  
     MAX_FRAMES = 500 * 5
 else:
-    MAX_EPISODES = 4
+    MAX_EPISODES = 4 * 12
     ACTOR_NUMS = 4
-    PARALLEL = 8 + 6 * 1
+    PARALLEL = 8 + 7 * 1
     GAME_STEPS_PER_EPISODE = 18000
     MAX_FRAMES = 18000 * MAX_EPISODES
 
@@ -380,7 +380,7 @@ class ActorVSComputer:
                                     if not USE_DEFINED_REWARD_AS_REWARD:
                                         reward = outcome
                                         if outcome == 0:
-                                            reward = (killed_points - 1000) / 3000.0
+                                            reward = killed_points / float(WIN_THRESHOLD)
                                             with self.results_lock:
                                                 print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
                                                 print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
@@ -611,7 +611,7 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
     if rank < 8:
         cuda_device = "cuda:" + str(rank)
     else:
-        new_rank = (rank - 8) % 6 + 2
+        new_rank = (rank - 8) % 7 + 1
         cuda_device = "cuda:" + str(new_rank)
 
     league = League(

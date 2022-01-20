@@ -194,9 +194,6 @@ class Learner:
             return 
 
         agent = self.player.agent
-        local_model = agent.agent_nn.model
-        global_model = self.global_model
-
         batch_size = AHP.batch_size
 
         # test mixed trajectories, it does not well
@@ -225,10 +222,14 @@ class Learner:
 
                 with self.process_lock:
                     self.optimizer.zero_grad()
+
                     loss.backward()
-                    SA.ensure_shared_grads(local_model, global_model)
+
+                    SA.ensure_shared_grads(agent.agent_nn.model, self.global_model)
+
                     self.optimizer.step()
-                    local_model.load_state_dict(global_model.state_dict())
+
+                    agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
 
                 del loss, loss_dict, update_trajectories
                 print("loss:", loss_item) if 1 else None
