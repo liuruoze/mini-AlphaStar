@@ -530,7 +530,7 @@ def log_prob(logits, actions, mask_used, max_selected, show=False, outlier_remov
         selected_mask = selected_mask.view(-1, selected_mask.shape[-1])
 
         selected_mask_index = torch.sum(selected_mask.float(), dim=-1)
-        print('selected_mask_index', selected_mask_index) if show else None
+        # print('selected_mask_index', selected_mask_index) if show else None
 
         select_index = selected_mask_index > 2
 
@@ -544,18 +544,18 @@ def log_prob(logits, actions, mask_used, max_selected, show=False, outlier_remov
 
         loss_result = loss_result * selected_mask
 
-        print('selected_mask[0]', selected_mask[0]) if show else None
-        print('selected_mask.shape', selected_mask.shape) if show else None
+        # print('selected_mask[0]', selected_mask[0]) if show else None
+        # print('selected_mask.shape', selected_mask.shape) if show else None
 
-        loss_result_2 = loss_result[select_index]
-        if len(loss_result_2):
-            print('loss_result_2', torch.sum(loss_result_2, dim=-1)) if show else None
+        # loss_result_2 = loss_result[select_index]
+        # if len(loss_result_2):
+        #     print('loss_result_2', torch.sum(loss_result_2, dim=-1)) if show else None
 
         loss_result = remove_outlier(loss_result, outlier_remove)
 
         loss_result = torch.sum(loss_result, dim=-1)
 
-        print('loss_result', loss_result) if show else None
+        # print('loss_result', loss_result) if show else None
 
         del selected_mask
 

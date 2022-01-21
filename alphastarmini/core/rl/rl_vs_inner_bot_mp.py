@@ -57,23 +57,23 @@ if SIMPLE_TEST:
     GAME_STEPS_PER_EPISODE = 18000  
     MAX_FRAMES = 18000 * 5
 else:
-    MAX_EPISODES = 16 * 2
-    ACTOR_NUMS = 1
-    PARALLEL = 8  # + 7 * 1
+    MAX_EPISODES = 4 * 4 * 10
+    ACTOR_NUMS = 2
+    PARALLEL = 8 + 7 * 1
     GAME_STEPS_PER_EPISODE = 18000
     MAX_FRAMES = 18000 * MAX_EPISODES
 
-STATIC_NUM = 16
+STATIC_NUM = ACTOR_NUMS * PARALLEL
 TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
-USE_UPDATE_LOCK = True
+USE_UPDATE_LOCK = False
 DIFFICULTY = 2
-ONLY_UPDATE_BASELINE = True
+ONLY_UPDATE_BASELINE = False
 BASELINE_WEIGHT = 1
-LR = 1e-4  # 1e-5
+LR = 1e-5  # 1e-5
 WEIGHT_DECAY = 0
 
-USE_MIDDLE_REWARD = True
+USE_MIDDLE_REWARD = False
 USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
 REWARD_SCALE = 1e-3
@@ -92,7 +92,7 @@ else:
     USE_RANDOM_SAMPLE = False
 
 STEP_MUL = 16
-UPDATE_PARAMS_INTERVAL = 5
+UPDATE_PARAMS_INTERVAL = 10
 
 RESTORE = True
 SAVE_STATISTIC = True
@@ -135,7 +135,7 @@ class ActorVSComputer:
     We don't use batched inference here, but it was used in practice.
     """
 
-    def __init__(self, player, queue, device, global_model, coordinator, 
+    def __init__(self, player, q_winloss, q_points, device, global_model, coordinator, 
                  teacher, idx, buffer_lock=None, results_lock=None, 
                  writer=None, max_time_for_training=60 * 60 * 24,
                  max_time_per_one_opponent=60 * 60 * 4,
@@ -147,8 +147,12 @@ class ActorVSComputer:
         self.player = player
         self.player.add_actor(self)
         self.idx = idx
+        self.name = 'agent_' + str(self.idx)
         self.teacher = teacher
-        self.queue = queue
+
+        self.q_winloss = q_winloss
+        self.q_points = q_points
+
         self.global_model = global_model
         self.coordinator = coordinator
 
@@ -236,7 +240,7 @@ class ActorVSComputer:
                             # Note: the pysc2 environment don't return z
                             # AlphaStar: home_observation, away_observation, is_final, z = env.reset()
                             total_episodes += 1
-                            print("total_episodes:", total_episodes)
+                            print(self.name, "total_episodes:", total_episodes)
 
                             timesteps = env.reset()
                             for a in agents:
@@ -292,17 +296,6 @@ class ActorVSComputer:
                                 print("entity_num:", entity_num) if debug else None
                                 print("player_select_units_num:", player_select_units_num) if debug else None
                                 print("player_action:", player_action) if debug else None
-
-                                # print("player_action.units:", player_action.units) if 1 else None
-                                # print("player_logits.units:", player_logits.units) if 1 else None
-                                # print("player_logits.units:", player_logits.units.shape) if 1 else None
-
-                                # print("player_logits.units[0]:", player_logits.units[0]) if 1 else None
-                                # print("player_logits.units[0][0]:", player_logits.units[0][0]) if 1 else None
-                                # print("F.soft_max(player_logits.units[0][0]):", F.softmax(player_logits.units[0][0])) if 1 else None
-                                # print("player_logits.units[0][1]:", player_logits.units[0][1]) if 1 else None
-                                # print("F.soft_max(player_logits.units[0][1]):", F.softmax(player_logits.units[0][1])) if 1 else None
-                                # print('stop', stop)
 
                                 if False:
                                     show_sth(home_obs, player_action)
@@ -384,30 +377,32 @@ class ActorVSComputer:
                                     if game_outcome == 1:
                                         outcome = 1
                                     elif game_outcome == 0:
-                                        with self.results_lock:
-                                            print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
-                                            print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
-                                            print("agent_{:d} get WIN_THRESHOLD".format(self.idx), WIN_THRESHOLD) if 1 else None
-                                            if killed_points > WIN_THRESHOLD:
-                                                outcome = 1
-                                            elif killed_points > 1000 and killed_points <= WIN_THRESHOLD:
-                                                outcome = 0
-                                            else:
-                                                outcome = -1
-                                            print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
+                                        # with self.results_lock:
+                                        #     print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
+                                        #     print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
+                                        #     print("agent_{:d} get WIN_THRESHOLD".format(self.idx), WIN_THRESHOLD) if 1 else None
+                                        if killed_points > WIN_THRESHOLD:
+                                            outcome = 1
+                                        else:
+                                            outcome = 0
+                                            # elif killed_points > 1000 and killed_points <= WIN_THRESHOLD:
+                                            #     outcome = 0
+                                            # else:
+                                            #     outcome = -1
+                                            # print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
                                     else:
                                         outcome = -1
 
                                     if not USE_DEFINED_REWARD_AS_REWARD:
                                         reward = float(outcome)
-                                        if outcome == 0:
-                                            reward = killed_points / float(WIN_THRESHOLD)
-                                            with self.results_lock:
-                                                print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
-                                                print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
-                                                print("agent_{:d} get final outcome".format(self.idx), outcome) if 1 else None
-                                                print("agent_{:d} get reward".format(self.idx), reward) if 1 else None
-                                                print("agent_{:d} get reward_2".format(self.idx), killed_points / float(WIN_THRESHOLD)) if 1 else None
+                                        # if outcome == 0:
+                                        #     reward = killed_points / float(WIN_THRESHOLD)
+                                        #     with self.results_lock:
+                                        #         print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
+                                        #         print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
+                                        #         print("agent_{:d} get final outcome".format(self.idx), outcome) if 1 else None
+                                        #         print("agent_{:d} get reward".format(self.idx), reward) if 1 else None
+                                        #         print("agent_{:d} get reward_2".format(self.idx), killed_points / float(WIN_THRESHOLD)) if 1 else None
 
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
@@ -420,19 +415,23 @@ class ActorVSComputer:
                                     print("agent_{:d} get final reward".format(self.idx), reward) if 1 else None
                                     print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
-                                    final_points = killed_points / float(WIN_THRESHOLD)
-                                    if self.need_save_result:
-                                        self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
-                                        with self.results_lock:
-                                            self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
-
                                     final_outcome = outcome
                                     if self.need_save_result:
                                         self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
                                         with self.results_lock:
                                             self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
 
-                                    self.queue.put(outcome)
+                                    final_points = points  # killed_points / float(WIN_THRESHOLD)
+                                    if self.need_save_result:
+                                        self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
+                                        with self.results_lock:
+                                            self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
+
+                                    self.q_winloss.put(final_outcome)
+                                    self.q_points.put(final_points)
+
+                                    reward = final_outcome
+                                    #reward = 0
 
                                     is_final_trajectory = True
                                     if outcome == 1:
@@ -453,7 +452,7 @@ class ActorVSComputer:
                                     player_select_units_num = player_select_units_num.to('cpu')
                                     entity_num = entity_num.to('cpu')
 
-                                print("agent_{:d} get reward".format(self.idx), reward) if debug else None
+                                print("agent_{:d} get reward".format(self.idx), reward) if 0 else None
                                 print("player_action.delay:", player_action.delay) if debug else None
 
                                 traj_step = Trajectory(
@@ -577,6 +576,15 @@ class ActorVSComputer:
         print('player.name:', player.name)
         print('player.race:', player.race)
 
+        # class BotBuild(enum.IntEnum):
+        #   """Bot build strategies."""
+        #   random = sc_pb.RandomBuild
+        #   rush = sc_pb.Rush
+        #   timing = sc_pb.Timing
+        #   power = sc_pb.Power
+        #   macro = sc_pb.Macro
+        #   air = sc_pb.Air
+
         sc2_computer = Bot([Race.terran],
                            Difficulty(DIFFICULTY),
                            [BotBuild.random])
@@ -615,22 +623,21 @@ def get_points(obs):
 
     killed_points = killed_minerals + killed_vespene
 
-    #points = float(collected_points + used_points + 2 * killed_points)
+    # points = float(0.1 * collected_points + 0.3 * used_points + 0.6 * killed_points)
+    # points = points * REWARD_SCALE
 
-    points = float(killed_points) / float(WIN_THRESHOLD)
-
-   # points = points * REWARD_SCALE
+    points = min(float(killed_points) / float(WIN_THRESHOLD), 1.0)
 
     return points
 
 
-def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner, device_learner, model_teacher=None, device_teacher=None):
+def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda_device, model_learner, device_learner, model_teacher=None, device_teacher=None):
     torch.manual_seed(RANDOM_SEED + rank)
 
-    with synchronizer:
-        print('module name:', "worker")
-        print('parent process:', os.getppid())
-        print('process id:', os.getpid())
+    # with synchronizer:
+    #     print('module name:', "worker")
+    #     print('parent process:', os.getppid())
+    #     print('process id:', os.getpid())
 
     if rank < 8:
         cuda_device = "cuda:" + str(rank) if use_cuda_device else 'cpu'
@@ -674,7 +681,7 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
             player.agent.set_rl_training(IS_TRAINING)
 
             buffer_lock = threading.Lock()
-            learner = Learner(player, rank, cuda_device, optimizer=optimizer, global_model=model_learner, 
+            learner = Learner(player, rank, v_steps, cuda_device, optimizer=optimizer, global_model=model_learner, 
                               max_time_for_training=60 * 60 * 24 * 7, lr=LR, 
                               weight_decay=WEIGHT_DECAY, baseline_weight=BASELINE_WEIGHT, is_training=IS_TRAINING, 
                               buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
@@ -695,7 +702,7 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
             for z in range(ACTOR_NUMS):
                 device = torch.device(cuda_device if use_cuda_device else "cpu")
                 agent_id = rank * ACTOR_NUMS + z
-                actor = ActorVSComputer(player, queue, device, model_learner, coordinator, teacher, agent_id, buffer_lock, results_lock, writer)
+                actor = ActorVSComputer(player, q_winloss, q_points, device, model_learner, coordinator, teacher, agent_id, buffer_lock, results_lock, writer)
                 actors.append(actor)
 
         threads = []
@@ -723,42 +730,52 @@ def Worker(synchronizer, rank, optimizer, queue, use_cuda_device, model_learner,
         pass
 
 
-def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, model_path):
-    with synchronizer:
-        print('module name:', "Parameter_Server")
-        print('parent process:', os.getppid())
-        print('process id:', os.getpid())
-
-    writer = SummaryWriter(log_path)
+def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device, model, log_path, model_path):
     torch.manual_seed(RANDOM_SEED)
 
+    # with synchronizer:
+    #     print('module name:', "Parameter_Server")
+    #     print('parent process:', os.getppid())
+    #     print('process id:', os.getpid())
+
+    writer = SummaryWriter(log_path)
     update_counter = 0
     max_win_rate, latest_win_rate = 0., 0.
-    win_rate_list, result_list = [], []
+    max_mean_points, latest_mean_points = 0., 0.
+    outcome_list, points_list = [], []
+    win_rate_list, mean_points_list = [], []
 
     train_iters = TRAIN_ITERS 
-    static_num = STATIC_NUM  # WINRATE_SCALE * ACTOR_NUMS * PARALLEL
-    assert train_iters % static_num == 0
+    static_num = STATIC_NUM
+
     episode_outcome = np.ones([int(train_iters / static_num), static_num], dtype=np.float) * (-1e9)
+    episode_points = np.ones([int(train_iters / static_num), static_num], dtype=np.float) * (-1e9)
 
     try: 
         while update_counter < train_iters:
-            result = queue.get(timeout=60 * 30)
-            result_list.append(result)
-            print("Parameter_Server result_list", result_list) if debug else None
+            outcome = q_winloss.get(timeout=60 * 30)
+            outcome_list.append(outcome)
+            print("Parameter_Server winloss_list", outcome_list) if 1 else None
+
+            points = q_points.get(timeout=60 * 30)
+            points_list.append(points)
+            print("Parameter_Server points_list", points_list) if 1 else None
 
             row = int(update_counter / static_num)
             col = int(update_counter % static_num)
+            row = min(row, episode_outcome.shape[0] - 1)
+            col = min(col, episode_outcome.shape[1] - 1)
 
-            episode_outcome[row, col] = result
+            episode_outcome[row, col] = outcome
             print("episode_outcome", episode_outcome) if debug else None
 
             single_episode_outcome = episode_outcome[row]
             if not (single_episode_outcome == (-1e9)).any():
                 win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
-                print("Iter:", row, "Winrate:", win_rate) if 1 else None
+                print("Iter:", row, "win_rate:", win_rate) if 1 else None
 
-                writer.add_scalar('all_winrate', win_rate, row + 1)
+                writer.add_scalar('winrate/every_' + str(static_num) + '_episodes', win_rate, row + 1)
+                writer.add_scalar('winrate/update_steps', win_rate, v_steps.value)
                 win_rate_list.append(win_rate)
 
                 if win_rate >= max_win_rate:
@@ -771,6 +788,28 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
 
                 latest_win_rate = win_rate
 
+            episode_points[row, col] = points
+            print("episode_points", episode_points) if debug else None
+
+            single_episode_points = episode_points[row]
+            if not (single_episode_points == (-1e9)).any():
+                mean_points = np.mean(single_episode_points)
+                print("Iter:", row, "mean_points:", mean_points) if 1 else None
+
+                writer.add_scalar('meanpoints/every_' + str(static_num) + '_episodes', mean_points, row + 1)
+                writer.add_scalar('meanpoints/update_steps', mean_points, v_steps.value)
+                mean_points_list.append(mean_points)
+
+                if mean_points >= max_mean_points:
+                    with synchronizer:
+                        torch.save(model.state_dict(), model_path + ".pth")
+                    max_mean_points = mean_points
+                elif ONLY_UPDATE_BASELINE:
+                    with synchronizer:
+                        torch.save(model.state_dict(), model_path + ".pth")
+
+                latest_mean_points = mean_points
+
             update_counter += 1
 
     except Exception as e: 
@@ -781,6 +820,9 @@ def Parameter_Server(synchronizer, queue, use_cuda_device, model, log_path, mode
     finally:
         print("Parameter_Server end:")
         print("--------------------")
+        print("mean_points_list:", mean_points_list)
+        print("latest_mean_points:", latest_mean_points)
+        print("max_mean_points:", max_mean_points)
         print("win_rate_list:", win_rate_list)
         print("latest_win_rate:", latest_win_rate)
         print("max_win_rate:", max_win_rate)
@@ -831,14 +873,19 @@ def test(on_server=False, replay_path=None):
 
     synchronizer = mp.Lock()
     processes = []
-    q = mp.Queue(maxsize=256 * 24)
+
+    q_winloss = mp.Queue(maxsize=TRAIN_ITERS * 24)
+    q_points = mp.Queue(maxsize=TRAIN_ITERS * 24)
+    v_steps = mp.Value('d', 0.0)
 
     for rank in range(PARALLEL):
-        p = mp.Process(target=Worker, args=(synchronizer, rank, optimizer, q, use_cuda_device, model_learner, device_learner))
+        p = mp.Process(target=Worker, args=(synchronizer, rank, optimizer, q_winloss, q_points, v_steps,
+                                            use_cuda_device, model_learner, device_learner))
         p.start()
         processes.append(p)
 
-    ps = mp.Process(target=Parameter_Server, args=(synchronizer, q, use_cuda_device, model_learner, log_path, model_save_path))
+    ps = mp.Process(target=Parameter_Server, args=(synchronizer, q_winloss, q_points, v_steps, 
+                                                   use_cuda_device, model_learner, log_path, model_save_path))
     ps.start()
     processes.append(ps)
 

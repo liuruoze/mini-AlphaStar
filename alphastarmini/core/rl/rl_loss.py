@@ -34,6 +34,8 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+FIELDS_WEIGHT_1 = [1, 0, 1, 0, 1, 1]  # [0, 0, 0, 1, 0, 0]
+FIELDS_WEIGHT_2 = [1, 0, 1, 1, 1, 1]
 
 ACTION_FIELDS = [
     'action_type',  
@@ -43,7 +45,6 @@ ACTION_FIELDS = [
     'target_unit',
     'target_location',
 ]
-FIELDS_WEIGHT = [1, 0, 1, 1, 1, 1]
 
 
 def filter_by_for_lists(action_fields, target_list, device):
@@ -65,7 +66,7 @@ def entropy_loss(target_logits, trajectories, selected_mask, entity_mask):
     loss = 0 
     for i, field in enumerate(ACTION_FIELDS):  
         x = get_kl_or_entropy(target_logits, field, RA.entropy, mask, selected_mask, entity_mask, unit_type_entity_mask)
-        loss = loss + x * FIELDS_WEIGHT[i]
+        loss = loss + x * FIELDS_WEIGHT_2[i]
         del x
 
     del mask, unit_type_entity_mask, selected_mask, entity_mask
@@ -85,7 +86,7 @@ def human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask
     for i, field in enumerate(ACTION_FIELDS):
         t_logits = filter_by_for_lists(field, trajectories.teacher_logits, device) 
         x = get_kl_or_entropy(target_logits, field, RA.kl, mask, selected_mask, entity_mask, unit_type_entity_mask, t_logits)
-        loss = loss + x * FIELDS_WEIGHT[i]
+        loss = loss + x * FIELDS_WEIGHT_2[i]
         del x, t_logits
 
     del mask, unit_type_entity_mask, selected_mask, entity_mask
@@ -162,7 +163,7 @@ def td_lambda_loss(baselines, rewards, trajectories, device):
         returns = RA.lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
 
     print('returns', returns) if debug else None
-    print('baselines', baselines) if debug else None
+    print('baselines[0]', baselines[0]) if 1 else None
 
     result = returns - baselines[:-1]
     print('result', result) if debug else None
@@ -256,7 +257,8 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
     #fields_weight = [0, 0, 0, 0, 0, 0]
-    fields_weight = [0, 0, 0, 1, 0, 0]
+    #fields_weight = [1, 0, 1, 0, 1, 1]
+    fields_weight = FIELDS_WEIGHT_1
 
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
@@ -265,10 +267,10 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
             weighted_advantage = RA.vtrace_advantages(clipped_rhos, rewards, discounts, values, baselines[-1])[1].reshape(-1)
 
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
-        loss_field = loss_field.mean()
-        print('field', field, 'loss_val', loss_field.item()) if 1 else None
+        loss_field = loss_field.mean() * fields_weight[i]
+        print('field', field, 'loss_val', loss_field.item()) if debug else None
 
-        loss = loss + loss_field * fields_weight[i]
+        loss = loss + loss_field 
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
 
     del trajectories, discounts, unit_type_entity_mask, rewards
@@ -292,7 +294,8 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
     mask_provided = [selected_mask, entity_mask, unit_type_entity_mask]
 
     #fields_weight = [0, 0, 0, 0, 0, 0]
-    fields_weight = [0, 0, 0, 0, 0, 0]
+    #fields_weight = [1, 0, 1, 0, 1, 1]
+    fields_weight = FIELDS_WEIGHT_1
 
     loss = 0.
     for i, field in enumerate(ACTION_FIELDS):
@@ -301,10 +304,10 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
             weighted_advantage = ((returns - values) * clipped_rhos).reshape(-1)
 
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
-        loss_field = loss_field.mean()
+        loss_field = loss_field.mean() * fields_weight[i]
         print('field', field, 'loss_val', loss_field.item()) if debug else None
 
-        loss = loss + loss_field * fields_weight[i]
+        loss = loss + loss_field
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
 
     del trajectories, discounts, unit_type_entity_mask, reward
@@ -469,8 +472,8 @@ def loss_function(agent, trajectories, use_opponent_state=True,
         print("reward_name:", reward_name) if debug else None
 
         rewards = PR.compute_pseudoreward(trajectories, reward_name, device)
-        print("rewards:", rewards) if 1 else None
-        print("rewards not 0:", rewards[rewards != 0]) if 1 else None
+        print("rewards:", rewards) if 0 else None
+        print("rewards not 0:", rewards[rewards != 0]) if 0 else None
 
         # The action_type argument, delay, and all other arguments are separately updated 
         # using a separate ("split") VTrace Actor-Critic losses. 

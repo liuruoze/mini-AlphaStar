@@ -45,7 +45,7 @@ SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S",
 class Learner:
     """Learner worker that updates agent parameters based on trajectories."""
 
-    def __init__(self, player, rank, cuda_device, optimizer, global_model, 
+    def __init__(self, player, rank, v_steps, cuda_device, optimizer, global_model, 
                  max_time_for_training=60 * 3, lr=THP.learning_rate, 
                  weight_decay=THP.weight_decay, baseline_weight=1,
                  is_training=True, buffer_lock=None, writer=None,
@@ -59,6 +59,7 @@ class Learner:
         self.player.set_learner(self)
 
         self.rank = rank
+        self.v_steps = v_steps
         self.cuda_device = cuda_device
 
         self.trajectories = []
@@ -114,7 +115,7 @@ class Learner:
     def get_normal_trajectories(self):
         batch_size = AHP.batch_size
         sample_size = self.count_of_batches * batch_size
-        max_size = 3 * sample_size * self.buffer_size
+        max_size = 5 * sample_size * self.buffer_size
 
         trajectories = []
 
@@ -222,7 +223,8 @@ class Learner:
                 loss_dict_items = None
                 loss_item = None
 
-                with self.process_lock:
+                # with self.process_lock:
+                if 1:
                     print(learner_name, "begin update") if debug else None
                     SA.show_datas(agent.agent_nn.model, self.global_model, debug)
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
@@ -241,17 +243,17 @@ class Learner:
                     self.optimizer.zero_grad()
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
-                    print(learner_name, "begin backward") if debug else None
+                    print(learner_name, "begin backward") if self.rank == 0 else None
                     loss.backward()
-                    SA.show_grads(agent.agent_nn.model, self.global_model, debug)
+                    SA.show_grads(agent.agent_nn.model, self.global_model, self.rank == 0)
 
                     print(learner_name, "begin shared_grads") if debug else None
                     SA.ensure_shared_grads(agent.agent_nn.model, self.global_model, debug)
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
-                    print(learner_name, "begin optimizer_step") if debug else None
+                    print(learner_name, "begin optimizer_step") if self.rank == 0 else None
                     self.optimizer.step()
-                    SA.show_datas(agent.agent_nn.model, self.global_model, debug)
+                    SA.show_datas(agent.agent_nn.model, self.global_model, self.rank == 0)
 
                     print(learner_name, "begin load_state_dict") if debug else None
                     agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
@@ -263,13 +265,16 @@ class Learner:
                 del update_trajectories
                 print(learner_name, "loss:", loss_item) if debug else None
 
+                for i, k in loss_dict_items:
+                    print(i, k) if self.rank == 0 else None
+
                 if self.need_save_result:
                     self.writer.add_scalar('loss/' + learner_name, loss_item, agent.steps)
                     for i, k in loss_dict_items:
-                        print(i, k) if debug else None
                         self.writer.add_scalar(learner_name + '/' + i, k, agent.steps)
 
                 agent.steps += AHP.batch_size * AHP.sequence_length
+                self.v_steps.value += AHP.batch_size * AHP.sequence_length
 
         del trajectories
 

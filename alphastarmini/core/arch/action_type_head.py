@@ -89,7 +89,7 @@ class ActionTypeHead(nn.Module):
         action_type_logits = self.glu_1(x, scalar_context)
 
         # inspired by the DI-star project, in action_type_head
-        if self.use_action_type_mask and action_type_mask is not None:
+        if self.is_rl_training and self.use_action_type_mask and action_type_mask is not None:
             action_type_mask = action_type_mask.bool()
             if action_type is not None:       
                 for i, a in enumerate(action_type):
