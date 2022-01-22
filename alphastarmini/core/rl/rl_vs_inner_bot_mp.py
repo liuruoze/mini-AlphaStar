@@ -3,6 +3,8 @@
 
 " Train for RL by fighting against built-in AI (computer), using no replays"
 
+import objgraph
+
 from time import time, sleep, strftime, localtime
 import gc
 import os
@@ -57,18 +59,19 @@ if SIMPLE_TEST:
     GAME_STEPS_PER_EPISODE = 18000  
     MAX_FRAMES = 18000 * 5
 else:
-    MAX_EPISODES = 4 * 4 * 10
-    ACTOR_NUMS = 2
+    MAX_EPISODES = 4 * 4 * 10 * 2
+    ACTOR_NUMS = 1  # 2
     PARALLEL = 8 + 7 * 1
     GAME_STEPS_PER_EPISODE = 18000
     MAX_FRAMES = 18000 * MAX_EPISODES
 
-STATIC_NUM = ACTOR_NUMS * PARALLEL
+STATIC_NUM = 30  # ACTOR_NUMS * PARALLEL
 TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
 USE_UPDATE_LOCK = False
 DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
+SAVE_LATEST = False
 BASELINE_WEIGHT = 1
 LR = 1e-5  # 1e-5
 WEIGHT_DECAY = 0
@@ -86,7 +89,7 @@ if USE_BUFFER:
     NUM_EPOCHS = 1
     USE_RANDOM_SAMPLE = True
 else:
-    BUFFER_SIZE = 1
+    BUFFER_SIZE = 2
     COUNT_OF_BATCHES = 1
     NUM_EPOCHS = 1
     USE_RANDOM_SAMPLE = False
@@ -197,10 +200,10 @@ class ActorVSComputer:
                 total_episodes = 0
 
                 # the total numberv_for_all_episodes as [loss, draw, win]
-                results = [0, 0, 0]
+                # results = [0, 0, 0]
 
                 # statistic list
-                food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, steps_list = [], [], [], [], [], []
+                # food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, steps_list = [], [], [], [], [], []
 
                 training_start_time = time()
                 print("start_time before training:", strftime("%Y-%m-%d %H:%M:%S", localtime(training_start_time)))
@@ -208,6 +211,8 @@ class ActorVSComputer:
                 # judge the trajectory whether contains final
                 is_final_trajectory = False
                 is_win_trajectory = False
+
+                player_bo = None
 
                 # use max_episodes to end the loop
                 while time() - training_start_time < self.max_time_for_training:
@@ -255,6 +260,8 @@ class ActorVSComputer:
                             episode_frames = 0
 
                             # initial build order
+                            if player_bo is not None:
+                                del player_bo
                             player_bo = []
 
                             # default outcome is 0 (means draw)
@@ -269,6 +276,11 @@ class ActorVSComputer:
                             # in one episode (game)
                             start_episode_time = time()  # in seconds.
                             print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
+
+                            print(self.name, "objgraph")
+                            objgraph.show_most_common_types(limit=10)
+                            objgraph.show_growth(limit=5)
+                            gc.collect()
 
                             while not is_final:
 
@@ -321,6 +333,7 @@ class ActorVSComputer:
                                 [home_next_obs] = timesteps
                                 total_frames += 1 * STEP_MUL
                                 episode_frames += 1 * STEP_MUL
+                                del env_actions, timesteps
 
                                 # fix the action delay
                                 player_action.delay = torch.tensor([[STEP_MUL]], dtype=player_action.delay.dtype,
@@ -354,25 +367,27 @@ class ActorVSComputer:
                                     game_outcome = home_next_obs.reward
 
                                     o = home_next_obs.observation
-                                    p = o['player']
+                                    # p = o['player']
 
-                                    food_used = p['food_used']
-                                    army_count = p['army_count']
+                                    # food_used = p['food_used']
+                                    # army_count = p['army_count']
 
-                                    collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
-                                    collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
+                                    # collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
+                                    # collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
 
-                                    collected_points = collected_minerals + collected_vespene
+                                    # collected_points = collected_minerals + collected_vespene
 
-                                    used_minerals = np.sum(o['score_by_category']['used_minerals'])
-                                    used_vespene = np.sum(o['score_by_category']['used_vespene'])
+                                    # used_minerals = np.sum(o['score_by_category']['used_minerals'])
+                                    # used_vespene = np.sum(o['score_by_category']['used_vespene'])
 
-                                    used_points = used_minerals + used_vespene
+                                    # used_points = used_minerals + used_vespene
 
                                     killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
                                     killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
 
                                     killed_points = float(killed_minerals + killed_vespene)
+
+                                    del killed_minerals, killed_vespene, o
 
                                     if game_outcome == 1:
                                         outcome = 1
@@ -404,28 +419,28 @@ class ActorVSComputer:
                                         #         print("agent_{:d} get reward".format(self.idx), reward) if 1 else None
                                         #         print("agent_{:d} get reward_2".format(self.idx), killed_points / float(WIN_THRESHOLD)) if 1 else None
 
-                                    food_used_list.append(food_used)
-                                    army_count_list.append(army_count)
-                                    collected_points_list.append(collected_points)
-                                    used_points_list.append(used_points)
-                                    killed_points_list.append(killed_points)
-                                    steps_list.append(game_loop)
+                                    # food_used_list.append(food_used)
+                                    # army_count_list.append(army_count)
+                                    # collected_points_list.append(collected_points)
+                                    # used_points_list.append(used_points)
+                                    # killed_points_list.append(killed_points)
+                                    # steps_list.append(game_loop)
 
-                                    results[outcome + 1] += 1
+                                    # results[outcome + 1] += 1
                                     print("agent_{:d} get final reward".format(self.idx), reward) if 1 else None
                                     print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
                                     final_outcome = outcome
-                                    if self.need_save_result:
-                                        self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
-                                        with self.results_lock:
-                                            self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
+                                    # if self.need_save_result:
+                                    #     self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
+                                    #     with self.results_lock:
+                                    #         self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
 
                                     final_points = points  # killed_points / float(WIN_THRESHOLD)
-                                    if self.need_save_result:
-                                        self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
-                                        with self.results_lock:
-                                            self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
+                                    # if self.need_save_result:
+                                    #     self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
+                                    #     with self.results_lock:
+                                    #         self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
 
                                     self.q_winloss.put(final_outcome)
                                     self.q_points.put(final_points)
@@ -435,14 +450,18 @@ class ActorVSComputer:
 
                                     is_final_trajectory = True
                                     if outcome == 1:
-                                        is_win_trajectory = True 
+                                        is_win_trajectory = True
+
+                                    gc.collect() 
                                 else:
                                     pass
 
                                 # note, original AlphaStar pseudo-code has some mistakes, we modified 
                                 # them here
 
-                                if True:
+                                del points
+
+                                if 1:
                                     state.to('cpu')
                                     baseline_state = [l.to('cpu') for l in baseline_state]
                                     player_memory = [l.to('cpu') for l in player_memory]
@@ -481,6 +500,9 @@ class ActorVSComputer:
                                 del state, baseline_state, player_memory, z
                                 del action_masks, unit_type_entity_mask, player_logits, teacher_logits
                                 del player_select_units_num, entity_num
+                                del reward, game_loop
+                                if last_list is not None:
+                                    del last_list
 
                                 if self.is_training:
                                     print('is_final_trajectory', is_final_trajectory) if debug else None
@@ -488,12 +510,14 @@ class ActorVSComputer:
 
                                 #player_memory = tuple(h.detach().clone() for h in player_new_memory)
                                 player_memory = player_new_memory
+                                del home_obs
                                 home_obs = home_next_obs
                                 last_delay = expected_delay
                                 last_action_type = player_action.action_type.item()
                                 last_repeat_queued = player_action.queue.item()
                                 last_list = [last_delay, last_action_type, last_repeat_queued]
 
+                                del last_delay, last_action_type, last_repeat_queued
                                 del player_action, player_new_memory
 
                                 if self.is_training and len(trajectory) >= AHP.sequence_length:                    
@@ -502,8 +526,9 @@ class ActorVSComputer:
                                     if self.player.learner is not None:
                                         if self.player.learner.is_running:
                                             print("Learner send_trajectory!") if debug else None
-                                            with self.buffer_lock:
-                                                self.player.learner.send_trajectory(trajectories)
+                                            # with self.buffer_lock:
+
+                                            self.player.learner.send_trajectory(trajectories)
 
                                             if 0 and is_final_trajectory:
                                                 self.player.learner.send_final_trajectory(trajectories)
@@ -549,17 +574,17 @@ class ActorVSComputer:
             pass
 
         finally:
-            print("results: ", results) if debug else None
-            print("win rate: ", results[2] / (1e-9 + sum(results))) if debug else None
+            # print("results: ", results) if debug else None
+            # print("win rate: ", results[2] / (1e-9 + sum(results))) if debug else None
 
             total_time = time() - training_start_time
             #print('agent_', self.idx, "total_time: ", total_time / 60.0, "min") if debug else None
 
-            if debug and SAVE_STATISTIC: 
-                with self.results_lock:
-                    self.coordinator.send_eval_results(self.player, DIFFICULTY, food_used_list, army_count_list, 
-                                                       collected_points_list, used_points_list, 
-                                                       killed_points_list, steps_list, total_time)
+            # if debug and SAVE_STATISTIC: 
+            #     with self.results_lock:
+            #         self.coordinator.send_eval_results(self.player, DIFFICULTY, food_used_list, army_count_list, 
+            #                                            collected_points_list, used_points_list, 
+            #                                            killed_points_list, steps_list, total_time)
 
             self.is_running = False
 
@@ -659,9 +684,9 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
     summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "_" + str(rank) + "/"
     writer = SummaryWriter(summary_path) if NEED_SAVE_RESULT else None
 
-    results_lock = threading.Lock()
-    coordinator = Coordinator(league, winrate_scale=WINRATE_SCALE, output_file=OUTPUT_FILE, results_lock=results_lock, writer=writer)
-    coordinator.set_uninitialed_results(actor_nums=ACTOR_NUMS, episode_nums=MAX_EPISODES)
+    # results_lock = threading.Lock()
+    # coordinator = Coordinator(league, winrate_scale=WINRATE_SCALE, output_file=OUTPUT_FILE, results_lock=results_lock, writer=writer)
+    # coordinator.set_uninitialed_results(actor_nums=ACTOR_NUMS, episode_nums=MAX_EPISODES)
 
     learners = []
     actors = []
@@ -702,7 +727,7 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
             for z in range(ACTOR_NUMS):
                 device = torch.device(cuda_device if use_cuda_device else "cpu")
                 agent_id = rank * ACTOR_NUMS + z
-                actor = ActorVSComputer(player, q_winloss, q_points, device, model_learner, coordinator, teacher, agent_id, buffer_lock, results_lock, writer)
+                actor = ActorVSComputer(player, q_winloss, q_points, device, model_learner, None, teacher, agent_id, None, None, None)
                 actors.append(actor)
 
         threads = []
@@ -776,17 +801,20 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
 
                 writer.add_scalar('winrate/every_' + str(static_num) + '_episodes', win_rate, row + 1)
                 writer.add_scalar('winrate/update_steps', win_rate, v_steps.value)
-                win_rate_list.append(win_rate)
+                win_rate_list.append(format(win_rate, '.3f'))
 
                 if win_rate >= max_win_rate:
                     with synchronizer:
                         torch.save(model.state_dict(), model_path + ".pth")
                     max_win_rate = win_rate
-                elif ONLY_UPDATE_BASELINE:
+                elif ONLY_UPDATE_BASELINE or SAVE_LATEST:
                     with synchronizer:
                         torch.save(model.state_dict(), model_path + ".pth")
 
                 latest_win_rate = win_rate
+                del win_rate
+
+            del single_episode_outcome
 
             episode_points[row, col] = points
             print("episode_points", episode_points) if debug else None
@@ -798,19 +826,28 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
 
                 writer.add_scalar('meanpoints/every_' + str(static_num) + '_episodes', mean_points, row + 1)
                 writer.add_scalar('meanpoints/update_steps', mean_points, v_steps.value)
-                mean_points_list.append(mean_points)
+                mean_points_list.append(format(mean_points, '.3f'))
 
                 if mean_points >= max_mean_points:
                     with synchronizer:
                         torch.save(model.state_dict(), model_path + ".pth")
                     max_mean_points = mean_points
-                elif ONLY_UPDATE_BASELINE:
+                elif ONLY_UPDATE_BASELINE or SAVE_LATEST:
                     with synchronizer:
                         torch.save(model.state_dict(), model_path + ".pth")
 
                 latest_mean_points = mean_points
+                del mean_points
+
+            del single_episode_points
+
+            print("Parameter_Server", "objgraph")
+            objgraph.show_most_common_types(limit=10)
+            objgraph.show_growth(limit=5)
+            gc.collect()
 
             update_counter += 1
+            gc.collect()
 
     except Exception as e: 
         print("Parameter_Server Exception cause return, Detials of the Exception:", e)

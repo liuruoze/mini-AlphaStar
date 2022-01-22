@@ -116,6 +116,7 @@ def show_grads(model, shared_model, debug):
             # print('shared_param device', shared_param[1].device) if debug else None
             # print('shared_param grad', shared_param[1].grad) if debug else None  
             # break
+        del param, shared_param
 
 
 def show_datas(model, shared_model, debug):
@@ -134,6 +135,7 @@ def show_datas(model, shared_model, debug):
             # print('shared_param device', shared_param[1].device) if debug else None
             # print('shared_param data', shared_param[1].data) if debug else None
             # break
+        del param, shared_param
 
 
 def ensure_shared_grads(model, shared_model, debug):
@@ -146,7 +148,9 @@ def ensure_shared_grads(model, shared_model, debug):
             print('shared_param is not None', shared_param[0]) if debug else None
             return
         if param[1].grad is not None:
-            shared_param[1]._grad = param[1].grad.detach().to(shared_param[1].device)
+            shared_param[1]._grad = param[1].grad.to(shared_param[1].device)
         else:
             pass
             print('param grad is None', param[0]) if debug else None
+
+        del param, shared_param

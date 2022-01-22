@@ -37,6 +37,8 @@ debug = False
 FIELDS_WEIGHT_1 = [1, 0, 1, 0, 1, 1]  # [0, 0, 0, 1, 0, 0]
 FIELDS_WEIGHT_2 = [1, 0, 1, 1, 1, 1]
 
+WINLOSS_BASELINE_COSTS = (10.0, 5.0, "winloss_baseline")
+
 ACTION_FIELDS = [
     'action_type',  
     'delay',
@@ -163,7 +165,7 @@ def td_lambda_loss(baselines, rewards, trajectories, device):
         returns = RA.lambda_returns(baselines[1:], rewards, discounts, lambdas=0.8)
 
     print('returns', returns) if debug else None
-    print('baselines[0]', baselines[0]) if 1 else None
+    print('baselines[0]', baselines[0]) if debug else None
 
     result = returns - baselines[:-1]
     print('result', result) if debug else None
@@ -173,13 +175,16 @@ def td_lambda_loss(baselines, rewards, trajectories, device):
     td_lambda_loss = 0.5 * torch.mean(torch.square(result))
     print('td_lambda_loss', td_lambda_loss.item()) if debug else None
 
+    del result
+
     return td_lambda_loss
 
 
 def get_baseline_hyperparameters():
     # Accroding to detailed_architecture.txt, baselines contains the following 5 items:
     # Thus BASELINE_COSTS_AND_REWARDS also have 5 entry
-    winloss_baseline_costs = (1.0, 10.0, "winloss_baseline")
+    # winloss_baseline_costs = (1.0, 10.0, "winloss_baseline") 
+    winloss_baseline_costs = WINLOSS_BASELINE_COSTS
 
     # AlphaStar: The updates are computed similar to Winloss, except without UPGO, applied using Build Order baseline, and 
     # with relative weightings 4.0 for the policy and 1.0 for the baseline.

@@ -5,6 +5,8 @@
 
 # modified from AlphaStar pseudo-code
 
+import objgraph
+
 from time import time, sleep, strftime, localtime
 
 import gc
@@ -62,6 +64,8 @@ class Learner:
         self.v_steps = v_steps
         self.cuda_device = cuda_device
 
+        self.learner_name = 'learner_' + str(self.rank)
+
         self.trajectories = []
         self.final_trajectories = []
         self.win_trajectories = []
@@ -115,7 +119,7 @@ class Learner:
     def get_normal_trajectories(self):
         batch_size = AHP.batch_size
         sample_size = self.count_of_batches * batch_size
-        max_size = 5 * sample_size * self.buffer_size
+        max_size = 1 * sample_size * self.buffer_size
 
         trajectories = []
 
@@ -139,8 +143,18 @@ class Learner:
             # first-in first out
             self.trajectories = self.trajectories[sample_size:]
         elif len(self.trajectories) > max_size:
-            drop_size = len(self.trajectories) - max_size + sample_size
-            self.trajectories = self.trajectories[drop_size:]
+            print(self.learner_name, 'len(self.trajectories) larger than max_size, begin to drop!')
+            drop_size = len(self.trajectories) - max_size
+
+            reduced_trajectories = self.trajectories[drop_size:]
+
+            del self.trajectories
+            gc.collect()
+
+            self.trajectories = reduced_trajectories
+            print(self.learner_name, 'len(self.trajectories)', len(trajectories))
+
+            # gc.collect()
 
         return trajectories
 
@@ -204,7 +218,7 @@ class Learner:
         agent = self.player.agent
         batch_size = AHP.batch_size
 
-        learner_name = 'learner_' + str(self.rank)
+        learner_name = self.learner_name
 
         print(learner_name, 'len(self.trajectories)', len(self.trajectories)) if 1 else None
 
@@ -213,6 +227,11 @@ class Learner:
 
         # agent.agent_nn.model.train()  # for BN and dropout
         print(learner_name, "begin rl update") if debug else None
+
+        print(learner_name, "objgraph")
+        objgraph.show_most_common_types(limit=10)
+        objgraph.show_growth(limit=5)
+        gc.collect()
 
         for ep_id in range(self.num_epochs):
 
@@ -243,21 +262,21 @@ class Learner:
                     self.optimizer.zero_grad()
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
-                    print(learner_name, "begin backward") if self.rank == 0 else None
+                    print(learner_name, "begin backward") if debug else None
                     loss.backward()
-                    SA.show_grads(agent.agent_nn.model, self.global_model, self.rank == 0)
+                    SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
                     print(learner_name, "begin shared_grads") if debug else None
                     SA.ensure_shared_grads(agent.agent_nn.model, self.global_model, debug)
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
-                    print(learner_name, "begin optimizer_step") if self.rank == 0 else None
+                    print(learner_name, "begin optimizer_step") if debug else None
                     self.optimizer.step()
-                    SA.show_datas(agent.agent_nn.model, self.global_model, self.rank == 0)
-
-                    print(learner_name, "begin load_state_dict") if debug else None
-                    agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
                     SA.show_datas(agent.agent_nn.model, self.global_model, debug)
+
+                    # print(learner_name, "begin load_state_dict") if debug else None
+                    # agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
+                    # SA.show_datas(agent.agent_nn.model, self.global_model, debug)
 
                     del loss, loss_dict
                     print(learner_name, "end update") if debug else None
@@ -266,17 +285,20 @@ class Learner:
                 print(learner_name, "loss:", loss_item) if debug else None
 
                 for i, k in loss_dict_items:
-                    print(i, k) if self.rank == 0 else None
+                    print(i, k) if debug else None
 
                 if self.need_save_result:
                     self.writer.add_scalar('loss/' + learner_name, loss_item, agent.steps)
                     for i, k in loss_dict_items:
                         self.writer.add_scalar(learner_name + '/' + i, k, agent.steps)
 
+                del loss_item, loss_dict_items
+
                 agent.steps += AHP.batch_size * AHP.sequence_length
                 self.v_steps.value += AHP.batch_size * AHP.sequence_length
 
         del trajectories
+        gc.collect()
 
         if self.need_save_result:
             torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
