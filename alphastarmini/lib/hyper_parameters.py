@@ -133,6 +133,7 @@ ArchHyperParameters = namedtuple('ArchHyperParameters', ['batch_size',
                                                          'scatter_channels',
                                                          'init_net_params',
                                                          'use_action_type_mask',
+                                                         'use_unit_type_entity_mask',
                                                          'use_predict_step_mul',
                                                          'positional_encoding_time', 
                                                          'scalar_encoder_fc1_input', 
@@ -172,6 +173,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
                                                       scatter_channels=1,  # 0 or 1
                                                       init_net_params=1,
                                                       use_action_type_mask=0,
+                                                      use_unit_type_entity_mask=0,
                                                       use_predict_step_mul=1,
                                                       positional_encoding_time=1,
                                                       scalar_encoder_fc1_input=1504,
@@ -212,6 +214,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(16 * 6 / P.B
                                                      scatter_channels=1,  # 0 or 1
                                                      init_net_params=1,
                                                      use_action_type_mask=1,
+                                                     use_unit_type_entity_mask=0,
                                                      positional_encoding_time=0,
                                                      use_predict_step_mul=0,
                                                      scalar_encoder_fc1_input=864,

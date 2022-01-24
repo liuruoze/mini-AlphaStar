@@ -5,7 +5,7 @@
 
 # modified from AlphaStar pseudo-code
 
-import objgraph
+# import objgraph
 
 from time import time, sleep, strftime, localtime
 
@@ -228,10 +228,10 @@ class Learner:
         # agent.agent_nn.model.train()  # for BN and dropout
         print(learner_name, "begin rl update") if debug else None
 
-        print(learner_name, "objgraph")
-        objgraph.show_most_common_types(limit=10)
-        objgraph.show_growth(limit=5)
-        gc.collect()
+        # print(learner_name, "objgraph")
+        # objgraph.show_most_common_types(limit=10)
+        # objgraph.show_growth(limit=5)
+        # gc.collect()
 
         for ep_id in range(self.num_epochs):
 

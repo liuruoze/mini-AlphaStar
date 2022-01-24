@@ -136,7 +136,7 @@ class ArchModel(nn.Module):
     def forward(self, state, batch_size=None, sequence_length=None, hidden_state=None, return_logits=False, 
                 baseline_state=None, baseline_opponent_state=None, 
                 return_baseline=False, multi_gpu_supvised_learning=False,
-                use_scatter_map=True):
+                use_scatter_map=True, obs_list=None):
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
         entity_embeddings, embedded_entity, entity_nums = self.entity_encoder(state.entity_state)   
 
@@ -178,6 +178,12 @@ class ArchModel(nn.Module):
         print('autoregressive_embedding:', autoregressive_embedding) if debug else None
         print('autoregressive_embedding.shape:', autoregressive_embedding.shape) if debug else None       
 
+        if obs_list is not None:
+            unit_type_entity_mask = L.get_batch_unit_type_mask(action_type.squeeze(dim=1), obs_list)
+            unit_type_entity_mask = torch.tensor(unit_type_entity_mask, dtype=torch.bool, device=action_type.device)     
+        else:
+            unit_type_entity_mask = None
+
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
 
@@ -186,7 +192,8 @@ class ArchModel(nn.Module):
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head(autoregressive_embedding, 
                                                                                                    action_type, 
                                                                                                    entity_embeddings, 
-                                                                                                   entity_nums)
+                                                                                                   entity_nums,
+                                                                                                   unit_type_entity_mask=unit_type_entity_mask)
 
         print('units_logits:', units_logits) if debug else None
         print('units_logits.shape:', units_logits.shape) if debug else None
@@ -217,6 +224,7 @@ class ArchModel(nn.Module):
         del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits
         del action_type, delay, queue, units, target_unit, target_location
         del entity_embeddings, autoregressive_embedding, map_skip
+        del unit_type_entity_mask
 
         if return_logits:
 
@@ -238,7 +246,7 @@ class ArchModel(nn.Module):
 
     def mimic_forward(self, state, gt_action, gt_select_units_num, 
                       gt_is_one_hot=True, multi_gpu_supvised_learning=False, batch_size=None, sequence_length=None, hidden_state=None,
-                      baseline_state=None, baseline_opponent_state=None, show=False):
+                      baseline_state=None, baseline_opponent_state=None, show=False, obs_list=None):
         '''
         # inspired by the DI-star project
         # injected the args of ground truth into the forward calculation
@@ -318,6 +326,13 @@ class ArchModel(nn.Module):
             gt_target_unit = gt_action.target_unit
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions, gt_action_type)
+
+        if obs_list is not None:
+            unit_type_entity_mask = L.get_batch_unit_type_mask(action_type.squeeze(dim=1), obs_list)
+            unit_type_entity_mask = torch.tensor(unit_type_entity_mask, dtype=torch.bool, device=action_type.device)          
+        else:
+            unit_type_entity_mask = None
+
         delay_logits, _, autoregressive_embedding = self.delay_head(autoregressive_embedding, gt_delay)
         queue_logits, _, autoregressive_embedding = self.queue_head(autoregressive_embedding, gt_action_type, embedded_entity, gt_queue)
 
@@ -331,7 +346,8 @@ class ArchModel(nn.Module):
                                                                                                                  entity_nums,
                                                                                                                  gt_units,
                                                                                                                  gt_select_units_num,
-                                                                                                                 show=show)
+                                                                                                                 show=show,
+                                                                                                                 unit_type_entity_mask=unit_type_entity_mask)
 
         print('units_logits', units_logits) if show else None
         print('units_logits.shape', units_logits.shape) if show else None
@@ -346,6 +362,7 @@ class ArchModel(nn.Module):
 
         del gt_action, gt_action_type, gt_delay, gt_queue, entity_embeddings, gt_units, gt_select_units_num, autoregressive_embedding
         del map_skip, gt_target_unit, embedded_entity
+        del unit_type_entity_mask
 
         if multi_gpu_supvised_learning:
             return action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \

@@ -229,13 +229,14 @@ class AlphaStarAgent(RandomAgent):
 
         return func_call, action, action_logits, new_state
 
-    def step_from_state(self, state, hidden_state):       
+    def step_from_state(self, state, hidden_state, obs=None):       
         device = self.agent_nn.device()
         state.to(device)
 
         action_logits, action, hidden_state, select_units_num, entity_num = self.agent_nn.action_logits_by_state(state, 
                                                                                                                  single_inference=True,
-                                                                                                                 hidden_state=hidden_state)
+                                                                                                                 hidden_state=hidden_state,
+                                                                                                                 obs=obs)
 
         func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
 

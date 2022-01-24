@@ -34,7 +34,8 @@ class SelectedUnitsHead(nn.Module):
                  max_number_of_unit_types=SCHP.max_unit_type, is_sl_training=True, 
                  temperature=AHP.temperature, max_selected=AHP.max_selected,
                  original_256=AHP.original_256, original_32=AHP.original_32,
-                 autoregressive_embedding_size=AHP.autoregressive_embedding_size):
+                 autoregressive_embedding_size=AHP.autoregressive_embedding_size,
+                 use_unit_type_entity_mask=AHP.use_unit_type_entity_mask):
         super().__init__()
         self.is_sl_training = is_sl_training
         self.temperature = temperature
@@ -65,10 +66,12 @@ class SelectedUnitsHead(nn.Module):
 
         self.is_rl_training = False
 
+        self.use_unit_type_entity_mask = use_unit_type_entity_mask
+
     def set_rl_training(self, staus):
         self.is_rl_training = staus
 
-    def forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num):
+    def forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num, unit_type_entity_mask=None):
         '''
         Inputs:
             autoregressive_embedding: [batch_size x autoregressive_embedding_size]
@@ -169,6 +172,8 @@ class SelectedUnitsHead(nn.Module):
         for i in range(self.max_selected):
             if i == 1:
                 mask[torch.arange(batch_size), end_index] = True  # in the second selection, we can select the EOF
+                if self.is_rl_training and unit_type_entity_mask is not None:
+                    unit_type_entity_mask[torch.arange(batch_size), end_index] = True
 
             x = self.fc_1(autoregressive_embedding)
             x = self.fc_2(F.relu(x + the_func_embed)).unsqueeze(dim=1)
@@ -177,6 +182,9 @@ class SelectedUnitsHead(nn.Module):
             y = torch.sum(query * key, dim=-1)
 
             entity_logits = y.masked_fill(~mask, -1e9)
+            if self.is_rl_training and self.use_unit_type_entity_mask and unit_type_entity_mask is not None:
+                entity_logits = entity_logits.masked_fill(~unit_type_entity_mask, -1e9)
+
             temperature = self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature
             del y
@@ -253,7 +261,7 @@ class SelectedUnitsHead(nn.Module):
         return units_logits, units, autoregressive_embedding, select_units_num
 
     def mimic_forward(self, autoregressive_embedding, action_type, entity_embeddings, entity_num, units, select_units_num,
-                      show=False):
+                      show=False, unit_type_entity_mask=None):
         '''
         Inputs:
             autoregressive_embedding: [batch_size x autoregressive_embedding_size]
@@ -366,6 +374,8 @@ class SelectedUnitsHead(nn.Module):
                 # in the second selection, we can select the EOF
                 if i == 1:
                     mask[torch.arange(batch_size), end_index] = True
+                    if self.is_rl_training and unit_type_entity_mask is not None:
+                        unit_type_entity_mask[torch.arange(batch_size), end_index] = True
 
             # AlphaStar: the network passes `autoregressive_embedding` through a linear of size 256,
             x = self.fc_1(autoregressive_embedding)
@@ -382,6 +392,8 @@ class SelectedUnitsHead(nn.Module):
             # we use a very big negetive value replaced by logits, like -1e9
             # y shape: [batch_size x entity_size]
             entity_logits = y.masked_fill(~mask, -1e9)
+            if self.is_rl_training and self.use_unit_type_entity_mask and unit_type_entity_mask is not None:
+                entity_logits = entity_logits.masked_fill(~unit_type_entity_mask, -1e9)
 
             temperature = self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature

@@ -216,14 +216,20 @@ class Agent(object):
 
         return state
 
-    def action_logits_by_state(self, state, hidden_state = None, single_inference = False):
+    def action_logits_by_state(self, state, hidden_state = None, single_inference = False, obs = None):
         batch_size = 1 if single_inference else None
         sequence_length = 1 if single_inference else None
+
+        if single_inference:
+            obs_list = [obs]
+        else:
+            obs_list = obs
 
         action_logits, actions, new_state, select_units_num, entity_nums = self.model.forward(state, batch_size = batch_size,
                                                                                               sequence_length = sequence_length,
                                                                                               hidden_state = hidden_state, 
-                                                                                              return_logits = True)
+                                                                                              return_logits = True,
+                                                                                              obs_list = obs_list)
         return action_logits, actions, new_state, select_units_num, entity_nums
 
     def action_logits_based_on_actions(self, state, action_gt, gt_select_units_num, hidden_state=None, 

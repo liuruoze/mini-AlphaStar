@@ -3,7 +3,7 @@
 
 " Train for RL by fighting against built-in AI (computer), using no replays"
 
-import objgraph
+# import objgraph
 
 from time import time, sleep, strftime, localtime
 import gc
@@ -277,11 +277,6 @@ class ActorVSComputer:
                             start_episode_time = time()  # in seconds.
                             print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
 
-                            print(self.name, "objgraph")
-                            objgraph.show_most_common_types(limit=10)
-                            objgraph.show_growth(limit=5)
-                            gc.collect()
-
                             while not is_final:
 
                                 t = time()
@@ -300,7 +295,9 @@ class ActorVSComputer:
 
                                 with torch.no_grad():
                                     player_function_call, player_action, player_logits, \
-                                        player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(state, player_memory)
+                                        player_new_memory, player_select_units_num, entity_num = self.agent.step_from_state(state, 
+                                                                                                                            player_memory, 
+                                                                                                                            obs=home_obs.observation)
 
                                 print("player_function_call:", player_function_call) if debug else None
                                 print("player_action.delay:", player_action.delay) if debug else None
@@ -841,10 +838,10 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
 
             del single_episode_points
 
-            print("Parameter_Server", "objgraph")
-            objgraph.show_most_common_types(limit=10)
-            objgraph.show_growth(limit=5)
-            gc.collect()
+            # print("Parameter_Server", "objgraph")
+            # objgraph.show_most_common_types(limit=10)
+            # objgraph.show_growth(limit=5)
+            # gc.collect()
 
             update_counter += 1
             gc.collect()

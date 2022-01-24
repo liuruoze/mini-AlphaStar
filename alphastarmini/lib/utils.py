@@ -15,10 +15,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+
+from pysc2.lib.features import FeatureUnit
 from pysc2.lib import actions
 from pysc2.lib.buffs import Buffs
 from pysc2.lib.units import Neutral, Protoss, Terran, Zerg
 
+from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
@@ -106,6 +109,43 @@ for i in range(ConstSize.Actions_Size):
         print('reorder_type_list', reorder_type_list) if debug else None
 
         TARGET_UNITS_TYPES_MASK[i, reorder_type_list] = 1
+
+
+def get_batch_unit_type_mask(action_types, obs_list):
+    # inpsired by the DI-Star project
+
+    unit_type_mask_list = []
+    for idx, action in enumerate(action_types):
+        action = action.item()
+        print('action', action) if debug else None
+        info_1 = {"selected_units": False, "avail_unit_type_id": []} 
+        if action in AD.GENERAL_ACTION_INFO_MASK:
+            info_1 = AD.GENERAL_ACTION_INFO_MASK[action]
+            print('info_1', info_1) if debug else None
+        info_2 = {"selected_type": []}
+        if action in AD.ACTIONS_STAT:
+            info_2 = AD.ACTIONS_STAT[action]
+            print('info_2', info_2) if debug else None
+
+        unit_type_mask = np.zeros([1, AHP.max_entities])
+        if info_1["selected_units"]:
+            set_1 = set(info_1["avail_unit_type_id"])
+            set_2 = set(info_2["selected_type"])
+            del info_1, info_2
+            set_all = set.union(set_1, set_2)
+            del set_1, set_2
+            print('set all', set_all) if debug else None
+
+            raw_units_types = obs_list[idx]["raw_units"][:, FeatureUnit.unit_type]
+            for i, t in enumerate(raw_units_types):
+                if t in set_all and i < AHP.max_entities:
+                    unit_type_mask[0, i] = 1
+            del raw_units_types
+        unit_type_mask_list.append(unit_type_mask)
+
+    unit_type_masks = np.concatenate(unit_type_mask_list, axis=0)
+    del unit_type_mask_list
+    return unit_type_masks
 
 
 def unpackbits_for_largenumber(x, num_bits):
