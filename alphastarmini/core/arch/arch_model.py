@@ -187,7 +187,7 @@ class ArchModel(nn.Module):
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
 
-        del embedded_entity, embedded_spatial, embedded_scalar
+        del embedded_entity, embedded_spatial, embedded_scalar, scalar_context, available_actions
 
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head(autoregressive_embedding, 
                                                                                                    action_type, 
@@ -224,7 +224,7 @@ class ArchModel(nn.Module):
         del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits
         del action_type, delay, queue, units, target_unit, target_location
         del entity_embeddings, autoregressive_embedding, map_skip
-        del unit_type_entity_mask
+        del target_location_logits, unit_type_entity_mask
 
         if return_logits:
 
@@ -238,9 +238,15 @@ class ArchModel(nn.Module):
                 baseline_value_list = [winloss_baseline_value, build_order_baseline_value, built_units_baseline_value,
                                        upgrades_baseline_value, effects_baseline_value]
 
+                del lstm_output, winloss_baseline_value, build_order_baseline_value, built_units_baseline_value
+                del upgrades_baseline_value, effects_baseline_value
+                del baseline_state, baseline_opponent_state
+
                 return baseline_value_list, action_logits, action, hidden_state, select_units_num, entity_nums
 
             return action_logits, action, hidden_state, select_units_num, entity_nums
+
+            del action_logits
 
         return action, hidden_state, select_units_num, entity_nums
 
@@ -314,6 +320,7 @@ class ArchModel(nn.Module):
             padding[:, 0] = token
 
             gt_units = torch.cat([gt_units, padding], dim=1)
+            del padding, token
 
             print('gt_select_units_num', gt_select_units_num) if debug else None
             print('gt_units', gt_units) if debug else None
@@ -360,9 +367,9 @@ class ArchModel(nn.Module):
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)
 
+        del action_logits, unit_type_entity_mask
         del gt_action, gt_action_type, gt_delay, gt_queue, entity_embeddings, gt_units, gt_select_units_num, autoregressive_embedding
-        del map_skip, gt_target_unit, embedded_entity
-        del unit_type_entity_mask
+        del map_skip, gt_target_unit, embedded_entity, scalar_context, available_actions
 
         if multi_gpu_supvised_learning:
             return action_type, entity_nums, units, target_unit, target_location, action_type_logits, delay_logits, queue_logits, \
@@ -375,8 +382,13 @@ class ArchModel(nn.Module):
             upgrades_baseline_value = self.upgrades_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
             effects_baseline_value = self.effects_baseline.forward(lstm_output, baseline_state, baseline_opponent_state)
 
+            del lstm_output, baseline_state, baseline_opponent_state
+
             baseline_value_list = [winloss_baseline_value, build_order_baseline_value, built_units_baseline_value,
                                    upgrades_baseline_value, effects_baseline_value]
+
+            del winloss_baseline_value, build_order_baseline_value, built_units_baseline_value
+            del upgrades_baseline_value, effects_baseline_value
         else:
             baseline_value_list = []
 

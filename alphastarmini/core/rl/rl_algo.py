@@ -139,9 +139,13 @@ def scan_discounted_sum(sequence, decay, initial_value, reverse=False):
             res.append(foo(a_, x[i]).unsqueeze(0))
             a_ = foo(a_, x[i])
 
+        del a_
+
         return torch.cat(res)
 
     result = scan(lambda a, x: x[0] + x[1] * a, elems, initial_value=initial_value)
+
+    del scan
 
     if reverse:
         result = reverse_seq(result)
@@ -222,6 +226,8 @@ def vtrace_from_importance_weights(
 
     sequences = [item for item in zip(flip_discounts, flip_cs, flip_deltas)]
 
+    del flip_discounts, flip_cs, flip_deltas, deltas, values_t_plus_1, cs
+
     # V-trace vs are calculated through a 
     # scan from the back to the beginning
     # of the given trajectory.
@@ -243,6 +249,9 @@ def vtrace_from_importance_weights(
         for i in range(1, len(x)):
             res.append(foo(a_, x[i]).unsqueeze(0))
             a_ = foo(a_, x[i])
+
+        del a_
+
         return torch.cat(res)
 
     vs_minus_v_xs = scan(foo=scanfunc, x=sequences, initial_value=initial_values)
@@ -307,13 +316,13 @@ def upgo_returns(values, rewards, discounts, bootstrap, debug=False):
     # next_values. Shape [T, B].
     next_values = torch.cat([values[1:], bootstrap.unsqueeze(dim=0)], dim=0)
 
-    print("next_values:", next_values) if debug else None
-    print("rewards:", rewards) if debug else None
-    print("discounts:", discounts) if debug else None
-    print("discounts * next_values:", discounts * next_values) if debug else None
-    print("rewards + discounts * next_values:", rewards + discounts * next_values) if debug else None
-    print("values:", values) if debug else None
-    print("(rewards + discounts * next_values) >= values:", (rewards + discounts * next_values) >= values) if debug else None
+    # print("next_values:", next_values) if debug else None
+    # print("rewards:", rewards) if debug else None
+    # print("discounts:", discounts) if debug else None
+    # print("discounts * next_values:", discounts * next_values) if debug else None
+    # print("rewards + discounts * next_values:", rewards + discounts * next_values) if debug else None
+    # print("values:", values) if debug else None
+    # print("(rewards + discounts * next_values) >= values:", (rewards + discounts * next_values) >= values) if debug else None
 
     # Upgo can be viewed as a lambda return! The trace continues (i.e. lambda =
     # 1.0) if r_t + V_tp1 > V_t. original G_t = r_t +  
@@ -415,11 +424,8 @@ def remove_outlier(x, remove=False):
     else:
         if outlier_mask.any() > 0:
             index = outlier_mask.nonzero(as_tuple=True)
-
             print("index:", index) if 1 else None
-
             print("x[index]:", x[index]) if 1 else None
-
             print(stop)
 
             del index
@@ -461,6 +467,7 @@ def log_prob(logits, actions, mask_used, max_selected, show=False, outlier_remov
             unit_type_entity_mask = unit_type_entity_mask.view(-1, unit_type_entity_mask.shape[-1])
             entity_mask = entity_mask.view(-1, entity_mask.shape[-1])
             entity_mask = entity_mask * unit_type_entity_mask
+
             # print('entity_mask[0]', entity_mask[0]) if show else None
             # print('entity_mask.shape', entity_mask.shape) if show else None
 
@@ -482,8 +489,8 @@ def log_prob(logits, actions, mask_used, max_selected, show=False, outlier_remov
         # print('x[25]', x[25]) if show else None
         # print('x.shape', x.shape) if show else None
 
-        # if mask is not None:
-        #     x = x * mask
+        if mask is not None:
+            x = x * mask
 
         # print('mask[0]', mask[0]) if show else None
         # print('mask[1]', mask[1]) if show else None
@@ -541,7 +548,6 @@ def log_prob(logits, actions, mask_used, max_selected, show=False, outlier_remov
 
         # print('loss_result[0]', loss_result[0]) if show else None
         # print('loss_result.shape', loss_result.shape) if show else None    
-
         loss_result = loss_result * selected_mask
 
         # print('selected_mask[0]', selected_mask[0]) if show else None
@@ -552,7 +558,6 @@ def log_prob(logits, actions, mask_used, max_selected, show=False, outlier_remov
         #     print('loss_result_2', torch.sum(loss_result_2, dim=-1)) if show else None
 
         loss_result = remove_outlier(loss_result, outlier_remove)
-
         loss_result = torch.sum(loss_result, dim=-1)
 
         # print('loss_result', loss_result) if show else None
@@ -616,8 +621,8 @@ def test(debug=True):
 
             returns[-1, :] = rewards_short[-1, :] + discounts[-1, :] * boostrapvales[-1, :]
             for t in reversed(range(rewards_short.shape[0] - 1)):
-                returns[t, :] = rewards_short[t, :] + discounts[t, :] * (lambdas * returns[t + 1, :]
-                                                                         + (1 - lambdas) * boostrapvales[t, :])
+                returns[t, :] = rewards_short[t, :] + discounts[t, :] * (lambdas * returns[t + 1, :] +
+                                                                         (1 - lambdas) * boostrapvales[t, :])
             print("returns:", returns) if debug else None
 
             result = returns.detach() - baselines[:-1]

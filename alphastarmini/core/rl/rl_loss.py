@@ -34,7 +34,7 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
-FIELDS_WEIGHT_1 = [1, 0, 1, 0, 1, 1]  # [0, 0, 0, 1, 0, 0]
+FIELDS_WEIGHT_1 = [1, 0, 1, 1, 1, 1]  # [0, 0, 0, 1, 0, 0]
 FIELDS_WEIGHT_2 = [1, 0, 1, 1, 1, 1]
 
 WINLOSS_BASELINE_COSTS = (10.0, 5.0, "winloss_baseline")
@@ -127,7 +127,7 @@ def get_kl_or_entropy(target_logits, field, func, mask, selected_mask, entity_ma
     mask = mask[:, :, ACTION_FIELDS.index(field)].view(-1, 1)
     x = torch.mean(x * mask)
 
-    del logits, t_logits, all_logits, mask
+    del logits, t_logits, all_logits, mask, selected_mask, entity_mask, unit_type_entity_mask
 
     return x
 
@@ -279,7 +279,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
 
     del trajectories, discounts, unit_type_entity_mask, rewards
-    del values, selected_mask, entity_mask, mask_provided
+    del values, selected_mask, entity_mask, mask_provided, fields_weight
 
     return loss
 
@@ -315,7 +315,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
         loss = loss + loss_field
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
 
-    del trajectories, discounts, unit_type_entity_mask, reward
+    del trajectories, discounts, unit_type_entity_mask, reward, fields_weight
     del values, returns, selected_mask, entity_mask, mask_provided
 
     return loss
@@ -357,6 +357,8 @@ def change_units_and_logits(behavior_logits, gt_units, select_units_num, entity_
     # print('gt_units.shape', gt_units.shape) if 1 else None
 
     # print('stop', stop)
+
+    del padding, token, select_units_num, entity_nums
 
     gt_units = gt_units.long()
 
@@ -422,7 +424,7 @@ def get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided):
     clipped_rhos = clipped_rhos.reshape(sequence_length, batch_size)
 
     del behavior_log_prob, target_logits, behavior_logits, all_logits, target_logits_all
-    del actions, selected_mask, entity_mask, unit_type_entity_mask
+    del actions, selected_mask, entity_mask, unit_type_entity_mask, mask_used, max_selected
 
     return target_log_prob, clipped_rhos, masks
 
@@ -448,6 +450,7 @@ def loss_function(agent, trajectories, use_opponent_state=True,
 
     # get used masks
     selected_mask, entity_mask = get_useful_masks(select_units_num, entity_num, device)
+    del select_units_num, entity_num
 
     # note, we change the structure of the trajectories
     # shape before: [dict_name x batch_size x seq_size]
@@ -510,7 +513,7 @@ def loss_function(agent, trajectories, use_opponent_state=True,
     loss_upgo = UPGO_COST * loss_upgo
     loss_upgo = upgo_weight * loss_upgo
     loss_dict.update({"loss_upgo:": loss_upgo.item()})
-    del baselines
+    del baselines, BASELINE_COSTS_AND_REWARDS
 
     # Distillation Loss:
     # There is an distillation loss with weight 2e-3 on all action arguments, to match the output logits of the fine-tuned supervised policy 

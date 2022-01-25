@@ -149,6 +149,7 @@ class SelectedUnitsHead(nn.Module):
         # calculate the average of keys (consider the entity_num)
         key_mask = mask.unsqueeze(dim=2).repeat(1, 1, key.shape[-1])
         key_avg = torch.sum(key * key_mask, dim=1) / entity_num.reshape(batch_size, 1)
+        del key_mask
 
         # creates a new variable corresponding to ending unit selection.
         # QUESTION: how to do that?
@@ -187,7 +188,7 @@ class SelectedUnitsHead(nn.Module):
 
             temperature = self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature
-            del y
+            del x, y, query
 
             entity_probs = self.softmax(entity_logits)
             entity_id = torch.multinomial(entity_probs, 1)
@@ -214,7 +215,9 @@ class SelectedUnitsHead(nn.Module):
             out = out - key_avg
             t = self.project(out)
             autoregressive_embedding = autoregressive_embedding + t * ~is_end.unsqueeze(dim=1)
-            del t
+
+            del temperature, entity_logits, entity_probs, entity_id
+            del last_index, entity_one_hot, entity_one_hot_unsqueeze, out, t
 
             if is_end.all():
                 break
@@ -250,13 +253,14 @@ class SelectedUnitsHead(nn.Module):
 
         select_units_num[no_select_units_index] = 0
         autoregressive_embedding[no_select_units_index] = original_ae[no_select_units_index]
+
         units_logits[no_select_units_index] = -1e9  # a magic number
         units[no_select_units_index, :, 0] = entity_size - 1  # None index, the same as -1
 
         print("select_units_num:", select_units_num) if debug else None
         print("autoregressive_embedding:", autoregressive_embedding) if debug else None
 
-        del select_unit_mask, no_select_units_index, mask, is_end, key_mask, key_avg
+        del select_unit_mask, no_select_units_index, mask, is_end, key, key_avg
 
         return units_logits, units, autoregressive_embedding, select_units_num
 
@@ -342,6 +346,7 @@ class SelectedUnitsHead(nn.Module):
         # calculate the average of keys (consider the entity_num)
         key_mask = mask.unsqueeze(dim=2).repeat(1, 1, key.shape[-1])
         key_avg = torch.sum(key * key_mask, dim=1) / entity_num.reshape(batch_size, 1)
+        del key_mask
 
         # creates a new variable corresponding to ending unit selection.
         # QUESTION: how to do that?
@@ -397,11 +402,12 @@ class SelectedUnitsHead(nn.Module):
 
             temperature = self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature
-            del y
+            del x, y, query, temperature
 
             # note, we add a dimension where is in the seq_one to help
             # we concat to the one : [batch_size x max_selected x ?]
             units_logits_list.append(entity_logits.unsqueeze(-2))
+            del entity_logits
 
             # the last EOF should not be considered
             if i != max_seq_len - 1:
@@ -435,7 +441,8 @@ class SelectedUnitsHead(nn.Module):
 
                 # TODO, whether should be select_mask[:, i + 1] or select_mask[:, i] ?
                 autoregressive_embedding = autoregressive_embedding + t * selected_mask[:, i + 1].unsqueeze(dim=1)
-                del t
+                del t, out, entity_one_hot_unsqueeze, entity_one_hot, last_index, entity_id
+
                 print("autoregressive_embedding:", autoregressive_embedding) if debug else None
 
         # in SL, we make the selected can have 1 more, like 12 + 1
@@ -472,7 +479,7 @@ class SelectedUnitsHead(nn.Module):
         # remove the EOF
         select_units_num = select_units_num - 1
 
-        del selected_mask, select_unit_mask, no_select_units_index, mask, units_logits_list, key_mask, key_avg
+        del selected_mask, select_unit_mask, no_select_units_index, mask, units_logits_list, key, key_avg
 
         return units_logits, None, autoregressive_embedding, select_units_num
 

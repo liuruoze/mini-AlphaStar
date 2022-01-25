@@ -15,7 +15,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-
 from pysc2.lib.features import FeatureUnit
 from pysc2.lib import actions
 from pysc2.lib.buffs import Buffs
@@ -42,6 +41,7 @@ def unit_tpye_to_unit_type_index(unit_type):
     transform unique unit type in SC2 to unit index in one hot represent in mAS.
     '''
     unit_type_index = get_unit_tpye_index_fast(unit_type)
+    del unit_type
 
     return unit_type_index
 
@@ -110,6 +110,131 @@ for i in range(ConstSize.Actions_Size):
 
         TARGET_UNITS_TYPES_MASK[i, reorder_type_list] = 1
 
+        del type_set, reorder_type_list
+
+
+def unpackbits_for_largenumber(x, num_bits):
+    if np.issubdtype(x.dtype, np.floating):
+        raise ValueError("numpy data type needs to be int-like")
+    xshape = list(x.shape)
+    x = x.reshape([-1, 1])
+    mask = 2**np.arange(num_bits, dtype=x.dtype).reshape([1, num_bits])
+    return (x & mask).astype(bool).astype(int).reshape(xshape + [num_bits])
+
+
+def calculate_unit_counts_bow(obs):
+    unit_counts = obs["unit_counts"] 
+    print('unit_counts:', unit_counts) if debug else None
+
+    unit_counts_bow = torch.zeros(1, SFS.unit_counts_bow)
+    for u_c in unit_counts:
+        unit_type = u_c[0]
+        unit_count = u_c[1]
+        print('unit_type', unit_type) if debug else None
+
+        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
+        print('unit_type_index', unit_type_index) if debug else None
+
+        if unit_type_index >= SFS.unit_counts_bow:
+            unit_type_index = 0
+
+        unit_counts_bow[0, unit_type_index] = unit_count
+
+        del unit_type_index, unit_count
+
+    del unit_counts
+
+    return unit_counts_bow
+
+
+def calculate_unit_buildings_numpy(obs):
+    unit_counts = obs["unit_counts"] 
+    print('unit_counts:', unit_counts) if debug else None
+
+    unit_buildings = np.zeros([1, SFS.unit_counts_bow])
+    for u_c in unit_counts:
+        unit_type = u_c[0]
+        unit_count = u_c[1]
+
+        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
+        print('unit_type_index', unit_type_index) if debug else None
+
+        if unit_type_index >= SFS.unit_counts_bow:
+            unit_type_index = 0
+
+        if unit_count >= 1:
+            unit_buildings[0, unit_type_index] = 1
+
+        del unit_type_index, unit_count
+
+    del unit_counts
+
+    return unit_buildings
+
+
+def calculate_unit_counts_bow_numpy(obs):
+    unit_counts = obs["unit_counts"] 
+    print('unit_counts:', unit_counts) if debug else None
+
+    unit_counts_bow = np.zeros([1, SFS.unit_counts_bow])
+    for u_c in unit_counts:
+        unit_type = u_c[0]
+        unit_count = u_c[1]
+        print('unit_type', unit_type) if debug else None
+
+        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
+        print('unit_type_index', unit_type_index) if debug else None
+
+        if unit_type_index >= SFS.unit_counts_bow:
+            unit_type_index = 0
+
+        unit_counts_bow[0, unit_type_index] = unit_count
+
+        del unit_type_index, unit_count
+
+    del unit_counts
+
+    return unit_counts_bow
+
+
+# the probe, drone, and SCV are not counted in build order
+# the pylon, drone, and supplypot are not counted in build order
+outer_type_list = [84, 104, 45, 60, 106, 19] 
+outer_type_index_list = [unit_tpye_to_unit_type_index(i) for i in outer_type_list]
+
+
+def calculate_build_order(previous_bo, obs, next_obs):
+    # calculate the build order
+    ucb = calculate_unit_counts_bow(obs)
+    print("ucb:", ucb) if debug else None
+
+    next_ucb = calculate_unit_counts_bow(next_obs)
+    print("next_ucb:", next_ucb) if debug else None
+
+    diff = next_ucb - ucb
+    del next_ucb, ucb, obs, next_obs
+    print("diff:", diff) if debug else None
+
+    # remove types that should not be considered
+    diff[0, outer_type_index_list] = 0
+
+    diff_count = torch.sum(diff).item()
+    print("diff between unit_counts_bow", diff_count) if debug else None
+
+    index_list = []
+    if diff_count >= 1.0:
+        index = torch.nonzero(diff, as_tuple=True)[-1]
+        print("index:", index) if debug else None
+
+        index_list = index.detach().cpu().numpy().tolist()
+        del index
+
+    bo = previous_bo + index_list
+
+    del diff_count, diff, previous_bo, index_list
+
+    return bo
+
 
 def get_batch_unit_type_mask(action_types, obs_list):
     # inpsired by the DI-Star project
@@ -146,113 +271,6 @@ def get_batch_unit_type_mask(action_types, obs_list):
     unit_type_masks = np.concatenate(unit_type_mask_list, axis=0)
     del unit_type_mask_list
     return unit_type_masks
-
-
-def unpackbits_for_largenumber(x, num_bits):
-    if np.issubdtype(x.dtype, np.floating):
-        raise ValueError("numpy data type needs to be int-like")
-    xshape = list(x.shape)
-    x = x.reshape([-1, 1])
-    mask = 2**np.arange(num_bits, dtype=x.dtype).reshape([1, num_bits])
-    return (x & mask).astype(bool).astype(int).reshape(xshape + [num_bits])
-
-
-def calculate_unit_counts_bow(obs):
-    unit_counts = obs["unit_counts"] 
-    print('unit_counts:', unit_counts) if debug else None
-
-    unit_counts_bow = torch.zeros(1, SFS.unit_counts_bow)
-    for u_c in unit_counts:
-        unit_type = u_c[0]
-        unit_count = u_c[1]
-        print('unit_type', unit_type) if debug else None
-
-        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
-        print('unit_type_index', unit_type_index) if debug else None
-
-        if unit_type_index >= SFS.unit_counts_bow:
-            unit_type_index = 0
-
-        unit_counts_bow[0, unit_type_index] = unit_count
-
-    return unit_counts_bow
-
-
-def calculate_unit_buildings_numpy(obs):
-    unit_counts = obs["unit_counts"] 
-    print('unit_counts:', unit_counts) if debug else None
-
-    unit_buildings = np.zeros([1, SFS.unit_counts_bow])
-    for u_c in unit_counts:
-        unit_type = u_c[0]
-        unit_count = u_c[1]
-
-        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
-        print('unit_type_index', unit_type_index) if debug else None
-
-        if unit_type_index >= SFS.unit_counts_bow:
-            unit_type_index = 0
-
-        if unit_count >= 1:
-            unit_buildings[0, unit_type_index] = 1
-
-    return unit_buildings
-
-
-def calculate_unit_counts_bow_numpy(obs):
-    unit_counts = obs["unit_counts"] 
-    print('unit_counts:', unit_counts) if debug else None
-
-    unit_counts_bow = np.zeros([1, SFS.unit_counts_bow])
-    for u_c in unit_counts:
-        unit_type = u_c[0]
-        unit_count = u_c[1]
-        print('unit_type', unit_type) if debug else None
-
-        unit_type_index = unit_tpye_to_unit_type_index(unit_type)
-        print('unit_type_index', unit_type_index) if debug else None
-
-        if unit_type_index >= SFS.unit_counts_bow:
-            unit_type_index = 0
-
-        unit_counts_bow[0, unit_type_index] = unit_count
-
-    return unit_counts_bow
-
-
-# the probe, drone, and SCV are not counted in build order
-# the pylon, drone, and supplypot are not counted in build order
-outer_type_list = [84, 104, 45, 60, 106, 19] 
-outer_type_index_list = [unit_tpye_to_unit_type_index(i) for i in outer_type_list]
-
-
-def calculate_build_order(previous_bo, obs, next_obs):
-    # calculate the build order
-    ucb = calculate_unit_counts_bow(obs)
-    print("ucb:", ucb) if debug else None
-
-    next_ucb = calculate_unit_counts_bow(next_obs)
-    print("next_ucb:", next_ucb) if debug else None
-
-    diff = next_ucb - ucb
-    print("diff:", diff) if debug else None
-
-    # remove types that should not be considered
-    diff[0, outer_type_index_list] = 0
-
-    diff_count = torch.sum(diff).item()
-    print("diff between unit_counts_bow", diff_count) if debug else None
-
-    if diff_count >= 1.0:
-        print("diff:", diff) if debug else None
-
-        index = torch.nonzero(diff, as_tuple=True)[-1]
-        print("index:", index) if debug else None
-
-        index = index.detach().cpu().numpy().tolist()
-        previous_bo.extend(index)
-
-    return previous_bo
 
 
 def calculate_build_order_numpy(previous_bo, obs, next_obs):
@@ -456,7 +474,11 @@ def action_can_be_queued_mask(action_types):
     for i, action_type in enumerate(action_types):
         action_type_index = action_type.item()
         print('i:', i, 'action_type_index:', action_type_index) if debug else None
+
         mask[i] = action_can_be_queued(action_type_index)
+        del action_type, action_type_index
+
+    del action_types
 
     return mask
 
@@ -491,10 +513,12 @@ def action_involve_selecting_units_mask(action_types):
 
     for i, action_type in enumerate(action_types):
         action_type_index = action_type.item()
-
         print('i:', i, 'action_type_index:', action_type_index) if debug else None
 
         mask[i] = action_involve_selecting_units(action_type_index)
+        del action_type_index, action_type
+
+    del action_types
 
     return mask
 
@@ -528,10 +552,12 @@ def action_involve_targeting_unit_mask(action_types):
 
     for i, action_type in enumerate(action_types):
         action_type_index = action_type.item()
-
         print('i:', i, 'action_type_index:', action_type_index) if debug else None
 
         mask[i] = action_involve_targeting_unit(action_type_index)
+        del action_type_index, action_type
+
+    del action_types
 
     return mask
 
@@ -564,10 +590,12 @@ def action_involve_targeting_location_mask(action_types):
 
     for i, action_type in enumerate(action_types):
         action_type_index = action_type.item()
-
         print('i:', i, 'action_type_index:', action_type_index) if debug else None
 
         mask[i] = action_involve_targeting_location(action_type_index)
+        del action_type_index, action_type
+
+    del action_types
 
     return mask
 
@@ -597,19 +625,18 @@ def action_can_apply_to_entity_types_mask(action_types):
     Outputs: mask
     """
     mask_list = []
-
     action_types = action_types.cpu().detach().numpy()
 
     for i, action_type in enumerate(action_types):
         action_type_index = action_type.item()
-
         print('i:', i, 'action_type_index:', action_type_index) if debug else None
 
         mask = action_can_apply_to_entity_types(action_type_index)
-
         mask_list.append(mask)
+        del mask, action_type_index, action_type
 
     batch_mask = torch.cat(mask_list, dim=0)
+    del mask_list, action_types
 
     return batch_mask
 
@@ -628,12 +655,7 @@ def action_can_apply_to_selected_mask(action_types):
     """
 
     mask = SELECTED_UNITS_TYPES_MASK[action_types.squeeze(1)].to(action_types.device)
-
-    print('selected action_types:', action_types) if debug else None
-    print('selected action_types.shape:', action_types.shape) if debug else None
-
-    print('selected mask:', mask) if debug else None
-    print('selected mask.shape:', mask.shape) if debug else None
+    del action_types
 
     return mask
 
@@ -652,12 +674,7 @@ def action_can_apply_to_targeted_mask(action_types):
     """
 
     mask = TARGET_UNITS_TYPES_MASK[action_types.squeeze(1)].to(action_types.device)
-
-    print('targeted action_types:', action_types) if debug else None
-    print('targeted action_types.shape:', action_types.shape) if debug else None
-
-    print('targeted mask:', mask) if debug else None
-    print('targeted mask.shape:', mask.shape) if debug else None
+    del action_types
 
     return mask
 

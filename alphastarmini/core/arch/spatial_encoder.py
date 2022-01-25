@@ -103,14 +103,13 @@ class SpatialEncoder(nn.Module):
 
         # [batch_size x 4 x AHP.minimap_size x AHP.minimap_size]
         scatter_index = scatter_index.reshape(batch_size, -1)
-
         scatter_index = scatter_index.unsqueeze(-1).repeat(1, 1, AHP.original_32)
         # [batch_size x 4 * AHP.minimap_size * AHP.minimap_size x AHP.original_32]
 
         # Question: This has a problem, the first element of index 0 will be averaged everywhere
         # Solution: use zero_bias to remove
         scatter_mid = reduced_entity_embeddings.gather(1, scatter_index.long())
-        del reduced_entity_embeddings, scatter_index
+        del reduced_entity_embeddings, scatter_index, zero_bias
         print('scatter_mid', scatter_mid[0, :16, :4]) if debug else None
 
         scatter_mid = scatter_mid.reshape(batch_size, self.scatter_volume, 
@@ -150,7 +149,7 @@ class SpatialEncoder(nn.Module):
             if P.handle_cuda_error:  # and batch_size != 1:
                 x = x.to(device)
 
-            del scatter_entity, reduced
+            del scatter_map, scatter_entity, reduced
 
         # After preprocessing, the planes are concatenated, projected to 32 channels 
         # by a 2D convolution with kernel size 1, passed through a ReLU
@@ -326,7 +325,7 @@ class ResBlock_BN(nn.Module):
 
         out = out + identity
         out = self.relu(out)
-
+        del identity
         return out
 
 
@@ -351,6 +350,7 @@ class ResBlockImproved(nn.Module):
         x = F.relu(self.bn2(x))
         x = self.conv2(x)
         x = x + residual
+        del residual
         return x
 
 
@@ -381,6 +381,7 @@ class ResBlock1D(nn.Module):
             x = F.relu(self.ln2(x))
             x = self.conv2(x)
             x = x + residual
+            del residual
             return x
         elif self.normtype == 'post':
             residual = x
@@ -389,6 +390,7 @@ class ResBlock1D(nn.Module):
             x = F.relu(self.conv2(x))
             x = self.ln2(x)
             x = x + residual
+            del residual
             return x
         else:
             raise KeyError('unspported normtype!')     

@@ -71,6 +71,7 @@ def namedtuple_one_list(trajectory_list):
         d = [list(itertools.chain(*l)) for l in zip(*trajectory_list)]
         #print('len(d):', len(d))
         new = Trajectory._make(d)
+        del d
 
     except Exception as e:
         print("stack_namedtuple Exception cause return, Detials of the Exception:", e)
@@ -86,6 +87,7 @@ def stack_namedtuple(trajectory):
         d = list(zip(*trajectory))
         #print('len(d):', len(d))
         new = Trajectory._make(d)
+        del d
 
     except Exception as e:
         print("stack_namedtuple Exception cause return, Detials of the Exception:", e)
@@ -100,6 +102,7 @@ def namedtuple_zip(trajectory):
     try: 
         d = [list(zip(*z)) for z in trajectory]
         new = Trajectory._make(d)
+        del d
 
     except Exception as e:
         print("namedtuple_zip Exception cause return, Detials of the Exception:", e)
@@ -149,7 +152,8 @@ def get_unit_type_mask(action, obs):
 
     unit_type_masks = get_batch_unit_type_mask(action_types, obs_list)
     unit_type_mask = unit_type_masks[0].reshape(-1)
-    del unit_type_masks
+    del unit_type_masks, obs_list, action_types, function_id
+
     return unit_type_mask
 
 
@@ -172,5 +176,6 @@ def get_mask(action, action_spec):
             action_mask[5] = 1                       
 
     print('action_mask:', action_mask) if debug else None
+    del action, function_id, need_args
 
     return action_mask

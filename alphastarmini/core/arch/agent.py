@@ -116,6 +116,8 @@ class Agent(object):
         print('preprocess_state_entity_numpy, t1', time() - t) if speed else None
         t = time()
 
+        del raw_units, entities_array
+
         if return_entity_pos:
             return batch_entities_array, entity_pos
 
@@ -398,6 +400,7 @@ class Agent(object):
                         print("argument queue beyond the size!") if debug else None
                     else:
                         args.append(to_list(queue))
+                    del size
                 elif arg.name == 'unit_tags':
                     # the unit_tags size is actually the max selected number
                     size = arg.sizes[0]
@@ -411,6 +414,7 @@ class Agent(object):
                         else:
                             units_args.append(unit_index)
                     args.append(units_args)
+                    del units_args, size
                 elif arg.name == 'target_unit_tag':
                     size = arg.sizes[0]
                     if target_unit < 0 or target_unit > size - 1:
@@ -418,6 +422,7 @@ class Agent(object):
                         print("argument target_unit beyond the size!") if debug else None
                     else:
                         args.append(to_list(target_unit))
+                    del size
                 elif arg.name == 'world':
                     world_args = []
                     for val, size in zip(target_location, arg.sizes):
@@ -429,6 +434,9 @@ class Agent(object):
                         else:
                             world_args.append(val)                        
                     args.append(world_args)
+                    del world_args
+
+                del rand
         else:
             args = [[np.random.randint(0, size) for size in arg.sizes]
                     for arg in action_spec.functions[function_id].args]
@@ -437,6 +445,8 @@ class Agent(object):
 
         # AlphaStar use the raw actions
         func_call = A.FunctionCall.init_with_validation(function=function_id, arguments=args, raw=True)
+
+        del delay, queue, function_id, args, units_num, units, target_location, target_unit
 
         return func_call
 

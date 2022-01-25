@@ -51,6 +51,8 @@ class IkostrikovSharedAdam(optim.Adam):
                 state['exp_avg'] = p.data.new().resize_as_(p.data).zero_()
                 state['exp_avg_sq'] = p.data.new().resize_as_(p.data).zero_()
 
+                del state
+
     def share_memory(self):
         for group in self.param_groups:
             for p in group['params']:
@@ -58,6 +60,8 @@ class IkostrikovSharedAdam(optim.Adam):
                 state['step'].share_memory_()
                 state['exp_avg'].share_memory_()
                 state['exp_avg_sq'].share_memory_()
+
+                del state
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -96,6 +100,9 @@ class IkostrikovSharedAdam(optim.Adam):
                     bias_correction2) / bias_correction1
 
                 p.data.addcdiv_(exp_avg, denom, value=-step_size)
+
+                del grad, state, exp_avg, exp_avg_sq, beta1, beta2
+                del denom, bias_correction1, bias_correction2, step_size
 
         return loss
 

@@ -64,7 +64,7 @@ class Learner:
         self.v_steps = v_steps
         self.cuda_device = cuda_device
 
-        self.learner_name = 'learner_' + str(self.rank)
+        self.name = 'learner_' + str(self.rank)
 
         self.trajectories = []
         self.final_trajectories = []
@@ -133,28 +133,20 @@ class Learner:
         else:
             trajectories_reduced = self.trajectories[:sample_size]
 
-        trajectories.extend(trajectories_reduced)
+        trajectories = trajectories_reduced
         del trajectories_reduced
 
-        assert len(trajectories) == sample_size
+        # assert len(trajectories) == sample_size
 
         # update self.trajectories
         if len(self.trajectories) > 0 and len(self.trajectories) <= max_size:
             # first-in first out
             self.trajectories = self.trajectories[sample_size:]
         elif len(self.trajectories) > max_size:
-            print(self.learner_name, 'len(self.trajectories) larger than max_size, begin to drop!')
-            drop_size = len(self.trajectories) - max_size
-
-            reduced_trajectories = self.trajectories[drop_size:]
-
-            del self.trajectories
-            gc.collect()
-
-            self.trajectories = reduced_trajectories
-            print(self.learner_name, 'len(self.trajectories)', len(trajectories))
-
-            # gc.collect()
+            print(self.name, 'len(self.trajectories) larger than max_size, begin to drop!')
+            drop_size = len(self.trajectories) - max_size + sample_size
+            self.trajectories = self.trajectories[drop_size:]
+            print(self.name, 'len(self.trajectories)', len(self.trajectories))
 
         return trajectories
 
@@ -218,7 +210,7 @@ class Learner:
         agent = self.player.agent
         batch_size = AHP.batch_size
 
-        learner_name = self.learner_name
+        learner_name = self.name
 
         print(learner_name, 'len(self.trajectories)', len(self.trajectories)) if 1 else None
 
@@ -228,10 +220,10 @@ class Learner:
         # agent.agent_nn.model.train()  # for BN and dropout
         print(learner_name, "begin rl update") if debug else None
 
-        # print(learner_name, "objgraph")
         # objgraph.show_most_common_types(limit=10)
-        # objgraph.show_growth(limit=5)
-        # gc.collect()
+        # growth = objgraph.growth(limit=5)
+        # if len(growth):
+        #     print(self.name, os.getpid(), "before update", growth)
 
         for ep_id in range(self.num_epochs):
 
@@ -286,6 +278,7 @@ class Learner:
 
                 for i, k in loss_dict_items:
                     print(i, k) if debug else None
+                    del i, k
 
                 if self.need_save_result:
                     self.writer.add_scalar('loss/' + learner_name, loss_item, agent.steps)
@@ -297,14 +290,18 @@ class Learner:
                 agent.steps += AHP.batch_size * AHP.sequence_length
                 self.v_steps.value += AHP.batch_size * AHP.sequence_length
 
+        # agent.agent_nn.model.eval()
+        print(learner_name, "end rl update") if debug else None
+
         del trajectories
         gc.collect()
+        # if self.rank == 0:
+        #     growth = objgraph.growth(limit=5)
+        #     if len(growth):
+        #         print(self.name, os.getpid(), "growth", growth)
 
         if self.need_save_result:
             torch.save(agent.agent_nn.model.state_dict(), SAVE_PATH + "" + ".pth")
-
-        # agent.agent_nn.model.eval()
-        print(learner_name, "end rl update") if debug else None
 
     def start(self):
         self.thread.start()

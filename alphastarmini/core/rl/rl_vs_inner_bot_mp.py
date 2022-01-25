@@ -59,8 +59,8 @@ if SIMPLE_TEST:
     GAME_STEPS_PER_EPISODE = 18000  
     MAX_FRAMES = 18000 * 5
 else:
-    MAX_EPISODES = 4 * 4 * 10 * 2
-    ACTOR_NUMS = 1  # 2
+    MAX_EPISODES = 4 * 4 * 500
+    ACTOR_NUMS = 2  # 2
     PARALLEL = 8 + 7 * 1
     GAME_STEPS_PER_EPISODE = 18000
     MAX_FRAMES = 18000 * MAX_EPISODES
@@ -73,7 +73,7 @@ DIFFICULTY = 2
 ONLY_UPDATE_BASELINE = False
 SAVE_LATEST = False
 BASELINE_WEIGHT = 1
-LR = 1e-5  # 1e-5
+LR = 1e-6  # 1e-5
 WEIGHT_DECAY = 0
 
 USE_MIDDLE_REWARD = False
@@ -159,7 +159,8 @@ class ActorVSComputer:
         self.global_model = global_model
         self.coordinator = coordinator
 
-        self.agent = self.player.agent
+        #self.agent = self.player.agent
+        self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
         #self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
         # if ON_GPU:
         #     self.agent.agent_nn.to(device)
@@ -277,6 +278,10 @@ class ActorVSComputer:
                             start_episode_time = time()  # in seconds.
                             print("start_episode_time before is_final:", strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time)))
 
+                            # growth = objgraph.growth(limit=5)
+                            # if len(growth):
+                            #     print(self.name, os.getpid(), "after one episode", growth)
+
                             while not is_final:
 
                                 t = time()
@@ -287,6 +292,12 @@ class ActorVSComputer:
                                 #     self.agent.set_weights(self.player.agent.get_weights())
                                 #     self.agent.agent_nn.model.load_state_dict(self.global_model.state_dict())
                                 #     update_params_timer = time()
+
+                                # every 10s, the actor get the params from the learner
+                                if time() - update_params_timer > self.update_params_interval:
+                                    print("agent_{:d} update params".format(self.idx)) if debug else None
+                                    self.agent.set_weights(self.player.agent.get_weights())
+                                    update_params_timer = time()
 
                                 state = self.agent.agent_nn.preprocess_state_all(home_obs.observation, 
                                                                                  build_order=player_bo, 
@@ -333,8 +344,8 @@ class ActorVSComputer:
                                 del env_actions, timesteps
 
                                 # fix the action delay
-                                player_action.delay = torch.tensor([[STEP_MUL]], dtype=player_action.delay.dtype,
-                                                                   device=player_action.delay.device)
+                                # player_action.delay = torch.tensor([[STEP_MUL]], dtype=player_action.delay.dtype,
+                                #                                    device=player_action.delay.device)
 
                                 reward = float(home_next_obs.reward)
                                 print("reward: ", reward) if 0 else None
@@ -396,19 +407,19 @@ class ActorVSComputer:
                                         if killed_points > WIN_THRESHOLD:
                                             outcome = 1
                                         else:
-                                            outcome = 0
-                                            # elif killed_points > 1000 and killed_points <= WIN_THRESHOLD:
-                                            #     outcome = 0
-                                            # else:
-                                            #     outcome = -1
+                                            #outcome = 0
+                                            if killed_points > 1000 and killed_points <= WIN_THRESHOLD:
+                                                outcome = 0
+                                            else:
+                                                outcome = -1
                                             # print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
                                     else:
                                         outcome = -1
 
                                     if not USE_DEFINED_REWARD_AS_REWARD:
                                         reward = float(outcome)
-                                        # if outcome == 0:
-                                        #     reward = killed_points / float(WIN_THRESHOLD)
+                                        if outcome == 0:
+                                            reward = killed_points / float(WIN_THRESHOLD)
                                         #     with self.results_lock:
                                         #         print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
                                         #         print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
@@ -504,11 +515,13 @@ class ActorVSComputer:
                                 if self.is_training:
                                     print('is_final_trajectory', is_final_trajectory) if debug else None
                                     trajectory.append(traj_step)
+                                del traj_step
 
                                 #player_memory = tuple(h.detach().clone() for h in player_new_memory)
                                 player_memory = player_new_memory
                                 del home_obs
                                 home_obs = home_next_obs
+                                del home_next_obs
                                 last_delay = expected_delay
                                 last_action_type = player_action.action_type.item()
                                 last_repeat_queued = player_action.queue.item()
@@ -519,6 +532,7 @@ class ActorVSComputer:
 
                                 if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                     trajectories = RU.stack_namedtuple(trajectory)
+                                    del trajectory
 
                                     if self.player.learner is not None:
                                         if self.player.learner.is_running:
@@ -527,11 +541,11 @@ class ActorVSComputer:
 
                                             self.player.learner.send_trajectory(trajectories)
 
-                                            if 0 and is_final_trajectory:
-                                                self.player.learner.send_final_trajectory(trajectories)
+                                            # if 0 and is_final_trajectory:
+                                            #     self.player.learner.send_final_trajectory(trajectories)
 
-                                            if 0 and is_win_trajectory:
-                                                self.player.learner.send_win_trajectory(trajectories)
+                                            # if 0 and is_win_trajectory:
+                                            #     self.player.learner.send_win_trajectory(trajectories)
 
                                         else:
                                             print("Learner stops!")
@@ -556,9 +570,9 @@ class ActorVSComputer:
                                     print("Beyond the max_frames_per_episode, break!")
                                     break
 
-                            if False:
-                                with self.results_lock:
-                                    self.coordinator.only_send_outcome(self.player, outcome)
+                            # if False:
+                            #     with self.results_lock:
+                            #         self.coordinator.only_send_outcome(self.player, outcome)
 
                             # use max_frames_per_episode to end the episode
                             if self.max_episodes and total_episodes >= self.max_episodes:
@@ -838,10 +852,8 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
 
             del single_episode_points
 
-            # print("Parameter_Server", "objgraph")
-            # objgraph.show_most_common_types(limit=10)
+            # print("Parameter_Server", os.getpid())
             # objgraph.show_growth(limit=5)
-            # gc.collect()
 
             update_counter += 1
             gc.collect()

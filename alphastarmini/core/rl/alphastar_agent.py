@@ -167,23 +167,13 @@ class AlphaStarAgent(RandomAgent):
     def step_nn(self, observation, last_state):
         """Performs inference on the observation, given hidden state last_state."""
 
-        t = time()
-
         state = Agent.preprocess_state_all(obs=observation)
-
-        print('step_nn, t1', time() - t) if speed else None
-        t = time()
-
         device = self.agent_nn.device()
         state.to(device)
 
-        print('step_nn, t2', time() - t) if speed else None
-        t = time()
-
         action_logits, action, hidden_state, select_units_num = self.agent_nn.action_logits_by_state(state, single_inference=True,
                                                                                                      hidden_state=last_state)
-        print('step_nn, t3', time() - t) if speed else None
-        t = time()
+        del state
 
         return action, action_logits, hidden_state, select_units_num
 
@@ -198,11 +188,10 @@ class AlphaStarAgent(RandomAgent):
 
         action, _, self.memory_state, select_units_num = self.step_nn(obs, self.memory_state)
 
-        if actions is not None:
-            # we use single_inference here
-            #assert len(actions) == 1
-            #action = actions[0]
+        if action is not None:
             func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
+            del action
+
             return func_call
         else:
             # only return random action
@@ -215,17 +204,11 @@ class AlphaStarAgent(RandomAgent):
         if isinstance(obs, E.TimeStep):
             obs = obs.observation
 
-        t = time()    
-
         action, action_logits, new_state, select_units_num = self.step_nn(observation=obs, last_state=last_state)
-
-        print('step_logits, t1', time() - t) if speed else None
-        t = time()
 
         func_call = self.agent_nn.action_to_func_call(action, select_units_num, self.action_spec)
 
-        print('step_logits, t2', time() - t) if speed else None
-        t = time()
+        del select_units_num
 
         return func_call, action, action_logits, new_state
 
@@ -250,6 +233,7 @@ class AlphaStarAgent(RandomAgent):
         state.to(device)
         action_gt.to(device)
         hidden_state = tuple(h.to(device) for h in hidden_state)
+
         gt_select_units_num = gt_select_units_num.to(device)
 
         action_logits, select_units_num, hidden_state = self.agent_nn.action_logits_based_on_actions(state, 
@@ -418,6 +402,8 @@ class AlphaStarAgent(RandomAgent):
 
             state = MsState(entity_state=entity_state, statistical_state=statistical_state, map_state=map_state)
 
+            del entity_state, statistical_state, map_state
+
             select_units_num = select_units_num_all[:, i]
             hidden = hidden_all[:, i].transpose(0, 1).contiguous()  # .detach()
             cell = cell_all[:, i].transpose(0, 1).contiguous()  # .detach()
@@ -454,6 +440,8 @@ class AlphaStarAgent(RandomAgent):
             logits_list.append(logits)
             baseline_list.append(baselines)
 
+            del baselines, logits
+
         del action_type_all, delay_all, queue_all, units_all, target_unit_all, target_location_all
         del baseline_state_all, hidden_all, cell_all
         if use_opponent_state:
@@ -489,5 +477,6 @@ class AlphaStarAgent(RandomAgent):
 
         del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits
         del action_type_list, delay_list, queue_list, units_list, target_unit_list, target_location_list
+        del logits_list
 
         return policy_logits, baseline_list, select_units_num_all, entity_nums_all

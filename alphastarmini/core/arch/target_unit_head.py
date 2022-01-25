@@ -142,7 +142,9 @@ class TargetUnitHead(nn.Module):
 
         if target_unit is None:
             target_unit_probs = self.softmax(target_unit_logits)
-            target_unit = torch.multinomial(target_unit_probs, 1)    
+            target_unit = torch.multinomial(target_unit_probs, 1)
+            del target_unit_probs
+
             target_unit = target_unit.unsqueeze(dim=1)
             print("target_unit.shape:", target_unit.shape) if debug else None
 
@@ -154,7 +156,8 @@ class TargetUnitHead(nn.Module):
 
         target_unit_logits[no_target_unit_mask] = 0.  # a magic number
 
-        del x, y, mask, key, query, action_type, unit_types_one_hot, the_func_embed
+        del x, y, mask, key, query, action_type
+        del unit_types_one_hot, the_func_embed, no_target_unit_mask
 
         return target_unit_logits, target_unit
 
