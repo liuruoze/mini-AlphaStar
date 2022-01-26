@@ -34,7 +34,7 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
-FIELDS_WEIGHT_1 = [1, 0, 1, 1, 1, 1]  # [0, 0, 0, 1, 0, 0]
+FIELDS_WEIGHT_1 = [1, 0, 1, 0, 1, 1]  # [0, 0, 0, 1, 0, 0]
 FIELDS_WEIGHT_2 = [1, 0, 1, 1, 1, 1]
 
 WINLOSS_BASELINE_COSTS = (10.0, 5.0, "winloss_baseline")
