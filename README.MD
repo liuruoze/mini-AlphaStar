@@ -126,10 +126,10 @@ Then use `transform_replay_data.py` to transform these replays to pickles or ten
 
 You don't need to run the transform_replay_data.py directly. Only run "run.py" is OK. Make the run.py has the following code
 
-'''
+```
     # from alphastarmini.core.sl import transform_replay_data
     # transform_replay_data.test(on_server=P.on_server)
-'''
+```
 
 uncommented. Then you can directly run "run.py".
 
@@ -139,10 +139,10 @@ uncommented. Then you can directly run "run.py".
 
 After getting the trainable data (we use tensor data). Make the run.py has the following code
 
-'''
+```
     # from alphastarmini.core.sl import sl_train_by_tensor
     # sl_train_by_tensor.test(on_server=P.on_server)
-'''
+```
 
 uncommented. Then you can directly run "run.py" to do supervised learning.
 
@@ -174,10 +174,10 @@ After getting the supervised learning model. We should test the performance of t
 
 Make the run.py has the following code
 
-'''
+```
     # from alphastarmini.core.rl import rl_eval_sl
     # rl_eval_sl.test(on_server=P.on_server)
-'''
+```
 
 uncommented. Then you can directly run "run.py" to do an evaluation of the SL model.
 
@@ -189,10 +189,10 @@ After making sure the supervised learning model is OK and suitable for RL traini
 
 Make the run.py has the following code
 
-'''
+```
     # from alphastarmini.core.rl import rl_vs_inner_bot_mp
     # rl_vs_inner_bot_mp.test(on_server=P.on_server, replay_path=P.replay_path)
-'''
+```
 
 uncommented. Then you can directly run "run.py" to do reinforcement learning.
 
