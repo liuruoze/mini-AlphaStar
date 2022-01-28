@@ -238,7 +238,12 @@ If you find our repository useful, please cite our project or the below technica
 The [An Introduction of mini-AlphaStar](https://arxiv.org/abs/2104.06890) is a technical report introducing the mini-AS (not full version).
 ```
 @article{liu2021mASreport,
-  author    = {Ruo{-}Ze Liu and Wenhai Wang and Yanjie Shen and Zhiqi Li and Yang Yu and Tong Lu},
+  author    = {Ruo{-}Ze Liu and
+               Wenhai Wang and
+               Yanjie Shen and
+               Zhiqi Li and
+               Yang Yu and
+               Tong Lu},
   title     = {An Introduction of mini-AlphaStar},
   journal   = {CoRR},
   volume    = {abs/2104.06890},
