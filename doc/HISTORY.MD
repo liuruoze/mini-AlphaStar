@@ -95,7 +95,19 @@
 * The loss of RL calculations are refactored, making the readability improved;
 * Due to the optimized algorithm, the sampling speed of RL is now 10x faster than before. 
 
+## v_1.06
 
-
+* First success in selecting Probes to build Pylons in the correct positions;
+* Increase the selection accuracy in SL and initial status of RL;
+* Improve the win rate against the built-in AI;
+* Increase the win rate against built-in AI to 0.8 and the killed points to 5900;
+* Add result videos;
+* Improve baseline (alias for state value estimation in RL) in accuracy and speed;
+* Improve the reproduce ability of the RL trained results (use random seed and single thread);
+* Greatly re-factor the code writing of the RL loss, add the entity mask;
+* Fix the big loss problem in the RL loss calculation by the outlier_remove function;
+* Reduce the code lines of rl_loss by 58.2%;
+* Improve log_prob, KL, entropy coding;
+* Reduce the code lines of rl_algo by 31.4%;
 
 

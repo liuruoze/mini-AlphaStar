@@ -30,20 +30,17 @@ Below 4 GIFs are mini-AS' trained performance on Simple64, supervised learning o
 
 ## Update
 
-This release is the "v_1.06" version. In this version, we win the built-in AI for the first time, increase the win rate to a higher value, and provide improved RL training by being more stable, faster, and more concise. Here are the details:
- 
-* First success in selecting Probes to build Pylons in the correct positions;
-* Increase the selection accuracy in SL and initial status of RL;
-* Improve the win rate against the built-in AI;
-* Increase the win rate against built-in AI to 0.8 and the killed points to 5900;
-* Add result videos;
-* Improve baseline (alias for state value estimation in RL) in accuracy and speed;
-* Improve the reproduce ability of the RL trained results (use random seed and single thread);
-* Greatly re-factor the code writing of the RL loss, add the entity mask;
-* Fix the big loss problem in the RL loss calculation by the outlier_remove function;
-* Reduce the code lines of rl_loss by 58.2%;
-* Improve log_prob, KL, entropy coding;
-* Reduce the code lines of rl_algo by 31.4%;
+This release is the "v_1.07" version. In this version, we give an agent which grows from 0.016 to 0.5667 win rate against the level-2 built-in bot training by reinforcement learning. Other improvements are shown below:
+
+* Use mimic_forward to replace forward in "rl_unroll", which increase the training accuracy;
+* Make RL training supports multi-GPU now;
+* Make RL training supports multi-process training based on multi-GPU now;
+* Use new architecture for RL loss, which reduces 86% GPU memory;
+* Use new architecture for RL to increase the sampling speed by 6x faster;
+* Validate UPGO and V-trace loss again;
+* By a "multi-process plus multi-thread" training, increase the sampling speed more by 197%;
+* Fix the GPU memory leak and reduce the CPU memory leak;
+* Increase the RL training win rate (without units loss) on level-2 to 0.57!
 
 ## Hints
 
@@ -104,7 +101,18 @@ You may use comments and uncomments in "run.py" to select the training process y
 
 The [USAGE Guide](doc/USAGE.MD) provides answers to some problems and questions.
 
-## Replays processing
+You should follow the following instructions to get results similar and/or better than the provided gifs on the main page.
+
+The processing sequences can be summarised as the following:
+
+1. Transform replays: download the replays for training, then use the script in mAS to transform the replays to trainable data;
+2. Supervised learning: use the trainable data to supervise learning an initial model;
+3. Evaluate SL model: the trained SL model should be evaluated on the RL environment to make sure it behaves right;
+3. Reinforcement learning: use the trained SL model to do reinforcement learning in the SC environment, seeing the win rate starts growing.
+
+We give detailed descriptions below.
+
+## Transofrm replays
 
 In supervised learning, you first need to download SC2 replays.
 
@@ -116,14 +124,34 @@ After downloading replays, you should move the replays to "./data/Replays/filter
 
 Then use `transform_replay_data.py` to transform these replays to pickles or tensors (you can change the output type in the code of that file).
 
-## Multi-GPU training
+You don't need to run the transform_replay_data.py directly. Only run "run.py" is OK. Make the run.py has the following code
+
+'''
+    # from alphastarmini.core.sl import transform_replay_data
+    # transform_replay_data.test(on_server=P.on_server)
+'''
+
+uncommented. Then you can directly run "run.py".
+
+**Note**: To get the effect of the trained agent in the gifs, use the replays in [Useful-Big-Resources](https://github.com/liuruoze/Useful-Big-Resources/blob/main/replays). These replays are generatedy by our experts, to get an agent having the ability to win the built-in bot.
+
+## Supervised learning
+
+After getting the trainable data (we use tensor data). Make the run.py has the following code
+
+'''
+    # from alphastarmini.core.sl import sl_train_by_tensor
+    # sl_train_by_tensor.test(on_server=P.on_server)
+'''
+
+uncommented. Then you can directly run "run.py" to do supervised learning.
+
+The default learning rate is 1e-4, and the training epochs should best be 10 (more epochs may cause the training effect overfitting).
 
 From the v_1.05 version, we start to support multi-GPU supervised learning training for mini-AS, improving the training speed. The way to use multi-GPU training is straightforward, as follows:
 ```
 python run_multi-gpu.py
 ```
-
-Currently, multi-GPU training for RL is still not supported.
 
 Multi-GPU training has some unstable factors (caused because of PyTorch). If you find your multi-GPU training has training instability errors, please switch to the single-GPU training.
 
@@ -138,7 +166,43 @@ File | Content
 
 You can use the `load_pickle.py` to transform the generated pickles (in "./data/replay_data") to tensors (in "./data/replay_data_tensor").
 
-**Note**: in v_1.06, we still recommend using single-GPU training. We provide the new training ways in the single-GPU type. This is due to multi-GPU training cost so much memory
+**Note**: from v_1.06, we still recommend using single-GPU training. We provide the new training ways in the single-GPU type. This is due to multi-GPU training cost so much memory.
+
+## Evaluate SL model
+
+After getting the supervised learning model. We should test the performance of the model in the SC2 environment this is due to there is domain shift from SL data and RL environment. 
+
+Make the run.py has the following code
+
+'''
+    # from alphastarmini.core.rl import rl_eval_sl
+    # rl_eval_sl.test(on_server=P.on_server)
+'''
+
+uncommented. Then you can directly run "run.py" to do an evaluation of the SL model.
+
+The evaluation is similar to RL training but the learning is closed and the running is single-thread and single-process, to make the randomness due to multi-thread not affect the evaluation.
+
+## Reinforcement learning
+
+After making sure the supervised learning model is OK and suitable for RL training. We do RL training based on the learned supervised learning model. 
+
+Make the run.py has the following code
+
+'''
+    # from alphastarmini.core.rl import rl_vs_inner_bot_mp
+    # rl_vs_inner_bot_mp.test(on_server=P.on_server, replay_path=P.replay_path)
+'''
+
+uncommented. Then you can directly run "run.py" to do reinforcement learning.
+
+Note, this training will use a multi-process plus multi-thread RL training (to accelerate the learning speed), so make sure to run this codes on a high-performance computer. 
+
+E.g., we run 15 processes, and each process has 2 actor threads and 1 learner thread in a commercial server. If your computer is not strong as that, reduce the parallel and thread nums.
+
+The learning rate should be very small (below 1e-5, because you are training on an initially trained model), and the training iterations should be as long as best (more training iterations can reduce the unstable of RL training).
+
+If you find the training is not as like as you imagine, please open an issue to ask us or discuss with us (though we can not make sure to respond to it in time or there is a solution to every problem).
 
 ## Results
 
@@ -148,6 +212,10 @@ Here are some illustration figures of the SL training process below:
 
 We can see the loss (one primary loss and six argument losses) fall quickly.
 
+The trained behavior of the agents can be seen in the gifs on this page.
+
+A more detailed illustration of the experiments (such as the effects of the different hyper-parameters) will be provided in our later paper.
+
 ## History
 
 The [HISTORY](doc/HISTORY.MD) is the historical introduction of the previous versions of mini-AS.
@@ -155,7 +223,7 @@ The [HISTORY](doc/HISTORY.MD) is the historical introduction of the previous ver
 
 ## Citing
 
-If you find our repository useful, please cite our project:
+If you find our repository useful, please cite our project or the below technical report:
 ```
 @misc{liu2021mAS,
   author = {Ruo{-}Ze Liu and Wenhai Wang and Yang Yu and Tong Lu},
@@ -167,10 +235,21 @@ If you find our repository useful, please cite our project:
 }
 ```
 
-## Report
-
 The [An Introduction of mini-AlphaStar](https://arxiv.org/abs/2104.06890) is a technical report introducing the mini-AS (not full version).
-
+```
+@article{liu2021mASreport,
+  author    = {Ruo{-}Ze Liu and
+               Wenhai Wang and
+               Yanjie Shen and
+               Zhiqi Li and
+               Yang Yu and
+               Tong Lu},
+  title     = {An Introduction of mini-AlphaStar},
+  journal   = {CoRR},
+  volume    = {abs/2104.06890},
+  year      = {2021},
+}
+```
 
 ## Rethinking
 
