@@ -76,6 +76,8 @@ BASELINE_WEIGHT = 1
 LR = 1e-6  # 1e-5
 WEIGHT_DECAY = 0
 
+MAX_TIME_FOR_TRAINING = 60 * 60 * 24 * 7
+
 USE_MIDDLE_REWARD = False
 USE_DEFINED_REWARD_AS_REWARD = False
 USE_RESULT_REWARD = True
@@ -140,9 +142,9 @@ class ActorVSComputer:
 
     def __init__(self, player, q_winloss, q_points, device, global_model, coordinator, 
                  teacher, idx, buffer_lock=None, results_lock=None, 
-                 writer=None, max_time_for_training=60 * 60 * 24,
-                 max_time_per_one_opponent=60 * 60 * 4,
-                 max_frames_per_episode=22.4 * 60 * 15, max_frames=MAX_FRAMES, 
+                 writer=None, max_time_for_training=MAX_TIME_FOR_TRAINING,
+                 max_time_per_one_opponent=MAX_TIME_FOR_TRAINING,
+                 max_frames_per_episode=22.4 * MAX_TIME_FOR_TRAINING, max_frames=MAX_FRAMES, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/",
                  update_params_interval=UPDATE_PARAMS_INTERVAL,
@@ -718,7 +720,7 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
 
             buffer_lock = threading.Lock()
             learner = Learner(player, rank, v_steps, cuda_device, optimizer=optimizer, global_model=model_learner, 
-                              max_time_for_training=60 * 60 * 24 * 7, lr=LR, 
+                              max_time_for_training=MAX_TIME_FOR_TRAINING, lr=LR, 
                               weight_decay=WEIGHT_DECAY, baseline_weight=BASELINE_WEIGHT, is_training=IS_TRAINING, 
                               buffer_lock=buffer_lock, writer=writer, use_opponent_state=USE_OPPONENT_STATE,
                               no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
