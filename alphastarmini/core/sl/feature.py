@@ -124,7 +124,7 @@ class Feature(object):
         # note: do not use AHP.scalar_feature_size
         #feature_1_size = AHP.scalar_feature_size
         size_all = 0
-        for i in ScalarFeature:          
+        for i in ScalarFeature:        
             size_all += SFS[i]
         feature_1_size = size_all
 

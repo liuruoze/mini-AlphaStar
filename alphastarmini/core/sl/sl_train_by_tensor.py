@@ -207,11 +207,14 @@ def main_worker(device):
     train_list = getReplayData(PATH, replay_files, from_index=TRAIN_FROM, end_index=TRAIN_FROM + TRAIN_NUM)
     val_list = getReplayData(PATH, replay_files, from_index=VAL_FROM, end_index=VAL_FROM + VAL_NUM)
 
+    print('len(train_list)', len(train_list)) if debug else None
+    print('len(val_list)', len(val_list)) if debug else None
+
     train_set = ConcatDataset(train_list)
     val_set = ConcatDataset(val_list)
 
-    print('len(train_set)', len(train_set))
-    print('len(val_set)', len(val_set))
+    print('len(train_set)', len(train_set)) if debug else None
+    print('len(val_set)', len(val_set)) if debug else None
 
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, 
                               num_workers=NUM_WORKERS, pin_memory=False)
@@ -219,8 +222,8 @@ def main_worker(device):
     val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False, 
                             num_workers=NUM_WORKERS, pin_memory=False)   
 
-    print('len(train_loader)', len(train_loader))
-    print('len(val_loader)', len(val_loader))
+    print('len(train_loader)', len(train_loader)) if debug else None
+    print('len(val_loader)', len(val_loader)) if debug else None
 
     train(net, optimizer, scheduler, train_set, train_loader, device, 
           val_set, batch_iter, epoch, val_loader)
