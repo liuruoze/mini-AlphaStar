@@ -2,13 +2,11 @@
 
 ## Introduction
 
-The mini-AlphaStar (mini-AS, or mAS) project is a **mini-scale** version (non-official) of the AlphaStar (AS). AlphaStar is the intelligent AI proposed by DeepMind to play StarCraft II. 
+The mini-AlphaStar (mini-AS, or mAS) project is a **mini-scale** version of the AlphaStar (AS) program. AlphaStar is the intelligent AI proposed by DeepMind to play StarCraft II. Note the mini-AS is a research project. It is not an official product of DeepMind.
 
-The "mini-scale" means making the original AS's hyper-parameters **adjustable** so that mini-AS can be trained and running on a **small** scale. E.g., we can train this model in a single commercial server machine.
+The "mini-scale" means making the original AS's hyper-parameters **adjustable** so that we can train mini-AS on a **small** scale, e.g., in a single common commercial server machine.
 
-We referred to the "Occam's Razor Principle" when designing the mini-AS": **simple** is sound. Therefore, we build mini-AS from scratch. Unless the function significantly impacts speed and performance, we shall omit it. 
-
-Meanwhile, we also try not to use too many dependency packages so that mini-AS should only depend on the PyTorch. In this way, we simplify the learning cost of the mini-AS and make the architecture of mini-AS relatively **easy**. 
+We referred to the "Occam's Razor Principle" when designing the mini-AS: **simple** is good. Therefore, we build the mini-AS from scratch. Unless the function significantly impacts speed and performance, we shall omit it. Meanwhile, we also try not to use too many dependency packages so that mini-AS should only depend on the PyTorch. In this way, we simplify the learning cost of the mini-AS and make the architecture of mini-AS relatively **easy**. 
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
@@ -44,7 +42,7 @@ This release is the "v_1.07" version. In this version, we give an agent which gr
 
 ## Hints
 
-**Warning**: SC2 is extremely difficult, and AlphaStar is also very complex. Even our project is a mini-AlphaStar, it has almost the similar technologies as AS, and the training resource also costs very high. We can hardly train mini-AS on a laptop. The recommended way is to use a commercial server with a GPU card and enough large memory and disk space. For someone interested in this project for the first time, we recommend you collect (star) this project and devolve deeply into researching it when you have enough free time and training resources.
+**Warning**: SC2 is extremely difficult, and AlphaStar is also very complex. Though our project is a mini-AlphaStar, it has almost the similar technologies as AS, and the training resource also costs very high. We can hardly train mini-AS on a laptop. The recommended way is to use a commercial server with a GPU card plus large memory and disk space. For someone interested in this project for the first time, we recommend you collect (star) this project. Devolve deeply into researching it only when you have enough free time and training resources.
 
 ## Location
 
@@ -101,9 +99,9 @@ You may use comments and uncomments in "run.py" to select the training process y
 
 The [USAGE Guide](doc/USAGE.MD) provides answers to some problems and questions.
 
-You should follow the following instructions to get results similar and/or better than the provided gifs on the main page.
+You should follow the following instructions to get similar or better results than the provided gifs on the main page.
 
-The processing sequences can be summarised as the following:
+We summarised the usage sequences as the following:
 
 1. Transform replays: download the replays for training, then use the script in mAS to transform the replays to trainable data;
 2. Supervised learning: use the trainable data to supervise learning an initial model;
@@ -137,7 +135,7 @@ uncommented. Then you can directly run "run.py".
 
 ## Supervised learning
 
-After getting the trainable data (we use tensor data). Make the run.py has the following code
+After getting the trainable data (we recommend using tensor dat). Make the run.py has the following code
 
 ```
     # from alphastarmini.core.sl import sl_train_by_tensor
@@ -148,7 +146,7 @@ uncommented. Then you can directly run "run.py" to do supervised learning.
 
 The default learning rate is 1e-4, and the training epochs should best be 10 (more epochs may cause the training effect overfitting).
 
-From the v_1.05 version, we start to support multi-GPU supervised learning training for mini-AS, improving the training speed. The way to use multi-GPU training is straightforward, as follows:
+From the v_1.05 version, we support multi-GPU supervised learning (not recommended now) training for mini-AS, improving the training speed. The way to use multi-GPU training is straightforward, as follows:
 ```
 python run_multi-gpu.py
 ```
@@ -166,11 +164,13 @@ File | Content
 
 You can use the `load_pickle.py` to transform the generated pickles (in "./data/replay_data") to tensors (in "./data/replay_data_tensor").
 
-**Note**: from v_1.06, we still recommend using single-GPU training. We provide the new training ways in the single-GPU type. This is due to multi-GPU training cost so much memory.
+From the v_1.06 version, we still recommend using single-GPU training. 
+
+The newest training ways (e.g., in v_1.07) are still in the single GPU type due to multi-GPU training cost too much memory.
 
 ## Evaluate SL model
 
-After getting the supervised learning model. We should test the performance of the model in the SC2 environment this is due to there is domain shift from SL data and RL environment. 
+After getting the supervised learning model, we should test the model's performance in the SC2 environment. The reason is that there is a domain shift from the SL data to the RL environment. 
 
 Make the run.py has the following code
 
@@ -181,11 +181,11 @@ Make the run.py has the following code
 
 uncommented. Then you can directly run "run.py" to do an evaluation of the SL model.
 
-The evaluation is similar to RL training but the learning is closed and the running is single-thread and single-process, to make the randomness due to multi-thread not affect the evaluation.
+The evaluation is similar to RL training, but the updating is closed. The running is also in single-thread, to make the randomness due to multi-thread not affect the evaluation.
 
 ## Reinforcement learning
 
-After making sure the supervised learning model is OK and suitable for RL training. We do RL training based on the learned supervised learning model. 
+After ensuring the supervised learning model is OK and suitable for RL training, we can do RL based on the learned supervised learning model. 
 
 Make the run.py has the following code
 
@@ -196,13 +196,13 @@ Make the run.py has the following code
 
 uncommented. Then you can directly run "run.py" to do reinforcement learning.
 
-Note, this training will use a multi-process plus multi-thread RL training (to accelerate the learning speed), so make sure to run this codes on a high-performance computer. 
+Note RL training uses a multi-process plus multi-thread manner (to accelerate the learning speed), so make sure to run these codes on a high-performance computer. 
 
-E.g., we run 15 processes, and each process has 2 actor threads and 1 learner thread in a commercial server. If your computer is not strong as that, reduce the parallel and thread nums.
+E.g., we run 15 processes, and each has two actor threads and one learner thread. If your computer is not strong, reduce the parallel nums.
 
-The learning rate should be very small (below 1e-5, because you are training on an initially trained model), and the training iterations should be as long as best (more training iterations can reduce the unstable of RL training).
+The learning rate should be low (below 1e-5 because you are training on an initially trained model). The training iterations should be as long as best (more training iterations can reduce the instability of RL training).
 
-If you find the training is not as like as you imagine, please open an issue to ask us or discuss with us (though we can not make sure to respond to it in time or there is a solution to every problem).
+If you find the training result is not good as you imagine, please open an issue to ask us or discuss with us (though we can not make sure to respond to it in time or there is any solution to every problem).
 
 ## Results
 
@@ -212,14 +212,15 @@ Here are some illustration figures of the SL training process below:
 
 We can see the loss (one primary loss and six argument losses) fall quickly.
 
-The trained behavior of the agents can be seen in the gifs on this page.
+We provide more curves (like the accuracy curve) for the SL training process after the v_1.05 version.
 
-A more detailed illustration of the experiments (such as the effects of the different hyper-parameters) will be provided in our later paper.
+The trained behavior of the agents shows in the gifs on this page.
+
+Our later paper will provide a more detailed illustration of the experiments (such as the effects of different hyper-parameters).
 
 ## History
 
 The [HISTORY](doc/HISTORY.MD) is the historical introduction of the previous versions of mini-AS.
-
 
 ## Citing
 
