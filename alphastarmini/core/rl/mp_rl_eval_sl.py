@@ -49,7 +49,7 @@ SAVE_STATISTIC = True
 SAVE_REPLAY = True
 
 # 24000
-GAME_STEPS_PER_EPISODE = 24000  
+GAME_STEPS_PER_EPISODE = 18000  
 MAX_EPISODES = 4
 ACTOR_NUMS = 5
 DIFFICULTY = 1
@@ -207,11 +207,16 @@ class ActorEval:
 
                             t = time()
 
-                            state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
-                                                                                    build_order=player_bo, 
-                                                                                    last_list=last_list)
-                            player_step = self.player.agent.step_from_state(state, player_memory)
-                            player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
+                            with torch.no_grad():
+                                state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
+                                                                                        build_order=player_bo, 
+                                                                                        last_list=last_list)
+                                player_step = self.player.agent.step_from_state(state, player_memory, obs=home_obs.observation)
+
+                                player_function_call, player_action, player_logits, \
+                                    player_new_memory, player_select_units_num, entity_num = self.player.agent.step_from_state(state, 
+                                                                                                                               player_memory, 
+                                                                                                                               obs=home_obs.observation)
 
                             print("player_function_call:", player_function_call) if not SAVE_STATISTIC else None
                             print("player_action:", player_action) if debug else None
@@ -400,30 +405,35 @@ class ActorEval:
 
 
 def test(on_server=False, replay_path=None):
+    device = DEVICE
+
     league = League(
         initial_agents={
-            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)
+            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
             for race in [Race.protoss]
         },
         main_players=1, 
         main_exploiters=0,
         league_exploiters=0)
 
-    coordinator = Coordinator(league, output_file=OUTPUT_FILE)
+    coordinator = Coordinator(league, output_file=OUTPUT_FILE, winrate_scale=2)
     learners = []
     actors = []
 
+    rank = 0
+
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
-        learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING)
+        learner = None  # Learner(player, rank, v_steps, device, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING)
         learners.append(learner)
         actors.extend([ActorEval(player, coordinator, j + 1) for j in range(ACTOR_NUMS)])
 
     threads = []
-    for l in learners:
-        l.start()
-        threads.append(l.thread)
-        sleep(1)
+    # for l in learners:
+    #     l.start()
+    #     threads.append(l.thread)
+    #     sleep(1)
+
     for a in actors:
         a.start()
         threads.append(a.thread)

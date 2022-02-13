@@ -211,13 +211,16 @@ class ActorEval:
 
                             t = time()
 
-                            state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
-                                                                                    build_order=player_bo, 
-                                                                                    last_list=last_list)
+                            with torch.no_grad():
+                                state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
+                                                                                        build_order=player_bo, 
+                                                                                        last_list=last_list)
+                                player_step = self.player.agent.step_from_state(state, player_memory, obs=home_obs.observation)
 
-                            player_step = self.player.agent.step_from_state(state, player_memory)
-
-                            player_function_call, player_action, player_logits, player_new_memory, player_select_units_num = player_step
+                                player_function_call, player_action, player_logits, \
+                                    player_new_memory, player_select_units_num, entity_num = self.player.agent.step_from_state(state, 
+                                                                                                                               player_memory, 
+                                                                                                                               obs=home_obs.observation)
 
                             print("player_function_call:", player_function_call) if not SAVE_STATISTIC else None
                             print("player_action:", player_action) if debug else None
@@ -465,30 +468,32 @@ def show_sth(home_obs, player_action):
 
 
 def test(on_server=False, replay_path=None):
+    device = DEVICE
+
     league = League(
         initial_agents={
-            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE)
+            race: get_supervised_agent(race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
             for race in [Race.protoss]
         },
         main_players=1, 
         main_exploiters=0,
         league_exploiters=0)
 
-    coordinator = Coordinator(league)
+    coordinator = Coordinator(league, output_file=OUTPUT_FILE, winrate_scale=2)
     learners = []
     actors = []
 
     for idx in range(league.get_learning_players_num()):
         player = league.get_learning_player(idx)
-        learner = Learner(player, max_time_for_training=60 * 60 * 24, is_training=IS_TRAINING)
+        learner = None
         learners.append(learner)
         actors.extend([ActorEval(player, coordinator) for _ in range(ACTOR_NUMS)])
 
     threads = []
-    for l in learners:
-        l.start()
-        threads.append(l.thread)
-        sleep(1)
+    # for l in learners:
+    #     l.start()
+    #     threads.append(l.thread)
+    #     sleep(1)
     for a in actors:
         a.start()
         threads.append(a.thread)
