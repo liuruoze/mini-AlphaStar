@@ -16,3 +16,6 @@ Seq_Scale = 16
 Select_Scale = 4
 
 handle_cuda_error = False
+
+skip_entity_list = False
+skip_autoregressive_embedding = False

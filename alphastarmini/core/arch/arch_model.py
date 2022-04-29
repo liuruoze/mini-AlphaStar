@@ -31,6 +31,8 @@ from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
+import param as P
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False
@@ -140,6 +142,10 @@ class ArchModel(nn.Module):
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
         entity_embeddings, embedded_entity, entity_nums = self.entity_encoder(state.entity_state)   
 
+        if P.skip_entity_list:
+            entity_embeddings[:] = 0.
+            embedded_entity[:] = 0.
+
         print('entity_embeddings:', entity_embeddings) if debug else None
         print('entity_embeddings.shape:', entity_embeddings.shape) if debug else None
 
@@ -168,6 +174,8 @@ class ArchModel(nn.Module):
         print('lstm_output is nan:', torch.isnan(lstm_output).any()) if debug else None
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions)
+        if P.skip_autoregressive_embedding:
+            autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
 
         print('action_type_logits:', action_type_logits) if debug else None
         print('action_type_logits.shape:', action_type_logits.shape) if debug else None
@@ -186,7 +194,6 @@ class ArchModel(nn.Module):
 
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
-
         del embedded_entity, embedded_spatial, embedded_scalar, scalar_context, available_actions
 
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head(autoregressive_embedding, 
@@ -194,7 +201,6 @@ class ArchModel(nn.Module):
                                                                                                    entity_embeddings, 
                                                                                                    entity_nums,
                                                                                                    unit_type_entity_mask=unit_type_entity_mask)
-
         print('units_logits:', units_logits) if debug else None
         print('units_logits.shape:', units_logits.shape) if debug else None
 
@@ -206,6 +212,7 @@ class ArchModel(nn.Module):
 
         target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, 
                                                                 action_type, entity_embeddings, entity_nums)
+
         target_location_logits, target_location = self.location_head(autoregressive_embedding, action_type, map_skip)
 
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
@@ -261,6 +268,10 @@ class ArchModel(nn.Module):
 
         # shapes of embedded_entity, embedded_spatial, embedded_scalar are all [batch_size x embedded_size]
         entity_embeddings, embedded_entity, entity_nums, unit_types_one = self.entity_encoder(state.entity_state, return_unit_types=True)   
+        if P.skip_entity_list:
+            entity_embeddings[:] = 0.
+            embedded_entity[:] = 0.
+
         map_skip, embedded_spatial = self.spatial_encoder(state.map_state, entity_embeddings)
         embedded_scalar, scalar_context = self.scalar_encoder(state.statistical_state)
 
@@ -355,6 +366,8 @@ class ArchModel(nn.Module):
                                                                                                                  gt_select_units_num,
                                                                                                                  show=show,
                                                                                                                  unit_type_entity_mask=unit_type_entity_mask)
+        if P.skip_autoregressive_embedding:
+            autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
 
         print('units_logits', units_logits) if show else None
         print('units_logits.shape', units_logits.shape) if show else None
