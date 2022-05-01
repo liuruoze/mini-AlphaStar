@@ -107,7 +107,7 @@ else:
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
 print('BATCH_SIZE:', BATCH_SIZE) if debug else None
-SEQ_LEN = int(AHP.sequence_length * 0.5)
+SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
 NUM_EPOCHS = 15  
