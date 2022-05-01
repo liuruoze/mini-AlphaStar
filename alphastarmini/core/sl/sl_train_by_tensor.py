@@ -44,7 +44,7 @@ import param as P
 
 __author__ = "Ruo-Ze Liu"
 
-debug = False
+debug = True
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-p1", "--path1", default="./data/replay_data_tensor_new_small/", help="The path where data stored")
@@ -107,7 +107,7 @@ else:
 # hyper paramerters
 BATCH_SIZE = AHP.batch_size
 print('BATCH_SIZE:', BATCH_SIZE) if debug else None
-SEQ_LEN = AHP.sequence_length
+SEQ_LEN = int(AHP.sequence_length * 0.5)
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
 NUM_EPOCHS = 15  
@@ -143,7 +143,7 @@ def getReplayData(path, replay_files, from_index=0, end_index=None):
             print('features.shape:', features.shape) if debug else None
             print('labels.shape::', labels.shape) if debug else None
 
-            td_list.append(ReplayTensorDataset(features, labels))
+            td_list.append(ReplayTensorDataset(features, labels, seq_len=SEQ_LEN))
 
         except Exception as e:
             traceback.print_exc() 

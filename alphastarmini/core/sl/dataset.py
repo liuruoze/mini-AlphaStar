@@ -181,7 +181,8 @@ class SC2ReplayDataset(Dataset):
 
 class ReplayTensorDataset(TensorDataset):
 
-    def __init__(self, *tensors: Tensor, seq_len=AHP.sequence_length) -> None:
+    # seq_len=AHP.sequence_length
+    def __init__(self, *tensors: Tensor, seq_len) -> None:
         assert all(tensors[0].size(0) == tensor.size(0) for tensor in tensors), "Size mismatch between tensors"
         self.tensors = tensors
         self.seq_len = seq_len
