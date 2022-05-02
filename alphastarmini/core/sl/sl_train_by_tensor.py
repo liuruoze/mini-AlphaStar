@@ -99,18 +99,24 @@ if SIMPLE_TEST:
     VAL_NUM = 1
 else:
     TRAIN_FROM = 0  # 20
-    TRAIN_NUM = 70  # 60
+    TRAIN_NUM = 90  # 60
 
-    VAL_FROM = 70
-    VAL_NUM = 20
+    VAL_FROM = 0
+    VAL_NUM = 5
 
 # hyper paramerters
-BATCH_SIZE = AHP.batch_size
+# use the same as in RL
+# BATCH_SIZE = AHP.batch_size
+# SEQ_LEN = AHP.sequence_length
+
+# important: use larger batch_size and smaller seq_len in SL!
+BATCH_SIZE = 3 * AHP.batch_size
+SEQ_LEN = int(AHP.sequence_length * 0.5)
+
 print('BATCH_SIZE:', BATCH_SIZE) if debug else None
-SEQ_LEN = AHP.sequence_length
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 15  
+NUM_EPOCHS = 10  
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 1e-5
 
