@@ -1,0 +1,267 @@
+The sections below correspond to the network architecture blocks in Extended Data Fig. 3. Inputs, outputs, and helper modules are all enclosed by backticks: `. Helper modules are described at the bottom.
+
+Network inputs:
+    prev_state - The previous LSTM state
+    entity_list - The list of entities within the game. The format of this list is described in a table in the supplementary materials
+    map - Seven layers that describe the game map. The format of the layers are described in a table in the supplementary materials
+    scalar_features - Player data and game statistic information (see interface section for details), as well as build orders
+    opponent_observations - The opponent's observations (which has a similar structure of `entity_list`, `map`, and `scalar_features`). Only used for baselines, not for inference during play
+    cumulative_score - Various score metrics tracked by the game, and only used for baselines, not for inference during play. These are not visible to humans while playing, and include score, idle production and work time, total value of units and structure, total destroyed value of units and structures, total collected minerals and vespene, rate of minerals and vespene collection, and total spent minerals and vespene
+
+See https://github.com/Blizzard/s2client-proto and https://github.com/deepmind/pysc2 for additional input format details (e.g. the different cloak states and possible order IDs).
+
+---------------------------------------------------------------------------------
+Entity Encoder:
+    Inputs: entity_list
+    Outputs:
+        embedded_entity - A 1D tensor of the embedded entities 
+        entity_embeddings - The embedding of each entity (as opposed to `embedded_entity`, which has one embedding for all entities)
+The fields of each entity in `entity_list` are first preprocessed and concatenated so that there is a single 1D tensor for each entity. Fields are preprocessed as follows:
+
+unit_type: One-hot with maximum 256 (including unknown unit-type)
+unit_attributes: One boolean for each of the 13 unit attributes
+alliance: One-hot with maximum 5 (including unknown alliance)
+current_health: One-hot of sqrt(min(current_health, 1500)) with maximum sqrt(1500), rounding down
+current_shields: One-hot of sqrt(min(current_health, 1000)) with maximum sqrt(1000), rounding down
+current_energy: One-hot of sqrt(min(current_health, 200)) with maximum sqrt(200), rounding down
+cargo_space_used: One-hot with maximum 9
+cargo_space_maximum: One-hot with maximum 9
+build_progress: Float of build progress, in [0, 1]
+current_health_ratio: Float of health ratio, in [0, 1]
+current_shield_ratio: Float of shield ratio, in [0, 1]
+current_energy_ratio: Float of energy ratio, in [0, 1]
+display_type: One-hot with maximum 5
+x_position: Binary encoding of entity x-coordinate, in game units
+y_position: Binary encoding of entity y-coordinate, in game units
+is_cloaked: One-hot with maximum 5
+is_powered: One-hot with maximum 2
+is_hallucination: One-hot with maximum 2
+is_active: One-hot with maximum 2
+is_on_screen: One-hot with maximum 2
+is_in_cargo: One-hot with maximum 2
+current_minerals: One-hot of (current_minerals / 100) with maximum 19, rounding down
+current_vespene: One-hot of (current_vespene / 100) with maximum 26, rounding down
+mined_minerals: One-hot of sqrt(min(mined_minerals, 1800)) with maximum sqrt(1800), rounding down
+mined_vespene: One-hot of sqrt(min(mined_vespene, 2500)) with maximum sqrt(2500), rounding down
+assigned_harvesters: One-hot with maximum 24
+ideal_harvesters: One-hot with maximum 17
+weapon_cooldown: One-hot with maximum 32 (counted in game steps)
+order_queue_length: One-hot with maximum 9
+order_1: One-hot across all order IDs
+order_2: One-hot across all building training order IDs. Note that this tracks queued building orders, and unit orders will be ignored
+order_3: One-hot across all building training order IDs
+order_4: One-hot across all building training order IDs
+buffs: Boolean for each buff of whether or not it is active. Only the first two buffs are tracked
+addon_type: One-hot of every possible add-on type
+order_progress_1: Float of order progress, in [0, 1], and one-hot of (`order_progress_1` / 10) with maximum 10
+order_progress_2: Float of order progress, in [0, 1], and one-hot of (`order_progress_2` / 10) with maximum 10
+weapon_upgrades: One-hot with maximum 4
+armor_upgrades: One-hot with maximum 4
+shield_upgrades: One-hot with maximum 4
+was_selected: One-hot with maximum 2 of whether this unit was selected last action
+was_targeted: One-hot with maximum 2 of whether this unit was targeted last action
+
+There are up to 512 of these preprocessed entities, and any entities after 512 are ignored. We use a bias of -1e9 for any of the 512 entries that doesn't refer to an entity.
+
+The preprocessed entities and biases are fed into a transformer with 3 layers of 2-headed self-attention. In each layer, each self-attention head uses keys, queries, and values of size 128, then passes the aggregated values through a Conv1D with kernel size 1 to double the number of channels (to 256). The head results are summed and passed through a 2-layer MLP with hidden size 1024 and output size 256.
+
+The transformer output is passed through a ReLU, 1D convolution with 256 channels and kernel size 1, and another ReLU to yield `entity_embeddings`. The mean of the transformer output across across the units (masked by the missing entries) is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`.
+
+---------------------------------------------------------------------------------
+Spatial Encoder:
+    Inputs: map, entity_embeddings
+    Outputs:
+        embedded_spatial - A 1D tensor of the embedded map
+        map_skip - Tensors of the outputs of intermediate computations
+Two additional map layers are added to those described in the interface. The first is a camera layer with two possible values: whether a location is inside or outside the virtual camera. The second is the scattered entities. `entity_embeddings` are embedded through a size 32 1D convolution followed by a ReLU, then scattered into a map layer so that the size 32 vector at a specific location corresponds to the units placed there. The planes are preprocessed as follows:
+
+camera: One-hot with maximum 2 of whether a location is within the camera
+scattered_entities: 32 float values from entity embeddings
+height_map: Float of (height_map / 255.0)
+visibility: One-hot with maximum 4
+creep: One-hot with maximum 2
+entity_owners: One-hot with maximum 5
+alerts: One-hot with maximum 2
+pathable: One-hot with maximum 2
+buildable: One-hot with maximum 2
+
+After preprocessing, the planes are concatenated, projected to 32 channels by a 2D convolution with kernel size 1, passed through a ReLU, then downsampled from 128x128 to 16x16 through 3 2D convolutions and ReLUs with channel size 64, 128, and 128 respectively. The kernel size for those 3 downsampling convolutions is 4, and the stride is 2. 4 ResBlocks with 128 channels and kernel size 3 and applied to the downsampled map, with the skip connections placed into `map_skip`. The ResBlock output is embedded into a 1D tensor of size 256 by a linear layer and a ReLU, which becomes `embedded_spatial`.
+
+---------------------------------------------------------------------------------
+Scalar Encoder:
+    Inputs: scalar_features, entity_list
+    Outputs:
+        embedded_scalar - A 1D tensor of embedded scalar features
+        scalar_context - A 1D tensor of certain scalar features we want to use as context for gating later
+The Scalar Encoder embeds each of the `scalar_features` into a 1D tensor, and concatenates them together to yield `embedded_scalar`. Some of these embedded features as also concatenated to yield `scalar_context` (and these features will be noted). Features are embedded as follows:
+
+agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
+race: Both races are embedded into a one-hot with maximum 5, and embedded through a linear of size 32 and a ReLU. During training, the opponent's requested race is hidden in 10% of matches, to simulate playing against the Random race. The embedding is also added to `scalar_context`. If we don't know the opponent's race (either because they are random or it is hidden), we add their true race to the observation once we observe one of their units.
+upgrades: The boolean vector of whether an upgrade is present is embedded through a linear of size 128 and a ReLU
+enemy_upgrades: Embedded the same as upgrades
+time: A transformer positional encoder encoded the time into a 1D tensor of size 64
+
+
+Like in the spatial encoder, we add some additional features and embed and concatenate as with other `scalar_features`. Those features are as follows:
+
+available_actions: From `entity_list`, we compute which actions may be available and which can never be available. For example, the agent controls a Stalker and has researched the Blink upgrade, then the Blink action may be available (even though in practice it may be on cooldown). The boolean vector of action availability is passed through a linear of size 64 and a ReLU. The embedding is also added to `scalar_context`
+unit_counts_bow: A bag-of-words unit count from `entity_list`. The unit count vector is embedded by square rooting, passing through a linear layer, and passing through a ReLU
+mmr: During supervised learning, this is the MMR of the player we are trying to imitate. Elsewhere, this is fixed at 6200. MMR is mapped to a one-hot of min(mmr / 1000, 6) with maximum 6, then passed through a linear of size 64 and a ReLU
+cumulative_statistics: The cumulative statistics (including units, buildings, effects, and upgrades) are preprocessed into a boolean vector of whether or not statistic is present in a human game. That vector is split into 3 sub-vectors of units/buildings, effects, and upgrades, and each subvector is passed through a linear of size 32 and a ReLU, and concatenated together. The embedding is also added to `scalar_context`
+beginning_build_order: The first 20 constructed entities are converted to a 2D tensor of size [20, num_entity_types], concatenated with indices and the binary encodings (as in the Entity Encoder) of where entities were constructed (if applicable). The concatenation is passed through a transformer similar to the one in the entity encoder, but with keys, queries, and values of 8 and with a MLP hidden size of 32. The embedding is also added to `scalar_context`.
+last_delay: The delay between when we last acted and the current observation, in game steps. This may be different from what we requested due to network latency or APM limits. It is encoded into a one-hot with maximum 128 and passed through a linear of size 64 and a ReLU
+last_action_type: The last action type is encoded into a one-hot with maximum equal to the number of possible actions, and passed through a linear of size 128 and a ReLU
+last_repeat_queued: Some other action arguments (queued and repeat) are one-hots with maximum equal to the number of possible values for those arguments, and jointly passed through a linear of size 256 and ReLU
+
+As mentioned above, all features are concatenated together for `embedded_scalar`, and the ones noted are concatenated for `scalar_context`.
+
+---------------------------------------------------------------------------------
+Core:
+    Inputs: prev_state, embedded_entity, embedded_spatial, embedded_scalar
+    Outputs:
+        next_state - The LSTM state for the next step
+        lstm_output - The output of the LSTM
+The Core concatenates `embedded_entity`, `embedded_spatial`, and `embedded_scalar` into a single 1D tensor, and feeds that tensor along with `prev_state` into an LSTM with 3 hidden layers each of size 384. No projection is used. We apply layer norm to the gates. The outputs of the LSTM are the outputs of this module.
+
+---------------------------------------------------------------------------------
+Action Type Head:
+    Inputs: lstm_output, scalar_context
+    Outputs:
+        action_type_logits - The logits corresponding to the probabilities of taking each action
+        action_type - The action_type sampled from the action_type_logits
+        autoregressive_embedding - Embedding that combines information from `lstm_output` and all previous sampled arguments. To see the order arguments are sampled in, refer to the network diagram
+The action type head embeds `lstm_output` into a 1D tensor of size 256, passes it through 16 ResBlocks with layer normalization each of size 256, and applies a ReLU. The output is converted to a tensor with one logit for each possible action type through a `GLU` gated by `scalar_context`. `action_type` is sampled from these logits using a multinomial with temperature 0.8. Note that during supervised learning, `action_type` will be the ground truth human action type, and temperature is 1.0 (and similarly for all other arguments).
+
+`autoregressive_embedding` is then generated by first applying a ReLU and linear layer of size 256 to the one-hot version of `action_type`, and projecting it to a 1D tensor of size 1024 through a `GLU` gated by `scalar_context`. That projection is added to another projection of `lstm_output` into a 1D tensor of size 1024 gated by `scalar_context` to yield `autoregressive_embedding`.
+
+---------------------------------------------------------------------------------
+Delay Head:
+    Inputs: autoregressive_embedding
+    Outputs:
+        delay_logits - The logits corresponding to the probabilities of each delay
+        delay - The sampled delay
+        autoregressive_embedding - Embedding that combines information from `lstm_output` and all previous sampled arguments. To see the order arguments are sampled in, refer to the network diagram
+`autoregressive_embedding` is decoded using a 2-layer (each with size 256) linear network with ReLUs, before being embedded into `delay_logits` that has size 128 (one for each possible requested delay in game steps). `delay` is sampled from `delay_logits` using a multinomial, though unlike all other arguments, no temperature is applied to `delay_logits` before sampling. Similar to `action_type`, `delay` is projected to a 1D tensor of size 1024 through a 2-layer (each with size 256) linear network with ReLUs, and added to `autoregressive_embedding`.
+
+---------------------------------------------------------------------------------
+Queued Head:
+    Inputs: autoregressive_embedding, action_type, embedded_entity
+    Outputs:
+        queued_logits - The logits corresponding to the probabilities of queueing and not queueing
+        queued - Whether or no to queue this action.
+        autoregressive_embedding - Embedding that combines information from `lstm_output` and all previous sampled arguments. To see the order arguments are sampled in, refer to the network diagram
+Queued Head is similar to the delay head except a temperature of 0.8 is applied to the logits before sampling, the size of `queued_logits` is 2 (for queueing and not queueing), and the projected `queued` is not added to `autoregressive_embedding` if queuing is not possible for the chosen `action_type`.
+
+---------------------------------------------------------------------------------
+Selected Units Head:
+    Inputs: autoregressive_embedding, action_type, entity_embeddings
+    Outputs:
+        units_logits - The logits corresponding to the probabilities of selecting each unit, repeated for each of the possible 64 unit selections
+        units - The units selected for this action.
+        autoregressive_embedding - Embedding that combines information from `lstm_output` and all previous sampled arguments. To see the order arguments are sampled in, refer to the network diagram
+If applicable, Selected Units Head first determines which entity types can accept `action_type`, creates a one-hot of that type with maximum equal to the number of unit types, and passes it through a linear of size 256 and a ReLU. This will be referred to in this head as `func_embed`.
+
+It also computes a mask of which units can be selected, initialised to allow selecting all entities that exist (including enemy units).
+
+It then computes a key corresponding to each entity by feeding `entity_embeddings` through a 1D convolution with 32 channels and kernel size 1, and creates a new variable corresponding to ending unit selection. 
+
+Then, repeated for selecting up to 64 units, the network passes `autoregressive_embedding` through a linear of size 256, adds `func_embed`, and passes the combination through a ReLU and a linear of size 32.  The result is fed into a LSTM with size 32 and zero initial state to get a query. The entity keys are multiplied by the query, and are sampled using the mask and temperature 0.8 to decide which entity to select. That entity is masked out so that it cannot be selected in future iterations. The one-hot position of the selected entity is multiplied by the keys, reduced by the mean across the entities, passed through a linear layer of size 1024, and added to `autoregressive_embedding` for subsequent iterations. The final `autoregressive_embedding` is returned. If `action_type` does not involve selecting units, this head is ignored.
+
+---------------------------------------------------------------------------------
+Target Unit Head:
+    Inputs: autoregressive_embedding, action_type, entity_embeddings
+    Outputs:
+        target_unit_logits - The logits corresponding to the probabilities of targeting a unit
+        target_unit - The sampled target unit
+`func_embed` is computed the same as in the Selected Units head, and used in the same way for the query (added to the output of the `autoregressive_embedding` passed through a linear of size 256). The query is then passed through a ReLU and a linear of size 32, and the query is applied to the keys which are created the same way as in the Selected Units head to get `target_unit_logits`. `target_unit` is sampled from `target_unit_logits` using a multinomial with temperature 0.8. Note that since this is one of the two terminal arguments (along with Location Head, since no action has both a target unit and a target location), it does not return `autoregressive_embedding`.
+
+---------------------------------------------------------------------------------
+Location Head:
+    Inputs: autoregressive_embedding, action_type, map_skip
+    Outputs:
+        target_location_logits - The logits corresponding to the probabilities of targeting each location
+        target_location - The sampled target location
+`autoregressive_embedding` is reshaped to have the same height/width as the final skip in `map_skip` (which was just before map information was reshaped to a 1D embedding) with 4 channels, and the two are concatenated together along the channel dimension, passed through a ReLU, passed through a 2D convolution with 128 channels and kernel size 1, then passed through another ReLU. The 3D tensor (height, width, and channels) is then passed through a series of Gated ResBlocks with 128 channels, kernel size 3, and FiLM, gated on `autoregressive_embedding` and using the elements of `map_skip` in order of last ResBlock skip to first. Afterwards, it is upsampled 2x by each of a series of transposed 2D convolutions with kernel size 4 and channel sizes 128, 64, 16, and 1 respectively (upsampled beyond the 128x128 input to 256x256 target location selection). Those final logits are flattened and sampled (masking out invalid locations using `action_type`, such as those outside the camera for build actions) with temperature 0.8 to get the actual target position. 
+
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+
+Winloss Baseline:
+    Inputs: prev_state, scalar_features, opponent_observations, cumulative_score, action_type, lstm_output
+    Outputs:
+        winloss_baseline - A baseline value used for the `action_type` argument
+The baseline first gathers and preprocesses the various observations that will be used in the baseline. The used observations are `lstm_output`, `agent_statistics`, `unit_counts_bow`, `upgrades`, `beginning_build_order`, and `cumulative_statistics` (excluding upgrades and spell effects) from `scalar_features`, processed (except for `lstm_output` which is used as is) the same way as in in the Scalar Encoder. `cumulative_score`, as a 1D tensor of values, is processed like `agent_statistics`. The baseline extracts those same observations from `opponent_observations`. These features are all concatenated together to yield `action_type_input`, passed through a linear of size 256, then passed through 16 ResBlocks with 256 hidden units and layer normalization, passed through a ReLU, then passed through a linear with 1 hidden unit. This baseline value is transformed by ((2.0 / PI) * atan((PI / 2.0) * baseline)) and is used as the baseline value `winloss_baseline`.
+
+---------------------------------------------------------------------------------
+Winloss Split VTrace Actor-Critic, TDLambda, UpGo Loss
+    Inputs: action_type_logits, delay_logits, queued_logits, units_logits, target_unit_logits, target_location_logits, winloss_baseline
+The Winloss reward is only given at the end of the game, and is +1 if the agent won the game, and -1 otherwise.
+
+The action_type argument, delay, and all other arguments are separately updated using a separate ("split") VTrace Actor-Critic losses. The weighting of these updates will be considered 1.0. action_type, delay, and other arguments are also similarly separately updated using UPGO, in the same way as the VTrace Actor-Critic loss, with relative weight 1.0. The baseline is then updated using TDLambda, with relative weighting 10.0 and lambda 0.8.
+
+---------------------------------------------------------------------------------
+Build Order Baseline:
+Similar to Winloss Baseline, except the `cumulative_statistics` will include upgrades and spell effects.
+
+---------------------------------------------------------------------------------
+Build Order Split VTrace Actor-Critic, TDLambda Loss
+The build order reward is the negative Levenshtein distance between the true (human replay) build order and the agent's build order, except that in the case $lev_{a, b}(i - 1, j - 1) + 1_{\(a != b\)}$, instead of $1_{\(a != b\)}$ in the case where the types of the units are the same, the cost is the squared distance between the true built entity and the agent's entity, rescaled to be within [0, 0.8] with the maximum of 0.8 when it is more than two gateways away. A reward is given whenever the agent's build order changes (because it has built something new). Units that aren't built (like auto turrets or larva), worker units, and supply buildings are skipped in the build order. 
+
+The replays for human exploration (i.e. this, built units, upgrades, and effects) are selected at the start of the game, and are on the same map with same home and away race as the game the agent sees.
+
+The updates are computed similar to Winloss, except without UPGO, applied using Build Order baseline, and with relative weightings 4.0 for the policy and 1.0 for the baseline.
+
+---------------------------------------------------------------------------------
+Built Units Baseline:
+Similar to Winloss Baseline.
+
+---------------------------------------------------------------------------------
+Built Units Split VTrace Actor-Critic, TDLambda Loss
+The built units reward is the Hamming distance between the entities built in some human replay and the entities the agent has built. After 8 minutes, the reward is multiplied by 0.5. After 16 minutes, the reward is multiplied by an additional 0.5. After 24 minutes, there are no more rewards.
+
+The updates are computed similar to Winloss, except without UPGO, applied using Built Units baseline, and with relative weightings 6.0 for the policy and 1.0 for the baseline.
+
+---------------------------------------------------------------------------------
+Upgrades Baseline:
+Similar to Winloss Baseline, except the `cumulative_statistics` only includes upgrades.
+
+---------------------------------------------------------------------------------
+Upgrades Split VTrace Actor-Critic, TDLambda Loss
+The built units reward is the Hamming distance between the upgrades in some human replay and the upgrades the agent has researched. After 8 minutes, the reward is multiplied by 0.5. After 16 minutes, the reward is multiplied by an additional 0.5. After 24 minutes, there are no more rewards.
+
+The updates are computed similar to Winloss, except without UpGO, applied using Upgrades baseline, and with relative weightings 6.0 for the policy and 1.0 for the baseline.
+
+---------------------------------------------------------------------------------
+Effects Baseline:
+Similar to Winloss Baseline, except the `cumulative_statistics` only includes effects.
+
+---------------------------------------------------------------------------------
+Effects Split VTrace Actor-Critic, TDLambda Loss
+The built units reward is the Hamming distance between the effects in some human replay and the effects the agent has created. After 8 minutes, the reward is multiplied by 0.5. After 16 minutes, the reward is multiplied by an additional 0.5. After 24 minutes, there are no more rewards.
+
+The updates are computed similar to Winloss, except without UPGO, applied using Effects baseline, and with relative weightings 6.0 for the policy and 1.0 for the baseline.
+
+---------------------------------------------------------------------------------
+Entropy Loss
+There is an entropy loss with weight 1e-4 on all action arguments, masked by which arguments are possible for a given action type.
+
+---------------------------------------------------------------------------------
+Distillation Loss
+There is an distillation loss with weight 2e-3 on all action arguments, to match the output logits of the fine-tuned supervised policy which has been given the same observation.
+
+If the trajectory was conditioned on `cumulative_statistics`, there is an additional distillation loss of weight 1e-1 on the action type logits for the first four minutes of the game.
+
+---------------------------------------------------------------------------------
+Helper Modules:
+Gating Linear Unit (GLU):
+    Inputs: input, context, output_size
+
+# The gate value is a learnt function of the input.
+gate = sigmoid(linear(input.size)(context))
+
+# Gate the input and return an output of desired size.
+gated_input = gate * input
+output = linear(output_size)(gated_input)
+
+return output
