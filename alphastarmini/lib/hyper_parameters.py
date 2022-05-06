@@ -213,7 +213,7 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(16 * 8 / P.B
                                                      map_channels=24,
                                                      scatter_channels=1,  # 0 or 1
                                                      init_net_params=1,
-                                                     use_action_type_mask=0,
+                                                     use_action_type_mask=1,
                                                      use_unit_type_entity_mask=0,
                                                      positional_encoding_time=0,
                                                      use_predict_step_mul=0,

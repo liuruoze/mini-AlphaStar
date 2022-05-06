@@ -306,7 +306,7 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
     loss += action_type_loss
 
     #mask_tensor = get_one_way_mask_in_SL(action_gt.action_type, device)
-    mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=False)
+    mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=False)  # False
 
     # we now onsider delay loss
     delay_weight = 0.0
@@ -363,19 +363,21 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
 
     # TODO: change to a proporate calculation of selected units
     selected_units_weight = 10.
+    target_unit_weight = 1.
+    location_weight = 5.
+
     units_loss = selected_units_weight * criterion(gt_units.reshape(-1, units_size), units_logits.reshape(-1, units_size), 
                                                    mask=all_units_mask, debug=False, outlier_remove=True, entity_nums=entity_nums,
                                                    select_size=extended_select_size,
                                                    select_units_num=select_units_num + 1)
     loss += units_loss
 
-    target_unit_weight = 1.
     target_unit_loss = target_unit_weight * criterion(action_gt.target_unit.squeeze(-2), target_unit_logits.squeeze(-2), 
                                                       mask=mask_tensor[:, 4].reshape(-1), debug=False, outlier_remove=True, entity_nums=entity_nums)
     loss += target_unit_loss
 
     batch_size = action_gt.target_location.shape[0]
-    location_weight = 5.
+
     target_location_loss = location_weight * criterion(action_gt.target_location.reshape(batch_size, -1),
                                                        target_location_logits.reshape(batch_size, -1), mask=mask_tensor[:, 5].reshape(-1))
     loss += target_location_loss

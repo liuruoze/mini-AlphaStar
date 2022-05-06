@@ -116,12 +116,12 @@ SEQ_LEN = int(AHP.sequence_length * 0.5)
 print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 10  
+NUM_EPOCHS = 15  
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 1e-5
 
 CLIP_VALUE = 0.5  # SLTHP.clip
-STEP_SIZE = 30
+STEP_SIZE = 50
 GAMMA = 0.2
 
 torch.manual_seed(SLTHP.seed)
