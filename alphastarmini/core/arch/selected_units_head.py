@@ -15,6 +15,8 @@ from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import StarCraft_Hyper_Parameters as SCHP
 from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
+import param as P
+
 __author__ = "Ruo-Ze Liu"
 
 debug = False
@@ -215,6 +217,10 @@ class SelectedUnitsHead(nn.Module):
             out = out - key_avg
             t = self.project(out)
             autoregressive_embedding = autoregressive_embedding + t * ~is_end.unsqueeze(dim=1)
+
+            if P.skip_autoregressive_embedding:
+                autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+                autoregressive_embedding[:] = 0.
 
             del temperature, entity_logits, entity_probs, entity_id
             del last_index, entity_one_hot, entity_one_hot_unsqueeze, out, t
@@ -441,6 +447,10 @@ class SelectedUnitsHead(nn.Module):
 
                 # TODO, whether should be select_mask[:, i + 1] or select_mask[:, i] ?
                 autoregressive_embedding = autoregressive_embedding + t * selected_mask[:, i + 1].unsqueeze(dim=1)
+                if P.skip_autoregressive_embedding:
+                    autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+                    autoregressive_embedding[:] = 0.
+
                 del t, out, entity_one_hot_unsqueeze, entity_one_hot, last_index, entity_id
 
                 print("autoregressive_embedding:", autoregressive_embedding) if debug else None

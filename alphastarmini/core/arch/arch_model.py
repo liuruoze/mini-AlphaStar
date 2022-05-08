@@ -174,8 +174,11 @@ class ArchModel(nn.Module):
         print('lstm_output is nan:', torch.isnan(lstm_output).any()) if debug else None
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions)
-        if P.skip_autoregressive_embedding:
+        if 1 or P.skip_autoregressive_embedding:
             autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+            autoregressive_embedding[:] = 0.
+            print('forward delay autoregressive_embedding', autoregressive_embedding) if 0 else None
+            print('forward delay autoregressive_embedding.shape', autoregressive_embedding.shape) if 0 else None
 
         print('action_type_logits:', action_type_logits) if debug else None
         print('action_type_logits.shape:', action_type_logits.shape) if debug else None
@@ -193,7 +196,15 @@ class ArchModel(nn.Module):
             unit_type_entity_mask = None
 
         delay_logits, delay, autoregressive_embedding = self.delay_head(autoregressive_embedding)
+        if P.skip_autoregressive_embedding:
+            autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+            autoregressive_embedding[:] = 0.
+
         queue_logits, queue, autoregressive_embedding = self.queue_head(autoregressive_embedding, action_type, embedded_entity)
+        if P.skip_autoregressive_embedding:
+            autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+            autoregressive_embedding[:] = 0.
+
         del embedded_entity, embedded_spatial, embedded_scalar, scalar_context, available_actions
 
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head(autoregressive_embedding, 
@@ -201,6 +212,12 @@ class ArchModel(nn.Module):
                                                                                                    entity_embeddings, 
                                                                                                    entity_nums,
                                                                                                    unit_type_entity_mask=unit_type_entity_mask)
+        if P.skip_autoregressive_embedding:
+            autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+            autoregressive_embedding[:] = 0.
+            print('forward target_unit autoregressive_embedding', autoregressive_embedding) if 1 else None
+            print('forward target_unit autoregressive_embedding.shape', autoregressive_embedding.shape) if 1 else None
+
         print('units_logits:', units_logits) if debug else None
         print('units_logits.shape:', units_logits.shape) if debug else None
 
@@ -212,7 +229,6 @@ class ArchModel(nn.Module):
 
         target_unit_logits, target_unit = self.target_unit_head(autoregressive_embedding, 
                                                                 action_type, entity_embeddings, entity_nums)
-
         target_location_logits, target_location = self.location_head(autoregressive_embedding, action_type, map_skip)
 
         action_logits = ArgsActionLogits(action_type=action_type_logits, delay=delay_logits, queue=queue_logits,
@@ -344,6 +360,11 @@ class ArchModel(nn.Module):
             gt_target_unit = gt_action.target_unit
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions, gt_action_type)
+        if 1 or P.skip_autoregressive_embedding:
+            autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+            autoregressive_embedding[:] = 0.
+            print('mimic_forward delay autoregressive_embedding', autoregressive_embedding) if 0 else None
+            print('mimic_forward delay autoregressive_embedding.shape', autoregressive_embedding.shape) if 0 else None
 
         if obs_list is not None:
             unit_type_entity_mask = L.get_batch_unit_type_mask(action_type.squeeze(dim=1), obs_list)
@@ -352,7 +373,14 @@ class ArchModel(nn.Module):
             unit_type_entity_mask = None
 
         delay_logits, _, autoregressive_embedding = self.delay_head(autoregressive_embedding, gt_delay)
+        if P.skip_autoregressive_embedding:
+            autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+            autoregressive_embedding[:] = 0.
+
         queue_logits, _, autoregressive_embedding = self.queue_head(autoregressive_embedding, gt_action_type, embedded_entity, gt_queue)
+        if P.skip_autoregressive_embedding:
+            autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+            autoregressive_embedding[:] = 0.
 
         # selected_units_head is special, we use forward_sl function
         print('gt_units', gt_units) if show else None
@@ -368,6 +396,9 @@ class ArchModel(nn.Module):
                                                                                                                  unit_type_entity_mask=unit_type_entity_mask)
         if P.skip_autoregressive_embedding:
             autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
+            autoregressive_embedding[:] = 0.
+            print('mimic_forward target_unit autoregressive_embedding', autoregressive_embedding) if show else None
+            print('mimic_forward target_unit autoregressive_embedding.shape', autoregressive_embedding.shape) if show else None
 
         print('units_logits', units_logits) if show else None
         print('units_logits.shape', units_logits.shape) if show else None
