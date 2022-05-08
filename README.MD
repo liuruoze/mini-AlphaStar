@@ -28,17 +28,13 @@ Below 4 GIFs are mini-AS' trained performance on Simple64, supervised learning o
 
 ## Update
 
-This release is the "v_1.07" version. In this version, we give an agent which grows from 0.016 to 0.5667 win rate against the level-2 built-in bot training by reinforcement learning. Other improvements are shown below:
+This release is the "v_1.08" version. The main changes are as follows:
 
-* Use mimic_forward to replace forward in "rl_unroll", which increase the training accuracy;
-* Make RL training supports multi-GPU now;
-* Make RL training supports multi-process training based on multi-GPU now;
-* Use new architecture for RL loss, which reduces 86% GPU memory;
-* Use new architecture for RL to increase the sampling speed by 6x faster;
-* Validate UPGO and V-trace loss again;
-* By a "multi-process plus multi-thread" training, increase the sampling speed more by 197%;
-* Fix the GPU memory leak and reduce the CPU memory leak;
-* Increase the RL training win rate (without units loss) on level-2 to 0.57!
+* The training of supervised learning is improved, and the batch_size and sequence_length are different from those in reinforcement learning, which enhances the learning effect;
+* For reinforcement learning, we use use_action_type_mask now, which improves learning efficiency;
+* Added options to turn off entity_encoder and autoregressive_embedding for testing the impact of these modules;
+* Fixed some known issues;
+* A trained RL model is provided, which is first trained by the SL method and then be trained by the RL method;
 
 ## Hints
 
@@ -203,6 +199,12 @@ E.g., we run 15 processes, and each has two actor threads and one learner thread
 The learning rate should be low (below 1e-5 because you are training on an initially trained model). The training iterations should be as long as best (more training iterations can reduce the instability of RL training).
 
 If you find the training result is not good as you imagine, please open an issue to ask us or discuss with us (though we can not make sure to respond to it in time or there is any solution to every problem).
+
+## Trained Models
+
+You can find the trained models [here](https://github.com/liuruoze/Useful-Big-Resources/blob/main/mAS-models).
+
+The "rl_22-02-07_16-26-48.pth" is the trained model by our method. On our server, it was first trained by supervised learning, and then it was trained by reinforcement learning for one day.
 
 ## Results
 
