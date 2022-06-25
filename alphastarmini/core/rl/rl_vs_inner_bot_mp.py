@@ -471,7 +471,7 @@ class ActorVSComputer:
 
                                 del points
 
-                                if 1:
+                                if 0:
                                     state.to('cpu')
                                     baseline_state = [l.to('cpu') for l in baseline_state]
                                     player_memory = [l.to('cpu') for l in player_memory]
