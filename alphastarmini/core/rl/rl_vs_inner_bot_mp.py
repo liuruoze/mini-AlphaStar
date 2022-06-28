@@ -12,7 +12,7 @@ import random
 import traceback
 import threading
 import datetime
-#import multiprocessing as mp
+# import multiprocessing as mp
 
 import numpy as np
 
@@ -93,7 +93,7 @@ if USE_BUFFER:
 else:
     BUFFER_SIZE = 2
     COUNT_OF_BATCHES = 1
-    NUM_EPOCHS = 1
+    NUM_EPOCHS = 2
     USE_RANDOM_SAMPLE = False
 
 STEP_MUL = 8
@@ -117,7 +117,17 @@ IS_TRAINING = True
 WIN_THRESHOLD = 4000
 USE_OPPONENT_STATE = False
 NO_REPLAY_LEARN = True
-NEED_SAVE_RESULT = False
+NEED_SAVE_RESULT = True
+
+NOW = datetime.datetime.now()
+now_str = NOW.strftime("%Y%m%d-%H%M%S")
+now_model_str = NOW.strftime("%y-%m-%d_%H-%M-%S")
+SUMMARY_PATH = "./log/" + now_str
+
+model_save_type = "rl"
+MODEL_SAVE_PATH = os.path.join("./model/", model_save_type + "_" + now_model_str)
+
+# strftime("%y-%m-%d_%H-%M-%S", localtime()
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -161,9 +171,9 @@ class ActorVSComputer:
         self.global_model = global_model
         self.coordinator = coordinator
 
-        #self.agent = self.player.agent
+        # self.agent = self.player.agent
         self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
-        #self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
+        # self.agent = get_supervised_agent(player.race, path=MODEL_PATH, model_type=MODEL_TYPE, restore=RESTORE, device=device)
         # if ON_GPU:
         #     self.agent.agent_nn.to(device)
 
@@ -258,7 +268,7 @@ class ActorVSComputer:
                             is_final = home_obs.last()
 
                             player_memory = self.agent.initial_state()
-                            #teacher_memory = self.teacher.initial_state()
+                            # teacher_memory = self.teacher.initial_state()
 
                             episode_frames = 0
 
@@ -377,21 +387,6 @@ class ActorVSComputer:
                                     game_outcome = home_next_obs.reward
 
                                     o = home_next_obs.observation
-                                    # p = o['player']
-
-                                    # food_used = p['food_used']
-                                    # army_count = p['army_count']
-
-                                    # collected_minerals = np.sum(o['score_cumulative']['collected_minerals'])
-                                    # collected_vespene = np.sum(o['score_cumulative']['collected_vespene'])
-
-                                    # collected_points = collected_minerals + collected_vespene
-
-                                    # used_minerals = np.sum(o['score_by_category']['used_minerals'])
-                                    # used_vespene = np.sum(o['score_by_category']['used_vespene'])
-
-                                    # used_points = used_minerals + used_vespene
-
                                     killed_minerals = np.sum(o['score_by_category']['killed_minerals'])
                                     killed_vespene = np.sum(o['score_by_category']['killed_vespene'])
 
@@ -402,19 +397,17 @@ class ActorVSComputer:
                                     if game_outcome == 1:
                                         outcome = 1
                                     elif game_outcome == 0:
-                                        # with self.results_lock:
-                                        #     print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
-                                        #     print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
-                                        #     print("agent_{:d} get WIN_THRESHOLD".format(self.idx), WIN_THRESHOLD) if 1 else None
+                                        # outcome = 0
                                         if killed_points > WIN_THRESHOLD:
                                             outcome = 1
                                         else:
-                                            #outcome = 0
-                                            if killed_points > 1000 and killed_points <= WIN_THRESHOLD:
-                                                outcome = 0
-                                            else:
-                                                outcome = -1
-                                            # print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
+                                            outcome = 0
+                                        #     # if killed_points > 1000 and killed_points <= WIN_THRESHOLD:
+                                        #     #     outcome = 0
+                                        #     # else:
+                                        #     #     outcome = -1
+                                        #     outcome = 0
+                                        #     # print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
                                     else:
                                         outcome = -1
 
@@ -422,41 +415,17 @@ class ActorVSComputer:
                                         reward = float(outcome)
                                         if outcome == 0:
                                             reward = killed_points / float(WIN_THRESHOLD)
-                                        #     with self.results_lock:
-                                        #         print("agent_{:d} get final killed_points".format(self.idx), killed_points) if 1 else None
-                                        #         print("agent_{:d} get final game_outcome".format(self.idx), game_outcome) if 1 else None
-                                        #         print("agent_{:d} get final outcome".format(self.idx), outcome) if 1 else None
-                                        #         print("agent_{:d} get reward".format(self.idx), reward) if 1 else None
-                                        #         print("agent_{:d} get reward_2".format(self.idx), killed_points / float(WIN_THRESHOLD)) if 1 else None
 
-                                    # food_used_list.append(food_used)
-                                    # army_count_list.append(army_count)
-                                    # collected_points_list.append(collected_points)
-                                    # used_points_list.append(used_points)
-                                    # killed_points_list.append(killed_points)
-                                    # steps_list.append(game_loop)
-
-                                    # results[outcome + 1] += 1
                                     print("agent_{:d} get final reward".format(self.idx), reward) if 1 else None
                                     print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
 
                                     final_outcome = outcome
-                                    # if self.need_save_result:
-                                    #     self.writer.add_scalar('final_outcome/' + 'agent_' + str(self.idx), final_outcome, total_episodes)
-                                    #     with self.results_lock:
-                                    #         self.coordinator.send_episode_outcome(self.idx, total_episodes, final_outcome)
-
                                     final_points = points  # killed_points / float(WIN_THRESHOLD)
-                                    # if self.need_save_result:
-                                    #     self.writer.add_scalar('final_points/' + 'agent_' + str(self.idx), final_points, total_episodes)
-                                    #     with self.results_lock:
-                                    #         self.coordinator.send_episode_points(self.idx, total_episodes, final_points)
 
                                     self.q_winloss.put(final_outcome)
                                     self.q_points.put(final_points)
 
                                     reward = final_outcome
-                                    #reward = 0
 
                                     is_final_trajectory = True
                                     if outcome == 1:
@@ -519,7 +488,7 @@ class ActorVSComputer:
                                     trajectory.append(traj_step)
                                 del traj_step
 
-                                #player_memory = tuple(h.detach().clone() for h in player_new_memory)
+                                # player_memory = tuple(h.detach().clone() for h in player_new_memory)
                                 player_memory = player_new_memory
                                 del home_obs
                                 home_obs = home_next_obs
@@ -591,7 +560,7 @@ class ActorVSComputer:
             # print("win rate: ", results[2] / (1e-9 + sum(results))) if debug else None
 
             total_time = time() - training_start_time
-            #print('agent_', self.idx, "total_time: ", total_time / 60.0, "min") if debug else None
+            # print('agent_', self.idx, "total_time: ", total_time / 60.0, "min") if debug else None
 
             # if debug and SAVE_STATISTIC: 
             #     with self.results_lock:
@@ -669,7 +638,7 @@ def get_points(obs):
     return points
 
 
-def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda_device, model_learner, device_learner, model_teacher=None, device_teacher=None):
+def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda_device, model_learner, device_learner, log_path, model_teacher=None, device_teacher=None):
     torch.manual_seed(RANDOM_SEED + rank)
 
     # with synchronizer:
@@ -693,9 +662,17 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
         main_exploiters=0,
         league_exploiters=0)
 
-    now = datetime.datetime.now()
-    summary_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "_" + str(rank) + "/"
-    writer = SummaryWriter(summary_path) if NEED_SAVE_RESULT else None
+    # we only call the first process (rank 0) to save the loss info
+    if rank == 0:
+        need_save_result = NEED_SAVE_RESULT
+    else:
+        need_save_result = 0
+
+    if need_save_result:
+        summary_path = log_path + "_" + str(rank) + "/"
+        writer = SummaryWriter(summary_path) if need_save_result else None
+    else:
+        writer = None
 
     # results_lock = threading.Lock()
     # coordinator = Coordinator(league, winrate_scale=WINRATE_SCALE, output_file=OUTPUT_FILE, results_lock=results_lock, writer=writer)
@@ -711,7 +688,7 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
         for idx in range(league.get_learning_players_num()):
             player = league.get_learning_player(idx)
 
-            #player.agent.agent_nn.model = model_learner
+            # player.agent.agent_nn.model = model_learner
             # player.agent.agent_nn.model.load_state_dict(model_learner.state_dict())
             if use_cuda_device:
                 player.agent.agent_nn.model.to(cuda_device)
@@ -726,7 +703,7 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
                               no_replay_learn=NO_REPLAY_LEARN, num_epochs=NUM_EPOCHS,
                               count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
                               use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE,
-                              need_save_result=NEED_SAVE_RESULT, process_lock=process_lock,
+                              need_save_result=need_save_result, process_lock=process_lock,
                               update_params_interval=UPDATE_PARAMS_INTERVAL)
             learners.append(learner)
 
@@ -776,7 +753,9 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
     #     print('parent process:', os.getppid())
     #     print('process id:', os.getpid())
 
-    writer = SummaryWriter(log_path)
+    summary_path = log_path + "/"
+    writer = SummaryWriter(summary_path)
+
     update_counter = 0
     max_win_rate, latest_win_rate = 0., 0.
     max_mean_points, latest_mean_points = 0., 0.
@@ -886,11 +865,9 @@ def test(on_server=False, replay_path=None):
     torch.manual_seed(RANDOM_SEED)
     mp.set_start_method('spawn')
 
-    model_save_type = "rl"
-    model_save_path = os.path.join("./model/", model_save_type + "_" + strftime("%y-%m-%d_%H-%M-%S", localtime()))
+    model_save_path = MODEL_SAVE_PATH 
 
-    now = datetime.datetime.now()
-    log_path = "./log/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+    log_path = SUMMARY_PATH
 
     device_learner = torch.device("cuda:0" if use_cuda_device else "cpu")
     league = League(
@@ -928,7 +905,7 @@ def test(on_server=False, replay_path=None):
 
     for rank in range(PARALLEL):
         p = mp.Process(target=Worker, args=(synchronizer, rank, optimizer, q_winloss, q_points, v_steps,
-                                            use_cuda_device, model_learner, device_learner))
+                                            use_cuda_device, model_learner, device_learner, log_path))
         p.start()
         processes.append(p)
 
