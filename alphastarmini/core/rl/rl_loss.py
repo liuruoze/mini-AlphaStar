@@ -34,8 +34,8 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
-FIELDS_WEIGHT_1 = [1, 0, 1, 0, 1, 1]  # [0, 0, 0, 1, 0, 0]
-FIELDS_WEIGHT_2 = [1, 0, 1, 1, 1, 1]
+FIELDS_WEIGHT_1 = [1, 0, 1, 0.1, 1, 1]  # [0, 0, 0, 1, 0, 0]
+FIELDS_WEIGHT_2 = [1, 0, 1, 10, 1, 1]
 
 WINLOSS_BASELINE_COSTS = (10.0, 5.0, "winloss_baseline")
 
@@ -85,15 +85,19 @@ def human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask
     [selected_mask, entity_mask, unit_type_entity_mask] = [x.view(-1, x.shape[-1]) for x in [selected_mask, entity_mask, unit_type_entity_mask]]
 
     loss = 0  
+    loss_dict = {}
     for i, field in enumerate(ACTION_FIELDS):
         t_logits = filter_by_for_lists(field, trajectories.teacher_logits, device) 
         x = get_kl_or_entropy(target_logits, field, RA.kl, mask, selected_mask, entity_mask, unit_type_entity_mask, t_logits)
-        loss = loss + x * FIELDS_WEIGHT_2[i]
+        x = x * FIELDS_WEIGHT_2[i]
+
+        loss = loss + x
+        loss_dict[field] = x.item()
         del x, t_logits
 
     del mask, unit_type_entity_mask, selected_mask, entity_mask
 
-    return loss
+    return loss, loss_dict
 
 
 def get_kl_or_entropy(target_logits, field, func, mask, selected_mask, entity_mask, unit_type_entity_mask, t_logits=None):
@@ -233,9 +237,14 @@ def transpose_sth(x):
 def get_useful_masks(select_units_num, entity_num, device):
     max_selected = AHP.max_selected + 1
     extend_select_units_num = select_units_num + 1
+
+    print('extend_select_units_num', extend_select_units_num) if 1 else None
+
     selected_mask = torch.arange(max_selected, device=device).float()
     selected_mask = selected_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
     selected_mask = selected_mask < extend_select_units_num.reshape(-1).unsqueeze(dim=-1)
+
+    print('selected_mask', selected_mask) if 1 else None
 
     entity_mask = torch.arange(AHP.max_entities, device=device).float()
     entity_mask = entity_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
@@ -273,7 +282,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
 
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean() * fields_weight[i]
-        print('field', field, 'loss_val', loss_field.item()) if debug else None
+        print('field', field, 'loss_val', loss_field.item()) if 1 else None
 
         loss = loss + loss_field 
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks
@@ -496,7 +505,8 @@ def loss_function(agent, trajectories, use_opponent_state=True,
         vtrace_weight = 0 if only_update_baseline else 1
         loss_vtrace = sum_vtrace_loss(target_logits, trajectories, baseline, rewards, selected_mask, entity_mask, device)
         loss_vtrace = vtrace_cost * loss_vtrace
-        loss_vtrace = vtrace_weight * loss_vtrace
+        #loss_vtrace = vtrace_weight * loss_vtrace
+        loss_vtrace = 0 * loss_vtrace
         loss_dict.update({reward_name + "-loss_vtrace:": loss_vtrace.item()})
         loss_actor_critic += loss_vtrace
         reward_index += 1
@@ -524,15 +534,18 @@ def loss_function(agent, trajectories, use_opponent_state=True,
     ACTION_TYPE_KL_COST = 1e-1
 
     # for all arguments
-    all_kl_loss = human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask)
+    all_kl_loss, all_kl_loss_dict = human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask)
     all_kl_loss = ALL_KL_COST * all_kl_loss
     loss_dict.update({"all_kl_loss:": all_kl_loss.item()})
+    for key, value in all_kl_loss_dict.items():
+        loss_dict.update({"all_kl_loss_" + key + ":": value})
 
     action_type_kl_loss = human_policy_kl_loss_action(target_logits, trajectories)
     action_type_kl_loss = ACTION_TYPE_KL_COST * action_type_kl_loss
     loss_dict.update({"action_type_kl_loss:": action_type_kl_loss.item()})
 
     loss_kl = all_kl_loss + action_type_kl_loss
+    #loss_kl = 0 * loss_kl
     loss_dict.update({"loss_kl:": loss_kl.item()})
     del all_kl_loss, action_type_kl_loss
 

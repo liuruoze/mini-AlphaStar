@@ -218,11 +218,13 @@ class ArchModel(nn.Module):
             #print('forward target_unit autoregressive_embedding', autoregressive_embedding) if 1 else None
             print('forward target_unit autoregressive_embedding.shape', autoregressive_embedding.shape) if 1 else None
 
-        print('units_logits:', units_logits) if debug else None
-        print('units_logits.shape:', units_logits.shape) if debug else None
+        print('forward:') if 0 and units_logits.shape[0] > 1 else None    
 
-        print('units:', units) if debug else None
-        print('units.shape:', units.shape) if debug else None
+        print('units_logits:', units_logits) if 0 and units_logits.shape[0] > 1 else None
+        print('units_logits.shape:', units_logits.shape) if 0 and units_logits.shape[0] > 1 else None
+
+        print('units:', units) if 0 and units.shape[0] > 1 else None
+        print('units.shape:', units.shape) if 0 and units.shape[0] > 1 else None
 
         print('autoregressive_embedding:', autoregressive_embedding) if debug else None
         print('autoregressive_embedding.shape:', autoregressive_embedding.shape) if debug else None       
@@ -383,8 +385,11 @@ class ArchModel(nn.Module):
             autoregressive_embedding[:] = 0.
 
         # selected_units_head is special, we use forward_sl function
-        print('gt_units', gt_units) if show else None
-        print('gt_units.shape', gt_units.shape) if show else None
+        # 
+        print('mimic_forward:') if 0 and gt_units.shape[0] > 1 else None
+
+        print('gt_units', gt_units) if 0 and gt_units.shape[0] > 1 else None
+        print('gt_units.shape', gt_units.shape) if 0 and gt_units.shape[0] > 1 else None
 
         units_logits, units, autoregressive_embedding, select_units_num = self.selected_units_head.mimic_forward(autoregressive_embedding, 
                                                                                                                  gt_action_type, 
@@ -394,6 +399,13 @@ class ArchModel(nn.Module):
                                                                                                                  gt_select_units_num,
                                                                                                                  show=show,
                                                                                                                  unit_type_entity_mask=unit_type_entity_mask)
+
+        print('units_logits:', units_logits) if 0 and units_logits.shape[0] > 1 else None
+        print('units_logits.shape:', units_logits.shape) if 0 and units_logits.shape[0] > 1 else None
+
+        print('units:', units) if 0 and units.shape[0] > 1 else None
+        print('units.shape:', units.shape) if 0 and units.shape[0] > 1 else None
+
         if P.skip_autoregressive_embedding:
             autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
             autoregressive_embedding[:] = 0.
