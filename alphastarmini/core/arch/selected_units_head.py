@@ -258,7 +258,7 @@ class SelectedUnitsHead(nn.Module):
         print("no_select_units_index:", no_select_units_index) if debug else None
 
         select_units_num[no_select_units_index] = 0
-        autoregressive_embedding[no_select_units_index] = original_ae[no_select_units_index]
+        #autoregressive_embedding[no_select_units_index] = original_ae[no_select_units_index]
 
         units_logits[no_select_units_index] = -1e9  # a magic number
         units[no_select_units_index, :, 0] = entity_size - 1  # None index, the same as -1
@@ -406,7 +406,7 @@ class SelectedUnitsHead(nn.Module):
             if self.is_rl_training and self.use_unit_type_entity_mask and unit_type_entity_mask is not None:
                 entity_logits = entity_logits.masked_fill(~unit_type_entity_mask, -1e9)
 
-            temperature = self.temperature if self.is_rl_training else 1
+            temperature = 1  # self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature
             del x, y, query, temperature
 
@@ -491,7 +491,7 @@ class SelectedUnitsHead(nn.Module):
 
         del selected_mask, select_unit_mask, no_select_units_index, mask, units_logits_list, key, key_avg
 
-        return units_logits, None, autoregressive_embedding, select_units_num
+        return units_logits, units, autoregressive_embedding, select_units_num
 
 
 def test():
