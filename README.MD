@@ -2,7 +2,7 @@
 
 ## Updates
 
-Our paper has been nearly accepted by the corresponding journal. We will provide the preprint version on Arxiv soon after.
+Our paper has been nearly accepted by the corresponding journal. We will provide a preprint version on Arxiv soon after.
 
 ## Introduction
 
