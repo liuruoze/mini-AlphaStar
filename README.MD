@@ -1,9 +1,5 @@
 # mini-AlphaStar
 
-## Updates
-
-Our paper has been nearly accepted by the corresponding journal. We will provide a preprint version on Arxiv soon after.
-
 ## Introduction
 
 The mini-AlphaStar (mini-AS, or mAS) project is a **mini-scale** version of the AlphaStar (AS) program. AlphaStar is the intelligent AI proposed by DeepMind to play StarCraft II. Note the mini-AS is a research project. It is not an official product of DeepMind.
