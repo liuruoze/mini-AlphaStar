@@ -42,7 +42,7 @@ This release is the "v_1.08" version. The main changes are as follows:
 
 ## Location
 
-We store the codes and show videos in two places. 
+The codebase and videos are hosted in two places. 
 
 Codes location | Result video location | Usage 
 ------------ | ------------- | -------------
@@ -64,13 +64,13 @@ alphastarmini.third | third party functions
 
 ## Requirements
 
-PyTorch >= 1.5, others please see requirements.txt.
+PyTorch >= 1.5. Please see requirements.txt for other dependencies.
 
 ## Install
 
 The [SCRIPT Guide](scripts/Setup_cmd.MD) gives some commands to install PyTorch by conda (this will automatically install CUDA and cudnn, which is convenient).
 
-E.g., like (to install PyTorch 1.5 with accompanied CUDA and cudnn):
+E.g. like (to install PyTorch 1.5 with accompanied CUDA and cudnn):
 ```
 conda create -n th_1_5 python=3.7 pytorch=1.5 -c pytorch
 ```
@@ -87,7 +87,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-After you have done all requirements, run the below python file to run the program:
+After you have done all requirements, run the python file below:
 ```
 python run.py
 ```
@@ -106,7 +106,7 @@ We summarised the usage sequences as the following:
 
 We give detailed descriptions below.
 
-## Transofrm replays
+## Transform replays
 
 In supervised learning, you first need to download SC2 replays.
 
@@ -118,29 +118,25 @@ After downloading replays, you should move the replays to "./data/Replays/filter
 
 Then use `transform_replay_data.py` to transform these replays to pickles or tensors (you can change the output type in the code of that file).
 
-You don't need to run the transform_replay_data.py directly. Only run "run.py" is OK. Make the run.py has the following code
+You don't need to run the transform_replay_data.py directly. Only run "run.py" is OK. Make sure run.py has the following lines uncommented. Then you can directly run "run.py".
 
 ```
     # from alphastarmini.core.sl import transform_replay_data
     # transform_replay_data.test(on_server=P.on_server)
 ```
 
-uncommented. Then you can directly run "run.py".
-
 **Note**: To get the effect of the trained agent in the gifs, use the replays in [Useful-Big-Resources](https://github.com/liuruoze/Useful-Big-Resources/blob/main/replays). These replays are generatedy by our experts, to get an agent having the ability to win the built-in bot.
 
 ## Supervised learning
 
-After getting the trainable data (we recommend using tensor dat). Make the run.py has the following code
+After getting the trainable data (we recommend using tensor dat). Make sure run.py has the following lines uncommented. Then you can directly run "run.py" to do supervised learning.
 
 ```
     # from alphastarmini.core.sl import sl_train_by_tensor
     # sl_train_by_tensor.test(on_server=P.on_server)
 ```
 
-uncommented. Then you can directly run "run.py" to do supervised learning.
-
-The default learning rate is 1e-4, and the training epochs should best be 10 (more epochs may cause the training effect overfitting).
+The default learning rate is 1e-4, and the optimal training epochs should be 10 (more epochs may cause the training effect overfitting).
 
 From the v_1.05 version, we support multi-GPU supervised learning (not recommended now) training for mini-AS, improving the training speed. The way to use multi-GPU training is straightforward, as follows:
 ```
@@ -168,14 +164,12 @@ The newest training ways (e.g., in v_1.07) are still in the single GPU type due 
 
 After getting the supervised learning model, we should test the model's performance in the SC2 environment. The reason is that there is a domain shift from the SL data to the RL environment. 
 
-Make the run.py has the following code
+Make sure run.py has the following lines uncommented. Then you can directly run "run.py" to do an evaluation of the SL model.
 
 ```
     # from alphastarmini.core.rl import rl_eval_sl
     # rl_eval_sl.test(on_server=P.on_server)
 ```
-
-uncommented. Then you can directly run "run.py" to do an evaluation of the SL model.
 
 The evaluation is similar to RL training, but the updating is closed. The running is also in single-thread, to make the randomness due to multi-thread not affect the evaluation.
 
@@ -183,14 +177,12 @@ The evaluation is similar to RL training, but the updating is closed. The runnin
 
 After ensuring the supervised learning model is OK and suitable for RL training, we can do RL based on the learned supervised learning model. 
 
-Make the run.py has the following code
+Make sure run.py has the following lines uncommented. Then you can directly run "run.py" to do reinforcement learning.
 
 ```
     # from alphastarmini.core.rl import rl_vs_inner_bot_mp
     # rl_vs_inner_bot_mp.test(on_server=P.on_server, replay_path=P.replay_path)
 ```
-
-uncommented. Then you can directly run "run.py" to do reinforcement learning.
 
 Note RL training uses a multi-process plus multi-thread manner (to accelerate the learning speed), so make sure to run these codes on a high-performance computer. 
 
