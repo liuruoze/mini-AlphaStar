@@ -34,8 +34,8 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
-FIELDS_WEIGHT_1 = [1, 0, 1, 0.1, 1, 1]  # [0, 0, 0, 1, 0, 0]
-FIELDS_WEIGHT_2 = [1, 0, 1, 10, 1, 1]
+FIELDS_WEIGHT_1 = [1, 0, 1, 0.01, 1, 1]  # [0, 0, 0, 1, 0, 0]
+FIELDS_WEIGHT_2 = [1, 0, 1, 1, 1, 1]
 
 WINLOSS_BASELINE_COSTS = (10.0, 5.0, "winloss_baseline")
 
@@ -506,7 +506,7 @@ def loss_function(agent, trajectories, use_opponent_state=True,
         loss_vtrace = sum_vtrace_loss(target_logits, trajectories, baseline, rewards, selected_mask, entity_mask, device)
         loss_vtrace = vtrace_cost * loss_vtrace
         #loss_vtrace = vtrace_weight * loss_vtrace
-        loss_vtrace = 0 * loss_vtrace
+        loss_vtrace = 1 * loss_vtrace
         loss_dict.update({reward_name + "-loss_vtrace:": loss_vtrace.item()})
         loss_actor_critic += loss_vtrace
         reward_index += 1
