@@ -506,7 +506,7 @@ def loss_function(agent, trajectories, use_opponent_state=True,
         loss_vtrace = sum_vtrace_loss(target_logits, trajectories, baseline, rewards, selected_mask, entity_mask, device)
         loss_vtrace = vtrace_cost * loss_vtrace
         #loss_vtrace = vtrace_weight * loss_vtrace
-        loss_vtrace = 1 * loss_vtrace
+        loss_vtrace = vtrace_weight * loss_vtrace
         loss_dict.update({reward_name + "-loss_vtrace:": loss_vtrace.item()})
         loss_actor_critic += loss_vtrace
         reward_index += 1
