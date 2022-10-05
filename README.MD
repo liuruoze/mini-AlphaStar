@@ -261,10 +261,4 @@ The [Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452) is our thinking 
 
 ## Paper
 
-We will give a paper (which is now under peer-review) that may be available in the future, presenting detailed experiments and evaluations using the mini-AS. 
-
-The paper is accepted and being available now in [JAIR](https://jair.org/index.php/jair/article/view/13743).
-
-The arxiv link is [here](https://arxiv.org/abs/2209.11553).
-
-If you find our project helpful or use our project as a baseline, please cite our paper.
+We present detailed experiments and evaluations using the mini-AS in the [paper](https://arxiv.org/abs/2209.11553). 
