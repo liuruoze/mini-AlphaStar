@@ -116,7 +116,7 @@ SEQ_LEN = int(AHP.sequence_length * 0.5)
 print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 15  
+NUM_EPOCHS = 10 
 LEARNING_RATE = 1e-4
 WEIGHT_DECAY = 1e-5
 
