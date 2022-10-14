@@ -204,7 +204,11 @@ If you find the training result is not good as you imagine, please open an issue
 
 You can find the trained models [here](https://github.com/liuruoze/Useful-Big-Resources/blob/main/mAS-models).
 
-The "rl_22-02-07_16-26-48.pth" is the trained model by our method. On our server, it was first trained by supervised learning, and then it was trained by reinforcement learning for one day.
+The "sl_21-12-29_08-15-43.pth" is the supervised learning trained model by our method. 
+
+The "rl_22-02-07_16-26-48.pth" is the reinforcement learning trained model by our method based on the previous model.
+
+The "rl_22-02-09_19-16-39.pth" is the reinforcement learning (more time) trained model by our method based on the previous supervised learning model.
 
 ## Results
 
@@ -261,4 +265,4 @@ The [Rethinking of AlphaStar](https://arxiv.org/abs/2108.03452) is our thinking 
 
 ## Paper
 
-We present detailed experiments and evaluations using the mini-AS in the [paper](https://arxiv.org/abs/2209.11553). 
+We present detailed experiments and evaluations using the mini-AS in this [paper](https://arxiv.org/abs/2209.11553). 
