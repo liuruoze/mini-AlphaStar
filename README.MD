@@ -36,7 +36,7 @@ This release is the "v_1.09" version. The main changes are as follows:
 * Add logs for all the losses in the RL training to gain better information about the process;
 * Increase the win rate against level-1 bot to 0.85 (the best so far);
 * For the first time, provide the pre-trained SL model for RL training to use;
-* For the first time, provide the pre-trained final RL model for others to reproduce the results easily;
+* For the first time, provide the final RL model for others to reproduce the results easily;
 
 ## Hints
 
@@ -202,15 +202,15 @@ The learning rate should be low (below 1e-5 because you are training on an initi
 
 If you find the training result is not good as you imagine, please open an issue to ask us or discuss with us (though we can not make sure to respond to it in time or there is any solution to every problem).
 
-## Trained Models
+## Pre-trained Models
 
-You can find the trained models [here](https://github.com/liuruoze/Useful-Big-Resources/blob/main/mAS-models).
+You can find the pre-trained models [here](https://github.com/liuruoze/Useful-Big-Resources/blob/main/mAS-models).
 
-The "sl_21-12-29_08-15-43.pth" is the supervised learning trained model by our method. 
+The "sl_21-12-29_08-15-43.pth" is the supervised learning pre-trained model by our method. 
 
 The "rl_22-02-07_16-26-48.pth" is the reinforcement learning trained model by our method based on the previous model.
 
-The "rl_22-02-09_19-16-39.pth" is the reinforcement learning (more time) trained model by our method based on the previous supervised learning model.
+The "rl_22-02-09_19-16-39.pth" is the reinforcement learning (more time) final model by our method based on the previous supervised learning model.
 
 ## Results
 
