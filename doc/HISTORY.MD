@@ -1,5 +1,13 @@
 # mini-AlphaStar
 
+## v_1.08
+
+* The training of supervised learning is improved, and the batch_size and sequence_length are different from those in reinforcement learning, which enhances the learning effect;
+* For reinforcement learning, we use use_action_type_mask now, which improves learning efficiency;
+* Added options to turn off entity_encoder and autoregressive_embedding for testing the impact of these modules;
+* Fixed some known issues;
+* A trained RL model is provided, which is first trained by the SL method and then be trained by the RL method;
+
 ## v_1.07
 
 * Use mimic_forward to replace forward in "rl_unroll", which increase the training accuracy;
