@@ -28,13 +28,15 @@ Below 4 GIFs are mini-AS' trained performance on Simple64, supervised learning o
 
 ## Update
 
-This release is the "v_1.08" version. The main changes are as follows:
+This release is the "v_1.09" version. The main changes are as follows:
 
-* The training of supervised learning is improved, and the batch_size and sequence_length are different from those in reinforcement learning, which enhances the learning effect;
-* For reinforcement learning, we use use_action_type_mask now, which improves learning efficiency;
-* Added options to turn off entity_encoder and autoregressive_embedding for testing the impact of these modules;
-* Fixed some known issues;
-* A trained RL model is provided, which is first trained by the SL method and then be trained by the RL method;
+* Fixed some known bugs and issues;
+* Improve to a new SL setting to train a good SL model more likely;
+* Change STEP_MUL to 8 to gain more good RL training results;
+* Add logs for all the losses in the RL training to gain better information about the process;
+* Increase the win rate against level-1 bot to 0.85 (the best so far);
+* For the first time, provide the pre-trained SL model for RL training to use;
+* For the first time, provide the pre-trained final RL model for others to reproduce the results easily;
 
 ## Hints
 
