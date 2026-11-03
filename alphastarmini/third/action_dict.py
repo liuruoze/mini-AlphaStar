@@ -932,7 +932,7 @@ def merge_judge(target_general_action, val):
 
 GENERAL_ACTION_INFO_MASK = {}
 ACT_TO_GENERAL_ACT = {}
-ACT_TO_GENERAL_ACT_ARRAY = np.full(max(ACTION_INFO_MASK.keys()) + 1, -1, dtype=np.int)
+ACT_TO_GENERAL_ACT_ARRAY = np.full(max(ACTION_INFO_MASK.keys()) + 1, -1, dtype=int)
 for k, v in ACTION_INFO_MASK.items():
     general_id = v['general_id']
     if general_id is None or general_id == 0:

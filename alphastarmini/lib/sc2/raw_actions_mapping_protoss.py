@@ -3,6 +3,8 @@
 
 " Raw actions mapping for protoss, purely built by human knowledge"
 
+import traceback
+
 from pysc2.lib.actions import RAW_FUNCTIONS as F
 from pysc2.lib.units import Protoss, Neutral
 

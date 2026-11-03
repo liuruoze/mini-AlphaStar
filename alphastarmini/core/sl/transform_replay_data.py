@@ -68,15 +68,19 @@ flags.DEFINE_integer("max_replays", 100, "Max replays to save.")
 flags.DEFINE_integer("max_steps_of_replay", int(22.4 * 60 * 60), "Max game steps of a replay, max for 1 hour of game.")
 flags.DEFINE_integer("small_max_steps_of_replay", 256, "Max game steps of a replay when debug.")
 
-# no_op_threshold = (22.4 * 60 - 150) / 150 * len(RAW_FUNCTIONS) * scale_factor
-flags.DEFINE_float("no_op_threshold", 0.000, "The threshold to save no op operations.")  # 0.005
-
-# move_camera_threshold = (50 / 1) * len(RAW_FUNCTIONS) * scale_factor_2
-flags.DEFINE_float("move_camera_threshold", 0.00, "The threshold to save move_camera operations.")  # 0.05
-flags.DEFINE_float("Smart_pt_threshold", 0.0, "The threshold to save no op operations.")  # 0.3
-flags.DEFINE_float("Smart_unit_threshold", 0.1, "The threshold to save no op operations.")  # 0.3
-flags.DEFINE_float("Harvest_Gather_unit_threshold", 0.1, "The threshold to save no op operations.")  # 0.3
-flags.DEFINE_float("Attack_pt_threshold", 0.5, "The threshold to save no op operations.")  # 0.3
+# 保留率阈值。只有 "func_call 不为空" 的帧才会被写成样本，所以这些值直接决定
+# 每个 replay 能产出多少帧，也决定训练集里各类动作的占比。
+#
+# 原值（0.000 / 0.00 / 0.0 / 0.1 / 0.1 / 0.5）会把 no_op、镜头移动、Smart_pt 全部丢掉，
+# 一局 2000+ 个决策点只剩约 57 帧，且训练集里 no_op 样本数为 0 —— 而 RL 推理时
+# 80~90% 的动作本该是 no_op，导致训练/推理分布严重错配。注释里作者原本写的
+# 0.005 / 0.05 / 0.3 也同样是"几乎不留"，这里按 SL 需要覆盖常见动作分布来重设。
+flags.DEFINE_float("no_op_threshold", 0.10, "The threshold to save no op operations.")
+flags.DEFINE_float("move_camera_threshold", 0.05, "The threshold to save move_camera operations.")
+flags.DEFINE_float("Smart_pt_threshold", 0.3, "The threshold to save Smart_pt operations.")
+flags.DEFINE_float("Smart_unit_threshold", 0.3, "The threshold to save Smart_unit operations.")
+flags.DEFINE_float("Harvest_Gather_unit_threshold", 0.3, "The threshold to save Harvest_Gather_unit operations.")
+flags.DEFINE_float("Attack_pt_threshold", 0.5, "The threshold to save Attack_pt operations.")
 
 flags.DEFINE_bool("disable_fog", False, "Whether tp disable fog of war.")
 flags.DEFINE_integer("observed_player", 1, "Which player to observe. For 2 player game, this can be 1 or 2.")
@@ -201,8 +205,8 @@ def getObsAndFunc(obs, func_call, z):
     BU_PROBABILITY = 0.5
 
     # Sample Boolean variables bool_BO and bool_BU
-    # bool_bo = np.float(np.random.rand(*bo.shape) < BO_PROBABILITY)
-    # bool_bu = np.float(np.random.rand(*bu.shape) < BU_PROBABILITY)
+    # bool_bo = np.float64(np.random.rand(*bo.shape) < BO_PROBABILITY)
+    # bool_bu = np.float64(np.random.rand(*bu.shape) < BU_PROBABILITY)
 
     bool_bo = np.random.rand(*bo.shape) < BO_PROBABILITY
     bool_bu = np.random.rand(*bu.shape) < BU_PROBABILITY
@@ -305,6 +309,46 @@ def getFuncCall(o, feat, obs, use_raw=True):
         raise NotImplementedError
 
     return func_call
+
+
+def get_map_data_for_replay(replay_path):
+    """把 replay 对应地图的本地字节读出来，用于 RequestStartReplay.map_data。
+
+    背景：SC2 打开 replay 时只会用 replay 里记录的相对地图名（如 "Melee/Simple64.SC2Map"）
+    自己去 $SC2PATH/Maps 下找，部分环境（本机实测 Linux + SC2 3.16.1/Base55958）会报
+    `LaunchError: Unable to open map.`；同一张图用 SC2Env 新开一局却是正常的。
+    把地图字节显式塞进 map_data 即可绕开 SC2 自己的查找逻辑。
+
+    返回 None 时行为与原来的 map_data=None 一致（回退给 SC2 自己找）。
+    """
+    try:
+        import json
+        import mpyq
+
+        with open(replay_path, 'rb') as f:
+            archive = mpyq.MPQArchive(f)
+            meta = archive.read_file('replay.gamemetadata.json')
+        if isinstance(meta, bytes):
+            meta = meta.decode('utf-8', 'ignore')
+        map_name = json.loads(meta).get('MapName', '')
+        if not map_name:
+            return None
+
+        maps_root = os.path.join(os.environ.get('SC2PATH', os.path.expanduser('~/StarCraftII')), 'Maps')
+        map_file = os.path.join(maps_root, map_name)
+        if not os.path.exists(map_file):
+            target = os.path.basename(map_name)
+            for root, _, files in os.walk(maps_root):
+                if target in files:
+                    map_file = os.path.join(root, target)
+                    break
+
+        print('replay map:', map_name, '->', map_file)
+        with open(map_file, 'rb') as f:
+            return f.read()
+    except Exception as e:
+        print('get_map_data_for_replay failed:', e)
+        return None
 
 
 def test(on_server=False):
@@ -434,7 +478,7 @@ def test(on_server=False):
                     options=interface,
                     disable_fog=False,  # FLAGS.disable_fog
                     observed_player_id=win_observe_id,  # random.randint(1, 2),  # 1 or 2, wo random select it. FLAGS.observed_player
-                    map_data=None,
+                    map_data=get_map_data_for_replay(replay_path),
                     realtime=False
                 )
 
@@ -628,8 +672,10 @@ def test(on_server=False):
 
                         feature, label = getFeatureAndLabel_numpy(obs, func_call, delay, last_list, bo)
 
-                        feature = torch.tensor(feature)
-                        label = torch.tensor(label)
+                        # 落盘用 float32：原始 numpy 是 float64，
+                        # 单帧 feature+label 会从 16.9 MB 涨到两倍，而训练时本来就要 .float() 转回来。
+                        feature = torch.tensor(feature, dtype=torch.float32)
+                        label = torch.tensor(label, dtype=torch.float32)
                         feature_list.append(feature)
                         label_list.append(label)
 

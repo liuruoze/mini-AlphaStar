@@ -52,7 +52,7 @@ parser.add_argument("-p2", "--path2", default="./data/replay_data_tensor_new_sma
 parser.add_argument("-m", "--model", choices=["sl", "rl"], default="sl", help="Choose model type")
 parser.add_argument("-r", "--restore", action="store_true", default=False, help="whether to restore model or not")
 parser.add_argument("-c", "--clip", action="store_true", default=False, help="whether to use clipping")
-parser.add_argument('--num_workers', type=int, default=2, help='')
+parser.add_argument('--num_workers', type=int, default=16, help='')
 
 
 args = parser.parse_args()
@@ -91,18 +91,32 @@ LOAD_ALL_PKL = False
 LOAD_CHECKPOINT = True
 
 SIMPLE_TEST = not P.on_server
-if SIMPLE_TEST:
-    TRAIN_FROM = 0
-    TRAIN_NUM = 1
 
-    VAL_FROM = 0
-    VAL_NUM = 1
-else:
-    TRAIN_FROM = 0  # 20
-    TRAIN_NUM = 90  # 60
+# 数据划分：训练集在前，验证集取「文件列表末尾」的 VAL_NUM 个，两者不重叠。
+# 原实现是 TRAIN_FROM=0 / TRAIN_NUM=90 配 VAL_FROM=0 / VAL_NUM=5，
+# 验证集就是训练集的前 5 个回放（数据泄漏）；改为从尾部切分。
+# 训练集大小不再写死，由「总数 - VAL_NUM」自适应，数据量增减无需改这里。
+TRAIN_FROM = 0                      # 训练集起始下标（若开头有几个坏样本可改这里跳过）
+TRAIN_NUM = None                    # None = 训练到验证集起点为止
+VAL_NUM = 1 if SIMPLE_TEST else 5   # 验证集大小（从末尾取）
 
-    VAL_FROM = 0
-    VAL_NUM = 5
+
+def split_indices(total):
+    """按「训练集在前 / 验证集在后」计算 [from, end) 区间，保证不重叠。
+
+    返回 ((train_from, train_end), (val_from, val_end))。
+    只有一个文件时无法切分，退化为同一份（仅供冒烟测试使用）。
+    """
+    if total <= 1:
+        return (0, total), (0, total)
+
+    val_num = min(VAL_NUM, total - 1)
+    val_from = total - val_num
+
+    train_end = val_from
+    if TRAIN_NUM is not None:
+        train_end = min(train_end, TRAIN_FROM + TRAIN_NUM)
+    return (TRAIN_FROM, train_end), (val_from, total)
 
 # hyper paramerters
 # use the same as in RL
@@ -206,12 +220,21 @@ def main_worker(device):
 
     print('==> Preparing data..')
 
-    replay_files = os.listdir(PATH)
+    replay_files = [f for f in os.listdir(PATH) if f.endswith('.pt')]
     print('length of replay_files:', len(replay_files)) if debug else None
     replay_files.sort()
 
-    train_list = getReplayData(PATH, replay_files, from_index=TRAIN_FROM, end_index=TRAIN_FROM + TRAIN_NUM)
-    val_list = getReplayData(PATH, replay_files, from_index=VAL_FROM, end_index=VAL_FROM + VAL_NUM)
+    if SIMPLE_TEST:
+        # 冒烟模式只取前 2 个文件（1 训练 + 1 验证），不要按全量目录切分
+        replay_files = replay_files[:2]
+
+    (train_from, train_end), (val_from, val_end) = split_indices(len(replay_files))
+    print('data split: train_files[%d:%d] (%d)  val_files[%d:%d] (%d)'
+          % (train_from, train_end, max(train_end - train_from, 0),
+             val_from, val_end, max(val_end - val_from, 0)))
+
+    train_list = getReplayData(PATH, replay_files, from_index=train_from, end_index=train_end)
+    val_list = getReplayData(PATH, replay_files, from_index=val_from, end_index=val_end)
 
     print('len(train_list)', len(train_list)) if debug else None
     print('len(val_list)', len(val_list)) if debug else None
@@ -222,11 +245,13 @@ def main_worker(device):
     print('len(train_set)', len(train_set)) if debug else None
     print('len(val_set)', len(val_set)) if debug else None
 
+    # num_workers 原来默认 2，而这台机器有 64 个物理核；pin_memory=False 让每个 batch
+    # 的 H2D 拷贝都走同步，单帧 1.4 MB、batch 8x8 就是 90 MB/步，差距可观。
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, 
-                              num_workers=NUM_WORKERS, pin_memory=False)
+                              num_workers=NUM_WORKERS, pin_memory=True)
 
     val_loader = DataLoader(val_set, batch_size=BATCH_SIZE, shuffle=False, 
-                            num_workers=NUM_WORKERS, pin_memory=False)   
+                            num_workers=NUM_WORKERS, pin_memory=True)   
 
     print('len(train_loader)', len(train_loader)) if debug else None
     print('len(val_loader)', len(val_loader)) if debug else None
@@ -272,12 +297,14 @@ def train(net, optimizer, scheduler, train_set, train_loader, device,
 
             optimizer.zero_grad()
             loss.backward() 
-            optimizer.step()
 
-            # add a grad clip
+            # 梯度裁剪必须在 optimizer.step() 之前，否则只改 .grad 而本步更新已经做完，
+            # 等于裁剪完全没生效（原代码把这段放在 step() 之后）。
             if CLIP:
                 parameters = [p for p in net.parameters() if p is not None and p.requires_grad]
                 torch.nn.utils.clip_grad_norm_(parameters, CLIP_VALUE)
+
+            optimizer.step()
 
             loss_value = float(loss.item())
 
@@ -462,7 +489,10 @@ def eval(model, val_set, val_loader, device):
 
         gc.collect()
 
-    val_loss = loss_sum / (i + 1e-9)
+    # 原来的写法是 loss_sum / (i + 1e-9)：i 是 enumerate 的最后一个下标（从 0 开始），
+    # 只有 1 个 batch 时 i=0，相当于除以 1e-9，val loss 会被放大到 1e9 量级。
+    # 这里改成除以 batch 数量（i 从 0 起，所以个数是 i + 1）。
+    val_loss = loss_sum / max(i + 1, 1)
 
     action_accuracy = action_acc_num / (action_all_num + 1e-9)
     move_camera_accuracy = move_camera_action_acc_num / (move_camera_action_all_num + 1e-9)

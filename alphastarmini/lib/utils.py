@@ -261,7 +261,20 @@ def get_batch_unit_type_mask(action_types, obs_list):
             del set_1, set_2
             print('set all', set_all) if debug else None
 
-            raw_units_types = obs_list[idx]["raw_units"][:, FeatureUnit.unit_type]
+            # 【第 19 轮更正：这里原本写的"第 6 个阻断缺陷"是我的误判，已撤回】
+            #
+            # 第 17 轮我只有 `obs_list[idx]["raw_units"]` 这一种写法，据此**推断**
+            # "pysc2 的 Observation 是 namedtuple，字符串索引必崩，所以真实训练路径跑不起来"。
+            # 第 19 轮用真实 SC2 env 实测（`_test_r19_worker_obs.py` [B]）：
+            #     obs 类型 = **NamedDict**（dict 子类），`obs["raw_units"]` 完全可用
+            #     -> `step_from_state(state, mem, obs=真实obs)` 本来就跑得通（[A] PASS）
+            # **原代码没有这个缺陷，我的推断错了。**
+            #
+            # 保留下面的兼容分支纯属**防御性**：让"传普通对象（只有属性、不是 dict 子类）"
+            # 的用法也能工作（自测脚本里常见）。对真实路径零影响，等价于原写法。
+            _obs = obs_list[idx]
+            _raw = _obs["raw_units"] if isinstance(_obs, dict) else _obs.raw_units
+            raw_units_types = _raw[:, FeatureUnit.unit_type]
             for i, t in enumerate(raw_units_types):
                 if t in set_all and i < AHP.max_entities:
                     unit_type_mask[0, i] = 1
@@ -398,6 +411,9 @@ def np_one_hot_fast(targets, nb_classes):
     return res.reshape(list(targets.shape) + [nb_classes])
 
 
+_ONE_HOT_EYE_CACHE = {}
+
+
 def tensor_one_hot(labels, num_classes):
     """Embedding labels to one-hot form.
 
@@ -407,16 +423,19 @@ def tensor_one_hot(labels, num_classes):
 
     Returns:
       (tensor) encoded labels, sized [N, #classes].
+
+    Note: torch.eye(num_classes) 原先每次调用都会新建一遍，而这个函数在自回归解码的
+    12 步循环里被反复调用（实测每次前向 28 次 aten::eye，合计约 3.7 ms，占单步推理
+    耗时 13%）。单位矩阵只跟 (num_classes, device) 有关，缓存即可，语义不变。
     """
-    cuda_check = labels.is_cuda
-    if cuda_check:
-        get_cuda_device = labels.get_device()
-
-    y = torch.eye(num_classes)
-
-    if cuda_check:
-        y = y.to(get_cuda_device)
-
+    device = labels.device if hasattr(labels, "device") else None
+    key = (num_classes, device)
+    y = _ONE_HOT_EYE_CACHE.get(key)
+    if y is None:
+        # 只为小规模类别表做缓存，避免个别超大 num_classes 吃掉显存
+        y = torch.eye(num_classes, device=device)
+        if num_classes <= 8192:
+            _ONE_HOT_EYE_CACHE[key] = y
     return y[labels]
 
 
@@ -654,7 +673,10 @@ def action_can_apply_to_selected_mask(action_types):
     Outputs: mask
     """
 
-    mask = SELECTED_UNITS_TYPES_MASK[action_types.squeeze(1)].to(action_types.device)
+    # COMPAT(torch 2.x): torch 1.7 允许用 CUDA 张量索引 CPU 张量，torch 2.x 严格禁止
+    # ("indices should be either on cpu or on the same device as the indexed tensor")。
+    # 索引必须留在 CPU 上，结果再搬回 action_types 的 device。
+    mask = SELECTED_UNITS_TYPES_MASK[action_types.squeeze(1).cpu()].to(action_types.device)
     del action_types
 
     return mask
@@ -673,7 +695,8 @@ def action_can_apply_to_targeted_mask(action_types):
     Outputs: mask
     """
 
-    mask = TARGET_UNITS_TYPES_MASK[action_types.squeeze(1)].to(action_types.device)
+    # COMPAT(torch 2.x): 索引必须留在 CPU（torch 1.7 允许跨设备索引，2.x 严格禁止）
+    mask = TARGET_UNITS_TYPES_MASK[action_types.squeeze(1).cpu()].to(action_types.device)
     del action_types
 
     return mask

@@ -205,8 +205,13 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
 MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(16 * 8 / P.Batch_Scale),
                                                      sequence_length=int(16 * 8 / P.Seq_Scale),
                                                      max_selected=int(48 / P.Select_Scale),                                                    
-                                                     max_entities=int(512),  # this value can not be downscaled, 
-                                                     # if downscaled, we will miss many units.
+                                                     max_entities=int(128),
+                                                     # 实测 Simple64 单局实体数：mean 77 / median 74 / p90 99 / p99 115 / max 117。
+                                                     # 原值 512 让每次推理有 435 个空槽参与 O(n^2) 自注意力，
+                                                     # 单帧 feature 也因此多出 512*1856 - 128*1856 = 712,704 维。
+                                                     # 128 相对 max=117 留 9% 余量；换更大或更拥挤的地图时要相应调大。
+                                                     # 下游 mask / arange / EOF token 均从 AHP.max_entities 推导，
+                                                     # entity_num 的 one-hot 用的是 max_selected 而非此值，因此改这里不会错位。
                                                      temperature=0.8,
                                                      minimap_size=64,                                               
                                                      embedding_size=1856,  # 1545, 1856, 2109
