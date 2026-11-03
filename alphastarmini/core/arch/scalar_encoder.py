@@ -166,7 +166,8 @@ class ScalarEncoder(nn.Module):
 
             # note, we use postionoal encoding here for half of time encoding
             time[0, embedding_size:] = time_encoding_2
-            del time_encoding_1, time_encoding_2
+            del time_encoding_1
+            del time_encoding_2
         else:
             # transform game_loop to 64 binary vecoter
             time_encoding = L.unpackbits_for_largenumber(game_loop, num_bits=SFS.time).astype(np.float32).reshape(1, -1)
@@ -275,9 +276,21 @@ class ScalarEncoder(nn.Module):
         scalar_list.append(last_action_type)
         scalar_list.append(last_repeat_queued)
 
-        del agent_statistics, home_race, away_race, upgrades, enemy_upgrades, time
-        del available_actions, unit_counts_bow, mmr, units_buildings, effects
-        del beginning_build_order, last_delay, last_action_type, last_repeat_queued
+        del agent_statistics
+        del home_race
+        del away_race
+        del upgrades
+        del enemy_upgrades
+        del time
+        del available_actions
+        del unit_counts_bow
+        del mmr
+        del units_buildings
+        del effects
+        del beginning_build_order
+        del last_delay
+        del last_action_type
+        del last_repeat_queued
 
         return scalar_list
 
@@ -292,7 +305,8 @@ class ScalarEncoder(nn.Module):
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
         the_log_statistics = torch.log(agent_statistics + 1)
         x = F.relu(self.statistics_fc(the_log_statistics))
-        del agent_statistics, the_log_statistics
+        del agent_statistics
+        del the_log_statistics
         embedded_scalar_list.append(x)
 
         # race: Both races are embedded into a one-hot with maximum 5, and embedded through a linear of size 32 and a ReLU.
@@ -409,7 +423,9 @@ class ScalarEncoder(nn.Module):
 
         embedded_scalar_list.append(x)
         scalar_context_list.append(x)
-        del mask, bo_sum, seq
+        del mask
+        del bo_sum
+        del seq
 
         # last_delay: The delay between when we last acted and the current observation, in game steps. 
         # This may be different from what we requested due to network latency or APM limits. 
@@ -437,7 +453,11 @@ class ScalarEncoder(nn.Module):
         scalar_context = torch.cat(scalar_context_list, dim=1)
         scalar_context_out = F.relu(self.fc_2(scalar_context))
 
-        del x, embedded_scalar_list, scalar_context_list, embedded_scalar, scalar_context
+        del x
+        del embedded_scalar_list
+        del scalar_context_list
+        del embedded_scalar
+        del scalar_context
 
         return embedded_scalar_out, scalar_context_out
 

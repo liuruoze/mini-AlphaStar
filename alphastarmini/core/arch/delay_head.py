@@ -83,7 +83,10 @@ class DelayHead(nn.Module):
         # the operation may auto broadcasting, so we need a test
         autoregressive_embedding = autoregressive_embedding + t
 
-        del delay_one_hot, x, z, t
+        del delay_one_hot
+        del x
+        del z
+        del t
 
         return delay_logits, delay, autoregressive_embedding
 

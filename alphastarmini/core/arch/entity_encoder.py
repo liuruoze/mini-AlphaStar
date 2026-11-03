@@ -380,14 +380,16 @@ class EntityEncoder(nn.Module):
         order_progress_0_encoding_onehot = L.np_one_hot(np.minimum(entities_array[:, idx + 1] * 0.1, 9).astype(np.int32), cls.max_order_progress)
         field_encoding_list.append(order_progress_0_encoding)
         field_encoding_list.append(order_progress_0_encoding_onehot)
-        del order_progress_0_encoding, order_progress_0_encoding_onehot
+        del order_progress_0_encoding
+        del order_progress_0_encoding_onehot
         idx += 2
 
         order_progress_1_encoding = entities_array[:, idx:idx + 1] * 0.01
         order_progress_1_encoding_onehot = L.np_one_hot(np.minimum(entities_array[:, idx + 1] * 0.1, 9).astype(np.int32), cls.max_order_progress)
         field_encoding_list.append(order_progress_1_encoding)
         field_encoding_list.append(order_progress_1_encoding_onehot)
-        del order_progress_1_encoding, order_progress_1_encoding_onehot
+        del order_progress_1_encoding
+        del order_progress_1_encoding_onehot
         idx += 2
 
         weapon_upgrades_encoding = L.np_one_hot(entities_array[:, idx].astype(np.int32), cls.max_weapon_upgrades)
@@ -455,7 +457,8 @@ class EntityEncoder(nn.Module):
 
         # entity_num: [batch_seq_size]
         entity_num = torch.sum(tmp_y, dim=1, keepdim=False)
-        del tmp_x, tmp_y
+        del tmp_x
+        del tmp_y
 
         # make sure we can have max to AHP.max_entities - 2 (510)
         # this is we must use a 512 one-hot to represent the entity_nums
@@ -496,7 +499,8 @@ class EntityEncoder(nn.Module):
             del placeholder
 
         unit_types_one = torch.cat(unit_types_one_list, dim=0)
-        del unit_types, unit_types_one_list
+        del unit_types
+        del unit_types_one_list
 
         # assert the input shape is : batch_seq_size x entities_size x embeding_size
         # note: because the feature size of entity is not equal to 256, so it can not fed into transformer directly.
@@ -538,7 +542,12 @@ class EntityEncoder(nn.Module):
         # is fed through a linear layer of size 256 and a ReLU to yield `embedded_entity`
         # embedded_entity: [batch_size, fc1_output_size]
         embedded_entity = F.relu(self.fc1(z))
-        del tran_mask, mask, masked_out, x, out, z
+        del tran_mask
+        del mask
+        del masked_out
+        del x
+        del out
+        del z
 
         if return_unit_types:
             return entity_embeddings, embedded_entity, entity_num, unit_types_one

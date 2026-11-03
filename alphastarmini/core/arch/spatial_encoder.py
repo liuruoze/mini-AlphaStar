@@ -109,7 +109,9 @@ class SpatialEncoder(nn.Module):
         # Question: This has a problem, the first element of index 0 will be averaged everywhere
         # Solution: use zero_bias to remove
         scatter_mid = reduced_entity_embeddings.gather(1, scatter_index.long())
-        del reduced_entity_embeddings, scatter_index, zero_bias
+        del reduced_entity_embeddings
+        del scatter_index
+        del zero_bias
         print('scatter_mid', scatter_mid[0, :16, :4]) if debug else None
 
         scatter_mid = scatter_mid.reshape(batch_size, self.scatter_volume, 
@@ -149,7 +151,9 @@ class SpatialEncoder(nn.Module):
             if P.handle_cuda_error:  # and batch_size != 1:
                 x = x.to(device)
 
-            del scatter_map, scatter_entity, reduced
+            del scatter_map
+            del scatter_entity
+            del reduced
 
         # After preprocessing, the planes are concatenated, projected to 32 channels 
         # by a 2D convolution with kernel size 1, passed through a ReLU
@@ -265,7 +269,15 @@ class SpatialEncoder(nn.Module):
         map_data = np.concatenate([scatter_map, camera_map, height_map, visibility, creep, entity_owners, 
                                    alerts, pathable, buildable], axis=-1)  # the channel is at the last axis
 
-        del scatter_map, camera_map, height_map, visibility, creep, entity_owners, alerts, pathable, buildable
+        del scatter_map
+        del camera_map
+        del height_map
+        del visibility
+        del creep
+        del entity_owners
+        del alerts
+        del pathable
+        del buildable
 
         # NWHC to NCHW
         map_data = np.transpose(map_data, [0, 3, 1, 2])

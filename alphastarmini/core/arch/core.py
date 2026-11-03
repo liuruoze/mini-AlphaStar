@@ -49,7 +49,9 @@ class Core(nn.Module):
         batch_size = batch_size if batch_size is not None else self.batch_size
         sequence_length = sequence_length if sequence_length is not None else self.sequence_length
         input_tensor = torch.cat([embedded_scalar, embedded_entity, embedded_spatial], dim=-1)
-        del embedded_scalar, embedded_entity, embedded_spatial
+        del embedded_scalar
+        del embedded_entity
+        del embedded_spatial
 
         # note, before input to the LSTM
         # we transform the shape from [batch_seq_size, embedding_size] 

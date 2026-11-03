@@ -146,7 +146,11 @@ class SelectedUnitsHead(nn.Module):
             key_main_part = key * flag
             key = key_main_part + key_end_part
 
-            del padding_end, flag, end_embedding, key_main_part, key_end_part
+            del padding_end
+            del flag
+            del end_embedding
+            del key_main_part
+            del key_end_part
 
         # calculate the average of keys (consider the entity_num)
         key_mask = mask.unsqueeze(dim=2).repeat(1, 1, key.shape[-1])
@@ -190,7 +194,9 @@ class SelectedUnitsHead(nn.Module):
 
             temperature = self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature
-            del x, y, query
+            del x
+            del y
+            del query
 
             entity_probs = self.softmax(entity_logits)
             entity_id = torch.multinomial(entity_probs, 1)
@@ -222,8 +228,15 @@ class SelectedUnitsHead(nn.Module):
                 autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
                 autoregressive_embedding[:] = 0.
 
-            del temperature, entity_logits, entity_probs, entity_id
-            del last_index, entity_one_hot, entity_one_hot_unsqueeze, out, t
+            del temperature
+            del entity_logits
+            del entity_probs
+            del entity_id
+            del last_index
+            del entity_one_hot
+            del entity_one_hot_unsqueeze
+            del out
+            del t
 
             if is_end.all():
                 break
@@ -246,7 +259,8 @@ class SelectedUnitsHead(nn.Module):
                                     dtype=units.dtype, device=units.device)
             pad_units[:, :, 0] = entity_size - 1  # None index, the same as -1
             units = torch.cat([units, pad_units], dim=1)
-            del pad_units, pad_units_logits
+            del pad_units
+            del pad_units_logits
 
         # AlphaStar: If `action_type` does not involve selecting units, this head is ignored.
 
@@ -266,7 +280,12 @@ class SelectedUnitsHead(nn.Module):
         print("select_units_num:", select_units_num) if debug else None
         print("autoregressive_embedding:", autoregressive_embedding) if debug else None
 
-        del select_unit_mask, no_select_units_index, mask, is_end, key, key_avg
+        del select_unit_mask
+        del no_select_units_index
+        del mask
+        del is_end
+        del key
+        del key_avg
 
         return units_logits, units, autoregressive_embedding, select_units_num
 
@@ -347,7 +366,11 @@ class SelectedUnitsHead(nn.Module):
             # use calculation to replace new_variable
             key_main_part = key * flag
             key = key_main_part + key_end_part
-            del padding_end, flag, end_embedding, key_main_part, key_end_part
+            del padding_end
+            del flag
+            del end_embedding
+            del key_main_part
+            del key_end_part
 
         # calculate the average of keys (consider the entity_num)
         key_mask = mask.unsqueeze(dim=2).repeat(1, 1, key.shape[-1])
@@ -408,7 +431,10 @@ class SelectedUnitsHead(nn.Module):
 
             temperature = 1  # self.temperature if self.is_rl_training else 1
             entity_logits = entity_logits / temperature
-            del x, y, query, temperature
+            del x
+            del y
+            del query
+            del temperature
 
             # note, we add a dimension where is in the seq_one to help
             # we concat to the one : [batch_size x max_selected x ?]
@@ -451,7 +477,12 @@ class SelectedUnitsHead(nn.Module):
                     autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
                     autoregressive_embedding[:] = 0.
 
-                del t, out, entity_one_hot_unsqueeze, entity_one_hot, last_index, entity_id
+                del t
+                del out
+                del entity_one_hot_unsqueeze
+                del entity_one_hot
+                del last_index
+                del entity_id
 
                 print("autoregressive_embedding:", autoregressive_embedding) if debug else None
 
@@ -489,7 +520,13 @@ class SelectedUnitsHead(nn.Module):
         # remove the EOF
         select_units_num = select_units_num - 1
 
-        del selected_mask, select_unit_mask, no_select_units_index, mask, units_logits_list, key, key_avg
+        del selected_mask
+        del select_unit_mask
+        del no_select_units_index
+        del mask
+        del units_logits_list
+        del key
+        del key_avg
 
         return units_logits, units, autoregressive_embedding, select_units_num
 

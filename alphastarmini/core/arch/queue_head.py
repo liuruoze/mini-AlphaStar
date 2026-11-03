@@ -87,7 +87,12 @@ class QueueHead(nn.Module):
         # possible for the chosen `action_type`
         mask = L.action_can_be_queued_mask(action_type).float()
         autoregressive_embedding = autoregressive_embedding + mask * t
-        del queue_one_hot, x, z, t, mask, action_type
+        del queue_one_hot
+        del x
+        del z
+        del t
+        del mask
+        del action_type
 
         return queue_logits, queue, autoregressive_embedding
 

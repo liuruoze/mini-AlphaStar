@@ -94,12 +94,14 @@ class Baseline(nn.Module):
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
         the_log_statistics = torch.log(agent_statistics + 1)
         x = F.relu(self.statistics_fc(the_log_statistics))
-        del agent_statistics, the_log_statistics
+        del agent_statistics
+        del the_log_statistics
         embedded_scalar_list.append(x)
 
         score_log_statistics = torch.log(cumulative_score + 1)
         x = F.relu(self.cumulatscore_fc(score_log_statistics))
-        del cumulative_score, score_log_statistics
+        del cumulative_score
+        del score_log_statistics
         embedded_scalar_list.append(x)
 
         # upgrades: The boolean vector of whether an upgrade is present is embedded through a linear of size 128 and a ReLU
@@ -131,7 +133,10 @@ class Baseline(nn.Module):
             cumulative_statistics.append(x)
 
         embedded_scalar_list.extend(cumulative_statistics)
-        del units_buildings, effects, upgrade, cumulative_statistics
+        del units_buildings
+        del effects
+        del upgrade
+        del cumulative_statistics
 
         # beginning_build_order: The first 20 constructed entities are converted to a 2D tensor of size 
         # [20, num_entity_types], concatenated with indices and the binary encodings 
@@ -169,7 +174,11 @@ class Baseline(nn.Module):
         embedded_scalar_list.append(x)
         embedded_scalar = torch.cat(embedded_scalar_list, dim=1)
 
-        del x, mask, bo_sum, seq, embedded_scalar_list
+        del x
+        del mask
+        del bo_sum
+        del seq
+        del embedded_scalar_list
 
         return embedded_scalar
 
@@ -187,7 +196,9 @@ class Baseline(nn.Module):
 
         # AlphaStar: These features are all concatenated together to yield `action_type_input`
         action_type_input = torch.cat([lstm_output, player_scalar_out, opponenet_scalar_out], dim=1)
-        del lstm_output, player_scalar_out, opponenet_scalar_out
+        del lstm_output
+        del player_scalar_out
+        del opponenet_scalar_out
         print("action_type_input.shape:", action_type_input.shape) if debug else None
 
         # AlphaStar: passed through a linear of size 256
@@ -214,7 +225,8 @@ class Baseline(nn.Module):
         out = (2.0 / np.pi) * torch.atan((np.pi / 2.0) * baseline)
         print("out:", out) if debug else None
 
-        del x, baseline
+        del x
+        del baseline
 
         return out
 

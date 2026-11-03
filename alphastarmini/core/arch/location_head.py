@@ -162,7 +162,9 @@ class LocationHead(nn.Module):
             else:
                 x = self.us_4_original(x)
 
-        del ar_map, map_skip, autoregressive_embedding
+        del ar_map
+        del map_skip
+        del autoregressive_embedding
 
         # AlphaStar: Those final logits are flattened and sampled (masking out invalid locations using `action_type`, 
         # AlphaStar: such as those outside the camera for build actions) with temperature 0.8 
@@ -215,7 +217,10 @@ class LocationHead(nn.Module):
         target_location_logits = target_location_logits.reshape(-1, self.output_map_size, self.output_map_size)
         target_location_logits = target_location_logits * target_location_mask.float().unsqueeze(-1)
 
-        del action_type, x, target_location_mask, no_target_location_mask
+        del action_type
+        del x
+        del target_location_mask
+        del no_target_location_mask
 
         return target_location_logits, target_location
 
