@@ -53,3 +53,20 @@ cameras.csv
 /scripts/download_replay/third/download/*
 output/*.txt
 outputs/*
+
+# ---- 本项目（mini-AlphaStar RL 实验）----
+# 运行产物：日志、模型、输出，绝不入库
+/log/
+/model/
+/output/
+*.pth
+*.pt
+*.ckpt
+# 数据集与回放（放到外部盘，不入库）
+/data/*.pt
+/data/*.pkl
+# 实验落盘的真实轨迹（单条约 100 MB）
+*.pt.tmp*
+# Python
+__pycache__/
+.pytest_cache/
