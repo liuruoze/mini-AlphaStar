@@ -91,9 +91,17 @@ class ActionTypeHead(nn.Module):
         # inspired by the DI-star project, in action_type_head
         if self.is_rl_training and self.use_action_type_mask and action_type_mask is not None:
             action_type_mask = action_type_mask.bool()
-            if action_type is not None:       
-                for i, a in enumerate(action_type):
-                    action_type_mask[i, a.item()] = True
+            if action_type is not None:
+                # OPT(T3a): 原本是
+                #     for i, a in enumerate(action_type):
+                #         action_type_mask[i, a.item()] = True
+                # 每个样本一次 .item() -> 一次 GPU->CPU 强制同步，batch=N 时 N 次。
+                # 改为整批索引赋值，零同步。语义等价：把本步实际选择的 action 位置置为可用。
+                _at = action_type.reshape(-1).long()
+                _rows = torch.arange(_at.shape[0], device=action_type_mask.device)
+                # 注意：action_type 可能不在 mask 的 device 上（如 CPU 索引 GPU mask），
+                # 必须先对齐，否则高级索引会报 device mismatch
+                action_type_mask[_rows, _at.to(action_type_mask.device)] = True
             action_type_logits = action_type_logits + (~action_type_mask * (-1e9))
             del action_type_mask
 
@@ -138,7 +146,12 @@ class ActionTypeHead(nn.Module):
         # the add operation may auto broadcasting, so we need an assert test
         autoregressive_embedding = z + t
 
-        del action_type_one_hot, lstm_output, scalar_context, x, z, t
+        del action_type_one_hot
+        del lstm_output
+        del scalar_context
+        del x
+        del z
+        del t
 
         return action_type_logits, action_type, autoregressive_embedding
 

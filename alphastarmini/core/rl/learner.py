@@ -56,12 +56,36 @@ class Learner:
                  buffer_size=10, use_random_sample=False,
                  only_update_baseline=False,
                  need_save_result=True, process_lock=None,
-                 update_params_interval=10):
+                 update_params_interval=10, pub_lock=None, policy_version=None):
         self.player = player
         self.player.set_learner(self)
 
         self.rank = rank
         self.v_steps = v_steps
+
+        # 第 64 轮（Kimi-02）：可观测的更新计数。
+        # 为什么需要：之前只有"loss 有限、backward 不报错、364 个参数有梯度"这类
+        # **一次性**证据，无法回答"Learner 有没有持续更新"。
+        # 长跑里如果 Learner 线程静默退出，主进程仍然 rc=0 —— 这一点被 Kimi 点出来了。
+        # 现在每次 optimizer.step() 记一次，Worker 退出时打印。
+        self.update_count = 0
+        self.last_loss = None
+
+        # ---- 第 65 轮（Kimi-05 P0）：原子权重发布 + policy_version ----
+        # 问题：同步线程直接遍历 `global_model.state_dict()`，而 Learner 可能正在
+        # `optimizer.step()` 里逐个张量更新 -> 复制出的快照可能是**跨张量的新旧混合**，
+        # 也就是"半新半旧"，但它看起来完全正常、不会报错。
+        # 修法：Learner 在 step 前后持同一把锁，同步线程也持这把锁复制 ——
+        # 快照因此只会落在"某次更新之前"或"之后"两个一致状态之一。
+        # policy_version 每完成一次更新 +1，供 server 与轨迹记录，做到"权重可追溯"。
+        self.pub_lock = pub_lock
+        self.policy_version = policy_version
+
+        # 第 65 轮（Kimi-03 的验收手段）：把每个 head 的蒸馏 loss（= KL 项）的
+        # **最小值**记下来。判据很硬：重归一化 KL 恒 ≥ 0，所以 30 min 里
+        # 只要出现一次负值，就说明 renorm 没生效或实现有洞。
+        self.kl_min = {}
+        self.kl_max = {}
         self.cuda_device = cuda_device
 
         self.name = 'learner_' + str(self.rank)
@@ -217,7 +241,15 @@ class Learner:
         trajectories = self.get_normal_trajectories()
         print(learner_name, 'len(trajectories)', len(trajectories)) if debug else None
 
-        # agent.agent_nn.model.train()  # for BN and dropout
+        # FIX(第9轮 缺陷④): 这里原来被注释掉了。
+        # 后果不是"少更新 BN 统计量"，而是 backward 直接失败：
+        #   cuDNN RNN backward 只允许在 training mode 下调用
+        #   -> `RuntimeError: cudnn RNN backward can only be called in training mode`
+        # 也就是说这一行注释掉后，整个 RL 训练走不到 optimizer.step()。
+        #
+        # ⚠️ 打开后 BN 会用 batch 统计量、dropout 也会生效，forward 数值与 eval 模式不同。
+        #    如果之前有人用 eval 模式跑过基准，数字不能直接对比。
+        agent.agent_nn.model.train()  # for BN and dropout
         print(learner_name, "begin rl update") if debug else None
 
         # objgraph.show_most_common_types(limit=10)
@@ -263,7 +295,39 @@ class Learner:
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
                     print(learner_name, "begin optimizer_step") if debug else None
-                    self.optimizer.step()
+                    # 第 65 轮：step 与"别人拷快照"互斥，见 __init__ 里 pub_lock 的说明。
+                    if self.pub_lock is not None:
+                        self.pub_lock.acquire()
+                    try:
+                        self.optimizer.step()
+                        if self.policy_version is not None:
+                            self.policy_version.value += 1
+                    finally:
+                        if self.pub_lock is not None:
+                            self.pub_lock.release()
+                    self.update_count += 1
+                    self.last_loss = float(loss_item) if loss_item is not None else None
+                    # 记录各 head 的 KL 极值（loss_dict 的 key 就是字段名）
+                    try:
+                        for _k, _v in (loss_dict_items or []):
+                            # ⚠️ 第一版按 `action_type` 这样的裸字段名匹配，**一个都没匹配上**：
+                            #    rl_loss 里合并时是 `"all_kl_loss_" + key + ":"`，
+                            #    所以真实 key 是 `all_kl_loss_action_type:`。
+                            _f_name = None
+                            if _k.startswith("all_kl_loss_") and _k.endswith(":"):
+                                _f_name = _k[len("all_kl_loss_"):-1]
+                            elif _k in ("action_type", "delay", "queue",
+                                        "units", "target_unit", "target_location"):
+                                _f_name = _k
+                            if _f_name is None:
+                                continue
+                            _f = float(_v)
+                            if _f_name not in self.kl_min or _f < self.kl_min[_f_name]:
+                                self.kl_min[_f_name] = _f
+                            if _f_name not in self.kl_max or _f > self.kl_max[_f_name]:
+                                self.kl_max[_f_name] = _f
+                    except Exception:
+                        pass
                     SA.show_datas(agent.agent_nn.model, self.global_model, debug)
 
                     # print(learner_name, "begin load_state_dict") if debug else None

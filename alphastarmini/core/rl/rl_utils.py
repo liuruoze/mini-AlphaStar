@@ -99,8 +99,51 @@ def stack_namedtuple(trajectory):
 
 
 def namedtuple_zip(trajectory):
-    try: 
+    """把 [batch][seq] 的字段转置成 [seq][batch]。
+
+    FIX(第9轮 缺陷①): 原实现是
         d = [list(zip(*z)) for z in trajectory]
+    对**任何为 None 的字段**都会炸 `TypeError: 'NoneType' object is not iterable`，
+    而 `rl_vs_inner_bot_mp.py:469` 构造 Trajectory 时就有 5 个字段是 None
+    （baseline_state_op / z / z_build_order / unit_counts / z_unit_counts）。
+
+    后果不是"这一项丢了"，而是整个函数 catch 后 **return None**
+    -> 下游 `compute_pseudoreward(trajectories=None)` 报
+       `AttributeError: 'NoneType' object has no attribute 'reward'`
+    -> **loss_function 在真实训练里必然断在这里**。
+
+    修法：None 字段填成 [None] * seq_len。
+    为什么必须是"长度为 seq 的 None 列表"而不是保持 None：
+      下游 `sum_upgo_loss` 里有 `Trajectory(*tuple(item[:-1] for item in trajectories))`
+      对**每个字段**做切片，None 不能切片，[None]*T 可以。
+    """
+    try:
+        # 转置后的长度 = 每个样本的步数，从第一个**有效**字段推断。
+        # 「有效」= 不是 None、非空、第一个元素不是 None、且元素可求 len。
+        # 最后一条必要：像 is_final 这种字段每步是 python bool，len(False) 会抛 TypeError。
+        #
+        # ⚠️ 只判 `z is None` 不够：`stack_namedtuple` 已经把单值变成了 tuple，
+        #    所以 z 实际上是 (None, None, ..., None) —— 8 个 None 的 tuple。
+        #    这时 `zip(*z)` = zip(None, None, ...) 仍然会炸。
+        #    （第一版就是这么漏的：改了 `z is None` 但没覆盖 tuple-of-None。）
+        seq_len = None
+        for z in trajectory:
+            if z is not None and len(z) > 0 and z[0] is not None:
+                try:
+                    seq_len = len(z[0])
+                    break
+                except TypeError:
+                    continue
+
+        d = []
+        for z in trajectory:
+            is_empty = (z is None) or (len(z) == 0) or (z[0] is None)
+            if is_empty:
+                d.append([None] * (seq_len if seq_len is not None else 0))
+            else:
+                # 保持与原实现完全一致的输出结构（元素是 tuple，不是 list），
+                # 尽量不改变下游 torch.tensor(...) 吃到的类型。
+                d.append(list(zip(*z)))
         new = Trajectory._make(d)
         del d
 

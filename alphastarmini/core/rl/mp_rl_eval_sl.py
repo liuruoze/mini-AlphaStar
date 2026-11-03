@@ -211,8 +211,10 @@ class ActorEval:
                                 state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
                                                                                         build_order=player_bo, 
                                                                                         last_list=last_list)
-                                player_step = self.player.agent.step_from_state(state, player_memory, obs=home_obs.observation)
-
+                                # FIX(T6): 同 rl_eval_sl.py —— 这里原来多调用了一次 step_from_state，
+                                # 返回值 player_step 从未被读取，等于每帧白算一次完整前向（约 30 ms）。
+                                # 已实测 forward 不会 in-place 改 hidden（_check_t6_double_step.py [A]），
+                                # 两次调用共用同一 state，删掉第一次行为等价。
                                 player_function_call, player_action, player_logits, \
                                     player_new_memory, player_select_units_num, entity_num = self.player.agent.step_from_state(state, 
                                                                                                                                player_memory, 

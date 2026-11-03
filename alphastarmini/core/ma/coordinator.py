@@ -42,8 +42,8 @@ class Coordinator:
     def set_uninitialed_results(self, actor_nums, episode_nums):
         self.actor_nums = actor_nums
         self.episode_nums = episode_nums
-        self.episode_points = np.ones([actor_nums, episode_nums], dtype=np.float) * (-1e9)
-        self.episode_outcome = np.ones([actor_nums, episode_nums], dtype=np.float) * (-1e9)
+        self.episode_points = np.ones([actor_nums, episode_nums], dtype=np.float64) * (-1e9)
+        self.episode_outcome = np.ones([actor_nums, episode_nums], dtype=np.float64) * (-1e9)
 
     def send_episode_points(self, agent_idx, episode_nums, results): 
         episode_id = episode_nums - 1

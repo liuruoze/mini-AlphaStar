@@ -227,6 +227,28 @@ class AlphaStarAgent(RandomAgent):
 
         return func_call, action, action_logits, hidden_state, select_units_num, entity_num
 
+    def batch_step_from_state(self, states, hidden_states, obs_list=None):
+        """批量版 step_from_state（T1 新增）。
+
+        与单样本版的差别：**不做 action_to_func_call**。
+        因为 action_to_func_call（arch/agent.py:353）里写死了 `action.action_type.item()`，
+        注释明说 "we assume single inference"，只能单样本调用，必须留在 actor 侧逐样本生成。
+
+        states:        已拼接的 MsState（entity/statistical/map 三段沿 dim=0 拼）
+        hidden_states: (h, c)，各为 (1, N, 128)，**沿 dim=1 拼**（不是 dim=0）
+        obs_list:      长度 == N，顺序与 batch 严格一致
+
+        返回: (action_logits, actions, hidden_states, select_units_num, entity_nums)
+        """
+        device = self.agent_nn.device()
+        states.to(device)
+
+        action_logits, actions, hidden_states, select_units_num, entity_nums = \
+            self.agent_nn.batch_action_logits_by_state(states,
+                                                      hidden_state=hidden_states,
+                                                      obs_list=obs_list)
+        return action_logits, actions, hidden_states, select_units_num, entity_nums
+
     def step_based_on_actions(self, state, hidden_state, action_gt, gt_select_units_num):  
         device = self.agent_nn.device()
 

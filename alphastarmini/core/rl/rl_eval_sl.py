@@ -215,8 +215,16 @@ class ActorEval:
                                 state = self.player.agent.agent_nn.preprocess_state_all(home_obs.observation, 
                                                                                         build_order=player_bo, 
                                                                                         last_list=last_list)
-                                player_step = self.player.agent.step_from_state(state, player_memory, obs=home_obs.observation)
-
+                                # FIX(T6): 原实现在这里多调用了一次 step_from_state，
+                                # 但返回值 player_step 从头到尾没有被读取（grep 全文件只有这一处赋值）
+                                # —— 纯浪费一次完整前向，实测约 30 ms/帧，等于评估速度砍半。
+                                #
+                                # 为什么删掉是安全的（有实测支撑，不是想当然）：
+                                #   _check_t6_double_step.py [A] 验证 forward **不会** in-place 修改
+                                #   传入的 hidden_state（调用前后 max|Δ| = 0.000e+00），
+                                #   所以第一次调用不会污染 player_memory；
+                                #   两次调用共用同一个 state，preprocess 也只做一次。
+                                #   -> 删掉后行为完全等价，只是少算一次。
                                 player_function_call, player_action, player_logits, \
                                     player_new_memory, player_select_units_num, entity_num = self.player.agent.step_from_state(state, 
                                                                                                                                player_memory, 

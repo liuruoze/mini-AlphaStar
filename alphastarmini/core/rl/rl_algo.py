@@ -4,6 +4,7 @@
 "Library for RL algorithms."
 
 # modified from AlphaStar pseudo-code
+import os
 import traceback
 import collections
 import itertools
@@ -377,13 +378,115 @@ def entropy(all_logits, selected_mask=None, entity_mask=None, unit_type_entity_m
     return x
 
 
+# ---- 第 65 轮（Kimi-03 P0）：KL 到底算什么，必须二选一并写清楚 ----
+# `MAS_KL_MODE`:
+#   legacy（默认，保持历史可复现）—— 现状：在共同支撑集上求**部分和**，
+#       Σ_m p_t(m)·(log p_t(m) − log p_s(m))，其中 p_t/p_s 是**全分布**的 softmax 值。
+#       它**不是** KL：被排除位置的贡献被直接丢掉，没有任何重归一化，
+#       所以既可能 < 0，概率质量之和也 < 1。历史上出现负数正是这个原因。
+#   renorm —— 严格在共同支撑集上**重归一化后**再算 KL，数学上保证 ≥ 0。
+#       空支撑集定义为 0（不参与 loss）。
+KL_MODE = os.environ.get("MAS_KL_MODE", "legacy").strip().lower()
+
+
+def _merge_keep(x, masks):
+    """把若干结构化掩码并成一个与 x 同形的 bool 掩码。"""
+    keep = torch.ones_like(x, dtype=torch.bool)
+    for m in masks:
+        if m is None:
+            continue
+        b = (m > 0)
+        if b.dim() < keep.dim():
+            b = b.unsqueeze(-1) if b.dim() == keep.dim() - 1 else b
+        try:
+            keep = keep & b.expand_as(keep)
+        except RuntimeError:
+            # 形状对不上时不硬塞：宁可报错也不静默错掩码
+            raise RuntimeError("kl_renorm: 掩码形状 %s 无法广播到 %s"
+                               % (tuple(m.shape), tuple(x.shape)))
+    return keep
+
+
+def kl_renorm(all_logits, selected_mask=None, entity_mask=None,
+              unit_type_entity_mask=None, outlier_remove=False):
+    """在共同支撑集上**重归一化**后计算 KL（Kimi-03 的方案 2）。
+
+    与 legacy 的区别只有一步：先把两侧 log-prob 在支撑集上重新归一化，
+    再算 Σ p_t'·(log p_t' − log p_s')。这样：
+      · 结果恒 ≥ 0（KL 的基本性质）；
+      · 两侧概率质量和都为 1，不再出现"质量和 < 1"的怪象；
+      · 空支撑集显式定义为 0，不产生 nan/inf。
+    """
+    [student_logits, teacher_logits] = all_logits
+    s_lp = F.log_softmax(student_logits, dim=-1)
+    t_lp = F.log_softmax(teacher_logits, dim=-1)
+
+    # -1e9 哨兵 = 被屏蔽；结构化掩码（selected/entity/unit_type）同样是"不可选"
+    keep = (t_lp > -1e8) & (s_lp > -1e8)
+    if keep.dim() == 1:
+        keep = keep.unsqueeze(0)
+    keep = keep & _merge_keep(t_lp, [selected_mask, entity_mask, unit_type_entity_mask])
+
+    NEG = -1e9
+    t_k = t_lp.masked_fill(~keep, NEG)
+    s_k = s_lp.masked_fill(~keep, NEG)
+
+    t_lse = torch.logsumexp(t_k, dim=-1, keepdim=True)
+    s_lse = torch.logsumexp(s_k, dim=-1, keepdim=True)
+    has = keep.any(dim=-1, keepdim=True)
+
+    t_r = t_k - t_lse
+    s_r = s_k - s_lse
+    x = torch.exp(t_r) * (t_r - s_r)
+    x = torch.where(keep & has, x, torch.zeros_like(x))
+
+    del all_logits, student_logits, teacher_logits, s_lp, t_lp, keep, t_k, s_k
+    del t_lse, s_lse, has, t_r, s_r
+    del selected_mask, entity_mask, unit_type_entity_mask
+    return x
+
+
 def kl(all_logits, selected_mask=None, entity_mask=None, 
        unit_type_entity_mask=None, outlier_remove=False):
+    if KL_MODE == "renorm":
+        return kl_renorm(all_logits, selected_mask, entity_mask,
+                         unit_type_entity_mask, outlier_remove)
+
     [student_logits, teacher_logits] = all_logits
     s_logprobs = F.log_softmax(student_logits, dim=-1)
     t_logprobs = F.log_softmax(teacher_logits, dim=-1)
     teacher_probs = torch.exp(t_logprobs)  # more stable than softmax(teacher_logits)
     x = t_logprobs - s_logprobs
+
+    # FIX(第13轮 缺陷⑤): 只在"共同支撑集"上算 KL。
+    #
+    # 问题：target 与 teacher 的被屏蔽位置**可能不一致**。
+    #   - target 走 `rl_unroll -> mimic_forward`，且 `is_rl_training=True` 时
+    #     action_type head 会把**本步所选 action** 位置也设为可用（见 action_type_head 的 mask 逻辑）；
+    #   - teacher 走 SL 模型的 `forward`，没有这一步。
+    #   于是同一个位置可能一边是 -1e9、另一边是正常 logit。
+    #
+    #   ⚠️ 这个错误是**非对称**的（第 14 轮 _audit_r14_fixes.py [G] 实测）：
+    #     - **target 被 mask、teacher 正常**：x = t_lp - (-1e9) ≈ +1e9，
+    #       而 teacher_probs = exp(t_lp) 是**正常概率**，乘积就是 1e8 量级 → **这才是爆炸源**；
+    #     - teacher 被 mask、target 正常：teacher_probs = exp(-1e9) = 0，
+    #       伪贡献被概率权重吃掉 → 本来就不会爆（实测 0.802645，正常）。
+    #   所以不能只判一侧：teacher 侧虽然不爆，但那些位置的 KL 语义上也不该参与。
+    #   实测后果：`all_kl_loss_action_type = 1.08e9`、loss 被拉到 1.1e8，
+    #   并让 remove_outlier 报 35072 个 |x| > 1e8 的离群值。
+    #
+    # 修法：任一边 log_prob < -1e8 就视为"被屏蔽"，该位置不参与 KL。
+    #
+    # ⚠️ 第 65 轮更正（Kimi-03）：这里原来写的是「这不改变 KL 的数学语义」——**这句话是错的**。
+    #   把被屏蔽位置**丢弃**、又不重归一化，得到的是"共同支撑集上的部分和"，
+    #   不是 KL(teacher‖student)：被丢掉的那部分概率质量没有任何交代，
+    #   所以它可以为负（历史上出现过负值），概率质量和也 < 1。
+    #   要真正的 KL，请用 `kl_renorm`（`MAS_KL_MODE=renorm`）。
+    #   本函数从此只作为"masked distillation surrogate（截断部分和）"保留，
+    #   为了历史数字可复现而保持默认。
+    _valid = (t_logprobs > -1e8) & (s_logprobs > -1e8)
+    x = x * _valid.to(x.dtype)
+    del _valid
 
     # if len(x.shape) == 3:
     #     print('x[0, 1, 44]', x[0, 1, 44])
@@ -424,10 +527,15 @@ def remove_outlier(x, remove=False):
     else:
         if outlier_mask.any() > 0:
             index = outlier_mask.nonzero(as_tuple=True)
-            print("index:", index) if 1 else None
-            print("x[index]:", x[index]) if 1 else None
-            print(stop)
-
+            # FIX(第8轮 T9): 原代码这里是 `print(stop)` —— stop 从未定义，
+            # 属于遗留的调试语句。后果不是"少打一行日志"，而是：
+            #   只要出现 |x| > 1e8 的离群值，就抛 NameError，**直接打断整个 loss_function**。
+            # 调用链：loss_function -> human_policy_kl_loss -> get_kl_or_entropy -> RA.kl
+            #         -> remove_outlier(remove=False) -> 这里
+            # 也就是说 mini-AS 的 KL 蒸馏分支在出现离群值时 100% 不可用。
+            # 改为打印可观测的计数（不打全量 index，避免刷屏）。
+            print("[remove_outlier] 发现 %d 个 |x| > 1e8 的离群值（未剔除）"
+                  % int(outlier_mask.sum()))
             del index
 
     del outlier_mask
@@ -591,7 +699,7 @@ def test(debug=True):
         baselines = torch.tensor(baselines, dtype=torch.float, device=device)
         rewards = torch.tensor(rewards, dtype=torch.float, device=device)
 
-        discounts = ~np.array(is_final[:-1], dtype=np.bool)  # don't forget dtype=np.bool!, or '~' ouput -1 instead of 1
+        discounts = ~np.array(is_final[:-1], dtype=np.bool_)  # don't forget dtype=np.bool_!, or '~' ouput -1 instead of 1
         discounts = torch.tensor(discounts, dtype=torch.float, device=device)
 
         print("discounts:", discounts) if debug else None
@@ -644,7 +752,7 @@ def test(debug=True):
         baselines = torch.tensor(baselines, dtype=torch.float, device=device)
         rewards = torch.tensor(rewards, dtype=torch.float, device=device)
 
-        discounts = ~np.array(is_final[:-1], dtype=np.bool)  # note the discount is not the similar indicies as in lamda returns
+        discounts = ~np.array(is_final[:-1], dtype=np.bool_)  # note the discount is not the similar indicies as in lamda returns
         discounts = torch.tensor(discounts, dtype=torch.float, device=device)
 
         rewards_short = rewards[:-1]
@@ -677,7 +785,7 @@ def test(debug=True):
         baselines = torch.tensor(baselines, dtype=torch.float, device=device)
         rewards = torch.tensor(rewards, dtype=torch.float, device=device)
 
-        discounts = ~np.array(is_final[:-1], dtype=np.bool)  # note the discount is not the similar indicies as in lamda returns
+        discounts = ~np.array(is_final[:-1], dtype=np.bool_)  # note the discount is not the similar indicies as in lamda returns
         discounts = torch.tensor(discounts, dtype=torch.float, device=device)
 
         rewards_short = rewards[:-1]

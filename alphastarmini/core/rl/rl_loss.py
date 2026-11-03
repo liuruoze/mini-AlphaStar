@@ -76,6 +76,45 @@ def entropy_loss(target_logits, trajectories, selected_mask, entity_mask):
     return loss
 
 
+def pad_teacher_units_logits(t_logits, entity_num_tensor, device):
+    """把 teacher 的 units logits 从 `max_selected` 宽补到 `max_selected + 1` 宽。
+
+    FIX(第12轮 缺陷③): 真实 SL 模型的 `units` logits 是 `[B, 12, 128]`
+    （`forward` 的输出），而 `rl_unroll -> mimic_forward` 的 target 是 `[B, 13, 128]`。
+    KL 要比较两个**同宽**的分布，否则 `get_kl_or_entropy` 里
+        logit.view(seq*batch, max_selected+1, max_entities)
+    对 12 宽的那个必然报 `invalid for input of size 98304`（=64*12*128）。
+
+    第 11 轮已用真实 SL 权重实测确认：`units (1, 12, 128)` vs target 的 13。
+
+    补的那一列语义与 `change_units_and_logits`（rl_loss.py:333）保持一致：
+      在 entity_num 指向的"有效实体"位置填 0，其余填 -1e9。
+    这样 padding 位置上 target 与 teacher 的 log_softmax 都只落在有效实体上，KL 才有意义。
+    **不能简单补零** —— target 那一列是 -1e9 量级的极端值，补零会让 KL 爆掉。
+    """
+    if t_logits.dim() != 3 or t_logits.shape[1] != AHP.max_selected:
+        # 已经是 13 宽（调用方提前补过）或形状不符：原样返回，不重复补
+        return t_logits
+
+    B = int(t_logits.shape[0])
+    en = entity_num_tensor.reshape(-1).long().to(device)
+    if en.shape[0] != B:
+        # 长度对不上时不硬补（宁可让下游报形状错，也不静默错位）
+        print("[pad_teacher_units] entity_num 长度 %d 与 batch %d 不符，跳过 padding"
+              % (en.shape[0], B))
+        return t_logits
+
+    # ⚠️ 必须用非 in-place 的 clamp，不能用 clamp_：
+    #    `en` 来自 `entity_num_tensor.reshape(-1).long().to(device)`，
+    #    当元素已在目标 device 且 dtype 已匹配时，`.reshape`/`.long`/`.to` 都**可能返回同一个张量**
+    #    （不拷贝），此时 `clamp_` 会就地改写调用方的 `entity_num`。
+    #    合法值（≤127）虽不受影响，但会把异常值静默夹住、掩盖上游数据问题。
+    onehot = torch.zeros(B, AHP.max_entities, device=device)
+    onehot.scatter_(1, en.unsqueeze(1).clamp(0, AHP.max_entities - 1), 1.0)
+    pad = ((onehot - 1.0) * 1e9).unsqueeze(1)          # [B, 1, max_entities]
+    return torch.cat([t_logits, pad], dim=1)           # [B, 12+1, max_entities]
+
+
 def human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask):
     """Computes the KL loss to the human policy."""
 
@@ -88,6 +127,10 @@ def human_policy_kl_loss(target_logits, trajectories, selected_mask, entity_mask
     loss_dict = {}
     for i, field in enumerate(ACTION_FIELDS):
         t_logits = filter_by_for_lists(field, trajectories.teacher_logits, device) 
+        if field == "units":
+            # FIX(第12轮 缺陷③)：teacher 从 forward 来是 12 宽，target 是 13 宽，必须先补齐
+            t_logits = pad_teacher_units_logits(
+                t_logits, torch.tensor(trajectories.entity_num, device=device), device)
         x = get_kl_or_entropy(target_logits, field, RA.kl, mask, selected_mask, entity_mask, unit_type_entity_mask, t_logits)
         x = x * FIELDS_WEIGHT_2[i]
 
@@ -109,6 +152,14 @@ def get_kl_or_entropy(target_logits, field, func, mask, selected_mask, entity_ma
 
     if field == "units":
         #all_logits = [change_units_logits(logit, select_units_num, entity_nums) for logit in all_logits]
+        # 【更正 第10轮】这里第 9 轮被我改成了 AHP.max_selected（12），**是错的，已回滚**。
+        # 依据：`rl_unroll` 走 `action_logits_on_actions_for_unroll -> mimic_forward`，
+        # 它输出的 units logits 本来就是 `max_selected + 1`（13）宽 —— 比 forward 的 12 宽多一列。
+        # 证据：用 12 去 view 时报 `invalid for input of size 106496` = 64 * 13 * 128，
+        # 说明张量里确实是 13 列。
+        # 第 9 轮之所以判定"这是缺陷"，是因为我给 teacher_logits 的占位只有 12 宽，
+        # 于是 `[logit.view(64,13,128) for logit in all_logits]` 里第二个元素炸了。
+        # **那是我的测试数据不对，不是既有代码的问题。**
         max_selected = AHP.max_selected + 1
         all_logits = [logit.view(AHP.sequence_length * AHP.batch_size, max_selected, AHP.max_entities) for logit in all_logits]
     elif field == "target_unit":
@@ -159,7 +210,7 @@ def human_policy_kl_loss_action(target_logits, trajectories):
 
 def td_lambda_loss(baselines, rewards, trajectories, device): 
 
-    discounts = ~np.array(trajectories.is_final[:-1], dtype=np.bool)  # note, use '~' must ensure the type is bool
+    discounts = ~np.array(trajectories.is_final[:-1], dtype=np.bool_)  # note, use '~' must ensure the type is bool
     discounts = torch.tensor(discounts, device=device)
 
     baselines = baselines
@@ -263,7 +314,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     print('sum_vtrace_pg_loss') if debug else None
 
     trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
-    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
+    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool_), dtype=torch.float32, device=device)
     unit_type_entity_mask = torch.tensor(np.array(trajectories.unit_type_entity_mask), dtype=torch.float32, device=device)
 
     values = baselines[:-1]
@@ -298,7 +349,7 @@ def sum_upgo_loss(target_logits_all, trajectories, baselines, selected_mask, ent
     print('sum_upgo_loss') if debug else None
 
     trajectories = Trajectory(*tuple(item[:-1] for item in trajectories))
-    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool), dtype=torch.float32, device=device)
+    discounts = torch.tensor(~np.array(trajectories.is_final, dtype=np.bool_), dtype=torch.float32, device=device)
     unit_type_entity_mask = torch.tensor(np.array(trajectories.unit_type_entity_mask), dtype=torch.float32, device=device)
     reward = torch.tensor(np.array(trajectories.reward), dtype=torch.float32, device=device)
 

@@ -93,7 +93,9 @@ class Agent(object):
         state = MsState(entity_state=batch_entities_tensor, 
                         statistical_state=scalar_list, map_state=map_data)
 
-        del batch_entities_tensor, scalar_list, map_data
+        del batch_entities_tensor
+        del scalar_list
+        del map_data
 
         return state
 
@@ -116,7 +118,8 @@ class Agent(object):
         print('preprocess_state_entity_numpy, t1', time() - t) if speed else None
         t = time()
 
-        del raw_units, entities_array
+        del raw_units
+        del entities_array
 
         if return_entity_pos:
             return batch_entities_array, entity_pos
@@ -177,7 +180,8 @@ class Agent(object):
         print('cumulative_score.shape', cumulative_score.shape) if debug else None
 
         baseline_state.append(cumulative_score)
-        del scalar_list, cumulative_score
+        del scalar_list
+        del cumulative_score
 
         return baseline_state
 
@@ -214,7 +218,9 @@ class Agent(object):
         print('preprocess_state_all, t5', time() - t) if speed else None
         t = time()
 
-        del batch_entities_tensor, scalar_list, map_data
+        del batch_entities_tensor
+        del scalar_list
+        del map_data
 
         return state
 
@@ -233,6 +239,25 @@ class Agent(object):
                                                                                               return_logits = True,
                                                                                               obs_list = obs_list)
         return action_logits, actions, new_state, select_units_num, entity_nums
+
+    def batch_action_logits_by_state(self, state, hidden_state=None, obs_list=None):
+        """批量前向（T1 新增，不改动任何现有调用路径）。
+
+        与 action_logits_by_state 的区别：
+          - 走 batch 分支，batch_size **显式传** = state 第一维。
+            注意 core.py:49 是 `batch_size if batch_size is not None else self.batch_size`，
+            默认 self.batch_size=128，留 None 会静默 reshape 错位而不报错。
+          - obs_list 必须与 batch 内样本顺序严格一致（arch_model.py:193 用它算 unit_type mask）。
+
+        返回: (action_logits, actions, new_state, select_units_num, entity_nums)
+        """
+        batch_size = state.entity_state.shape[0]
+        return self.model.forward(state,
+                                  batch_size=batch_size,
+                                  sequence_length=1,
+                                  hidden_state=hidden_state,
+                                  return_logits=True,
+                                  obs_list=obs_list)
 
     def action_logits_based_on_actions(self, state, action_gt, gt_select_units_num, hidden_state=None, 
                                        single_inference=False, batch_size=None, sequence_length=None):
@@ -258,9 +283,23 @@ class Agent(object):
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)
 
-        del state, action_gt, gt_select_units_num, hidden_state
-        del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits
-        del baselinelist, action_pred, entity_nums, units, target_unit, target_location, unit_types_one
+        del state
+        del action_gt
+        del gt_select_units_num
+        del hidden_state
+        del action_type_logits
+        del delay_logits
+        del queue_logits
+        del units_logits
+        del target_unit_logits
+        del target_location_logits
+        del baselinelist
+        del action_pred
+        del entity_nums
+        del units
+        del target_unit
+        del target_location
+        del unit_types_one
 
         return action_logits, select_units_num, new_state
 
@@ -290,8 +329,18 @@ class Agent(object):
                                          units=units_logits, target_unit=target_unit_logits, 
                                          target_location=target_location_logits)
 
-        del action_type_logits, delay_logits, queue_logits, units_logits, target_unit_logits, target_location_logits
-        del action_pred, entity_nums, units, target_unit, target_location, unit_types_one
+        del action_type_logits
+        del delay_logits
+        del queue_logits
+        del units_logits
+        del target_unit_logits
+        del target_location_logits
+        del action_pred
+        del entity_nums
+        del units
+        del target_unit
+        del target_location
+        del unit_types_one
 
         return baselinelist, action_logits, select_units_num, new_state
 
@@ -380,7 +429,8 @@ class Agent(object):
         target_location = action.target_location.cpu().detach().reshape(-1).numpy().tolist()
         print('target_location:', target_location) if debug else None
 
-        del action, select_units_num
+        del action
+        del select_units_num
 
         need_args = action_spec.functions[function_id].args
         args = []
@@ -414,7 +464,8 @@ class Agent(object):
                         else:
                             units_args.append(unit_index)
                     args.append(units_args)
-                    del units_args, size
+                    del units_args
+                    del size
                 elif arg.name == 'target_unit_tag':
                     size = arg.sizes[0]
                     if target_unit < 0 or target_unit > size - 1:
@@ -446,7 +497,14 @@ class Agent(object):
         # AlphaStar use the raw actions
         func_call = A.FunctionCall.init_with_validation(function=function_id, arguments=args, raw=True)
 
-        del delay, queue, function_id, args, units_num, units, target_location, target_unit
+        del delay
+        del queue
+        del function_id
+        del args
+        del units_num
+        del units
+        del target_location
+        del target_unit
 
         return func_call
 
