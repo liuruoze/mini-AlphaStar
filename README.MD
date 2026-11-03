@@ -10,6 +10,31 @@ We referred to the "Occam's Razor Principle" when designing the mini-AS: **simpl
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
+> ### Branch note (2026-11): *batch acting* evaluation
+>
+> This tree carries an experimental branch that adds **centralized batched inference**
+> ("batch acting") to the RL path, plus a set of correctness fixes found along the way.
+>
+> **The performance result is negative.** At the default production configuration
+> (15 Workers x 2 actors, 3x RTX 4090), batch acting is **6.3% slower** than local
+> inference: **107.03 vs 100.69 step/s**, measured over 1800 s each, with the model mode
+> (`eval`) and every other knob held identical.
+>
+> **One correctness result is positive and independent of performance.** The distillation
+> term in `alphastarmini/core/rl/rl_algo.py::kl` was a *masked partial sum over the common
+> support*, not a KL: it can be negative, and on `action_type` it is **23.6x larger** than
+> the true KL (0.4999 vs 0.0212 on one real batch). A corrected, renormalized implementation
+> is available via `MAS_KL_MODE=renorm`; the default deliberately stays `legacy` until an
+> ablation decides it.
+>
+> Before reading any number, read **[`doc/batch_acting/ERRATA.md`](doc/batch_acting/ERRATA.md)**.
+> It is the single source of truth: every claim that was later withdrawn, what replaced it,
+> and whether it is *measured*, *inferred*, or *designed but not run*.
+>
+> Acceptance tests / benchmarks / soak orchestration live in **[`experiments/`](experiments/README.md)**
+> and are **not** part of the library.
+
+
 Below 4 GIFs are mini-AS' trained performance on Simple64, supervised learning on 50 expert replays.
 
 <p float="left">
