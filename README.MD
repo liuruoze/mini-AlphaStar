@@ -27,9 +27,14 @@ The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 > is available via `MAS_KL_MODE=renorm`; the default deliberately stays `legacy` until an
 > ablation decides it.
 >
-> Before reading any number, read **[`doc/batch_acting/ERRATA.md`](doc/batch_acting/ERRATA.md)**.
-> It is the single source of truth: every claim that was later withdrawn, what replaced it,
-> and whether it is *measured*, *inferred*, or *designed but not run*.
+> The working notes behind these numbers — 21 documents of run logs, plans, an external
+> review and an errata list recording every claim that was later withdrawn — are deliberately
+> **kept out of this repository** (they contain private notes and machine-specific paths).
+> So treat the figures above as **one measured snapshot on one machine**, not as a reproduced
+> benchmark. Before this branch is published as anything more than an evaluation, four gates
+> are still open: an ablation deciding `legacy` vs `renorm` for the KL term, an atomic
+> immutable weight snapshot, per-head rho/delta coverage for all six heads, and a clean-clone
+> reproduction of the regression suite plus one 30-minute soak run.
 >
 > Acceptance tests / benchmarks / soak orchestration live in **[`experiments/`](experiments/README.md)**
 > and are **not** part of the library.

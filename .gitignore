@@ -70,3 +70,6 @@ outputs/*
 # Python
 __pycache__/
 .pytest_cache/
+
+# 内部复盘（执行日志 / 方案 / ERRATA / 外部评审），只在本地保留，不随仓库发布
+/doc/batch_acting/
