@@ -2,7 +2,7 @@
 
 背景：forward 29.7 ms = 算子 ~15 ms + Python ~15 ms。
 消除 Python 开销的正解是 torch.compile（reduce-overhead 模式还会用 CUDA Graph）。
-torch 2.1 已有 compile 与 cudagraphs，本轮正好在 s224 上有一个可用的新 torch 环境
+torch 2.1 已有 compile 与 cudagraphs，本轮正好在训练机上有一个可用的新 torch 环境
 （th_2_1 修好后，wheel 是 manylinux_2_17，glibc 2.27 兼容）。
 
 本脚本：
