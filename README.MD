@@ -51,7 +51,8 @@ it now also carries a Chinese version of the 2026-11 branch note below
 > Two reference numbers were themselves corrected during this work: the official SL win
 > rate had been quoted as **7.1%** for many rounds; re-measuring the same checkpoint over
 > 80 games gives **17.5% [10.7, 27.3]**. The old 7.1% was a 28-game point estimate.
-> **Every "we caught up" claim made against 7.1% was therefore void** — see the errata list.
+> **Every "we caught up" claim made against 7.1% was therefore void** — see the errata list
+> in the local working notes (not shipped with this repository, see the note below).
 >
 > **Three structural defects were found and fixed** (each one explained a symptom that had
 > been mis-attributed to hyper-parameters for several rounds):
@@ -84,8 +85,8 @@ it now also carries a Chinese version of the 2026-11 branch note below
 > (3.7x) hurt the army; training longer made the policy conservative again; attack
 > re-weighting (1.5x and 3.0x), `units/location` re-weighting (10x/5x), filtering replays
 > by combat density, and fine-tuning from the averaged model all failed. See
-> `doc/IMPROVEMENTS_2026_11.md` §5 for the complete table and `ERRATA.md` for every claim
-> that was later withdrawn.
+> `doc/IMPROVEMENTS_2026_11.md` §5 for the complete table, and the local working notes
+> (`ERRATA.md` — not shipped with this repository) for every claim that was later withdrawn.
 >
 > #### Part 3 — RL loop status: runs, and the bug that looked like a deadlock
 >
@@ -165,15 +166,17 @@ it now also carries a Chinese version of the 2026-11 branch note below
 > |---|---|---|
 > | Supervisor / repository owner | **Ruo-Ze Liu (`liuruoze`)** | Set the goal each round, supplied the official 2021/2022 checkpoints and the missing 30 replays, corrected wrong directions (e.g. pointed at the official model release when an agent was guessing), enforced a "reflection → plan → log" discipline, and rejected claims that were not backed by measurements |
 > | Executor (this campaign) | **DeepSeek-V4.1-Flash** | Ran the experiments end-to-end: static audits, training/evaluation jobs, instrumentation, and the write-ups numbered **#23–#52** in `BATCH_ACTING_EXECUTION_LOG_DS12.md` |
-> | Code review (earlier rounds) | **GLM** (#1–#22), **Kimi 3.1 Pro**, **MiniMax H3.1**, **space-bunny** | Reviewed diffs, challenged conclusions, and in several cases caught errors that the executor had already written down as conclusions (see `ERRATA.md`: 78 entries, including 5 that were withdrawn by the executor itself) |
+> | Code review (earlier rounds) | **GLM** (#1–#22), **Kimi 3.1 Pro**, **MiniMax H3.1**, **space-bunny** | Reviewed diffs, challenged conclusions, and in several cases caught errors that the executor had already written down as conclusions (see `ERRATA.md`, a local working note not shipped here: 78 entries, including 5 that were withdrawn by the executor itself) |
 >
 > Two habits made the difference, and both came from the supervisor: **(a)** every claim must
 > carry a falsifiable criterion and a measured number, and **(b)** every withdrawn claim goes
 > into an errata file rather than being quietly deleted. Most of the "discoveries" in this
 > branch were preceded by a wrong guess that the errata records.
 >
-> The working notes (30+ documents of run logs, plans, reviews and the errata list) are
-> deliberately **kept out of this repository** — they contain machine-specific paths.
+> The working notes — 30+ documents of run logs, plans, reviews and `ERRATA.md` (the
+> errata list cited above) — are deliberately **kept out of this repository**; they contain
+> machine-specific paths. Any `ERRATA.md` / `BATCH_ACTING_EXECUTION_LOG_*.md` reference in
+> this branch points to those unpublished notes, not to a file you can open here.
 > Treat every number above as **one measured snapshot on one machine** (4x RTX 4090,
 > 128 cores), not as a reproduced benchmark.
 >

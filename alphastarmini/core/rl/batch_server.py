@@ -11,7 +11,7 @@
   4. 权重同步只在批与批之间（批内换权重会让 behavior logits 与权重快照不一致）
   5. USE_BATCH_ACTING=0 时整条路径不启用，可一键回退
 
-⚠️ 本轮修正（见 doc/BATCH_ACTING_EXECUTION_LOG.md）：
+⚠️ 本轮修正（详见本地开发笔记 BATCH_ACTING_EXECUTION_LOG.md，该笔记不随仓库发布）：
   1. 双缓冲"流水"在同步批下**无效**。原因：actor 的 preprocess 与 env.step 都发生在
      拿到 action 之后，无法与 GPU 前向重叠——之前 bench 用 time.sleep 模拟 CPU 是错的。
      → 同步批版本保留作对照；生产用 AsyncBatchInferenceServer（动态批）。
@@ -578,7 +578,7 @@ class BatchInferenceServer(object):
 class AsyncBatchInferenceServer(BatchInferenceServer):
     """动态批（异步调度）—— 修正 T2 的核心缺陷。
 
-    T2 用同步 barrier 的实测结论（见 doc/BATCH_ACTING_EXECUTION_LOG.md §4.5）：
+    T2 用同步 barrier 的实测结论（本地开发笔记 §4.5，不随仓库发布）：
       N=4 时轮次 258.7 ms，而 actor 自身只用 101.9 ms -> **利用率仅 39%**，
       其余 61% 在等最慢的 actor + 等 forward。吞吐 15~19 step/s，比现状还低。
 
