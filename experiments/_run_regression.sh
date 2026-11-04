@@ -2,7 +2,7 @@
 # 全量回归（第 59 轮，DeepSeek）。
 #
 # 为什么单独写成脚本：
-#   这 8 个脚本各自需要 `ulimit -n 65536` / OMP 单线程 / SC2PATH / DISPLAY，
+#   这 14 个脚本各自需要 `ulimit -n 65536` / OMP 单线程 / SC2PATH / DISPLAY，
 #   一个个手敲极易漏环境（漏了 ulimit 会报 `unable to open shared memory object`，
 #   看起来像显存/内存问题，其实是 fd 用尽 —— 第 10 段的教训）。
 #
@@ -20,7 +20,8 @@ ulimit -n 65536
 mkdir -p log
 
 # 顺序有意为之：先纯函数/数值（快、无 env），再 env/多进程（慢、依赖 SC2）
-TESTS="_test_t0_t1 _audit_batched_hidden _audit_behavior_logits _audit_r14_fixes _test_r15_client _test_t9_trajectory_to_loss _test_t5_restart _test_r19_worker_obs"
+# 第 70 轮加入 _test_r70_mapping：批内 actor 映射 + hidden 生命周期契约（纯 CPU，秒级）
+TESTS="_test_t0_t1 _test_r70_mapping _test_r71_pack _test_r72_notify _test_r73_snapshot _test_r73_modes _test_r74_mask _audit_batched_hidden _audit_behavior_logits _audit_r14_fixes _test_r15_client _test_t9_trajectory_to_loss _test_t5_restart _test_r19_worker_obs"
 
 FAIL=0
 for t in $TESTS; do

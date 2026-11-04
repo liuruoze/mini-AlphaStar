@@ -3,15 +3,20 @@
 
 """监督学习（SL）的独立入口，不改动 run.py。
 
-    # 冒烟：只读 1 个训练 + 1 个验证 tensor 文件
-    MAS_ON_SERVER=0 CUDA_VISIBLE_DEVICES=0 python run_sl.py
-
-    # 全量：训练集 = 文件列表除末尾 5 个以外的全部，验证集 = 末尾 5 个
-    #       （两者不重叠；具体区间启动后会打印 "data split: ..."）
+    # 全量（默认）：训练集 = 文件列表除末尾 5 个以外的全部，验证集 = 末尾 5 个
     MAS_ON_SERVER=1 CUDA_VISIBLE_DEVICES=0 python run_sl.py
 
-sl_train_by_tensor 用 `SIMPLE_TEST = not P.on_server` 在模块级决定读多少数据，
-所以必须在 import 之前设置 param.on_server。
+    # 冒烟（**必须显式**）：只读 1 个训练 + 1 个验证 tensor 文件
+    MAS_SL_SMOKE=1 CUDA_VISIBLE_DEVICES=0 python run_sl.py
+
+    # 按内存预算限制文件数（例：20 个文件 = 15 训练 + 5 验证，约 22 GB）
+    MAS_SL_MAX_FILES=20 MAS_SL_WORKERS=0 MAS_ON_SERVER=1 python run_sl.py
+
+⚠️ 第 78 轮（DS，#23）改动说明：
+    以前 `SIMPLE_TEST = not P.on_server` —— 忘设 MAS_ON_SERVER=1 就会
+    **静默**只读 2 个文件（实测导致 2.5 小时只训了 1 个 replay，collected 仅官方的 28%）。
+    现在冒烟必须显式 `MAS_SL_SMOKE=1`，默认全量；启动首屏会打印
+    `[SL-config] files=... smoke=... lr=... epochs=...` 供核对。
 """
 
 import os

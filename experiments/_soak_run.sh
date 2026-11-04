@@ -59,12 +59,14 @@ export MAS_MAX_FRAMES=0
 export MAS_QUEUE_TIMEOUT=1800
 # 第 65 轮（Kimi-03）：KL 语义开关。legacy=截断部分和（历史口径，默认）；renorm=共同支撑集重归一化 KL
 export MAS_KL_MODE=${MAS_KL_MODE:-legacy}
+# 第 72 轮：通知机制 event|sem（默认 event，保持历史行为）
+export MAS_NOTIFY=${MAS_NOTIFY:-event}
 
 # 避开 cuda:0（实测偏慢 20~45%）；4 张卡都可见，白名单从 1 开始
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export MAS_GPU_LIST=1,2,3
 
-echo "=== soak tag=$TAG secs=$SECS batch=$BATCH par=$PAR act=$ACT on_server=$ONSRV kl_mode=$MAS_KL_MODE ==="
+echo "=== soak tag=$TAG secs=$SECS batch=$BATCH par=$PAR act=$ACT on_server=$ONSRV kl_mode=$MAS_KL_MODE notify=$MAS_NOTIFY ==="
 echo "=== start $(date '+%F %T') ==="
 
 # 清场：上一轮如果异常退出，SC2 会留着占内存和端口

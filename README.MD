@@ -10,35 +10,169 @@ We referred to the "Occam's Razor Principle" when designing the mini-AS: **simpl
 
 The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 
-> ### Branch note (2026-11): *batch acting* evaluation
+> ### Branch note (2026-11): two evaluation campaigns on this branch
 >
-> This tree carries an experimental branch that adds **centralized batched inference**
-> ("batch acting") to the RL path, plus a set of correctness fixes found along the way.
+> This tree is an **evaluation branch**. It carries (a) the earlier *batch acting*
+> experiment and (b) a four-day SL/RL improvement campaign. Both produced results that
+> are partly positive and partly negative; both are reported as measured, not as claims.
 >
-> **The performance result is negative.** At the default production configuration
+> #### Part 1 — batch acting (earlier work)
+>
+> The performance result is **negative**. At the default production configuration
 > (15 Workers x 2 actors, 3x RTX 4090), batch acting is **6.3% slower** than local
 > inference: **107.03 vs 100.69 step/s**, measured over 1800 s each, with the model mode
-> (`eval`) and every other knob held identical.
+> (`eval`) and every other knob held identical. Batching only pays off when the actor
+> count is large: ~0.96x at 2 actors, ~2.55x at 24 actors.
 >
-> **One correctness result is positive and independent of performance.** The distillation
+> One correctness result is **positive and independent of performance**. The distillation
 > term in `alphastarmini/core/rl/rl_algo.py::kl` was a *masked partial sum over the common
 > support*, not a KL: it can be negative, and on `action_type` it is **23.6x larger** than
 > the true KL (0.4999 vs 0.0212 on one real batch). A corrected, renormalized implementation
 > is available via `MAS_KL_MODE=renorm`; the default deliberately stays `legacy` until an
 > ablation decides it.
 >
-> The working notes behind these numbers — 21 documents of run logs, plans, an external
-> review and an errata list recording every claim that was later withdrawn — are deliberately
-> **kept out of this repository** (they contain private notes and machine-specific paths).
-> So treat the figures above as **one measured snapshot on one machine**, not as a reproduced
-> benchmark. Before this branch is published as anything more than an evaluation, four gates
-> are still open: an ablation deciding `legacy` vs `renorm` for the KL term, an atomic
-> immutable weight snapshot, per-head rho/delta coverage for all six heads, and a clean-clone
-> reproduction of the regression suite plus one 30-minute soak run.
+> #### Part 2 — SL/RL improvement campaign (2026-11-02 → 11-04)
+>
+> **Result in one line.** SL was raised from *"0% win rate, collects 2,676 resources"* to
+> *"4.3% win rate, collects 9,010 resources (95% of the official 2021 SL model)"*.
+> **It did not reach the official SL win rate (17.5%).** The RL loop was then brought up
+> from "never executed" to "runs, collects trajectories, trains, and logs every loss",
+> but its win rate did not move within the one-hour budget.
+>
+> | Stage | Model | n | Win rate (Wilson 95%) | Collected | Killed | Army |
+> |---|---|---|---|---|---|---|
+> | baseline | old SL (1/60 data silently) | 20 | 0.0% | 2,676 | 145 | — |
+> | **SL (this branch)** | `SOUP_prior3` | **230** | **4.3% [2.4, 7.8]** | **9,010** | 1,439 | **21.2** |
+> | reference | official SL `sl_21-12-29` | 80 | **17.5% [10.7, 27.3]** | 9,494 | 1,811 | 14.0 |
+> | reference | official RL `rl_22-02-09` | 28 | 21.4% | 9,533 | 1,787 | — |
+>
+> Two reference numbers were themselves corrected during this work: the official SL win
+> rate had been quoted as **7.1%** for many rounds; re-measuring the same checkpoint over
+> 80 games gives **17.5% [10.7, 27.3]**. The old 7.1% was a 28-game point estimate.
+> **Every "we caught up" claim made against 7.1% was therefore void** — see the errata list.
+>
+> **Three structural defects were found and fixed** (each one explained a symptom that had
+> been mis-attributed to hyper-parameters for several rounds):
+>
+> 1. **Silent data down-scaling.** `SIMPLE_TEST = not P.on_server` plus
+>    `replay_files[:2]` meant that forgetting one environment variable made a 2.5-hour
+>    training run use **1 replay out of 60** (`train_set = 120` sequences). Fixed by making
+>    smoke mode explicit (`MAS_SL_SMOKE=1`) and printing `[SL-config] files=… smoke=…` on
+>    the first screen.
+> 2. **Action distribution distorted by frame sampling.** The converter samples by a fixed
+>    frame stride (~every 20 frames) while the agent issues one command every 8 frames, so
+>    most sampled frames are labelled `no_op`: the training data is **81.0% `no_op`,
+>    2.7% `Build_Pylon`, 1.1% `Train_Probe`**, while the official model plays with
+>    **0% `no_op`, 29.8% `Build_Pylon`, 21.1% `Train_Probe`**. The model was a faithful
+>    mirror of its data: it idled 99.9% of the time. Fixed by **action re-weighting**
+>    (importance weights `w[a] = clip((target[a]/data[a])**1.0, 0.1, 50)` on the
+>    `action_type` head), which brought live `no_op` from **37% to 6.7%**.
+> 3. **Weight checkpoint selection by validation accuracy was inverted.** `val action acc`
+>    rewards conservatism: epoch 3 had val 0.44 but idled only 50% of the time, epoch 10
+>    had val 0.83 but idled 96.8%. Model selection must use **behaviour** (killed, idle
+>    ratio, win rate), not action-classification accuracy.
+>
+> **One zero-cost trick that worked twice: weight-space averaging.** Averaging the weights
+> of adjacent epochs from the same run (`experiments/_avg_models.py`) raised the kill
+> ceiling from 2,550 to 6,900 and the win rate from 1.9% to 5.1% at n=158 (and 4.3% at
+> n=230 after more samples). Averaging *more* snapshots (5 instead of 3) is worse: the
+> aggressive epoch gets diluted.
+>
+> **Negative results are listed too**, because they cost the most time: more data
+> (3.7x) hurt the army; training longer made the policy conservative again; attack
+> re-weighting (1.5x and 3.0x), `units/location` re-weighting (10x/5x), filtering replays
+> by combat density, and fine-tuning from the averaged model all failed. See
+> `doc/IMPROVEMENTS_2026_11.md` §5 for the complete table and `ERRATA.md` for every claim
+> that was later withdrawn.
+>
+> #### Part 3 — RL loop status
+>
+> The A3C loop (`rl_vs_inner_bot_mp`) had **never been executed** before this campaign.
+> Bringing it up required six fixes (`MAS_RL_INIT_MODEL` to stop silently loading the
+> wrong SL checkpoint, a configurable win-rate window, a zero-row statistics crash,
+> a heartbeat, a spawn/subprocess constants mismatch, and un-gated debug prints).
+> After them the loop runs and produces: **256 logged RL loss points, UPGO in
+> 0.003–0.20, per-head KL ≤ 0.0014** (small because the policy starts from the SL
+> weights, which is the expected signature), `winrate/every_4_episodes` scalars, and
+> 9 completed episodes in 20 minutes. **Its win rate stayed 0**, which is consistent
+> with a 4.3% SL policy over 9 games.
+>
+> **Two soak runs, two different failures — stated plainly.**
+>
+> * **Soak #1** (8 actors): ran 1201 s, completed **9 episodes** (8 draws, 1 loss), logged
+>   256 loss points — then **died silently with no traceback**: the Python process group
+>   vanished, 8 SC2 processes were orphaned, 100 GB of RAM was still free. So it was not
+>   an OOM and not a Python exception.
+> * **Soak #2** (6 actors): the process stayed alive for 34 minutes with 6 live SC2
+>   instances, but recorded **0 episodes** — the per-episode termination was never reached
+>   or never reported.
+>
+> **A 30–60 minute soak is therefore *not yet proven*.** What *is* proven is that the
+> algorithm chain is correct: trajectories are collected, all six head losses and their KL
+> terms are logged, the optimizer steps, and `winrate/*` scalars are written.
+>
+> A third observation invalidated part of the diagnosis itself: with `python run_rl.py >
+> log/x.log`, the Python parent **and 6–8 SC2 children** write to the *same* file
+> descriptor, each keeping its own offset, so they **overwrite each other**. "The heartbeat
+> stopped at t = N" was therefore partly an artefact of log self-overwriting, not proof
+> that a thread died. Subsequent runs must use `>>` (atomic append) or one file per process.
+> This is recorded as item #53 so the next reviewer does not re-derive it.
+>
+> #### How this was done (human-in-the-loop, multiple agents)
+>
+> This campaign was run by **one human supervisor directing several LLM agents**, not by a
+> single autonomous model:
+>
+> | Role | Who | What they actually did |
+> |---|---|---|
+> | Supervisor / repository owner | **Ruo-Ze Liu (`liuruoze`)** | Set the goal each round, supplied the official 2021/2022 checkpoints and the missing 30 replays, corrected wrong directions (e.g. pointed at the official model release when an agent was guessing), enforced a "reflection → plan → log" discipline, and rejected claims that were not backed by measurements |
+> | Executor (this campaign) | **DeepSeek-V4.1-Flash** | Ran the experiments end-to-end: static audits, training/evaluation jobs, instrumentation, and the write-ups numbered **#23–#52** in `BATCH_ACTING_EXECUTION_LOG_DS12.md` |
+> | Code review (earlier rounds) | **GLM** (#1–#22), **Kimi 3.1 Pro**, **MiniMax H3.1**, **space-bunny** | Reviewed diffs, challenged conclusions, and in several cases caught errors that the executor had already written down as conclusions (see `ERRATA.md`: 78 entries, including 5 that were withdrawn by the executor itself) |
+>
+> Two habits made the difference, and both came from the supervisor: **(a)** every claim must
+> carry a falsifiable criterion and a measured number, and **(b)** every withdrawn claim goes
+> into an errata file rather than being quietly deleted. Most of the "discoveries" in this
+> branch were preceded by a wrong guess that the errata records.
+>
+> The working notes (30+ documents of run logs, plans, reviews and the errata list) are
+> deliberately **kept out of this repository** — they contain machine-specific paths.
+> Treat every number above as **one measured snapshot on one machine** (4x RTX 4090,
+> 128 cores), not as a reproduced benchmark.
 >
 > Acceptance tests / benchmarks / soak orchestration live in **[`experiments/`](experiments/README.md)**
 > and are **not** part of the library.
-
+>
+> #### Reproducing the reported SL number
+>
+> ```bash
+> # 1) train: 20 replay files x 2 epochs, action re-weighting on, 30 replay-epochs total
+> MAS_ON_SERVER=1 MAS_SL_MAX_FILES=20 MAS_SL_WORKERS=0 MAS_SL_EPOCHS=2 \
+> MAS_SL_ACTION_REWEIGHT=1 MAS_SL_PRIOR_EXP=1.0 \
+> CUDA_VISIBLE_DEVICES=0 python run_sl.py --path1 ./data/replay_data_v3/
+>
+> # 2) average the checkpoints of the same run (zero extra training)
+> python experiments/_avg_models.py \
+>   --a model/<run>_ep01.pth --b model/<run>_ep02.pth --more model/<other-run>_ep03.pth \
+>   --out model/BEST_SL.pth
+>
+> # 3) evaluate, 4 shards x N games, native outcome only
+> MAS_ON_SERVER=1 python experiments/_eval_winrate.py \
+>   --model model/BEST_SL.pth --games-per-shard 15 --shards 4 --gpus 0,1,2,3
+> ```
+>
+> #### Reproducing the RL loop
+>
+> ```bash
+> # one hour, 8 actors, explicit SL initialisation, heartbeat every 60 s
+> MAS_ON_SERVER=1 MAS_RL_INIT_MODEL=model/BEST_SL.pth \
+> MAS_MAX_TIME=3000 MAS_ACTOR_NUMS=2 MAS_PARALLEL=4 \
+> MAS_STATIC_NUM=4 MAS_HEARTBEAT_SEC=60 MAS_QUEUE_TIMEOUT=900 \
+> MAS_GPU_LIST=1,2,3 CUDA_VISIBLE_DEVICES=0,1,2,3 python -u run_rl.py
+> ```
+>
+> `MAS_RL_INIT_MODEL` is **not optional in practice**: without it the loader picks the
+> lexicographically last `sl_*.pth` in `model/`, which during this campaign was a
+> deliberately broken checkpoint.
 
 Below 4 GIFs are mini-AS' trained performance on Simple64, supervised learning on 50 expert replays.
 

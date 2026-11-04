@@ -38,6 +38,7 @@ from alphastarmini.core.rl.rl_utils import Trajectory, get_supervised_agent
 from alphastarmini.core.rl.learner import Learner
 from alphastarmini.core.rl.actor_inference import ActorInferenceClient   # 第 18 轮：推理路由
 from alphastarmini.core.rl.batch_server import AsyncBatchInferenceServer   # 第 23 轮：中心批推理
+from alphastarmini.core.rl.batch_server import SharedSnapshot   # 第 73 轮：全局不可变快照
 from alphastarmini.core.rl import rl_utils as RU
 from alphastarmini.core.rl import shared_adam as SA
 
@@ -61,7 +62,14 @@ debug = False
 speed = False
 
 
-SIMPLE_TEST = not P.on_server
+# ---- 第 84 轮（DS，#50）：spawn 子进程的常量必须与父进程一致 ----
+# spawn 模式会**重新 import 本模块**，而 `P.on_server` 来自 param.py（硬编码 False），
+# 于是子进程里 SIMPLE_TEST = True -> MAX_EPISODES=1 / ACTOR_NUMS=1 / PARALLEL=1
+# -> TRAIN_ITERS = 1。而 `Parameter_Server` **正是一个子进程**：
+# 它会在收到第 1 局后满足 `while update_counter < train_iters` 而退出，
+# 之后 Worker 还在跑，`q_winloss` 很快被填满（maxsize=TRAIN_ITERS*24=24）→ actor 的 put 阻塞 → 看起来像死锁。
+# 环境变量会被子进程继承，所以以 MAS_ON_SERVER 为准（父进程 run_rl.py 已设置它）。
+SIMPLE_TEST = not (P.on_server or os.environ.get("MAS_ON_SERVER", "0") == "1")
 if SIMPLE_TEST:
     MAX_EPISODES = 1
     ACTOR_NUMS = 1
@@ -80,7 +88,12 @@ else:
 ACTOR_NUMS = int(os.environ.get("MAS_ACTOR_NUMS", ACTOR_NUMS))
 PARALLEL = int(os.environ.get("MAS_PARALLEL", PARALLEL))
 
-STATIC_NUM = 100  # ACTOR_NUMS * PARALLEL
+# ---- 第 84 轮（DS，#48a）：胜率聚合窗口可配 ----
+# 原实现硬编码 100：`Parameter_Server` 只有凑满 100 局才算一次 win_rate 并写 tensorboard。
+# 按 8 actor、约 5 分钟一局估算，30-45 分钟最多 40-70 局 —— **win_rate 曲线根本不会出现**。
+# 用户本轮的要求是"各 loss 能正常采集，最好看到胜率"，所以必须能调小。
+#   MAS_STATIC_NUM=10  -> 每 10 局出一个点
+STATIC_NUM = int(os.environ.get("MAS_STATIC_NUM", "100"))
 TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
 USE_UPDATE_LOCK = False
@@ -99,6 +112,16 @@ MAX_TIME_FOR_TRAINING = 60 * 60 * 24 * 7
 # 是无效的（函数早已绑定旧值）。必须在模块加载时、函数定义之前覆盖，环境变量是唯一干净的办法。
 #   MAS_MAX_TIME=120 MAS_MAX_EPISODES=1 MAS_ACTOR_NUMS=1 MAS_PARALLEL=1
 MAX_TIME_FOR_TRAINING = int(os.environ.get("MAS_MAX_TIME", MAX_TIME_FOR_TRAINING))
+
+# ---- 第 84 轮（DS，#52）：单局帧上限**不能**跟着训练时长缩小 ----
+# 原实现：`ActorVSComputer.__init__(max_frames_per_episode=22.4 * MAX_TIME_FOR_TRAINING)`。
+# 冒烟/短跑时 MAS_MAX_TIME=240 -> 上限 5376 帧，而一局正常要打满 ~21000 帧。
+# 后果：每局都在 5376 帧被 `break`，而那个分支**不投递 outcome**
+#   （只有 `is_final` 分支才 put 到 q_winloss），于是：
+#   队列永远为空 -> Parameter_Server 等 timeout -> 整个训练看似"跑起来了"但一局都没记。
+# 实测：4 分钟冒烟，v_steps 涨到 5568、optimizer_steps=46，但 native_outcome 计数 = 0。
+# 现在默认 0（不限制，由 SC2 自己在 ~21000 帧结束），需要时用 MAS_MAX_FRAMES_PER_EP 覆盖。
+MAX_FRAMES_PER_EPISODE = int(os.environ.get("MAS_MAX_FRAMES_PER_EP", "0"))
 MAX_EPISODES = int(os.environ.get("MAS_MAX_EPISODES", MAX_EPISODES))
 MAX_FRAMES = int(os.environ.get("MAS_MAX_FRAMES", MAX_FRAMES))
 TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
@@ -179,7 +202,7 @@ class ActorVSComputer:
                  teacher, idx, buffer_lock=None, results_lock=None, 
                  writer=None, max_time_for_training=MAX_TIME_FOR_TRAINING,
                  max_time_per_one_opponent=MAX_TIME_FOR_TRAINING,
-                 max_frames_per_episode=22.4 * MAX_TIME_FOR_TRAINING, max_frames=MAX_FRAMES, 
+                 max_frames_per_episode=MAX_FRAMES_PER_EPISODE, max_frames=MAX_FRAMES, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir="./added_simple64_replays/",
                  update_params_interval=UPDATE_PARAMS_INTERVAL,
@@ -436,8 +459,18 @@ class ActorVSComputer:
                                     show_sth(home_obs, player_action)
 
                                 expected_delay = player_action.delay.item()
-                                step_mul = max(1, expected_delay)
-                                print("step_mul:", step_mul) if debug else None
+                                # ---- 第 73 轮（GLM，Kimi-13）：delay 设计决定 ----
+                                # 原来这里算 `step_mul = max(1, expected_delay)`，但下面
+                                # env.step 传的是常量 STEP_MUL —— 算了不用，日志却宣称
+                                # "delay 决定决策频率"。这是误导。
+                                # 设计决定（冻结）：固定决策频率 STEP_MUL=8；
+                                # delay 头照常输出（其主 loss 权重为 0，见 DS 记录），
+                                # 但**不**驱动 env.step。若将来启用动态频率，必须：
+                                #   ① 把 step_mul 接进 env.step 并做有界裁剪；
+                                #   ② 给 delay 监督非零权重；
+                                #   ③ 单独做消融。三者缺一不可，不许只改其一。
+                                # step_mul_local = max(1, expected_delay)   # 冻结，见上
+                                print("step_mul(冻结为常量):", STEP_MUL) if debug else None
 
                                 with torch.no_grad():
                                     teacher_logits = self.teacher.step_based_on_actions(state, player_memory, player_action, player_select_units_num)
@@ -520,7 +553,16 @@ class ActorVSComputer:
                                             reward = killed_points / float(WIN_THRESHOLD)
 
                                     print("agent_{:d} get final reward".format(self.idx), reward) if 1 else None
-                                    print("agent_{:d} get outcome".format(self.idx), outcome) if 1 else None
+                                    # ---- 第 73 轮（GLM，Kimi-13）：native 与 custom 分开记 ----
+                                    # `game_outcome` 是 SC2 原生结果（1胜/0平/-1负）；
+                                    # `outcome` 是自定义口径（平局按 killed_points 重分类）。
+                                    # **对外报告的"胜率"默认只用 native**，custom 另名，
+                                    # 两者混用会把"击杀多的平局"算成胜利，虚高涨势。
+                                    native_outcome = int(game_outcome)
+                                    print("agent_{:d} get outcome".format(self.idx), outcome,
+                                          flush=True) if 1 else None          # custom 口径（旧 grep 兼容）
+                                    print("agent_{:d} get native_outcome".format(self.idx),
+                                          native_outcome, flush=True) if 1 else None  # SC2 原生口径
 
                                     final_outcome = outcome
                                     final_points = points  # killed_points / float(WIN_THRESHOLD)
@@ -669,11 +711,23 @@ class ActorVSComputer:
                                                     if len(self._dump_buf) < _need:
                                                         self._dump_buf.append(trajectories)
                                                     if len(self._dump_buf) == _need:
-                                                        _sd_src = (self.global_model
-                                                                   if self.global_model is not None
-                                                                   else self.agent.agent_nn.model)
-                                                        _sd = {k: v.detach().cpu().clone()
-                                                               for k, v in _sd_src.state_dict().items()}
+                                                        # 第 73 轮（Kimi-05 第 3 条）：**优先落共享快照**。
+                                                        # 原来落的是 `global_model` 的当前权重，而这条轨迹是 server 当时的快照产生的 ——
+                                                        # 两者可能差很多个 step，拿它去离线重算 rho 等于换了一份权重。
+                                                        _snap = (getattr(self._batch_srv, "snapshot", None)
+                                                                 if self._batch_srv is not None else None)
+                                                        _snap_got = _snap.read() if _snap is not None else None
+                                                        if _snap_got is not None:
+                                                            _pv_snap, _hash, _sd = _snap_got
+                                                            _src_name = "shared_snapshot"
+                                                        else:
+                                                            _sd_src = (self.global_model
+                                                                       if self.global_model is not None
+                                                                       else self.agent.agent_nn.model)
+                                                            _sd = {k: v.detach().cpu().clone()
+                                                                   for k, v in _sd_src.state_dict().items()}
+                                                            _hash = ""
+                                                            _src_name = "global_model"
                                                         # 30 个 actor 会同时看到"文件不存在"，
                                                         # 直接 save 到同一路径会互相截断 -> 先写临时文件再原子替换。
                                                         _tmp = "%s.tmp%d" % (_dump, os.getpid())
@@ -688,11 +742,12 @@ class ActorVSComputer:
                                                                    _tmp)
                                                         os.replace(_tmp, _dump)
                                                         self._dump_buf = []   # 落盘后立刻释放
-                                                        print("[%s] 已落盘 %d 条真实轨迹 -> %s（mode=%s, %d 个参数张量, pv=%d）"
+                                                        print("[%s] 已落盘 %d 条真实轨迹 -> %s（mode=%s, %d 个参数张量, pv=%d, src=%s, hash=%s）"
                                                               % (self.name, _need, _dump,
                                                                  "batch" if (self.infer is not None
                                                                              and self.infer.is_batch) else "local",
-                                                                 len(_sd), _pv),
+                                                                 len(_sd), _pv, _src_name,
+                                                                 _hash or "n/a"),
                                                               flush=True)
                                                 except Exception as _e:
                                                     print("[%s] 轨迹落盘失败: %r" % (self.name, _e), flush=True)
@@ -906,7 +961,7 @@ def make_batch_state_shapes():
 
 
 def Batch_Server_Worker(srv, model_learner, device, ready_ev, idle_timeout=120.0,
-                        sync_interval=8.0, pub_lock=None, pv=None):
+                        sync_interval=8.0, pub_lock=None, pv=None, snapshot=None):
     """中心批推理 server 进程（第 23 轮）。
 
     职责：持有**一份**可 forward 的 agent，跑 `AsyncBatchInferenceServer.run()`。
@@ -955,36 +1010,45 @@ def Batch_Server_Worker(srv, model_learner, device, ready_ev, idle_timeout=120.0
         stop_ev = threading.Event()
 
         def _sync_loop():
+            _last = -1
             while not stop_ev.is_set():
                 try:
-                    # 第 65 轮（Kimi-05）：**持锁拷贝**。
-                    # 不持锁的话，learner 正在 optimizer.step() 里逐张量更新时，
-                    # 这里拷出来的可能是"一半旧一半新"的权重 —— 它不会报错，
-                    # 只会让策略与任何真实版本都对不上。
-                    if pub_lock is not None:
-                        pub_lock.acquire()
-                    try:
-                        _sd = {k: v.detach().clone()
-                               for k, v in model_learner.state_dict().items()}
-                        if pv is not None:
-                            _ver = int(pv.value)
-                        else:
-                            _ver = -1
-                    finally:
+                    if snapshot is not None:
+                        # 第 73 轮（Kimi-05）：从**全局唯一快照**读。
+                        # 只读变化的版本，且读到的字节与 (ver, hash) 严格对应。
+                        # 轮询 0.5 s 只是检查版本号，真正拷贝只在版本变化时发生。
+                        got = snapshot.read_if_newer(_last)
+                        if got is not None:
+                            _ver, _hash, _sd = got
+                            srv.pending_weights = _sd
+                            srv.pending_version = _ver
+                            srv.pending_hash = _hash
+                            _last = _ver
+                    else:
+                        # 回落路径：无共享快照时维持旧行为（每 Worker 各拷一份）
                         if pub_lock is not None:
-                            pub_lock.release()
-                    srv.pending_weights = _sd
-                    srv.pending_version = _ver
+                            pub_lock.acquire()
+                        try:
+                            _sd = {k: v.detach().clone()
+                                   for k, v in model_learner.state_dict().items()}
+                            _ver = int(pv.value) if pv is not None else -1
+                        finally:
+                            if pub_lock is not None:
+                                pub_lock.release()
+                        srv.pending_weights = _sd
+                        srv.pending_version = _ver
                 except Exception:
                     pass
-                stop_ev.wait(sync_interval)
+                stop_ev.wait(0.5 if snapshot is not None else sync_interval)
 
         th = threading.Thread(target=_sync_loop, daemon=True)
         th.start()
 
         srv.policy_version_ref = pv
-        print("[batch_server] 就绪（独立模型副本 + %.0fs 周期同步到批边界，pub_lock=%s），device=%s"
-              % (sync_interval, pub_lock is not None, device), flush=True)
+        print("[batch_server] 就绪（独立模型副本 + %.0fs 周期同步到批边界，pub_lock=%s，"
+              "snapshot=%s），device=%s"
+              % (sync_interval, pub_lock is not None,
+                 "共享快照" if snapshot is not None else "各自拷贝", device), flush=True)
         ready_ev.set()
 
         rounds = srv.run(max_rounds=None, idle_timeout=idle_timeout, supervise=False)
@@ -1157,6 +1221,20 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
                 _tot += max(_n, 0)
                 print("[Worker %d] learner[%d] optimizer_steps=%d last_loss=%s"
                       % (rank, _i, _n, getattr(_l, "last_loss", None)), flush=True)
+                # 第 73 轮（Kimi-02）：更新是否健康 / 轨迹吞吐
+                # ⚠️ 打印不能用 `x or -1`：update_norm 合法值可能是 0.0，
+                #    `0.0 or -1` 会变成 -1，看起来像"没测"。第一版就栽在这里。
+                _gn_last = getattr(_l, "grad_norm_last", None)
+                _un_last = getattr(_l, "update_norm_last", None)
+                print("[Worker %d] learner[%d] grad_norm last=%s max=%.4g nan=%d | "
+                      "update_norm last=%s max=%s | traj recv=%s"
+                      % (rank, _i,
+                         "n/a" if _gn_last is None else "%.4g" % _gn_last,
+                         getattr(_l, "grad_norm_max", -1),
+                         getattr(_l, "nan_grad_steps", -1),
+                         "n/a" if _un_last is None else "%.4g" % _un_last,
+                         getattr(_l, "update_norm_max", None),
+                         getattr(_l, "traj_recv", {})), flush=True)
                 _klmin = getattr(_l, "kl_min", {}) or {}
                 if _klmin:
                     print("[Worker %d] KL 极值（renorm 下应全部 >= 0）: %s"
@@ -1196,8 +1274,15 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
     train_iters = TRAIN_ITERS 
     static_num = STATIC_NUM
 
-    episode_outcome = np.ones([int(train_iters / static_num), static_num], dtype=np.float64) * (-1e9)
-    episode_points = np.ones([int(train_iters / static_num), static_num], dtype=np.float64) * (-1e9)
+    # 第 84 轮（DS，#48b）：`int(train_iters / static_num)` 在小规模验证时会算成 0，
+    # 于是 shape = (0, static_num)，第一次 `episode_outcome[row, col] = ...` 就 IndexError。
+    # 冒烟/短跑（MAX_EPISODES × ACTOR_NUMS × PARALLEL < STATIC_NUM）必然触发。
+    # 至少留一行，`row` 已经有 min(row, shape[0]-1) 的钳位。
+    _n_rows = max(1, int(train_iters / static_num))
+    episode_outcome = np.ones([_n_rows, static_num], dtype=np.float64) * (-1e9)
+    episode_points = np.ones([_n_rows, static_num], dtype=np.float64) * (-1e9)
+    print("[Parameter_Server] STATIC_NUM=%d  train_iters=%d  统计表 shape=%s"
+          % (static_num, train_iters, episode_outcome.shape), flush=True)
 
     try: 
         while update_counter < train_iters:
@@ -1231,7 +1316,7 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
                 print("Iter:", row, "win_rate:", win_rate) if 1 else None
 
                 writer.add_scalar('winrate/every_' + str(static_num) + '_episodes', win_rate, row + 1)
-                writer.add_scalar('winrate/update_steps', win_rate, v_steps.value)
+                writer.add_scalar('winrate/update_steps', win_rate, int(v_steps.value))
                 win_rate_list.append(format(win_rate, '.3f'))
 
                 if win_rate >= max_win_rate:
@@ -1256,7 +1341,7 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
                 print("Iter:", row, "mean_points:", mean_points) if 1 else None
 
                 writer.add_scalar('meanpoints/every_' + str(static_num) + '_episodes', mean_points, row + 1)
-                writer.add_scalar('meanpoints/update_steps', mean_points, v_steps.value)
+                writer.add_scalar('meanpoints/update_steps', mean_points, int(v_steps.value))
                 mean_points_list.append(format(mean_points, '.3f'))
 
                 if mean_points >= max_mean_points:
@@ -1374,6 +1459,48 @@ def test(on_server=False, replay_path=None):
     pub_lock = mp.Lock()
     policy_version = mp.Value('i', 0)
 
+    # ---- 第 73 轮（Kimi-05）：全局唯一不可变快照 ----
+    # 原实现是"每个 Worker 各拷一份 state_dict"，问题：15 份拷贝、版本不可比、
+    # 而且没有哈希能证明"这份字节 = 那个版本"。改成一块共享缓冲：
+    # 父进程的发布线程写入字节 -> 版本 +1 -> 记 md5；所有 server 从同一块缓冲读。
+    snapshot = None
+    if os.environ.get("MAS_BATCH_ACTING", "0") == "1":
+        try:
+            snapshot = SharedSnapshot(model_learner.state_dict())
+            print("[snapshot] 共享快照缓冲就绪：%d 个张量 / %.2f MB"
+                  % (len(snapshot.meta), snapshot.total / 1024.0 / 1024.0), flush=True)
+        except Exception as e:
+            print("[snapshot] 建立失败，回落到每 Worker 各自拷贝: %r" % (e,), flush=True)
+            snapshot = None
+
+    if snapshot is not None:
+        _freeze = os.environ.get("MAS_DUMP_FREEZE", "0") == "1"
+        _snap_int = float(os.environ.get("MAS_SNAPSHOT_INTERVAL", "8.0"))
+
+        def _publish_loop():
+            _logged = False
+            while True:
+                try:
+                    if pub_lock is not None:
+                        pub_lock.acquire()
+                    try:
+                        _v, _h = snapshot.publish(model_learner.state_dict())
+                    finally:
+                        if pub_lock is not None:
+                            pub_lock.release()
+                    if not _logged:
+                        _logged = True
+                        print("[snapshot] 首次发布 ver=%d hash=%s" % (_v, _h), flush=True)
+                    if _freeze:
+                        print("[snapshot] MAS_DUMP_FREEZE=1 -> 首发布后冻结（ver=%d, hash=%s）"
+                              % (_v, _h), flush=True)
+                        return
+                except Exception as e:
+                    print("[snapshot] 发布失败: %r" % (e,), flush=True)
+                sleep(_snap_int)
+
+        threading.Thread(target=_publish_loop, daemon=True).start()
+
     # ---- 第 23 轮：中心批推理 server ----
     # ⚠️ 必须在 fork Worker **之前**创建 `AsyncBatchInferenceServer`：
     #    它的所有槽位（state / 结果 / hidden / logits）都是 share_memory 张量，
@@ -1394,10 +1521,14 @@ def test(on_server=False, replay_path=None):
             None, total_actors, batch_dev, make_batch_state_shapes(),
             max_units=128, max_selected=AHP.max_selected,
             max_batch=total_actors, return_logits=True)
+        # 挂到 batch_srv 上：fork 之前设置，所有 Worker/actor 都能读到同一块缓冲。
+        # 轨迹落盘要用的正是"产生这条轨迹的那份权重"，而不是 global_model 的当前值。
+        batch_srv.snapshot = snapshot
         ready_ev = mp.Event()
         bs = mp.Process(target=Batch_Server_Worker,
                         args=(batch_srv, model_learner, batch_dev, ready_ev),
-                        kwargs=dict(pub_lock=pub_lock, pv=policy_version), daemon=True)
+                        kwargs=dict(pub_lock=pub_lock, pv=policy_version,
+                                    snapshot=snapshot), daemon=True)
         bs.start()
         processes.append(bs)
         if not ready_ev.wait(timeout=180):
@@ -1444,6 +1575,48 @@ def test(on_server=False, replay_path=None):
                 print("[test] 投递哨兵失败（不影响正确性，最多等满队列超时）: %r" % (e,), flush=True)
 
     threading.Thread(target=_reaper, daemon=True).start()
+
+    # ---- 第 84 轮（DS，#49）：运行期心跳 ----
+    # 为什么需要：RL 是 8+ 个进程，出问题时日志会"一片安静"——分不清是
+    #   ① 在正常跑（只是慢）② 死锁 ③ 某个 Worker 已经崩了但父进程还在 join。
+    # 前几轮的教训是"没有观测就没有诊断"，这里每 N 秒打一行可判读的状态。
+    #   MAS_HEARTBEAT_SEC=60
+    _hb_interval = float(os.environ.get("MAS_HEARTBEAT_SEC", "0") or 0)
+    if _hb_interval > 0:
+        def _mem_avail_gb():
+            try:
+                with open("/proc/meminfo") as _f:
+                    for _ln in _f:
+                        if _ln.startswith("MemAvailable:"):
+                            return int(_ln.split()[1]) / 1024.0 / 1024.0
+            except Exception:
+                pass
+            return -1.0
+
+        def _heartbeat():
+            _t0 = time()
+            while True:
+                sleep(_hb_interval)
+                try:
+                    _alive = sum(1 for _p in processes if _p.is_alive())
+                    try:
+                        _q = q_winloss.qsize()
+                    except Exception:
+                        _q = -1
+                    _gpu = ""
+                    try:
+                        if torch.cuda.is_available():
+                            _gpu = " gpu0=%.1fGB" % (torch.cuda.memory_allocated(0) / 1e9)
+                    except Exception:
+                        pass
+                    print("[hb] t=%5.0fs  proc=%d/%d  q_winloss=%d  v_steps=%.0f  mem_avail=%.1fGB%s"
+                          % (time() - _t0, _alive, len(processes), _q,
+                             v_steps.value, _mem_avail_gb(), _gpu), flush=True)
+                except Exception as _e:
+                    print("[hb] 心跳失败: %r" % (_e,), flush=True)
+
+        threading.Thread(target=_heartbeat, daemon=True).start()
+        print("[test] 心跳已开启：每 %.0f 秒一行 [hb]" % _hb_interval, flush=True)
 
     for p in processes:
         p.join()

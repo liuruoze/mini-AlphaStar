@@ -4,6 +4,7 @@
 "Library for RL losses."
 
 # modified from AlphaStar pseudo-code
+import os
 import traceback
 import collections
 import itertools
@@ -31,6 +32,14 @@ from alphastarmini.lib.hyper_parameters import Scalar_Feature_Size as SFS
 
 
 __author__ = "Ruo-Ze Liu"
+
+# ---- 第 84 轮（DS，#51）：调试打印必须门控 ----
+# 原实现是三处 `print(...) if 1 else None`，即**无条件打印**。
+# 实测：一次 4 分钟、4 actor 的冒烟产生 14,213 行日志（约 60 行/秒），
+# 其中 6,300 行是同一个 `selected_mask` 张量的续行 —— 心跳、episode、loss 全被淹没，
+# 出问题时根本没法读日志。loss 值本身已经写进 tensorboard，屏幕打印只在调试时需要。
+#   MAS_RL_DEBUG=1  -> 恢复原有逐张量打印
+_RL_DEBUG = os.environ.get("MAS_RL_DEBUG", "0") == "1"
 
 debug = False
 
@@ -289,13 +298,13 @@ def get_useful_masks(select_units_num, entity_num, device):
     max_selected = AHP.max_selected + 1
     extend_select_units_num = select_units_num + 1
 
-    print('extend_select_units_num', extend_select_units_num) if 1 else None
+    print('extend_select_units_num', extend_select_units_num) if _RL_DEBUG else None
 
     selected_mask = torch.arange(max_selected, device=device).float()
     selected_mask = selected_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
     selected_mask = selected_mask < extend_select_units_num.reshape(-1).unsqueeze(dim=-1)
 
-    print('selected_mask', selected_mask) if 1 else None
+    print('selected_mask', selected_mask) if _RL_DEBUG else None
 
     entity_mask = torch.arange(AHP.max_entities, device=device).float()
     entity_mask = entity_mask.repeat(AHP.sequence_length * AHP.batch_size, 1)
@@ -333,7 +342,7 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
 
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean() * fields_weight[i]
-        print('field', field, 'loss_val', loss_field.item()) if 1 else None
+        print('field', field, 'loss_val', loss_field.item()) if _RL_DEBUG else None
 
         loss = loss + loss_field 
         del loss_field, weighted_advantage, target_log_prob, clipped_rhos, masks

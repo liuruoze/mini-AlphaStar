@@ -71,6 +71,20 @@ class Learner:
         self.update_count = 0
         self.last_loss = None
 
+        # ---- 第 73 轮（Kimi-02）：把"更新是否健康"变成可观测量 ----
+        # Kimi 的原话：finite loss / 部分参数有梯度 / backward 成功，只能证明计算图连通，
+        # 不能证明"每次更新都在正常幅度内"。这里补三个量：
+        #   grad_norm   : backward 后、step 前的全局梯度范数（爆炸/消失会立刻显形）
+        #   update_norm : step 前后参数差的 L2 范数（= 这一步到底改了多少）
+        #   traj_recv   : 收到的轨迹数（按 normal/final/win 分开）
+        # 只记极值与最后一次，避免每步刷日志。
+        self.grad_norm_last = None
+        self.grad_norm_max = 0.0
+        self.update_norm_last = None
+        self.update_norm_max = 0.0
+        self.nan_grad_steps = 0
+        self.traj_recv = {"normal": 0, "final": 0, "win": 0}
+
         # ---- 第 65 轮（Kimi-05 P0）：原子权重发布 + policy_version ----
         # 问题：同步线程直接遍历 `global_model.state_dict()`，而 Learner 可能正在
         # `optimizer.step()` 里逐个张量更新 -> 复制出的快照可能是**跨张量的新旧混合**，
@@ -132,12 +146,15 @@ class Learner:
         return self.player.agent.get_parameters()
 
     def send_trajectory(self, trajectory):
+        self.traj_recv["normal"] += 1
         self.trajectories.append(trajectory)
 
     def send_final_trajectory(self, trajectory):
+        self.traj_recv["final"] += 1
         self.final_trajectories.append(trajectory)
 
     def send_win_trajectory(self, trajectory):
+        self.traj_recv["win"] += 1
         self.win_trajectories.append(trajectory)        
 
     def get_normal_trajectories(self):
@@ -295,6 +312,26 @@ class Learner:
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
                     print(learner_name, "begin optimizer_step") if debug else None
+
+                    # ---- 第 73 轮（Kimi-02）：step 前测 grad_norm，并留一份参数快照 ----
+                    # grad_norm 用**本地模型**的梯度（backward 的直接产物）；
+                    # update_norm 必须用 **global_model** —— optimizer.step() 更新的是它，
+                    # 本地模型只是算梯度的副本（A3C 结构）。第一版对本地参数做差，
+                    # 结果恒为 0，等于量错了对象（GLM 踩坑，冒烟抓出来的）。
+                    _ps = [q for q in agent.agent_nn.model.parameters() if q.grad is not None]
+                    _gn = 0.0
+                    for _q in _ps:
+                        _g = _q.grad.detach()
+                        _gn += float(_g.norm(2) ** 2)
+                    _gn = _gn ** 0.5
+                    if _gn != _gn or _gn in (float("inf"), float("-inf")):
+                        self.nan_grad_steps += 1
+                    self.grad_norm_last = _gn
+                    if _gn > self.grad_norm_max:
+                        self.grad_norm_max = _gn
+                    _gps = [q for q in self.global_model.parameters() if q.grad is not None]
+                    _before = [q.detach().clone() for q in _gps]
+
                     # 第 65 轮：step 与"别人拷快照"互斥，见 __init__ 里 pub_lock 的说明。
                     if self.pub_lock is not None:
                         self.pub_lock.acquire()
@@ -305,6 +342,19 @@ class Learner:
                     finally:
                         if self.pub_lock is not None:
                             self.pub_lock.release()
+
+                    # step 后：参数更新范数（= 这一步实际改了多少）
+                    try:
+                        _un = 0.0
+                        for _q, _b in zip(_gps, _before):
+                            _un += float((_q.detach() - _b).norm(2) ** 2)
+                        _un = _un ** 0.5
+                        self.update_norm_last = _un
+                        if _un > self.update_norm_max:
+                            self.update_norm_max = _un
+                    except Exception:
+                        pass
+                    del _before, _gps
                     self.update_count += 1
                     self.last_loss = float(loss_item) if loss_item is not None else None
                     # 记录各 head 的 KL 极值（loss_dict 的 key 就是字段名）

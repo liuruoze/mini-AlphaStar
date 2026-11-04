@@ -32,6 +32,8 @@
 | `_test_r66_diag.py` | 残差判别：logits 级 + float64（判定为批大小导致的浮点差） |
 | `_test_r67_loss.py` | 整批真实轨迹 → 完整 `loss_function`，对比 legacy / renorm |
 | `_test_r67_hidden.py` | hidden 契约（非零 / 每步不同 / episode 清零 / 跨轨迹连续） |
+| `_test_r70_mapping.py` | **批内 actor 映射 + hidden 生命周期**（注入式，8 组 13 项，含反例自检） |
+| `_test_r71_pack.py` | `_pack_actions` 与逐字段版**逐元素等价**（截断 / 大整数 / 混合 dtype） |
 | `_test_mask_vec.py` / `_test_cpu_forward.py` | 掩码向量化 / CPU 前向基线 |
 | `_test_jit_script.py` / `_test_jit_trace.py` / `_test_compile_21.py` | 图静态化三条路线的**否定性结论** |
 
@@ -64,7 +66,7 @@
 | `_soak_run.sh` | 单组长跑：清场 → 起监控 → 训练 → 收尾统计（`<tag> <秒> <BATCH> <PAR> <ACT> [ON_SERVER]`） |
 | `_soak_series_bc.sh` / `_soak_series_cd.sh` | 多组串行，用于 A/B 对照 |
 | `_soak_analyze.py` | 曲线分析（中值滤波 + 分位取点 + 只算后半段斜率） |
-| `_run_regression.sh` | 8 项回归，**只认 rc=0**，不看日志里的 PASS |
+| `_run_regression.sh` | **10 项**回归，**只认 rc=0**，不看日志里的 PASS |
 
 ## 五、`_fix_del.py`
 

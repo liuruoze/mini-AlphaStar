@@ -31,6 +31,8 @@ MsState 各段体积（实测，N=1，_probe_state_shape.py）：
 
 from time import time, sleep
 import multiprocessing as mp
+import hashlib
+import os
 
 import numpy as np
 import torch
@@ -110,6 +112,119 @@ class StateShapes(object):
         return n
 
 
+class SharedSnapshot(object):
+    """全局唯一的**不可变权重快照**（第 73 轮，Kimi-05 的核心）。
+
+    ## 为什么需要它
+
+    原实现：每个 Worker 的批服务器各起一个同步线程，各自
+    `{k: v.detach().clone() for k, v in model_learner.state_dict().items()}`。
+    这有三处问题（都是 Kimi-05 点名的）：
+
+    1. **15 个 Worker 各拷一份**：同一时刻不同 server 可能跑不同版本，
+       而且每份都在 cuda:0 上物化一遍 10.6 MB（§57.2 实测每 Worker 常驻 1.1 GB 的成因之一）。
+    2. **没有哈希**：只能证明"版本号变了"，不能证明"这份字节 = 那个版本"。
+    3. **轨迹落盘的权重来源不对**：`MAS_DUMP_TRAJ` 存的是 `global_model` 的当前权重，
+       而这条轨迹是 **server 当时的快照**产生的，二者可能差很多个 step。
+
+    ## 结构
+
+    ```
+    buf  : mp.RawArray('B', total)   所有张量按名字顺序**连续**排列
+    meta : [(name, shape, np_dtype, offset, nbytes, numel), ...]   只读，fork 后共享
+    ver  : mp.Value('i')             发布一次 +1，单调
+    hash : mp.Array('c', 32)         该版本内容的 md5（前 32 个 hex 字符）
+    lock : mp.Lock()                 读/写互斥 —— 保证任何读者看到的都是完整版本
+    ```
+
+    ## 它保证了什么 / 没保证什么
+
+    - 保证：任一时刻读到的字节，其哈希与 `ver` 一一对应；不会读到"半新半旧"；
+      所有 server 从**同一块缓冲**取快照，版本可比较。
+    - 不保证：快照与"某次 optimizer.step"的因果关系（发布是周期性的，
+      中间可能又更新了几次）。要严格对齐，用 `MAS_DUMP_FREEZE=1` 冻结权重。
+    """
+
+    _NP = {
+        "torch.float32": np.float32,
+        "torch.float16": np.float16,
+        "torch.float64": np.float64,
+        "torch.int64": np.int64,
+        "torch.int32": np.int32,
+        "torch.int16": np.int16,
+        "torch.int8": np.int8,
+        "torch.uint8": np.uint8,
+        "torch.bool": np.bool_,
+    }
+
+    def __init__(self, state_dict):
+        meta, off = [], 0
+        for k, v in state_dict.items():
+            npdt = self._NP.get(str(v.dtype))
+            if npdt is None:
+                raise TypeError("SharedSnapshot: 不支持的 dtype %s（%s）" % (v.dtype, k))
+            n = int(v.numel())
+            nb = n * np.dtype(npdt).itemsize
+            # 每个张量按 64 字节对齐：numpy 对未对齐 buffer 的 frombuffer 会报错
+            pad = (-off) % 64
+            off += pad
+            meta.append((k, tuple(v.shape), npdt, off, nb, n))
+            off += nb
+        self.meta = meta
+        self.total = off
+        self.buf = mp.RawArray('B', max(1, off))
+        self.ver = mp.Value('i', 0)
+        self.hash = mp.Array('c', 32)
+        self.lock = mp.Lock()
+
+    # ---------- 写（父进程的发布线程） ----------
+
+    def publish(self, state_dict):
+        """在锁内写入全部字节，然后版本 +1、记录哈希。返回 (ver, hash)。"""
+        md5 = hashlib.md5()
+        with self.lock:
+            mv = memoryview(self.buf).cast('B')
+            for k, shape, npdt, off, nb, n in self.meta:
+                t = state_dict[k]
+                arr = t.detach().cpu().contiguous().numpy().reshape(-1).view(np.uint8)
+                raw = arr.tobytes()
+                if len(raw) != nb:
+                    raise RuntimeError("SharedSnapshot: %s 字节数 %d != 预期 %d"
+                                       % (k, len(raw), nb))
+                mv[off:off + nb] = raw
+                md5.update(raw)
+            self.ver.value = int(self.ver.value) + 1
+            h = md5.hexdigest()[:32]
+            self.hash.value = h.encode()
+            return int(self.ver.value), h
+
+    # ---------- 读（server 进程 / actor 进程） ----------
+
+    def read(self):
+        """在锁内把整块缓冲拷成 CPU 张量。返回 (ver, hash, state_dict) 或 None。"""
+        with self.lock:
+            ver = int(self.ver.value)
+            if ver == 0:
+                return None
+            mv = memoryview(self.buf).cast('B')
+            out = {}
+            for k, shape, npdt, off, nb, n in self.meta:
+                a = np.frombuffer(mv[off:off + nb], dtype=npdt, count=n).reshape(shape)
+                out[k] = torch.from_numpy(a.copy())
+            h = bytes(self.hash.value).decode("ascii", "ignore")
+            return ver, h, out
+
+    def read_if_newer(self, last_ver):
+        with self.lock:
+            if int(self.ver.value) <= int(last_ver):
+                return None
+        return self.read()
+
+    @property
+    def version(self):
+        return int(self.ver.value)
+
+
 class BatchInferenceServer(object):
     """同步批推理中心。
 
@@ -160,6 +275,20 @@ class BatchInferenceServer(object):
         self.h_prev = torch.zeros(1, self.N, 128).share_memory_()
         self.c_prev = torch.zeros(1, self.N, 128).share_memory_()
 
+        # ---- 第 70 轮（Kimi-07）：episode 边界的**可验证**计数 ----
+        # 契约：actor 调过 reset_hidden() 之后，下一次被服务时喂给网络的 hidden 必须全 0。
+        # 不验的后果：新 episode 继承上一局的 LSTM 状态 —— 不崩、不报错，
+        # 只是策略在"上局记忆"下做动作，行为分布与 behavior_logits 记录的不一致。
+        #
+        # ⚠️ reset_count 必须是 mp.Array：reset_hidden 在 **actor 进程**里调用，
+        #    server 在**另一个进程**里读。普通 Python 属性跨进程看不到
+        #    （第 66 轮刚在 policy_version 上踩过这个坑）。
+        self.reset_count = mp.Array('i', self.N)
+        self._seen_reset = [0] * self.N   # 只在 server 进程内使用，不需要共享
+        self.h0_ok = 0                    # reset 后首步 hidden 全 0 的次数
+        self.h0_bad = 0                   # reset 后首步 hidden 非 0 的次数（契约破坏）
+
+
         # 结果槽（全整数，体积很小）
         self.a_type = torch.zeros(self.N, dtype=torch.int64).share_memory_()
         self.a_delay = torch.zeros(self.N, dtype=torch.int64).share_memory_()
@@ -197,7 +326,10 @@ class BatchInferenceServer(object):
                 self.lg[k] = torch.zeros(self.N, n, dtype=torch.float32).share_memory_()
 
         self._procs = []
-        self.timing = {"build": 0.0, "forward": 0.0, "write": 0.0, "wait": 0.0, "logits": 0.0, "sync": 0.0}
+        self.timing = {"build": 0.0, "forward": 0.0, "write": 0.0, "wait": 0.0,
+                       "logits": 0.0, "sync": 0.0,
+                       # 第 71 轮：write 段内部拆分（h/c 与 8 个动作字段）
+                       "write_hc": 0.0, "write_act": 0.0, "write_evt": 0.0}
 
     # ---------------- 供 actor 子进程调用 ----------------
 
@@ -273,6 +405,10 @@ class BatchInferenceServer(object):
         self.c[:, idx, :] = 0
         self.h_prev[:, idx, :] = 0
         self.c_prev[:, idx, :] = 0
+        # 第 70 轮（Kimi-07）：盖一个"世代戳"，让 server 能在**下一次服务**时
+        # 独立复验"喂进网络的第一步 hidden 是不是真的 0"。
+        # 只清不清是没法从外面看的 —— 清零后读到 0，和本来就 0，长得一样。
+        self.reset_count[idx] += 1
 
     def read_behavior_logits(self, idx):
         """actor 侧：取回该 actor 的 behavior_logits（ArgsActionLogits）。
@@ -469,6 +605,21 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         self.applied_version = -1      # 第 65 轮：server 已应用的权重版本
         self.req = mp.Array('i', self.N)
         self.ev_done = [mp.Event() for _ in range(self.N)]
+
+        # ---- 第 72 轮（Kimi 侧"通知开销"线）：可切换的通知机制 ----
+        # 第 71 轮实测：write 段 12.21 ms 里 **11.06 ms 是"通知 actor"**，
+        # 每次 `Event.set()` 折合 1.4~1.7 ms。原因：CPython 的 mp.Event 内部是 Condition，
+        # set() 要加锁 + notify，而 actor 的 wait()/clear() 要同一把锁 ——
+        # 父进程每轮跟 k 个 actor **交接这把锁 k 次**。
+        #
+        # 微基准（_bench_notify.py，K=8/30，均验证投递数量满额）：
+        #   EVENTS 283 us/次    COND 12 us/次但只送到 5%（广播占住锁，子进程抢不回来）
+        #   SEM     0.4 us/次  ← 一次 sem_post，无 Condition 锁，无惊群
+        #
+        # 用环境变量切换，默认 event 保持历史行为；MAS_NOTIFY=sem 才走信号量。
+        self.notify_mode = os.environ.get("MAS_NOTIFY", "event").strip().lower()
+        self.sem_done = ([mp.Semaphore(0) for _ in range(self.N)]
+                         if self.notify_mode == "sem" else None)
         self.stats = mp.Array('i', 6)   # [rounds, steps, max_batch_seen, sum_batch, 0, 0]
 
     # ---------- actor 侧 ----------
@@ -476,8 +627,11 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
     def submit_and_wait(self, idx):
         """提交本轮 state 并阻塞到自己的结果就绪，返回动作字段。"""
         self.req[idx] = self.SUBMITTED
-        self.ev_done[idx].wait()
-        self.ev_done[idx].clear()
+        if self.sem_done is not None:
+            self.sem_done[idx].acquire()
+        else:
+            self.ev_done[idx].wait()
+            self.ev_done[idx].clear()
         return self.read_action(idx)
 
     def submit_and_get(self, idx):
@@ -488,12 +642,29 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         `_serve_batch` 在放出 `ev_done` 之前已经把 action 与 logits 都写好了。
         """
         self.req[idx] = self.SUBMITTED
-        self.ev_done[idx].wait()
-        self.ev_done[idx].clear()
+        if self.sem_done is not None:
+            self.sem_done[idx].acquire()
+        else:
+            self.ev_done[idx].wait()
+            self.ev_done[idx].clear()
         return self.read_action(idx), self.read_behavior_logits(idx)
 
     def mark_exited(self, idx):
         self.req[idx] = self.EXITED
+        # 第 70 轮（Kimi-07 的"槽位复用后清零"）：退出时也把 hidden 清掉。
+        # 原来只有 `_restart_dead`（崩溃重启）会清，正常退出这条路径不清 ——
+        # 若该槽位之后被重新 submit（例如上层复用 worker 编号、或重启后 pid 变了但 idx 没变），
+        # 新 actor 的第一步会拿到上一个 actor 的 LSTM 状态。
+        # 这里清是**防御性**的：正常路径 actor 会先 reset_hidden 再退出，清两次无害。
+        self.h[:, idx, :] = 0
+        self.c[:, idx, :] = 0
+        self.h_prev[:, idx, :] = 0
+        self.c_prev[:, idx, :] = 0
+        self.reset_count[idx] += 1
+        if self.sem_done is not None:
+            while self.sem_done[idx].acquire(False):
+                pass
+
 
     def read_policy_version(self, idx=None):
         """server **当前已应用**的权重版本（-1 表示还没同步过）。
@@ -555,6 +726,11 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
             # 轨迹的 LSTM 状态跑，产生与观测不匹配的 hidden（静默错误）。
             self.req[i] = self.IDLE
             self.ev_done[i].clear()
+            if self.sem_done is not None:
+                # 信号量是**计数型**：旧 actor 若死在 wait 之前，令牌会留着，
+                # 新 actor 的第一次 acquire 会立刻返回、读到还没算好的结果。
+                while self.sem_done[i].acquire(False):
+                    pass
             self.h[:, i, :] = 0
             self.c[:, i, :] = 0
             # prev buffer 同步清零：新 actor 第一步 submit 时 read_hidden 拿到的是
@@ -648,8 +824,10 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
             # 第 65 轮（Kimi-05）：快照自带版本号，应用时一并记下，
             # 这样"server 当前在跑哪一版"是可查的，而不是只能靠时间猜。
             _pver = getattr(self, "pending_version", -1)
+            _phash = getattr(self, "pending_hash", "")
             self.pending_weights = None
             self.pending_version = None
+            self.pending_hash = None
             try:
                 self.agent.model.load_state_dict(_pw)
             except Exception as e:
@@ -680,11 +858,13 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
                               if isinstance(m, torch.nn.modules.batchnorm._BatchNorm)]
                         rm = float(bn[0].running_mean.abs().mean()) if bn and bn[0].running_mean is not None else -1
                         print("[batch_server] 权重自检：%d/%d 个键命中，首键 max|Δ|=%.3g，"
-                              "首个 BN |running_mean|=%.3g（随机初值是 0）"
-                              % (hit, len(_pw), d0, rm), flush=True)
+                              "首个 BN |running_mean|=%.3g（随机初值是 0），"
+                              "ver=%s hash=%s"
+                              % (hit, len(_pw), d0, rm, _pver, _phash or "n/a"), flush=True)
                     except Exception as e:
                         print("[batch_server] 权重自检失败: %r" % (e,), flush=True)
             self.applied_version = int(_pver) if _pver is not None else -1
+            self.applied_hash = _phash or ""
             del _pw
         self.timing["sync"] += time() - t_s
 
@@ -696,7 +876,26 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         # 必须在 forward 之前，且必须在 self.h 被写回 new hidden 之前。
         self.h_prev[:, idx_t, :] = self.h[:, idx_t, :]
         self.c_prev[:, idx_t, :] = self.c[:, idx_t, :]
+
+        # ---- 第 70 轮（Kimi-07）：独立复验「新 episode 首步 hidden 全 0」----
+        # 位置很关键：必须在 h_prev 存档**之后**、forward **之前** ——
+        # 因为要检查的正是"喂进网络的那一份"。放到 forward 之后会读到推进后的 h，
+        # 那时恒非 0，计数器永远报 OK，等于没验。
+        for _i in idxs:
+            if int(self.reset_count[_i]) != self._seen_reset[_i]:
+                self._seen_reset[_i] = int(self.reset_count[_i])
+                _mx = float(self.h_prev[:, _i, :].abs().max())
+                if _mx == 0.0:
+                    self.h0_ok += 1
+                else:
+                    self.h0_bad += 1
+                    if self.h0_bad <= 3:
+                        print("[batch_server] ⚠️ actor %d reset 之后首步 hidden 非 0"
+                              "（max|h|=%.3g，c=%.3g）—— 新 episode 继承了旧状态"
+                              % (_i, _mx, float(self.c_prev[:, _i, :].abs().max())),
+                              flush=True)
         self.timing["build"] += time() - t_b
+
 
         t_f = time()
         with torch.no_grad():
@@ -718,8 +917,13 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         self.timing["forward"] += time() - t_f
 
         t_w = time()
-        self.h[:, idx_t, :] = nh[0].cpu()
-        self.c[:, idx_t, :] = nh[1].cpu()
+        # ---- 第 71 轮：h/c 合并成一次 D2H（原先是两次）----
+        t_hc = time()
+        _hc = torch.cat([nh[0], nh[1]], dim=-1).cpu()      # (1,k,2H)
+        _hd = nh[0].shape[-1]
+        self.h[:, idx_t, :] = _hc[..., :_hd]
+        self.c[:, idx_t, :] = _hc[..., _hd:]
+        self.timing["write_hc"] += time() - t_hc
 
         # behavior_logits 必须与 action 来自**同一次**前向的同一个 `al`（见 read_behavior_logits 说明）
         if self.return_logits:
@@ -727,19 +931,76 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
             self._store_logits(al, idx_t, k)
             self.timing["logits"] += time() - t_lg
 
-        self.a_type[idx_t] = acts.action_type.reshape(-1).cpu().long()
-        self.a_delay[idx_t] = acts.delay.reshape(-1).cpu().long()
-        self.a_queue[idx_t] = acts.queue.reshape(-1).cpu().long()
-        self.a_units[idx_t] = acts.units.reshape(k, -1)[:, :self.max_selected].cpu().long()
-        self.a_tunit[idx_t] = acts.target_unit.reshape(-1).cpu().long()
-        self.a_tloc[idx_t] = acts.target_location.reshape(k, -1)[:, :2].cpu().long()
-        self.a_sun[idx_t] = sun.reshape(-1).cpu().long()
-        self.a_en[idx_t] = en.reshape(-1).cpu().long()
+        # ---- 第 71 轮：8 个动作字段合并成一次 D2H（原先是八次）----
+        t_act = time()
+        _pk = self._pack_actions(acts, sun, en, k, self.max_selected)
+        self.a_type[idx_t] = _pk["a_type"]
+        self.a_delay[idx_t] = _pk["a_delay"]
+        self.a_queue[idx_t] = _pk["a_queue"]
+        self.a_units[idx_t] = _pk["a_units"]
+        self.a_tunit[idx_t] = _pk["a_tunit"]
+        self.a_tloc[idx_t] = _pk["a_tloc"]
+        self.a_sun[idx_t] = _pk["a_sun"]
+        self.a_en[idx_t] = _pk["a_en"]
+        self.timing["write_act"] += time() - t_act
 
-        for i in idxs:
-            self.req[i] = self.DONE
-            self.ev_done[i].set()
+        # 第 71 轮追加：把"通知 actor"这一段单独计时。
+        # 起因：本轮 write 12.21 ms，但 h/c 0.24 + 动作 0.41 只占 0.65 —— 95% 找不到主。
+        # 先排除了共享数组的锁竞争（微基准：8 次写只有 0.14 ms），
+        # 剩下唯一没量过的就是这 8 次 Event.set()。
+        t_ev = time()
+        if self.sem_done is not None:
+            # 一次 sem_post，无 Condition 锁
+            for i in idxs:
+                self.req[i] = self.DONE
+                self.sem_done[i].release()
+        else:
+            for i in idxs:
+                self.req[i] = self.DONE
+                self.ev_done[i].set()
+        self.timing["write_evt"] += time() - t_ev
         self.timing["write"] += time() - t_w
+
+    @staticmethod
+    def _pack_actions(acts, sun, en, k, max_selected):
+        """第 71 轮：把 8 个动作张量打包成**一次** CPU 传输。
+
+        为什么：原来每个字段各来一次 `.cpu()`，共 8 次。每次 D2H 都要等默认流
+        同步，单次看起来很便宜（零点几毫秒），但 8 次叠起来在 §64.12 的实测里
+        是 write 段 11.58 ms 的主体。这些张量加起来只有几十个 int64——
+        真正的成本是**同步次数**，不是字节数。
+
+        做法：先在同一设备上 `cat` 成一列，做一次 `.cpu()`，再在 CPU 上切片。
+        切片宽度由各字段实际形状决定，不写死（units/tloc 会被 max_selected/2 截断）。
+
+        返回 {字段名: CPU int64 张量}，形状均为 (k, w)。
+        """
+        # ⚠️ `.long()` 必须在 **cat 之前**逐个做：
+        #    torch.cat 要求所有张量 dtype 一致，而各字段可能是 int32/int64 混用
+        #    （原来每个字段各自 `.cpu().long()`，天然规避了这个约束）。
+        #    第一版把 `.long()` 放在 cat 之后，只要有一个字段不是 int64 就直接抛
+        #    "Expected all tensors to be on the same ... dtype"。这里提前统一。
+        parts = [
+            ("a_type", acts.action_type.reshape(k, -1).long()),
+            ("a_delay", acts.delay.reshape(k, -1).long()),
+            ("a_queue", acts.queue.reshape(k, -1).long()),
+            ("a_units", acts.units.reshape(k, -1)[:, :max_selected].long()),
+            ("a_tunit", acts.target_unit.reshape(k, -1).long()),
+            ("a_tloc", acts.target_location.reshape(k, -1)[:, :2].long()),
+            ("a_sun", sun.reshape(k, -1).long()),
+            ("a_en", en.reshape(k, -1).long()),
+        ]
+        widths = [int(p.shape[1]) for _, p in parts]
+        flat = torch.cat([p for _, p in parts], dim=-1).cpu()   # 唯一一次 D2H
+        out, o = {}, 0
+        for (name, _), w in zip(parts, widths):
+            seg = flat[:, o:o + w]
+            # 宽度为 1 的字段返回 (k,) 而不是 (k,1)：
+            # 与共享张量 self.a_type / a_delay / ... 的形状**完全一致**，
+            # 调用方就不用再写 .reshape(-1) —— 少 6 个可能写错的对齐点。
+            out[name] = seg.reshape(-1) if w == 1 else seg
+            o += w
+        return out
 
     def _build_state_subset(self, idx_t, k):
         E = self.shapes.entity_shape
@@ -782,7 +1043,15 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
             s += " | 稳态 %.0f step/s" % st
         if self.return_logits:
             s += " | logits 每轮 %.2f ms（含在 write 里）" % (self.timing["logits"] / rounds * 1000)
+        # 第 71 轮：write 段内部拆分（放在"稳态"之后，避免打断既有的汇总行正则）
+        s += (" | 回写拆分 h/c %.2f + 动作 %.2f + 通知 %.2f ms"
+              % (t.get("write_hc", 0.0) / rounds * 1000,
+                 t.get("write_act", 0.0) / rounds * 1000,
+                 t.get("write_evt", 0.0) / rounds * 1000))
         rc = self.restart_count()
         if rc:
             s += " | actor 重启 %d 次" % rc
+        # 第 70 轮：episode 边界契约（bad 必须为 0）
+        s += " | 新episode首步h=0: ok %d / bad %d" % (self.h0_ok, self.h0_bad)
+        s += " | 通知=%s" % self.notify_mode
         return s

@@ -74,9 +74,9 @@ def analyze_csv(path):
     ts = [to_float(r[1]) for r in rows]
     total = ts[-1] or 1.0
     print("样本数 %d，时长 %.0f s（%.1f min）" % (len(rows), total, total / 60.0))
-    print("（5 点中值滤波后，按时间分位取点；斜率只算后半段 —— 前半段是启动预热，算了会虚高）")
+    print("（5 点中值滤波后按时间分位取点；\n      斜率只取 20%~90% 时间窗：前 10% 是启动预热，后 10% 是收尾）")
     print("%-13s %8s %8s %8s %8s %8s %8s %10s"
-          % ("列", "10%", "25%", "50%", "75%", "90%", "100%", "后半段斜率/min"))
+          % ("列", "10%", "25%", "50%", "75%", "90%", "末样本", "20-90%斜率/min"))
     for ci in range(2, len(header)):
         vals, tv = [], []
         for i, r in enumerate(rows):
@@ -93,9 +93,17 @@ def analyze_csv(path):
             target = frac * total
             j = min(range(len(tv)), key=lambda k: abs(tv[k] - target))
             marks.append(sm[j])
-        # 后半段斜率
-        half = len(tv) // 2
-        sl = slope_per_min(sm[half:], tv[half:])
+        # 斜率只取 20%~90% 时间窗。
+        # ⚠️ 第 70 轮修正：原来用"后半段"（50%~100%），但最后几个样本是**收尾瞬间**——
+        #    进程退出、显存/RSS 断崖下跌，会把斜率拉成负数。实测本轮 py_rss 的斜率
+        #    算出 -574 MB/min，而实际 10%->90% 是 +134 MB。把收尾算进"稳态趋势"，
+        #    既会掩盖真泄漏，也会伪造"内存在下降"。
+        _lo, _hi = 0.2 * total, 0.9 * total
+        _win = [k for k in range(len(tv)) if _lo <= tv[k] <= _hi]
+        if len(_win) >= 4:
+            sl = slope_per_min([sm[k] for k in _win], [tv[k] for k in _win])
+        else:
+            sl = 0.0
         print("%-13s %8.0f %8.0f %8.0f %8.0f %8.0f %8.0f %+10.2f"
               % (header[ci], marks[0], marks[1], marks[2], marks[3], marks[4], marks[5], sl))
 
@@ -110,7 +118,38 @@ BATCH_RE_OLD = re.compile(
     r"\[async\] rounds=(\d+) steps=(\d+) \| 平均 batch ([\d.]+)（峰值 (\d+) / 上限 (\d+)）"
     r"\| forward 每轮 ([\d.]+) ms \| 稳态 ([\d.]+) step/s")
 
+# 第 71 轮：write 段拆分（追加在"稳态"之后，不影响上面的匹配）
+WRITE_SPLIT_RE = re.compile(r"回写拆分 h/c ([\d.]+) \+ 动作 ([\d.]+) ms")
+# 第 70 轮：episode 边界契约（bad 必须为 0）
+H0_RE = re.compile(r"新episode首步h=0: ok (\d+) / bad (\d+)")
+
 STEP_RE = re.compile(r"\[(agent_\d+)\] steps=(\d+) \| 总耗时 ([\d.]+) s \| 吞吐 ([\d.]+) step/s（mode=(\w+)）")
+
+
+def classify_tracebacks(txt):
+    """把 Traceback 分类。
+
+    第 71 轮新增。动机：之前所有"稳定性判据"里都写着 `grep -c Traceback == 0`，
+    但实测**每一次跑完的日志里都有 1 个** —— 它来自 tensorboardX 的
+    event_file_writer 守护线程（进程退出时队列被关，`_recv` 抛 EOFError），
+    不是训练代码的异常。之所以以前测到 0，是因为 grep 发生在**跑完之前**，
+    收尾那几行还没写进日志。
+
+    返回 (总数, tensorboardX 收尾 EOFError 数, 其它异常的首行列表)。
+    """
+    chunks = txt.split("Traceback (most recent call last):")
+    total = len(chunks) - 1
+    tb_writer = 0
+    others = []
+    for c in chunks[1:]:
+        seg = c[:1500]
+        if ("tensorboardX" in seg or "event_file_writer" in seg) and "EOFError" in seg:
+            tb_writer += 1
+            continue
+        # 取第一个看起来像 "XxxError: ..." 的行
+        m = re.search(r"^([A-Za-z_.]*(?:Error|Exception)[^\n]*)", seg, re.M)
+        others.append(m.group(1)[:100] if m else seg.strip().splitlines()[0][:100])
+    return total, tb_writer, others
 
 
 def analyze_log(path):
@@ -124,6 +163,15 @@ def analyze_log(path):
         print("每轮耗时拆分：sync %s + build %s + forward %s + write %s = %s ms"
               % (m.group(6), m.group(7), m.group(8), m.group(9), m.group(10)))
         print("稳态 %s step/s" % m.group(11))
+        ws = WRITE_SPLIT_RE.search(txt)
+        if ws:
+            print("回写拆分：h/c %s + 动作 %s ms" % (ws.group(1), ws.group(2)))
+        h0 = H0_RE.search(txt)
+        if h0:
+            bad = int(h0.group(2))
+            print("episode 边界：首步 hidden=0 命中 %s 次，违反 %s 次%s"
+                  % (h0.group(1), h0.group(2),
+                     "" if bad == 0 else "  ← **契约被破坏**"))
     else:
         m2 = BATCH_RE_OLD.search(txt)
         if m2:
@@ -132,6 +180,15 @@ def analyze_log(path):
                      float(m2.group(6)), float(m2.group(7))))
         else:
             print("(无 async 汇总行：local 模式不经过 server，属正常)")
+
+    print("\n--- 异常分类 ---")
+    _tot, _tb, _oth = classify_tracebacks(txt)
+    print("Traceback 总数 %d：tensorboardX 收尾 EOFError %d，其它 %d"
+          % (_tot, _tb, len(_oth)))
+    for o in _oth[:5]:
+        print("  ⚠️ %s" % o)
+    if not _oth:
+        print("  （除 tensorboardX 收尾噪声外，无训练代码异常）")
 
     print("--- 各 actor ---")
     tot_s = tot_st = 0.0

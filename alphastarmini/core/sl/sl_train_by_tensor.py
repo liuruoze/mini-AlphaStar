@@ -66,9 +66,11 @@ else:
     raise Exception
 
 MODEL = args.model
-RESTORE = args.restore
+RESTORE = os.environ.get("MAS_SL_RESTORE", "1" if os.environ.get("MAS_SL_LOAD_STATE", "0") == "1" else "0") == "1"
 CLIP = args.clip
-NUM_WORKERS = args.num_workers
+NUM_WORKERS = int(os.environ.get("MAS_SL_WORKERS", str(args.num_workers)))
+# 数据整份常驻内存（60 文件约 66 GB），fork 多个 worker 有内存翻倍风险；
+# 训练时通常用 MAS_SL_WORKERS=0（batch 只是内存切片，不需要 worker 预取）。
 
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
@@ -79,18 +81,32 @@ if not os.path.exists(MODEL_PATH_TRAIN):
     os.mkdir(MODEL_PATH_TRAIN)
 
 RESTORE_NAME = 'sl_21-12-21_09-11-12'
-RESTORE_PATH = MODEL_PATH + RESTORE_NAME + '.pth' 
+# 第 83 轮（DS，#45）：支持"从指定权重继续训练 + 覆盖学习率"。
+# 用途：从多版本平均（soup）得到的权重出发，用更小的 lr 再训 1 轮 ——
+# "先平均、再重新特化"，是集成之外唯一没试过的组合。
+RESTORE_PATH = os.environ.get("MAS_SL_RESTORE_PATH",
+                              MODEL_PATH + RESTORE_NAME + '.pth')
 RESTORE_PATH_TRAIN = MODEL_PATH_TRAIN + RESTORE_NAME + '.pkl'
 
 SAVE_STATE_DICT = True
 SAVE_ALL_PKL = False
 SAVE_CHECKPOINT = True
 
-LOAD_STATE_DICT = False
+LOAD_STATE_DICT = os.environ.get("MAS_SL_LOAD_STATE", "0") == "1"
 LOAD_ALL_PKL = False
-LOAD_CHECKPOINT = True
+# 第 83 轮（DS，#46b）：用 MAS_SL_LOAD_STATE 指定权重续训时，必须关掉默认的
+# "从 model_train/*.pkl 恢复" 分支，否则会去找不存在的 pkl 直接报错。
+LOAD_CHECKPOINT = not (os.environ.get("MAS_SL_LOAD_STATE", "0") == "1")
 
-SIMPLE_TEST = not P.on_server
+# ---- 第 78 轮（DS，#23）：静默降级的根因修复 ----
+# 原实现 `SIMPLE_TEST = not P.on_server`：只要没设 MAS_ON_SERVER=1，
+# 就会在**没有任何提示**的情况下只读 1 个训练 + 1 个验证 tensor 文件。
+# 实测后果：2026-11-02 那 2.5 小时、5 个 checkpoint 的 SL 训练，
+# train_set 只有 120 个序列（1 个 replay），collected 只有官方模型的 28%。
+#
+# 改法：冒烟必须是**显式**的（MAS_SL_SMOKE=1），默认全量。
+# 这样"忘记设环境变量"只影响设备选择，不会悄悄把训练集砍成 1/60。
+SIMPLE_TEST = os.environ.get("MAS_SL_SMOKE", "0") == "1"
 
 # 数据划分：训练集在前，验证集取「文件列表末尾」的 VAL_NUM 个，两者不重叠。
 # 原实现是 TRAIN_FROM=0 / TRAIN_NUM=90 配 VAL_FROM=0 / VAL_NUM=5，
@@ -125,13 +141,26 @@ def split_indices(total):
 
 # important: use larger batch_size and smaller seq_len in SL!
 BATCH_SIZE = 3 * AHP.batch_size
-SEQ_LEN = int(AHP.sequence_length * 0.5)
+
+# ---- 第 79 轮（DS，#27）：SEQ_LEN 可配，用于对齐"官方 21 年模型训练时的设置" ----
+# 时间线（与 #26 的 Smart 替换同源）：
+#   · 官方 sl_21-12-29 模型训练于 2021-12-29；
+#   · `SEQ_LEN = AHP.sequence_length * 0.5` 与 Smart_unit 替换是**同一个提交**
+#     （54aa123, 2022-05-02，git blame 显示是 boundary commit，即当前历史起点）;
+#   · 也就是说 2021-12 时很可能是完整的 `AHP.sequence_length` = 8。
+# 时序长度直接决定 LSTM 能看到多长的因果链："造兵 -> 集结 -> 进攻" 跨越几十秒，
+# 4 步（step_mul=8，约 1.4 秒回传窗口）可能不足以学到 combat 的时机。
+# 默认保持 4（不改历史行为），设 MAS_SL_SEQ_LEN=8 做对照。
+SEQ_LEN = int(os.environ.get("MAS_SL_SEQ_LEN", str(int(AHP.sequence_length * 0.5))))
 
 print('BATCH_SIZE:', BATCH_SIZE) if debug else None
 print('SEQ_LEN:', SEQ_LEN) if debug else None
 
-NUM_EPOCHS = 10 
-LEARNING_RATE = 1e-4
+# 第 78 轮（DS，#25）：epochs 可配（按时间预算控制）。
+# 10 是官方配方的值（readme: lr=1e-4, 10 epochs）；改成可配只为在有限时间里做数据量消融。
+NUM_EPOCHS = int(os.environ.get("MAS_SL_EPOCHS", "10"))
+
+LEARNING_RATE = float(os.environ.get("MAS_SL_LR", "1e-4"))
 WEIGHT_DECAY = 1e-5
 
 CLIP_VALUE = 0.5  # SLTHP.clip
@@ -220,13 +249,35 @@ def main_worker(device):
 
     print('==> Preparing data..')
 
-    replay_files = [f for f in os.listdir(PATH) if f.endswith('.pt')]
+    # 第 81 轮（DS，#34）：**必须排序**。
+    # 原实现用裸 os.listdir，返回顺序由 inode 决定 —— 于是
+    #   (a) 每次训练/验证的划分（split_indices 取前 N / 末尾 5）其实是任意的，
+    #   (b) 无法通过"把重要文件排到前面"来做数据筛选（#35）。
+    # 排序后：文件顺序确定，划分可复现，且 `data/replay_data_v3_cbt/`（按攻击密度命名的软链接）
+    # 的前缀排序能真正生效。
+    replay_files = sorted([f for f in os.listdir(PATH) if f.endswith('.pt')])
     print('length of replay_files:', len(replay_files)) if debug else None
     replay_files.sort()
 
     if SIMPLE_TEST:
         # 冒烟模式只取前 2 个文件（1 训练 + 1 验证），不要按全量目录切分
         replay_files = replay_files[:2]
+
+    # 第 78 轮（DS，#23）：可控文件数（按内存预算分批训练 / 做数据量消融）
+    #   例：MAS_SL_MAX_FILES=20 -> 15 训练 + 5 验证（VAL_NUM=5 从末尾取）
+    _max_files = os.environ.get("MAS_SL_MAX_FILES", "").strip()
+    if _max_files and not SIMPLE_TEST:
+        _n = max(2, int(_max_files))
+        if _n < len(replay_files):
+            replay_files = replay_files[:_n]
+        print('MAS_SL_MAX_FILES=%d -> 实际使用 %d 个文件'
+              % (_n, len(replay_files)))
+
+    # 第 78 轮（DS，#23）：把"用了多少数据"提到启动日志的第一屏。
+    # 上一次训练就是因为这条信息藏在第 12 行之后没人看，才让 1/60 的数据量跑了 2.5 小时。
+    print('[SL-config] files=%d smoke=%s lr=%g epochs=%d batch=%d seq=%d workers=%d'
+          % (len(replay_files), SIMPLE_TEST, LEARNING_RATE, NUM_EPOCHS,
+             BATCH_SIZE, SEQ_LEN, NUM_WORKERS), flush=True)
 
     (train_from, train_end), (val_from, val_end) = split_indices(len(replay_files))
     print('data split: train_files[%d:%d] (%d)  val_files[%d:%d] (%d)'
@@ -272,6 +323,10 @@ def train(net, optimizer, scheduler, train_set, train_loader, device,
     SAVE_PATH_TRAIN = os.path.join(MODEL_PATH_TRAIN, MODEL + "_" + time_str)
 
     epoch_start = time.time()
+
+    # 第 78 轮（DS，#24）：跟踪最佳 val action acc，训练结束给出"该用哪个 epoch"的结论。
+    # 判据用 val action acc（与训练 acc 不同源，不会自我印证）。
+    best_val_acc, best_ep = -1.0, -1
 
     for ep in range(NUM_EPOCHS):
         loss_sum = 0
@@ -341,18 +396,22 @@ def train(net, optimizer, scheduler, train_set, train_loader, device,
             print('Batch/Epoch: [{}/{}]| loss: {:.3f} | acc: {:.3f} | batch time: {:.3f}s '.format(
                 batch_iter, epoch, loss_value, action_accuracy, batch_time))
 
+        # 第 78 轮（DS，#24）：每个 epoch 存**独立文件**。
+        # 原实现 SAVE_PATH 用启动时间戳命名，10 个 epoch 全写同一个 .pth/.pkl，
+        # 只保留最后一轮 —— 若末轮过拟合，最好的中间模型就丢了（本轮 ep9=0.940、ep10=0.937）。
+        _ep_tag = "_ep%02d" % (ep + 1)
         if SAVE_STATE_DICT:
-            save_path = SAVE_PATH + ".pth"
+            save_path = SAVE_PATH + _ep_tag + ".pth"
             print('Save model state_dict to', save_path)
             torch.save(net.state_dict(), save_path)
 
         if SAVE_ALL_PKL:
-            save_path = SAVE_PATH_TRAIN + ".pkl"
+            save_path = SAVE_PATH_TRAIN + _ep_tag + ".pkl"
             print('Save model all to', save_path)
             torch.save(net, save_path)
 
         if SAVE_CHECKPOINT:
-            save_path = SAVE_PATH_TRAIN + ".pkl"
+            save_path = SAVE_PATH_TRAIN + _ep_tag + ".pkl"
             save_dict = {'batch_iter': batch_iter,
                          'epoch': epoch,
                          'model': net.state_dict(),
@@ -396,11 +455,24 @@ def train(net, optimizer, scheduler, train_set, train_loader, device,
             print("Val target_unit_accuracy acc: {:.6f}.".format(val_acc[9]))
             writer.add_scalar('Val/target_unit_accuracy Acc', val_acc[9], batch_iter)            
 
+            # 第 78 轮（DS，#24）：记录最佳 epoch 并单独存一份 _best.pth
+            if val_acc[0] > best_val_acc:
+                best_val_acc, best_ep = float(val_acc[0]), ep + 1
+                _best_path = SAVE_PATH + "_best.pth"
+                if SAVE_STATE_DICT:
+                    torch.save(net.state_dict(), _best_path)
+                print('[SL-best] new best val_action_acc=%.6f at epoch %d -> %s'
+                      % (best_val_acc, best_ep, _best_path), flush=True)
+
             del val_loss, val_acc
 
         gc.collect()
 
         scheduler.step()
+
+    print('[SL-best] 最终：best val_action_acc=%.6f at epoch %d；'
+          '逐 epoch 权重在 %s_epNN.pth，最佳副本在 %s_best.pth'
+          % (best_val_acc, best_ep, SAVE_PATH, SAVE_PATH), flush=True)
 
     elapse_time = time.time() - epoch_start
     elapse_time = datetime.timedelta(seconds=elapse_time)

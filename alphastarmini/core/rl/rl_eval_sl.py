@@ -43,7 +43,12 @@ speed = False
 
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
-    MAX_EPISODES = 1
+    # ---- 第 76 轮（GLM，#21）：评测参数全部环境变量化 ----
+    # 原来写死 MAX_EPISODES=1 / DIFFICULTY=1 / 随机种子 1 / 输出文件固定，
+    # 无法做"N 局 + 分片 + 指定 checkpoint"的胜率评测（Kimi-17 / E0）。
+    # 默认值与旧行为完全一致。
+    import os as _os
+    MAX_EPISODES = int(_os.environ.get("EVAL_EPISODES", "1"))
     GAME_STEPS_PER_EPISODE = 21000    # 9000
     SAVE_STATISTIC = True
     SAVE_REPLAY = True
@@ -56,8 +61,8 @@ MAP_NAME = SCHP.map_name  # P.map_name "Simple64" "AbyssalReef"
 USE_PREDICT_STEP_MUL = AHP.use_predict_step_mul
 STEP_MUL = 8
 
-DIFFICULTY = 1
-RANDOM_SEED = 1
+DIFFICULTY = int(_os.environ.get("EVAL_DIFFICULTY", "1"))
+RANDOM_SEED = int(_os.environ.get("EVAL_SEED", "1"))
 VERSION = SCHP.game_version
 
 RESTORE = True
@@ -66,7 +71,7 @@ RESTORE = True
 MODEL_TYPE = "sl"
 MODEL_PATH = "./model/"
 ACTOR_NUMS = 1
-OUTPUT_FILE = './outputs/eval_sl.txt'
+OUTPUT_FILE = _os.environ.get("EVAL_OUT", './outputs/eval_sl.txt')  # 分片各自写各的
 
 # gpu setting
 ON_GPU = torch.cuda.is_available()
@@ -94,6 +99,8 @@ class ActorEval:
                  max_frames_per_episode=22.4 * 60 * 15, max_frames=22.4 * 60 * 60 * 24, 
                  max_episodes=MAX_EPISODES, is_training=IS_TRAINING,
                  replay_dir=REPLAY_DIR):
+        # 第 79 轮（DS，#28）：评测时统计模型**实际输出**的动作分布（MAS_ACT_STATS=1 开启）
+        self._act_cnt = {}
         self.player = player
 
         print('initialed player')
@@ -230,6 +237,121 @@ class ActorEval:
                                                                                                                                player_memory, 
                                                                                                                                obs=home_obs.observation)
 
+                            # 第 79 轮（DS，#29）：dump 评测时喂给网络的 state 形状/统计（MAS_DUMP_STATE=1）
+                            # ⚠️ 必须放在**完整赋值语句之后**：第一次实现插在了续行中间，
+                            #    把 `player_function_call, player_action, ... = step_from_state(...)`
+                            #    这段多行赋值打断了，直接 NameError、整局作废（Episode: 0）。
+                            if os.environ.get("MAS_DUMP_STATE") and not getattr(self, "_state_dumped", False):
+                                self._state_dumped = True
+                                try:
+                                    print("[STATE-DUMP] entity=%s map=%s scalar_n=%d"
+                                          % (tuple(state.entity_state.shape),
+                                             tuple(state.map_state.shape),
+                                             len(state.statistical_state)), flush=True)
+                                    print("[STATE-DUMP] entity absmax=%.3f mean=%.3f nonzero=%.1f%%"
+                                          % (float(state.entity_state.abs().max()),
+                                             float(state.entity_state.mean()),
+                                             100.0 * float((state.entity_state != 0).float().mean())), flush=True)
+                                    print("[STATE-DUMP] entity_num=%s select_units_num=%s"
+                                          % (entity_num, player_select_units_num), flush=True)
+                                except Exception as _e:
+                                    print("[STATE-DUMP] 失败: %r" % (_e,), flush=True)
+
+                            # 第 82 轮（DS，#38）：可选把 unit_tags / target_unit_tag 从**下标**翻译成**真 tag**。
+                            # 依据：agent.py:358 注释明确说这两者"是 _raw_tags 里的下标，不等于 SC2 用的 tag"，
+                            # 而本文件把 func_call 直接送进 env（env_actions = [player_function_call]）——
+                            # #37 实测：真实 tag 是 8.6e9 量级，而 func_call 里是 [10] 这种小下标。
+                            # 若 pysc2 不做映射，则所有带 unit_tags 的指令（Train_/Build_/Smart/Move/Attack）
+                            # 都是空指令 —— 那会完美解释"军队不少但打不死"。
+                            # 用一个开关做 A/B，避免改坏既有行为。
+                            if os.environ.get("MAS_TAG_MAP"):
+                                try:
+                                    from pysc2.lib import actions as _A
+                                    _tags = [int(u.tag) for u in home_obs.observation.raw_units]
+                                    _names = [a.name for a in _A.RAW_FUNCTIONS[player_function_call.function].args]
+                                    _new = []
+                                    for _n, _v in zip(_names, player_function_call.arguments):
+                                        if _n in ("unit_tags", "target_unit_tag"):
+                                            _new.append([_tags[int(i)] if 0 <= int(i) < len(_tags) else int(i)
+                                                         for i in _v])
+                                        else:
+                                            _new.append(_v)
+                                    # FunctionCall 是 namedtuple: (function, arguments)
+                                    player_function_call = _A.FunctionCall(
+                                        player_function_call.function, _new)
+                                except Exception as _e:
+                                    print("[TAG-MAP] 失败: %r" % (_e,), flush=True)
+
+                            # 第 83 轮（DS，#44）：记录"军队/人口随时间"的曲线。
+                            # 目的：判断我们是"造不出来"（产能/人口瓶颈）还是"造了但打不赢"。
+                            # 每 2000 步记一次 (step, food_army, food_workers, minerals, army_count)。
+                            if os.environ.get("MAS_TIME_STATS"):
+                                try:
+                                    _pc = home_obs.observation.player_common
+                                    _st = int(home_obs.observation.game_loop[0])
+                                    _last = getattr(self, "_tl_last", -1)
+                                    if _st - _last >= 2000:
+                                        self._tl_last = _st
+                                        self._tl = getattr(self, "_tl", [])
+                                        self._tl.append((_st, int(_pc.food_army), int(_pc.food_workers),
+                                                         int(_pc.minerals), int(_pc.army_count)))
+                                except Exception:
+                                    pass
+
+                            # 第 82 轮（DS，#42）：统计 Attack_pt 的目标坐标分布。
+                            # 背景：Attack_pt 的参数是 [queued, unit_tags, **world**] —— 它是"攻击移动"，
+                            # 位置由 location 头给出。若坐标总在自己基地附近，就永远打不到对手基地。
+                            # 这里只统计"攻击坐标到己方建筑质心的距离"的均值/max。
+                            if os.environ.get("MAS_LOC_STATS"):
+                                try:
+                                    _f = int(player_function_call.function)
+                                    if _f == 2:      # Attack_pt
+                                        _ru = home_obs.observation.raw_units
+                                        _mine = [u for u in _ru if u.alliance == 1]
+                                        _bld = [u for u in _mine if u.unit_type in (59, 60, 61, 62, 72, 73)]
+                                        if _mine and _bld:
+                                            _cx = sum(u.x for u in _bld) / len(_bld)
+                                            _cy = sum(u.y for u in _bld) / len(_bld)
+                                            _args = player_function_call.arguments
+                                            _w = None
+                                            for _a in _args:
+                                                if isinstance(_a, (list, tuple)) and len(_a) == 2:
+                                                    _w = _a
+                                            if _w is not None:
+                                                _d = ((_w[0] - _cx) ** 2 + (_w[1] - _cy) ** 2) ** 0.5
+                                                self._loc_d = getattr(self, "_loc_d", [])
+                                                self._loc_d.append(_d)
+                                except Exception:
+                                    pass
+                            # 第 82 轮（DS，#37）：核对"下标 vs 真 tag"。
+                            # 背景：agent.py:358 的注释明确写 "unit_tags and target_unit_tag are actually
+                            # index in _raw_tags! so they are different from the tags really used by a SC2-action!"
+                            # 而 rl_eval_sl 把 func_call 直接送进 env.step（下面 env_actions = [player_function_call]），
+                            # 中间**看不到任何 index -> tag 的转换**。
+                            # 这里实测：func_call 里的 unit_tags/target_unit_tag 到底是不是 obs 里的真 tag。
+                            if os.environ.get("MAS_TAG_CHECK") and getattr(self, "_tag_checked", 0) < 3:
+                                self._tag_checked = getattr(self, "_tag_checked", 0) + 1
+                                try:
+                                    _raw_tags = [int(u.tag) for u in home_obs.observation.raw_units]
+                                    _args = [list(a) if hasattr(a, "__iter__") else a
+                                             for a in player_function_call.arguments]
+                                    _flat = []
+                                    for _a in _args:
+                                        if isinstance(_a, list):
+                                            _flat.extend(int(x) for x in _a)
+                                        else:
+                                            _flat.append(int(_a))
+                                    _hit = [x for x in _flat if x in _raw_tags]
+                                    print("[TAG-CHECK] func=%s args=%s | n_raw_units=%d tag_range=[%s..%s] "
+                                          "| 参数中命中真实 tag 的个数=%d"
+                                          % (int(player_function_call.function), _args, len(_raw_tags),
+                                             min(_raw_tags) if _raw_tags else -1,
+                                             max(_raw_tags) if _raw_tags else -1, len(_hit)),
+                                          flush=True)
+                                    print("[TAG-CHECK] 真实 tag 前 8 个: %s" % (_raw_tags[:8],), flush=True)
+                                except Exception as _e:
+                                    print("[TAG-CHECK] 失败: %r" % (_e,), flush=True)
+
                             print("player_function_call:", player_function_call) if not SAVE_STATISTIC else None
                             print("player_action:", player_action) if debug else None
                             print("player_action.delay:", player_action.delay) if debug else None
@@ -237,6 +359,14 @@ class ActorEval:
 
                             if True:
                                 show_sth(home_obs, player_action)
+
+                            # 第 79 轮（DS，#28）：累计本局实际输出的动作类型
+                            if os.environ.get("MAS_ACT_STATS"):
+                                try:
+                                    _k = int(player_action.action_type.item())
+                                    self._act_cnt[_k] = self._act_cnt.get(_k, 0) + 1
+                                except Exception:
+                                    pass
 
                             expected_delay = player_action.delay.item()
                             step_mul = max(1, expected_delay)
@@ -358,12 +488,44 @@ class ActorEval:
                                         end_episode_time = time()  # in seconds.
                                         end_episode_time = strftime("%Y-%m-%d %H:%M:%S", localtime(start_episode_time))
 
-                                        statistic = 'Episode: [{}/{}]| food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
-                                            total_episodes, MAX_EPISODES, food_used, army_count, collected_points, used_points, killed_points, game_loop)
+                                        # 第 76 轮（GLM，#21）：加 native outcome 字段。
+                                        # 注意 outcome 默认 0（截断=平局），终局才有真实值。
+                                        statistic = 'Episode: [{}/{}]| native_outcome: {} | food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
+                                            total_episodes, MAX_EPISODES, int(outcome), food_used, army_count, collected_points, used_points, killed_points, game_loop)
 
                                         statistic = end_episode_time + " " + statistic
 
                                         file.write(statistic)
+
+                                        # 第 79 轮（DS，#28）：本局实际动作分布（top6）
+                                        # 第 82 轮（DS，#39）：MAS_ACT_STATS=2 时 dump **全量**动作直方图，
+                                        # 用于与官方模型逐动作对比（top6 看不出"缺了哪一类动作"）。
+                                        if os.environ.get("MAS_TIME_STATS") and getattr(self, "_tl", None):
+                                            file.write("TIMELINE " + " ".join(
+                                                "%d:%d/%d/%d/%d" % t for t in self._tl) + "\n")
+                                            self._tl = []
+                                            self._tl_last = -1
+
+                                        if os.environ.get("MAS_LOC_STATS") and getattr(self, "_loc_d", None):
+                                            _d = self._loc_d
+                                            file.write("LOCSTATS n=%d mean=%.1f max=%.1f p90=%.1f\n"
+                                                       % (len(_d), sum(_d) / len(_d), max(_d),
+                                                          sorted(_d)[int(0.9 * (len(_d) - 1))]))
+                                            self._loc_d = []
+
+                                        if os.environ.get("MAS_ACT_STATS") == "2" and self._act_cnt:
+                                            _tot2 = max(sum(self._act_cnt.values()), 1)
+                                            _all = sorted(self._act_cnt.items(), key=lambda x: -x[1])
+                                            file.write("ACTFULL n=%d " % _tot2 +
+                                                       " ".join("%d:%d" % (k2, v2) for k2, v2 in _all) + "\n")
+
+                                        if os.environ.get("MAS_ACT_STATS") and self._act_cnt:
+                                            _tot = max(sum(self._act_cnt.values()), 1)
+                                            _top = sorted(self._act_cnt.items(), key=lambda x: -x[1])[:6]
+                                            file.write("ACTSTATS n=%d " % _tot +
+                                                       " ".join("%d:%.1f%%" % (k2, 100.0 * v2 / _tot)
+                                                                 for k2, v2 in _top) + "\n")
+                                            self._act_cnt = {}
 
                                 results[outcome + 1] += 1
 
@@ -406,9 +568,11 @@ class ActorEval:
             print(traceback.format_exc())
 
         finally:
-            print("results: ", results) if debug else None
+            # 第 76 轮（GLM，#21）：这两行原来在 `if debug` 里 —— 评测模式下不打印，
+            # 编排器就汇总不到 results（第一版验证局就是在这里扑空的）。
+            print("results: ", results, flush=True)
             win_rate = results[2] / (1e-9 + sum(results))
-            print("win rate: ", win_rate) if debug else None
+            print("win rate: ", win_rate, flush=True)
 
             total_time = time() - training_start_time
 

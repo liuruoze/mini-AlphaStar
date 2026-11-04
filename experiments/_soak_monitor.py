@@ -53,55 +53,102 @@ def sample_gpu():
     return res
 
 
-def sample_procs():
-    """扫描 /proc，汇总 python / SC2 的 RSS 与线程数。
+def _read_proc(pid):
+    """返回 (name, rss_kb, threads, cmdline)；进程消失则返回 None。"""
+    base = "/proc/" + str(pid)
+    try:
+        with open(base + "/status", "r") as f:
+            name, rss_kb, thr = "", 0, 0
+            for line in f:
+                if line.startswith("Name:"):
+                    name = line.split(":", 1)[1].strip()
+                elif line.startswith("VmRSS:"):
+                    rss_kb = int(line.split()[1])
+                elif line.startswith("Threads:"):
+                    thr = int(line.split()[1])
+        with open(base + "/cmdline", "rb") as f:
+            cmd = f.read().decode("utf-8", "ignore")
+    except (IOError, OSError, ValueError, IndexError):
+        return None
+    return name, rss_kb, thr, cmd
 
-    直接读 /proc 而不是 `ps`：① 不依赖外部命令的列格式；
-    ② 一次遍历拿到所有信息，采样本身 <5 ms，不会污染 10 s 粒度的曲线。
+
+def _children(pid):
+    """`/proc/<pid>/task/<pid>/children` 是内核直接给的子进程列表（Linux >= 3.5）。"""
+    try:
+        with open("/proc/%d/task/%d/children" % (pid, pid), "r") as f:
+            return [int(x) for x in f.read().split()]
+    except (IOError, OSError, ValueError):
+        return []
+
+
+def _tree(roots):
+    seen, stack = set(), list(roots)
+    while stack:
+        p = stack.pop()
+        if p in seen:
+            continue
+        seen.add(p)
+        stack.extend(_children(p))
+    return seen
+
+
+def sample_procs():
+    """只统计**本项目的进程树**（Kimi-12）。
+
+    ⚠️ 第 71 轮之前的实现是"扫全机器所有 python 进程"，
+    于是 `py_rss` / `py_threads` 混进了同机别人的进程 ——
+    这也正是 §56.2 需要额外用 `ps -o nlwp` 抽查来"补救"的原因。
+    现在改成：先找 `run_rl.py` 的根进程，再沿 `/proc/<pid>/task/<pid>/children`
+    递归收集子进程，只对这些进程求和。同时输出 `py_other_n`（树外的 python 进程数），
+    用来量化"以前到底混进了多少"。
+
+    返回 (py_n, py_rss_mb, py_thr, sc2_n, sc2_rss_mb, run_rl_n, py_other_n)
     """
-    py_n = py_rss = py_thr = 0
-    sc2_n = sc2_rss = 0
-    run_rl_n = 0
+    roots = []
     for pid in os.listdir("/proc"):
         if not pid.isdigit():
             continue
-        base = "/proc/" + pid
-        try:
-            with open(base + "/status", "r") as f:
-                name = ""
-                rss_kb = 0
-                thr = 0
-                for line in f:
-                    if line.startswith("Name:"):
-                        name = line.split(":", 1)[1].strip()
-                    elif line.startswith("VmRSS:"):
-                        rss_kb = int(line.split()[1])
-                    elif line.startswith("Threads:"):
-                        thr = int(line.split()[1])
-        except (IOError, OSError, ValueError, IndexError):
+        r = _read_proc(pid)
+        if r is None:
             continue
+        if "run_rl.py" in r[3]:
+            roots.append(int(pid))
 
-        # ⚠️ SC2 的 `/proc/<pid>/status:Name` 是 **`Main_Thread`**（15 字符截断后的线程名），
-        # 不是 `SC2_x64`。第一版按 Name 匹配，采到的 sc2_n 恒为 0（第 50 轮踩到）。
-        # 只能读 cmdline 里的可执行文件路径。
-        try:
-            with open(base + "/cmdline", "rb") as f:
-                cmd = f.read().decode("utf-8", "ignore")
-        except (IOError, OSError):
-            cmd = ""
+    tree = _tree(roots)
 
+    py_n = py_rss = py_thr = 0
+    sc2_n = sc2_rss = 0
+    run_rl_n = len(roots)
+    py_other_n = 0
+
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        ipid = int(pid)
+        r = _read_proc(ipid)
+        if r is None:
+            continue
+        name, rss_kb, thr, cmd = r
+
+        # ⚠️ SC2 必须**全局**数，不能只看进程树：
+        #    pysc2 启动 SC2 时是双重 fork（中间进程退出），SC2 被挂到 init 下，
+        #    `/proc/<pid>/task/<pid>/children` 里根本看不到它们。
+        #    第一版按树过滤，`sc2_n` 直接变成 0 —— 与"SC2 泄漏"完全无法区分。
+        #    `SC2_x64` 在本机是唯一可执行文件名，全局匹配是安全的。
         if "SC2_x64" in cmd:
             sc2_n += 1
             sc2_rss += rss_kb
+        elif ipid in tree:
+            if name.startswith("python"):
+                py_n += 1
+                py_rss += rss_kb
+                py_thr += thr
         elif name.startswith("python"):
-            py_n += 1
-            py_rss += rss_kb
-            py_thr += thr
-            # 只统计主训练进程（run_rl.py），用于区分「多进程 fork 出来的子进程」
-            if "run_rl.py" in cmd:
-                run_rl_n += 1
+            # 树外的 python 进程：以前会被算进 py_rss/py_threads
+            py_other_n += 1
 
-    return py_n, py_rss // 1024, py_thr, sc2_n, sc2_rss // 1024, run_rl_n
+    return py_n, py_rss // 1024, py_thr, sc2_n, sc2_rss // 1024, run_rl_n, py_other_n
 
 
 def main():
@@ -116,7 +163,7 @@ def main():
     for i in range(ngpu):
         header += ["gpu%d_mem_mb" % i, "gpu%d_util" % i]
     header += ["py_n", "py_rss_mb", "py_threads", "sc2_n", "sc2_rss_mb",
-               "run_rl_n", "load1"]
+               "run_rl_n", "py_other_n", "load1"]
 
     t0 = time.time()
     # 追加写：允许「先起监控、后起训练」，也允许断点续采
@@ -133,12 +180,13 @@ def main():
         for i in range(ngpu):
             mem, util = g.get(i, (-1, -1))
             row += [mem, util]
-        py_n, py_rss, py_thr, sc2_n, sc2_rss, run_rl_n = sample_procs()
+        py_n, py_rss, py_thr, sc2_n, sc2_rss, run_rl_n, py_other_n = sample_procs()
         try:
             load1 = os.getloadavg()[0]
         except OSError:
             load1 = -1
-        row += [py_n, py_rss, py_thr, sc2_n, sc2_rss, run_rl_n, "%.2f" % load1]
+        row += [py_n, py_rss, py_thr, sc2_n, sc2_rss, run_rl_n, py_other_n,
+                "%.2f" % load1]
         w.writerow(row)
         f.flush()
         time.sleep(args.interval)

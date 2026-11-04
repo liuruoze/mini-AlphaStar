@@ -314,16 +314,50 @@ def load_the_model(model_path):
 
 
 def initial_model_state_dict(model_type, path, model, device):
+    # ---- 第 76 轮（GLM，#21）：允许显式指定 checkpoint（E0 胜率评测需要）----
+    # 原来只能取"字典序最大"的一个（models.sort() 后取 [-1]），
+    # 无法评测某个特定版本 —— 而胜率曲线恰恰是"对每个版本各评一次"。
+    # EVAL_MODEL 指向具体 .pth 时忽略 path/model_type。
+    # ---- 第 84 轮（DS，#47）：RL 必须能**明确指定**从哪个 SL 权重初始化 ----
+    # 为什么必须修：原实现 `models.sort()[-1]` 取字典序最大，实测会选到
+    #   `sl_26-11-04_15-28-45_ep01.pth` —— 那正是第 83 轮"微调失败后从零训 1 轮"的坏模型
+    #   （DS12 83.9：19 局 1 胜 6 负、army 18.2）。
+    # 更糟的是我们的冠军 `BEST_SL_v82_soup_prior3.pth` 是大写 `SL`，
+    #   `"sl" in "BEST_SL_..."` == False，**永远不会被选中**。
+    # 这类"静默选错权重"比崩溃更危险：不报错、曲线照样出来，但一切都没有意义。
+    # 现在：MAS_RL_INIT_MODEL 显式指定（RL 用），EVAL_MODEL 保留（评测用）。
+    _explicit = (os.environ.get("MAS_RL_INIT_MODEL", "").strip()
+                 or os.environ.get("EVAL_MODEL", "").strip())
+    if _explicit:
+        _sd = torch.load(_explicit, map_location=device)
+        _incompat = model.load_state_dict(_sd, strict=False)
+        # 打印"加载证据"：文件名 + 参数数 + 权重的 L2 范数。
+        # 范数能把"真的加载了"和"随机初始化"区分开（随机初始化的范数量级不同）。
+        try:
+            _n = sum(v.numel() for v in _sd.values())
+            _norm = float(sum(float(v.float().norm(2) ** 2)
+                              for v in _sd.values() if v.is_floating_point()) ** 0.5)
+        except Exception:
+            _n, _norm = -1, -1.0
+        print("[init] 显式加载 SL 权重: %s" % _explicit, flush=True)
+        print("[init] 参数量=%d  权重L2范数=%.3f  missing=%d  unexpected=%d"
+              % (_n, _norm, len(getattr(_incompat, "missing_keys", []) or []),
+                 len(getattr(_incompat, "unexpected_keys", []) or [])), flush=True)
+        return model
+
     models = list(filter(lambda x: model_type in x, os.listdir(path)))
     if len(models) == 0:
         print("No models are found!")
         return None
 
-    models.sort()    
+    models.sort()
     model_path = os.path.join(path, models[-1])
-    print("load model from {}".format(model_path))
+    # 第 84 轮（DS，#47）：未显式指定时必须**大声说出来**选了什么。
+    # 旧实现只打一行 "load model from ..."，在几千行日志里等于静默。
+    print("[init] ⚠️ 未设 MAS_RL_INIT_MODEL，回落到字典序最大的 %r" % model_path, flush=True)
+    print("[init] ⚠️ 这**不一定**是你要的模型；RL 训练务必显式指定 SL 权重", flush=True)
 
-    model.load_state_dict(torch.load(model_path, map_location=device), strict=False) 
+    model.load_state_dict(torch.load(model_path, map_location=device), strict=False)
 
     return model
 
