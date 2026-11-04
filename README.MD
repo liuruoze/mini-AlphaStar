@@ -134,10 +134,20 @@ The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 >   what proved "the actors are fine, the *consumer* is gone"; `faulthandler` writing zero
 >   stacks is what ruled out a C-level crash.
 >
-> **Soak status at hand-off: 25 minutes clean (12 episodes, full statistics, clean exit).
-> A 50-minute follow-up is still running.** A 30–60 minute soak is therefore *nearly* proven,
-> not fully: the remaining risk is that some other timeout-style assumption only shows up
-> past the 25-minute mark.
+> **Soak status at hand-off — one clean run, one regression, stated together:**
+>
+> * **soak #5: 25 minutes clean** — 1503.9 s, 4/4 processes, 12 episodes, `q_winloss`
+>   never accumulated, `== done ==` on its own.
+> * **soak #6 (the 50-minute follow-up): froze at step 200.** All six actor traces stopped
+>   at the same step, the heartbeat file stopped at t = 60 s, **all 5 processes were still
+>   alive and `faulthandler` recorded zero stacks**. That is a genuine global stall, not a
+>   logging artefact, and it is a *different* failure from #57 (there the producers kept
+>   running while the consumer had died; here the producers stopped too).
+>
+> So a 30–60 minute soak is **not proven**. What is proven is that the algorithm chain is
+> correct and that a 25-minute run can now complete end-to-end with full statistics.
+> The next diagnostic step is `py-spy dump` on the stalled process group — that was the one
+> tool missing here, and it would identify the blocked frame in seconds.
 >
 > **Win rate did not move** (0/12). With a 4.3% starting policy, 12 losses are expected 59%
 > of the time, so this is not evidence of failure — but it is not evidence of learning either.
