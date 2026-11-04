@@ -85,39 +85,65 @@ The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
 > `doc/IMPROVEMENTS_2026_11.md` §5 for the complete table and `ERRATA.md` for every claim
 > that was later withdrawn.
 >
-> #### Part 3 — RL loop status
+> #### Part 3 — RL loop status: runs, and the bug that looked like a deadlock
 >
 > The A3C loop (`rl_vs_inner_bot_mp`) had **never been executed** before this campaign.
-> Bringing it up required six fixes (`MAS_RL_INIT_MODEL` to stop silently loading the
-> wrong SL checkpoint, a configurable win-rate window, a zero-row statistics crash,
-> a heartbeat, a spawn/subprocess constants mismatch, and un-gated debug prints).
-> After them the loop runs and produces: **256 logged RL loss points, UPGO in
-> 0.003–0.20, per-head KL ≤ 0.0014** (small because the policy starts from the SL
-> weights, which is the expected signature), `winrate/every_4_episodes` scalars, and
-> 9 completed episodes in 20 minutes. **Its win rate stayed 0**, which is consistent
-> with a 4.3% SL policy over 9 games.
+> Bringing it up required **eight** fixes: `MAS_RL_INIT_MODEL` (it silently loaded a
+> deliberately-broken SL checkpoint), a configurable win-rate window, a zero-row statistics
+> crash, a heartbeat, a spawn/subprocess constants mismatch, un-gated debug prints, a
+> per-episode frame cap that shrank with the time budget, and — the decisive one — the
+> result consumer killing itself.
 >
-> **Two soak runs, two different failures — stated plainly.**
+> **What a clean run looks like now (soak #5):**
 >
-> * **Soak #1** (8 actors): ran 1201 s, completed **9 episodes** (8 draws, 1 loss), logged
->   256 loss points — then **died silently with no traceback**: the Python process group
->   vanished, 8 SC2 processes were orphaned, 100 GB of RAM was still free. So it was not
->   an OOM and not a Python exception.
-> * **Soak #2** (6 actors): the process stayed alive for 34 minutes with 6 live SC2
->   instances, but recorded **0 episodes** — the per-episode termination was never reached
->   or never reported.
+> ```
+> 1503.9 s (25 min)   4/4 processes alive   12 episodes completed
+> [agent_4] steps=5720 | 吞吐 3.80 step/s (mode=local)
+> Parameter_Server end:
+> == done ==                                 <- exits on its own at the wall clock
 >
-> **A 30–60 minute soak is therefore *not yet proven*.** What *is* proven is that the
-> algorithm chain is correct: trajectories are collected, all six head losses and their KL
-> terms are logged, the optimizer steps, and `winrate/*` scalars are written.
+> tensorboard:
+>   loss/learner_0                     n=204   last=-0.0028
+>   learner_0/loss_upgo_               n=204   -0.0029 ~ 0.1799
+>   learner_0/all_kl_loss_action_type_ n=204    0 ~ 0.0009
+>   winrate/every_2_episodes           n=3      0.0 / 0.0 / 0.0
+>   meanpoints/every_2_episodes        n=3      0.0344 -> 0.1781 -> 0.1750
+> ```
 >
-> A third observation invalidated part of the diagnosis itself: with `python run_rl.py >
-> log/x.log`, the Python parent **and 6–8 SC2 children** write to the *same* file
-> descriptor, each keeping its own offset, so they **overwrite each other**. "The heartbeat
-> stopped at t = N" was therefore partly an artefact of log self-overwriting, not proof
-> that a thread died. Subsequent runs must use `>>` (atomic append) or one file per process.
-> This is recorded as item #53 so the next reviewer does not re-derive it.
+> **The decisive bug (#57) was not a lock and not CUDA.** `Parameter_Server` was written as
 >
+> ```python
+> outcome = q_winloss.get(timeout=600)     # queue.Empty -> fall through to `except` -> exit
+> ```
+>
+> An episode takes **800–1300 s** (2250 env steps at ~2–4 steps/s). So the only consumer of
+> results **declared itself dead after 10 minutes**, while the actors kept playing. Results
+> piled up (`q_winloss = 6, 7, 8 …`) and nothing was ever written to tensorboard. On the
+> surface this is indistinguishable from a deadlock — which is why the first two diagnoses
+> went to locks and shared memory and were both wrong. Fixed by treating `queue.Empty` as
+> "this episode has not finished yet" and continuing as long as the parent process is alive;
+> the real exit conditions are the sentinel from the reaper thread and parent death.
+>
+> Two observation bugs made this hard to see, and both are worth recording:
+>
+> * **#53** — `python run_rl.py > log.txt` gives the Python parent *and* 6–8 SC2 children
+>   the same file descriptor with independent offsets, so they **overwrite each other**.
+>   "The heartbeat stopped at t = N" was partly an artefact. Use `>>` or one file per process.
+> * **#54/#55/#56** — the diagnosis only converged after adding three channels that share
+>   no fd: a heartbeat file, a per-actor step trace, and `faulthandler`. The actor trace is
+>   what proved "the actors are fine, the *consumer* is gone"; `faulthandler` writing zero
+>   stacks is what ruled out a C-level crash.
+>
+> **Soak status at hand-off: 25 minutes clean (12 episodes, full statistics, clean exit).
+> A 50-minute follow-up is still running.** A 30–60 minute soak is therefore *nearly* proven,
+> not fully: the remaining risk is that some other timeout-style assumption only shows up
+> past the 25-minute mark.
+>
+> **Win rate did not move** (0/12). With a 4.3% starting policy, 12 losses are expected 59%
+> of the time, so this is not evidence of failure — but it is not evidence of learning either.
+> `meanpoints` rising 0.034 → 0.178 over the same 12 episodes is a live reward signal, not a
+> proven improvement.
+
 > #### How this was done (human-in-the-loop, multiple agents)
 >
 > This campaign was run by **one human supervisor directing several LLM agents**, not by a

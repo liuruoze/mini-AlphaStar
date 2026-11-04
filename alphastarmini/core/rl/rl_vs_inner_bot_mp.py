@@ -8,6 +8,7 @@
 from time import time, sleep, strftime, localtime
 import gc
 import os
+import queue as _queue
 
 # FIX(T3a): 多进程 RL 必设。nproc=128 时每个进程的 BLAS/OMP 默认开 128 个线程，
 # 8 个 actor 就是 1024 个线程抢 128 核，实测把 preprocess_state_all 从 10 ms 拖到 200 ms（20 倍），
@@ -489,6 +490,21 @@ class ActorVSComputer:
                                 [home_next_obs] = timesteps
                                 total_frames += 1 * STEP_MUL
                                 episode_frames += 1 * STEP_MUL
+
+                                # 第 84 轮（DS，#55）：actor 进度写**独立 trace 文件**。
+                                # 目的：soak#2/#3 在 t≈240 s 后"全部安静"，需要区分
+                                #   ① actor 停了 ② actor 在跑但 episode 不结束 ③ 只是日志被覆盖。
+                                # 每 100 步一行，append 模式，不与任何进程共享 fd。
+                                _tr = os.environ.get("MAS_ACTOR_TRACE", "").strip()
+                                if _tr:
+                                    _sc = getattr(self, "step_count", 0)
+                                    if _sc % 100 == 0:
+                                        try:
+                                            with open(_tr, "a") as _tf:
+                                                _tf.write("[a%02d] step=%d ep_frames=%d total=%d\n"
+                                                          % (self.idx, _sc, episode_frames, total_frames))
+                                        except Exception:
+                                            pass
                                 del env_actions, timesteps
 
                                 # fix the action delay
@@ -1269,7 +1285,9 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
     # 一次 30 min 的长跑会变成 60 min 才返回（长跑测试的成本直接翻倍）。
     # 现在有两条更快的退出路径：① 结束哨兵（test() 的 reaper 投递）；
     # ② 把本变量调小。哨兵是主路径，超时是兜底。
-    _q_timeout = float(os.environ.get("MAS_QUEUE_TIMEOUT", 60 * 30))
+    # 第 84 轮（DS，#57）：它现在只是"多久检查一次父进程还活着"的节拍，不再是退出条件。
+    # 默认从 600 s 放宽到 3600 s（仍可用 MAS_QUEUE_TIMEOUT 覆盖）。
+    _q_timeout = float(os.environ.get("MAS_QUEUE_TIMEOUT", 60 * 60))
 
     train_iters = TRAIN_ITERS 
     static_num = STATIC_NUM
@@ -1286,7 +1304,23 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
 
     try: 
         while update_counter < train_iters:
-            outcome = q_winloss.get(timeout=_q_timeout)
+            # ---- 第 84 轮（DS，#57）：Empty **不是**退出条件 ----
+            # 这是本轮找到的真正根因（DS12 84.15）：
+            #   一局要 800~1300 秒（2250 步 × ~2 步/s），而 `MAS_QUEUE_TIMEOUT` 曾是 600 秒。
+            #   Parameter_Server 在 600 秒时因"队列空"直接 break 退出，
+            #   之后**没有任何进程消费 outcome**，`q_winloss` 一路积压，
+            #   统计链（win_rate / mean_points / checkpoint 保存）全部断裂。
+            #   表现是"proc=3/4 + q_winloss=6"——看起来像死锁，其实是消费者先自杀了。
+            # 现在：队列空只说明"这一局还没打完"，只要**父进程还活着**就继续等。
+            try:
+                outcome = q_winloss.get(timeout=_q_timeout)
+            except _queue.Empty:
+                try:
+                    os.kill(os.getppid(), 0)          # 父进程还在？
+                    continue                           # 在 -> 继续等（一局可能 20 分钟）
+                except OSError:
+                    print("[Parameter_Server] 父进程已退出，停止等待", flush=True)
+                    break
             # 第 50 轮：结束哨兵。`test()` 在所有 Worker 退出后投递 None，
             # 这里必须**先判空**再 append —— 否则 None 会流进 `(outcome == 1)` 的统计里。
             if outcome is None:
@@ -1295,7 +1329,14 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
             outcome_list.append(outcome)
             print("Parameter_Server winloss_list", outcome_list) if 1 else None
 
-            points = q_points.get(timeout=_q_timeout)
+            try:
+                points = q_points.get(timeout=_q_timeout)
+            except _queue.Empty:
+                try:
+                    os.kill(os.getppid(), 0)
+                    continue
+                except OSError:
+                    break
             if points is None:
                 print("[Parameter_Server] 收到结束哨兵（points 队列），正常收尾", flush=True)
                 break
@@ -1593,6 +1634,24 @@ def test(on_server=False, replay_path=None):
                 pass
             return -1.0
 
+        # 第 84 轮（DS，#54）：心跳**必须写独立文件**，不能再走 stdout。
+        # 理由（本轮实测）：Python 主进程 + 6~8 个 SC2 子进程共享同一个 stdout，
+        # 即使 `-u` + `>>`，每条 print 仍要抢 TextIOWrapper 的锁；
+        # soak#2/#3 的心跳都在 t≈240 s 停住，而同刻进程明明还活着 ——
+        # 分不清是"线程死了"还是"抢不到 stdout 锁"。
+        # 独立文件（每次 open/append/close）没有共享锁，也不受 SC2 输出影响。
+        _hb_path = os.environ.get("MAS_HB_FILE", "").strip()
+
+        def _hb_write(line):
+            if _hb_path:
+                try:
+                    with open(_hb_path, "a") as _f:
+                        _f.write(line + "\n")
+                    return
+                except Exception:
+                    pass
+            print(line, flush=True)
+
         def _heartbeat():
             _t0 = time()
             while True:
@@ -1603,17 +1662,13 @@ def test(on_server=False, replay_path=None):
                         _q = q_winloss.qsize()
                     except Exception:
                         _q = -1
-                    _gpu = ""
-                    try:
-                        if torch.cuda.is_available():
-                            _gpu = " gpu0=%.1fGB" % (torch.cuda.memory_allocated(0) / 1e9)
-                    except Exception:
-                        pass
-                    print("[hb] t=%5.0fs  proc=%d/%d  q_winloss=%d  v_steps=%.0f  mem_avail=%.1fGB%s"
-                          % (time() - _t0, _alive, len(processes), _q,
-                             v_steps.value, _mem_avail_gb(), _gpu), flush=True)
+                    # ⚠️ 不再调 torch.cuda.memory_allocated(0)：它会**在父进程初始化 CUDA 上下文**，
+                    # 而父进程已经 spawn 过 CUDA 子进程，这个调用本身就有风险，收益又几乎为零。
+                    _hb_write("[hb] t=%5.0fs  proc=%d/%d  q_winloss=%d  v_steps=%.0f  mem_avail=%.1fGB"
+                              % (time() - _t0, _alive, len(processes), _q,
+                                 v_steps.value, _mem_avail_gb()))
                 except Exception as _e:
-                    print("[hb] 心跳失败: %r" % (_e,), flush=True)
+                    _hb_write("[hb] 心跳失败: %r" % (_e,))
 
         threading.Thread(target=_heartbeat, daemon=True).start()
         print("[test] 心跳已开启：每 %.0f 秒一行 [hb]" % _hb_interval, flush=True)

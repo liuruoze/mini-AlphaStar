@@ -16,6 +16,23 @@
 import os
 import sys
 
+# ---- 第 84 轮（DS，#56）：faulthandler ----
+# 目的：soak#1 在 t=1201 s "静默猝死"，没有 traceback —— 这种形态只有两种可能：
+#   ① C 层崩溃（SIGSEGV/SIGABRT/SIGBUS，Python 的 try/except 抓不到）
+#   ② 被外部信号杀掉（SIGKILL，谁也抓不到）
+# faulthandler 能把 ① 的**完整栈**写下来；若 fault 文件为空，就能排除 ①，只剩 ②。
+# spawn 的子进程会重新 import 本模块，因此每个进程各写自己的 fault 文件（append）。
+_fault_path = os.environ.get("MAS_FAULT_FILE", "").strip()
+if _fault_path:
+    try:
+        import faulthandler
+        _fault_fp = open(_fault_path, "a")
+        faulthandler.enable(_fault_fp, all_threads=True)
+        _fault_fp.write("\n===== pid %d start: faulthandler enabled =====\n" % os.getpid())
+        _fault_fp.flush()
+    except Exception as _e:
+        print("faulthandler 启用失败:", _e)
+
 # 多进程 RL 必设（与 rl_vs_inner_bot_mp.py 顶部同因）：
 # nproc=128 时每个进程的 BLAS/OMP 默认开 128 个线程，8 个 actor = 1024 线程抢 128 核，
 # 实测把 preprocess 从 10 ms 拖到 200 ms、吞吐从 85 掉到 14 step/s。
