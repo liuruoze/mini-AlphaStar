@@ -8,7 +8,9 @@ The "mini-scale" means making the original AS's hyper-parameters **adjustable** 
 
 We referred to the "Occam's Razor Principle" when designing the mini-AS: **simple** is good. Therefore, we build the mini-AS from scratch. Unless the function significantly impacts speed and performance, we shall omit it. Meanwhile, we also try not to use too many dependency packages so that mini-AS should only depend on the PyTorch. In this way, we simplify the learning cost of the mini-AS and make the architecture of mini-AS relatively **easy**. 
 
-The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese.
+The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese;
+it now also carries a Chinese version of the 2026-11 branch note below
+(section 「2026-11 改进（评估分支说明）」).
 
 > ### Branch note (2026-11): two evaluation campaigns on this branch
 >
