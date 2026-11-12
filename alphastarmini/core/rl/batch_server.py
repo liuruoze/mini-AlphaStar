@@ -606,6 +606,19 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         self.req = mp.Array('i', self.N)
         self.ev_done = [mp.Event() for _ in range(self.N)]
 
+        # ---- 第 84 轮（DS，#69）：修 H5 —— 批前向失败必须"放行 + 标记无效" ----
+        # 原实现：`_serve_batch` 抛异常时，except 只做 req=DONE + ev_done.set()，
+        # **没有 sem_done.release()**。后果两条，都不报错：
+        #   ① MAS_NOTIFY=sem 下 actor 在 sem_done.acquire() 上**永久阻塞**（这就是
+        #      soak#6"6 个 actor 同停 step=200、5 进程全活、零崩溃栈"的候选阻塞点之一，
+        #      但**未定位**，不许当结论）；
+        #   ② event 模式虽被唤醒，但结果槽没写 → actor 读到**上一轮的旧 action/logits**，
+        #      VTrace 的 ρ 用错分布，静默污染训练数据。
+        # 修法：成功/失败都置 ok 标志，失败时 actor 显式异常，绝不静默读旧值。
+        self.ok = mp.Array('b', self.N)
+        for _i in range(self.N):
+            self.ok[_i] = 1
+
         # ---- 第 72 轮（Kimi 侧"通知开销"线）：可切换的通知机制 ----
         # 第 71 轮实测：write 段 12.21 ms 里 **11.06 ms 是"通知 actor"**，
         # 每次 `Event.set()` 折合 1.4~1.7 ms。原因：CPython 的 mp.Event 内部是 Condition，
@@ -632,6 +645,10 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         else:
             self.ev_done[idx].wait()
             self.ev_done[idx].clear()
+        # #69：批次失败时不能返回旧槽位
+        if self.ok[idx] == 0:
+            raise RuntimeError("[BatchServer] actor %d 本轮批次前向失败（见 server traceback）；"
+                               "拒绝返回上一轮的陈旧 action" % idx)
         return self.read_action(idx)
 
     def submit_and_get(self, idx):
@@ -647,6 +664,9 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         else:
             self.ev_done[idx].wait()
             self.ev_done[idx].clear()
+        if self.ok[idx] == 0:
+            raise RuntimeError("[BatchServer] actor %d 本轮批次前向失败（见 server traceback）；"
+                               "拒绝返回上一轮的陈旧 action/logits" % idx)
         return self.read_action(idx), self.read_behavior_logits(idx)
 
     def mark_exited(self, idx):
@@ -789,10 +809,16 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
             except Exception:
                 import traceback
                 traceback.print_exc()
-                # 出错也必须放行，否则 actor 永久阻塞
+                # 第 84 轮（DS，#69）：出错必须"放行 + 标记无效"，两条路径都要做。
+                # 只 set event 不 release sem → sem 模式永久阻塞；
+                # 只置 DONE 不标记 ok=0 → actor 读到上一轮旧动作，静默污染 ρ。
                 for i in idxs:
+                    self.ok[i] = 0
                     self.req[i] = self.DONE
-                    self.ev_done[i].set()
+                    if self.sem_done is not None:
+                        self.sem_done[i].release()
+                    else:
+                        self.ev_done[i].set()
                 continue
 
             rounds += 1
@@ -952,10 +978,12 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         if self.sem_done is not None:
             # 一次 sem_post，无 Condition 锁
             for i in idxs:
+                self.ok[i] = 1      # #69：结果槽有效
                 self.req[i] = self.DONE
                 self.sem_done[i].release()
         else:
             for i in idxs:
+                self.ok[i] = 1      # #69
                 self.req[i] = self.DONE
                 self.ev_done[i].set()
         self.timing["write_evt"] += time() - t_ev

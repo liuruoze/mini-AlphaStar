@@ -1,0 +1,112 @@
+{
+  "_source": {
+    "project": "SC2_PiGBot",
+    "repo": "https://github.com/Vers-AI/SC2_PiGBot",
+    "file": "config.yml (Builds.Protoss)",
+    "license": "MIT",
+    "note": "Build order 表直接取自该项目（B2GM 系列 = Bronze to GM 标准打法），仅做字段裁剪与动作名映射，未改动 supply 与顺序。chrono/scout 步骤在 v3 中跳过（本项目无对应 head）。"
+  },
+  "action_map": {
+    "PYLON": "build_pylon",
+    "GATEWAY": "build_gateway",
+    "CYBERNETICSCORE": "build_cyber",
+    "GAS": "build_assimilator",
+    "EXPAND": "build_nexus",
+    "SHIELDBATTERY": "build_battery",
+    "STALKER": "train_stalker",
+    "ZEALOT": "train_zealot",
+    "SENTRY": "train_sentry",
+    "WARPGATERESEARCH": "research_warpgate",
+    "ROBOTICSFACILITY": "build_robotics",
+    "IMMORTAL": "train_immortal",
+    "OBSERVER": "train_observer",
+    "ROBOTICSBAY": "build_robotics_bay",
+    "TWILIGHTCOUNCIL": "build_twilight",
+    "FORGE": "build_forge",
+    "CHRONO": null,
+    "WORKER_SCOUT": null
+  },
+  "builds": {
+    "B2GM_PVP_2-Gate_Expand": {
+      "constant_worker_till": 26,
+      "auto_supply_at": 33,
+      "steps": [
+        [14, "PYLON"],
+        [16, "GATEWAY"],
+        [16, "CHRONO"],
+        [16, "WORKER_SCOUT"],
+        [17, "GAS"],
+        [18, "GATEWAY"],
+        [19, "CYBERNETICSCORE"],
+        [19, "PYLON"],
+        [21, "PYLON"],
+        [21, "STALKER"],
+        [23, "CHRONO"],
+        [26, "SENTRY"],
+        [26, "PYLON"],
+        [28, "EXPAND"],
+        [30, "SHIELDBATTERY"],
+        [30, "WARPGATERESEARCH"],
+        [32, "STALKER"]
+      ]
+    },
+    "B2GM_PVT_Standard_Build": {
+      "constant_worker_till": 44,
+      "auto_supply_at": 33,
+      "steps": [
+        [14, "PYLON"],
+        [16, "GATEWAY"],
+        [16, "CHRONO"],
+        [16, "WORKER_SCOUT"],
+        [16, "GAS"],
+        [20, "EXPAND"],
+        [20, "CYBERNETICSCORE"],
+        [21, "PYLON"],
+        [21, "GAS"],
+        [22, "WARPGATERESEARCH"],
+        [24, "STALKER"],
+        [26, "ROBOTICSFACILITY"],
+        [27, "STALKER"],
+        [28, "GATEWAY"],
+        [28, "GATEWAY"],
+        [30, "STALKER"],
+        [34, "PYLON"],
+        [34, "OBSERVER"],
+        [35, "GAS"],
+        [40, "IMMORTAL"],
+        [48, "STALKER"],
+        [48, "STALKER"],
+        [48, "STALKER"],
+        [48, "EXPAND"]
+      ]
+    },
+    "B2GM_PVZ_Standard_Build": {
+      "constant_worker_till": 44,
+      "auto_supply_at": 33,
+      "steps": [
+        [14, "PYLON"],
+        [16, "GATEWAY"],
+        [16, "GAS"],
+        [20, "EXPAND"],
+        [20, "CYBERNETICSCORE"],
+        [21, "PYLON"],
+        [21, "GAS"],
+        [22, "WARPGATERESEARCH"],
+        [24, "ZEALOT"],
+        [26, "ROBOTICSFACILITY"],
+        [27, "STALKER"],
+        [27, "GATEWAY"],
+        [28, "GATEWAY"],
+        [30, "STALKER"],
+        [34, "PYLON"],
+        [34, "OBSERVER"],
+        [35, "GAS"],
+        [36, "IMMORTAL"],
+        [48, "STALKER"],
+        [48, "STALKER"],
+        [48, "STALKER"],
+        [48, "EXPAND"]
+      ]
+    }
+  }
+}

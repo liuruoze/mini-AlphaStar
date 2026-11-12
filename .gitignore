@@ -73,3 +73,6 @@ __pycache__/
 
 # 内部复盘（执行日志 / 方案 / ERRATA / 外部评审），只在本地保留，不随仓库发布
 /doc/batch_acting/
+
+# research-only diagnostics (not published)
+experiments/_research/

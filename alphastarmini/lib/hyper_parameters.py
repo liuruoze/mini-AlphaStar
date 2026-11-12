@@ -4,6 +4,7 @@
 " The three type of hyper-parameters for our model."
 
 import enum
+import os
 
 from collections import namedtuple
 
@@ -205,7 +206,7 @@ AlphaStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(512 / Alpha
 MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(16 * 8 / P.Batch_Scale),
                                                      sequence_length=int(16 * 8 / P.Seq_Scale),
                                                      max_selected=int(48 / P.Select_Scale),                                                    
-                                                     max_entities=int(128),
+                                                     max_entities=int(os.environ.get("MAS_MAX_ENTITIES", "128")),
                                                      # 实测 Simple64 单局实体数：mean 77 / median 74 / p90 99 / p99 115 / max 117。
                                                      # 原值 512 让每次推理有 435 个空槽参与 O(n^2) 自注意力，
                                                      # 单帧 feature 也因此多出 512*1856 - 128*1856 = 712,704 维。

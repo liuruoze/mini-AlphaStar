@@ -55,9 +55,15 @@ def main():
     ap.add_argument("--games-per-shard", type=int, default=5)
     ap.add_argument("--shards", type=int, default=4)
     ap.add_argument("--difficulty", type=int, default=1, help="1=very_easy ... 9=cheat_insane")
+    # 第 84 轮（DS，#75）：训练演示是 Protoss vs **Zerg**，评测原本写死 terran。
+    # 默认 terran 保持历史可比；对照实验用 --bot-race zerg。
+    ap.add_argument("--bot-race", default="terran", choices=["terran", "zerg", "protoss", "random"])
     ap.add_argument("--tag", default="eval")
     ap.add_argument("--seed-base", type=int, default=100)
     ap.add_argument("--gpus", default="0,1,2,3")
+    # 第 84 轮（DS，#66）：原来 p.wait() 无超时。soak#6 的教训是"卡住不会有异常"，
+    # 编排器会跟着一起挂到天亮，且分片崩溃时 rc 从不检查、results 缺失只 warn。
+    ap.add_argument("--timeout", type=int, default=3600, help="每个分片的墙钟上限（秒），超时 kill 并记失败")
     args = ap.parse_args()
 
     os.chdir(ROOT)                       # run_rl_eval 用 ./model ./outputs 相对路径
@@ -84,7 +90,12 @@ def main():
             "EVAL_MODEL": args.model,
             "EVAL_EPISODES": str(args.games_per_shard),
             "EVAL_DIFFICULTY": str(args.difficulty),
-            "EVAL_SEED": str(args.seed_base + i),
+            "EVAL_BOT_RACE": args.bot_race,
+            # 第 84 轮（DS，#72）：种子必须按「分片 × 每片局数」错开。
+            # 原来 seed = seed_base + i，每片打 10 局时 shard0=1000..1009、shard1=1001..1010
+            # → 跨分片重叠 9/10，等于把刚修掉的"对局相关"换个位置又装回去。
+            # 现在 shard_i 的种子区间是 [base + i*G, base + (i+1)*G)，两两不相交。
+            "EVAL_SEED": str(args.seed_base + i * args.games_per_shard),
             "EVAL_OUT": "./outputs/eval_%s_shard%d.txt" % (args.tag, i),
             "SC2PATH": os.path.expanduser("~/StarCraftII"),
         })
@@ -92,17 +103,51 @@ def main():
         p = subprocess.Popen([sys.executable, "run_rl_eval.py"],
                              env=env, stdout=logf, stderr=subprocess.STDOUT, cwd=ROOT)
         procs.append((i, p, logf))
+        # ------------------------------------------------------------------
+        # 第 96 轮（DS，#143 附带，落 J49 的两个待办）：
+        # ① **pid → tag 登记**：worker 的 cmdline 只有 `python run_rl_eval.py`，
+        #    `pgrep -af '<tag>'` **找不到它**；父进程被 kill 后它 orphan(PPID=1) 继续写同名产物
+        #    → `thr4_d2`/`thr16_d2` 两臂因此永久作废。这里在拉起时就把 pid 写盘，
+        #    事后清理只需 `cat log/pids_<tag>.txt` 再逐个 kill，不必靠猜。
+        # ② **env 落盘**：`log/eval_*.json` 不记 `MAS_*`，导致事后无法复核"这臂到底开了什么"
+        #    （J47：`thr8` 被误标成 `guard+tb+闸门`，`official3036` 被当成 d2）。
+        #    这里把本次的 `MAS_*` / `EVAL_*` 原样写进 `log/env_<tag>.txt`。
+        # 两处都用 try/except 包住：记账失败绝不能影响评测本身。
+        try:
+            with open("log/pids_%s.txt" % args.tag, "a") as _pf:
+                _pf.write("%d shard=%d gpu=%s seed=%s t=%d\n"
+                          % (p.pid, i, env["CUDA_VISIBLE_DEVICES"], env["EVAL_SEED"],
+                             int(time.time())))
+            if i == 0:
+                with open("log/env_%s.txt" % args.tag, "w") as _ef:
+                    for _k in sorted(env):
+                        if _k.startswith("MAS_") or _k.startswith("EVAL_"):
+                            _ef.write("%s=%s\n" % (_k, env[_k]))
+        except Exception as _e:
+            print("[pidlog] 失败: %r" % (_e,), flush=True)
         print("[shard %d] gpu=%s seed=%s pid=%d -> log/eval_%s_shard%d.log"
               % (i, env["CUDA_VISIBLE_DEVICES"], env["EVAL_SEED"], p.pid, args.tag, i),
               flush=True)
 
     r = re.compile(r"results:\s*\[(\d+),\s*(\d+),\s*(\d+)\]")
+    r_custom = re.compile(r"results_custom:\s*\[(\d+),\s*(\d+),\s*(\d+)\]")
     totals = [0, 0, 0]          # [loss, draw, win]，与 rl_eval_sl 的 results 含义一致
+    totals_custom = [0, 0, 0]
+    shard_rows = []
     for i, p, logf in procs:
-        p.wait()
+        timed_out = False
+        try:
+            p.wait(timeout=args.timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            p.kill()
+            p.wait()
         logf.close()
         txt = open("log/eval_%s_shard%d.log" % (args.tag, i), errors="ignore").read()
         ms = r.findall(txt)
+        mc = r_custom.findall(txt)
+        a = b = c = 0
+        ac = bc = cc = 0
         if ms:
             a, b, c = (int(x) for x in ms[-1])
             totals[0] += a
@@ -110,10 +155,21 @@ def main():
             totals[2] += c
         else:
             print("[shard %d] ⚠️ 没找到 results 行（可能中途崩溃），看分片日志" % i, flush=True)
+        if mc:
+            ac, bc, cc = (int(x) for x in mc[-1])
+            totals_custom[0] += ac
+            totals_custom[1] += bc
+            totals_custom[2] += cc
+        shard_rows.append((i, p.returncode, timed_out, a + b + c, c, cc))
+        if timed_out or p.returncode not in (0, None):
+            print("[shard %d] ⚠️ rc=%s timeout=%s（games=%d）" % (i, p.returncode, timed_out, a + b + c),
+                  flush=True)
 
     loss, draw, win = totals
     n = loss + draw + win
+    closs, cdraw, cwin = totals_custom
     lo, hi = wilson(win, n)
+    lo_c, hi_c = wilson(cwin, closs + cdraw + cwin)
     summary = {
         "tag": args.tag,
         "model": args.model,
@@ -124,6 +180,16 @@ def main():
         "native_loss": loss,
         "win_rate": (win / float(n)) if n else 0.0,
         "wilson95": [lo, hi],
+        # #66：custom 口径（killed>阈值 改判）单列，不再和 native 混在一起
+        "custom_win": cwin,
+        "custom_draw": cdraw,
+        "custom_loss": closs,
+        "custom_win_rate": (cwin / float(cwin + cdraw + closs)) if (cwin + cdraw + closs) else 0.0,
+        "custom_wilson95": [lo_c, hi_c],
+        "shards": [
+            {"shard": s, "rc": rc, "timeout": to, "games": g, "native_win": w, "custom_win": cw}
+            for (s, rc, to, g, w, cw) in shard_rows
+        ],
         "wall_s": time.time() - t0,
     }
     out_json = os.path.join("log", "eval_%s.json" % args.tag)
@@ -137,6 +203,13 @@ def main():
     if n:
         print(" 胜率       : %.1f%%   Wilson95%%: [%.1f%%, %.1f%%]"
               % (100.0 * win / n, 100.0 * lo, 100.0 * hi), flush=True)
+    cn = cwin + cdraw + closs
+    if cn:
+        print(" custom 口径: 胜/平/负 %d / %d / %d  胜率 %.1f%%  Wilson95%% [%.1f%%, %.1f%%]"
+              % (cwin, cdraw, closs, 100.0 * cwin / cn, 100.0 * lo_c, 100.0 * hi_c), flush=True)
+    print(" 分片       : " + " | ".join(
+        "#%d rc=%s 局=%d 真胜=%d 改判=%d" % (s, rc, g, w, cw) for (s, rc, to, g, w, cw) in shard_rows),
+        flush=True)
     print(" 明细 JSON  : %s" % out_json, flush=True)
     print(" 用时       : %.0f s" % summary["wall_s"], flush=True)
     return 0 if n > 0 else 2

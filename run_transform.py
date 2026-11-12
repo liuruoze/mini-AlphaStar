@@ -45,6 +45,8 @@ def _abs_dir(path):
     return path
 
 
+if os.environ.get("MAS_REPLAY_PATH"):
+    P.replay_path = _abs_dir(os.environ["MAS_REPLAY_PATH"])
 P.replay_path = _abs_dir(P.replay_path)
 
 from alphastarmini.core.sl import transform_replay_data as TRD
