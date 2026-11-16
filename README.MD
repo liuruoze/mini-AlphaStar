@@ -34,14 +34,14 @@ they are not the model in the update below.
 This push touches supervised learning (SL) only: the score, the training method, and what differs from
 v_1.09. Reinforcement learning is untouched and has no usable model yet.
 
-The change is in the training data: 5 human replays are mixed into the machine data. Architecture,
-hyper-parameters and evaluation are unchanged; the strict win rate goes from 31.2% to 45.6% (+14.4 points).
+The change is in the **training data**: 5 human replays are mixed into the machine data. Architecture,
+hyper-parameters and evaluation are unchanged; the strict win rate goes from 31.2% to **45.6%** (+14.4 points).
 
 The full record is in [IMPROVEMENTS_2026_11.md](doc/IMPROVEMENTS_2026_11.md), the conclusions and
 the evaluation gates are in [CONCLUSIONS.md](docs/exp/CONCLUSIONS.md), and the naming rules are in
 [NAMING.md](docs/exp/NAMING.md).
 
-Two win verdicts. Strict: `raw_reward == +1`, games that stop at the step cap do not count. Lenient:
+Two win verdicts. **Strict**: `raw_reward == +1`, games that stop at the step cap do not count. **Lenient**:
 `outcome == 1`, or `outcome == 0` with `killed_points > 4000`, used to line up with the 2021 documents and
 older records. Numbers from different conditions (difficulty, steps, seeds) cannot be subtracted.
 
@@ -58,7 +58,7 @@ same | same | D2 / 40k | 10 | 0% | 20% | both lenient wins stop at the step cap
 same | same | D3 / 40k | 20 | 0% | 0% | 55-61 supply at 9 minutes, overrun by the first push
 `Base` (B0) | the same 90 replays, retrained with the 2026 code | 30k / seed 3038 only | 4 | 0% | 25% | 4 games on seed 3038 only, from different snapshots, not a recipe score
 `ExpertGuided` (self-play plus rule-expert data) | 30 self-play + 30 rule-expert replays (DAgger) | D3 / 40k | 80 | 31.2% | 62.5% (40 games; that run's strict win is 42.5%) | 4 runs pooled; lenient can only be computed on the single run `cwB_ep4`
-`HumanHybrid` (that data plus human replays) | the same + 5 human replays | D3 / 40k | 316 | 45.6% | 51.1% (180 games) | 15 runs pooled, Wilson [40.2, 51.1]; lenient computed on the 6 no_op-only runs, whose strict score is also 45.6%
+`HumanHybrid` (that data plus human replays) | the same + 5 human replays | D3 / 40k | 316 | **45.6%** | 51.1% (180 games) | 15 runs pooled, Wilson [40.2, 51.1]; lenient computed on the 6 no_op-only runs, whose strict score is also 45.6%
 `HumanHybrid`, best weight | the same | D3 / 40k | 39 | 64.1% | 66.7% | selection bias, an asset rather than a recipe score
 
 The two lenient cells come from the subset whose raw output is still on disk; the bracket is the game
@@ -154,7 +154,7 @@ OFF_DIFFICULTY=3 OFF_GAME_STEPS=40000 \
   bash experiments/run_p8_eval.sh <tag> $(seq 3038 3057)
 ```
 
-Note: `MAS_RL_INIT_MODEL` is required. Without it the loader takes the lexicographically last `sl_*.pth`
+Note: **`MAS_RL_INIT_MODEL` is required**. Without it the loader takes the lexicographically last `sl_*.pth`
 in `model/`, which in this round is a deliberately broken checkpoint.
 
 ## Version
