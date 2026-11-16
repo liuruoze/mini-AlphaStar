@@ -20,11 +20,24 @@ it now also carries a Chinese version of the 2026-11 branch note below
 >
 > #### Part 1 — batch acting (earlier work)
 >
-> The performance result is **negative**. At the default production configuration
-> (15 Workers x 2 actors, 3x RTX 4090), batch acting is **6.3% slower** than local
-> inference: **107.03 vs 100.69 step/s**, measured over 1800 s each, with the model mode
-> (`eval`) and every other knob held identical. Batching only pays off when the actor
-> count is large: ~0.96x at 2 actors, ~2.55x at 24 actors.
+> **Corrected 2026-11-05 (see `doc/batch_acting/ERRATA.md` A1/A2/A18).** The numbers
+> originally published here were measured before the notification path was fixed, and one
+> of them was mis-attributed to the wrong actor count. The current statement is:
+>
+> - **Throughput.** With the *original* per-round notification overhead (11 ms/round),
+>   batch acting was **6.3% slower** than local inference at the default production
+>   configuration (15 Workers x 2 actors, 3x RTX 4090): 107.03 vs 100.69 step/s over
+>   1800 s each. After the notification path was replaced (`MAS_NOTIFY=sem`), the sign
+>   **flips**: batch **119** vs local **107** step/s (+11%). The negative result was an
+>   artifact of the notify path, not of batching itself.
+> - **Scaling.** Batching only pays off when the actor count is large: **~0.96x at
+>   2 actors** (no gain). The figure of **336 step/s** belongs to **48 actors with
+>   batch = 21.10**, not to 24 actors (24 actors measured 207 and 228 step/s). The
+>   often-quoted **2.55x is 336 / 132** — a system-level comparison of 48 actors against
+>   the older four-card 48-actor baseline, **not** a controlled local-vs-batch ratio at
+>   24 actors. Both were withdrawn in ERRATA A1/A2.
+> - **Caveat.** Even the corrected 119-vs-107 comparison is a single pair of 30 min runs
+>   (n=1 per arm, not ABBA), so treat it as directional only.
 >
 > One correctness result is **positive and independent of performance**. The distillation
 > term in `alphastarmini/core/rl/rl_algo.py::kl` was a *masked partial sum over the common
@@ -37,22 +50,35 @@ it now also carries a Chinese version of the 2026-11 branch note below
 >
 > **Result in one line.** SL was raised from *"0% win rate, collects 2,676 resources"* to
 > *"4.3% win rate, collects 9,010 resources (95% of the official 2021 SL model)"*.
-> **It did not reach the official SL win rate (17.5%).** The RL loop was then brought up
+> **It did not reach the official SL win rate as then measured (17.5%, since retired).** The RL loop was then brought up
 > from "never executed" to "runs, collects trajectories, trains, and logs every loss",
 > but its win rate did not move within the one-hour budget.
+>
+> ⚠️ **The 17.5% reference below has since been retired** (see `ERRATA.md` A56 / J45). That
+> 80-game run predates the native/custom outcome split, and **all 14 of its "wins" are
+> `killed_points > 4,000` re-labels** — 11 of them at the exact 20,992-step cap — so its true
+> win count is **≤ 3/80 = 3.75%**. Its **12 losses are real** (15.0%). A clean re-run of the
+> same checkpoint in the current log format (`official3036`, 36 games, seeds 5000–5035) gives
+> **5.6% [1.5, 18.1] with 86.1% draws and 8.3% losses**. Against that anchor the SL model in
+> this branch (4.3%, n=230) is **at parity, not 9× behind**.
 >
 > | Stage | Model | n | Win rate (Wilson 95%) | Collected | Killed | Army |
 > |---|---|---|---|---|---|---|
 > | baseline | old SL (1/60 data silently) | 20 | 0.0% | 2,676 | 145 | — |
 > | **SL (this branch)** | `SOUP_prior3` | **230** | **4.3% [2.4, 7.8]** | **9,010** | 1,439 | **21.2** |
-> | reference | official SL `sl_21-12-29` | 80 | **17.5% [10.7, 27.3]** | 9,494 | 1,811 | 14.0 |
+> | reference | official SL `sl_21-12-29` (old run, **retired**) | 80 | ~~17.5%~~ → **≤3.75%** | 9,494 | 1,811 | 14.0 |
+> | reference | official SL `sl_21-12-29` (**clean re-run**, `official3036`) | 36 | **5.6% [1.5, 18.1]** | — | 2,326 | 15.6 |
 > | reference | official RL `rl_22-02-09` | 28 | 21.4% | 9,533 | 1,787 | — |
 >
-> Two reference numbers were themselves corrected during this work: the official SL win
-> rate had been quoted as **7.1%** for many rounds; re-measuring the same checkpoint over
-> 80 games gives **17.5% [10.7, 27.3]**. The old 7.1% was a 28-game point estimate.
-> **Every "we caught up" claim made against 7.1% was therefore void** — see the errata list
-> in the local working notes (not shipped with this repository, see the note below).
+> The official-SL number was quoted as **7.1%** for many rounds, then "corrected" to
+> **17.5% [10.7, 27.3]** on 80 games. **That correction is now itself withdrawn**: the 80-game
+> log has no `custom_outcome` field, which dates it *before* the fix that split native from
+> re-labelled outcomes — so the field it printed as `native_outcome` had already been rewritten
+> to 1 whenever `killed_points > 4,000`. Proof is one-dimensional and exact: the 14 "wins" all
+> have `killed_points ∈ [4,625, 8,650]`, while all 54 draws are ≤ 2,975 — **nothing in between**,
+> with the 4,000 threshold sitting in the gap. **Every "we caught up / we are 9× behind" claim
+> made against 7.1% or 17.5% is therefore void** — see `ERRATA.md` A56/J45 and the local working
+> notes (not shipped with this repository, see the note below).
 >
 > **Three structural defects were found and fixed** (each one explained a symptom that had
 > been mis-attributed to hyper-parameters for several rounds):
