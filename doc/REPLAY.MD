@@ -1,8 +1,9 @@
 # Replay
 
+**English** | [中文](REPLAY_CHS.MD)
+
 How to download SC2 replays?
 
-> Chinese version: [`REPLAY_CHS.MD`](REPLAY_CHS.MD).
 > **摘要（中文）.** 回放从哪来：Blizzard 的回放包有数十万局但只到 3.16.1；4.0 以上的回放要用
 > replay-api 的下载方式；中国大陆用户可照知乎指南操作。拿到回放后放到 `./data/Replays/filtered_replays_1` 再转换。
 > 中文全文见 [`REPLAY_CHS.MD`](REPLAY_CHS.MD)。

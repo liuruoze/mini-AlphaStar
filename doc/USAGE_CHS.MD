@@ -1,4 +1,7 @@
 # 用法
+
+[English](USAGE.MD) | **中文**
+
 > **Abstract (English).** Two answers: (1) "Can't find map" during supervised learning means the map
 > cache is missing — the two commands below fetch it; (2) running reinforcement learning needs
 > SC2 >= 4.0 and PySC2 >= 3.0, plus several SC2 versions side by side (game processes and a replay

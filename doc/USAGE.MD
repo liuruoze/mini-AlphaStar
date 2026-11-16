@@ -1,8 +1,9 @@
 # Usage
 
+**English** | [中文](USAGE_CHS.MD)
+
 We give some useful guides for mini-AlphaStar (short as mAS) here.
 
-> Chinese version: [`USAGE_CHS.MD`](USAGE_CHS.MD).
 > **摘要（中文）.** 两个问题的解答：(1) 训练时报 "Can't find map" 是缺地图缓存，按文中两条命令下载即可；
 > (2) 怎么跑强化学习——需要 SC2 >= 4.0 与 PySC2 >= 3.0，并且要同时运行多个 SC2 版本（对局进程 + 回放进程）。
 > 中文全文见 [`USAGE_CHS.MD`](USAGE_CHS.MD)。

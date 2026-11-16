@@ -1,6 +1,7 @@
 # mini-AlphaStar
 
-> Chinese version: [`HISTORY_CHS.MD`](HISTORY_CHS.MD).
+**English** | [中文](HISTORY_CHS.MD)
+
 > **摘要（中文）.** 版本主线：v_0.7 首发 → v_0.93/0.96 补齐 z 奖励与 v-trace → v_1.00–1.04 多 GPU 与掩码
 > → v_1.05 重构（张量存储省 70% 磁盘、SL 快约 10 倍）→ v_1.06 对内置 AI 胜率 0.8 → v_1.07 RL 显存降 86%、
 > 采样快 6 倍 → v_1.08 提供 RL 模型。条目按时间倒序排列，最早是 v_0.7（项目首发）。

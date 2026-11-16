@@ -1,4 +1,7 @@
 # mini-AlphaStar
+
+**English** | [中文](doc/README_CHS.MD)
+
 > **摘要（中文）.** mini-AlphaStar 是 DeepMind AlphaStar 的微型复现：超参数可调，可在单台商用服务器上训练。
 > 本分支（v_1.09 加 2026-11 评估补丁）的实测结论：监督学习 **4.3%** 真胜（230 局，每局采集 9,010），
 > RL 主循环能干净跑 25 分钟但胜率未变，batch acting 早期的负收益来自通知路径而非批处理本身。
@@ -13,15 +16,17 @@ The "mini-scale" means making the original AS's hyper-parameters **adjustable** 
 
 We referred to the "Occam's Razor Principle" when designing the mini-AS: **simple** is good. Therefore, we build the mini-AS from scratch. Unless the function significantly impacts speed and performance, we shall omit it. Meanwhile, we also try not to use too many dependency packages so that mini-AS should only depend on the PyTorch. In this way, we simplify the learning cost of the mini-AS and make the architecture of mini-AS relatively **easy**. 
 
-The [Chinese](doc/README_CHS.MD) shows a simple readme in Chinese;
-it now also carries a Chinese version of the 2026-11 branch note below
-(section 「2026-11 改进（评估分支说明）」).
+The [Chinese README](doc/README_CHS.MD) mirrors this file section by section. Both start with a
+language switch and carry a summary in the other language, so neither is a dead end.
 
-> ### Branch note (2026-11): two evaluation campaigns on this branch
+> ### Branch note (2026-11): the evaluation work on this branch
 >
-> This tree is an **evaluation branch**. It carries (a) the earlier *batch acting*
-> experiment and (b) a four-day SL/RL improvement campaign. Both produced results that
-> are partly positive and partly negative; both are reported as measured, not as claims.
+> This tree is an **evaluation branch**. It carries (a) the earlier *batch acting* experiment,
+> (b) a four-day SL/RL improvement campaign (11-02 → 11-04), and (c) the follow-up experiments
+> through 11-16, which found that the human `no_op` frames are the only effective ingredient of
+> the data recipe: 45.6% strict wins over 316 games, against 31.2% for the bot-only baseline.
+> All three produced results that are partly positive and partly negative; they are reported as
+> measured, not as claims.
 >
 > The full write-up is in [`doc/IMPROVEMENTS_2026_11.md`](doc/IMPROVEMENTS_2026_11.md);
 > the latest conclusions (including 2026-11-16 results) are in

@@ -1,4 +1,7 @@
 # mini-AlphaStar
+
+[English](../README.MD) | **中文**
+
 > **Abstract (English).** This is the Chinese mirror of [`README.MD`](../README.MD): section order,
 > commands and numbers are identical. mini-AlphaStar is a mini-scale re-implementation of AlphaStar
 > with adjustable hyper-parameters, trainable on one commercial server.
@@ -28,10 +31,12 @@
 
 另外，在代码中我们还添加了很多的注释，确保一些关键的设计能够传达给读者。
 
-### 分支说明（2026-11）：本分支上的两次评估
+### 分支说明（2026-11）：本分支上的评估工作
 
-> 本分支是**评估分支**，包含 (a) 早前的 *batch acting*（中心批推理）实验，
-> (b) 为期四天的 SL / RL 改进。两次的结论都是**有好有坏**，下面按实测写，不按期望写。
+> 本分支是**评估分支**，包含 (a) 早前的 *batch acting*（中心批推理）实验、
+> (b) 为期四天的 SL / RL 改进（11-02 → 11-04）、(c) 到 11-16 的后续实验——
+> 后者查明人类 `no_op` 帧是数据配方里唯一起作用的成分：**45.6% 真胜（316 局）**，
+> 而纯机器基线是 31.2%。三部分的结论都是**有好有坏**，下面按实测写，不按期望写。
 >
 > 完整记录见 [`doc/IMPROVEMENTS_2026_11.md`](IMPROVEMENTS_2026_11.md)；
 > 最新结论（含 2026-11-16 的结果）见 [`docs/exp/CONCLUSIONS.md`](../docs/exp/CONCLUSIONS.md)。
