@@ -1,9 +1,9 @@
 # SL 智能体实验结论（可复现条件）
 
 目标：用监督学习训练一个能在 Simple64 上击败内置 AI（难度 3）的智能体。
-本文只记录**结论**（配方 / 种子数 / 胜率 / 置信区间 / 判定），不收录失败脚本。
-判胜（win rule）两套：**真胜**（strict win，`raw_reward == +1`）与**宽胜**（lenient win，`outcome == 1` 或 `killed > 4000`）。
-评测统一 `OFF_GAME_STEPS=40000`。完整评测条件与判胜见 [`NAMING.md`](NAMING.md) §7。
+记录范围：配方、种子数、胜率、置信区间、判定；失败脚本不入本文。
+两套判胜：**真胜** `raw_reward == +1`；**宽胜** `outcome == 1` 或 `killed > 4000`。
+评测统一 `OFF_GAME_STEPS=40000`，完整条件见 [`NAMING.md`](NAMING.md) §7。
 
 ## 0. 标识与命名（2026-11-16 约定）
 
@@ -131,7 +131,7 @@
 - 根因指向 BC 复合误差：专家数据里 Attack 占 75.3%、Harvest 仅 1.0%，
   而模型实战 Harvest 49%、Pylon 31%、**Attack 0%** —— 开局无兵 → Attack 非法 → 退化到采矿造塔。
 
-## 5. 工程约束（血泪）
+## 5. 工程约束
 
 - 单运行常驻内存约 45 GB，**最多并行 2 个训练**；2 训练 + 评测会 OOM。
 - 评测每卡最多 5–6 个并发，否则 `CUDNN_STATUS_NOT_INITIALIZED`。

@@ -2,14 +2,13 @@
 
 **English** | [中文](REPLAY_CHS.MD)
 
-How to download SC2 replays?
+Blizzard's [replay packs](https://github.com/Blizzard/s2client-proto#replay-packs) hold hundreds of
+thousands of replays, but only for SC2 3.16.1; there is nothing for 4.0 and later.
 
-You can find a large replay pack [here](https://github.com/Blizzard/s2client-proto#replay-packs) (for SC2 3.16.1). It contains hundreds of thousands of replays.
+Replays from 4.0 onwards come from the replay API, documented in
+[samples/replay-api](https://github.com/Blizzard/s2client-proto/tree/master/samples/replay-api), with
+a sample under `scripts/download_replay/third`.
 
-But it is not the replays that have version >= 4.0. To find some replays of newer SC2 versions, try to use the download replays method (can download different versions of replays).
-
-The tutorial is [here](https://github.com/Blizzard/s2client-proto/tree/master/samples/replay-api). But we also present them in mini-AlphaStar (in scripts/download_replay/third).
-
-For Chinese users who are not convenient to use Battle.net (outside China), try to use the [Guide](https://zhuanlan.zhihu.com/p/410523216) at Zhihu (in Chinese). It will teach you how to use the user client of the Battle.net (China server) to download replays placed at the Battle.net (US server).
-
-If you find any questions or problems, please open an issue and we can discuss it.
+Users in mainland China who cannot reach Battle.net abroad can follow this
+[guide](https://zhuanlan.zhihu.com/p/410523216) and download the American-server replays through the
+Chinese client.
