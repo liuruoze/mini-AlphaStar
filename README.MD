@@ -18,6 +18,10 @@ it now also carries a Chinese version of the 2026-11 branch note below
 > experiment and (b) a four-day SL/RL improvement campaign. Both produced results that
 > are partly positive and partly negative; both are reported as measured, not as claims.
 >
+> The full write-up is in [`doc/IMPROVEMENTS_2026_11.md`](doc/IMPROVEMENTS_2026_11.md);
+> the latest conclusions (including 2026-11-16 results) are in
+> [`docs/exp/CONCLUSIONS.md`](docs/exp/CONCLUSIONS.md).
+>
 > #### Part 1 — batch acting (earlier work)
 >
 > **Corrected 2026-11-05 (see `doc/batch_acting/ERRATA.md` A1/A2/A18).** The numbers

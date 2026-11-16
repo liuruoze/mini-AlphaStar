@@ -1,6 +1,8 @@
-＃Replay
+# Replay
 
 How to download SC2 replays?
+
+> Chinese version: [`REPLAY_CHS.MD`](REPLAY_CHS.MD).
 
 You can find a large replay pack [here](https://github.com/Blizzard/s2client-proto#replay-packs) (for SC2 3.16.1). It contains hundreds of thousands of replays.
 

@@ -1,5 +1,7 @@
 # mini-AlphaStar
 
+> Chinese version: [`HISTORY_CHS.MD`](HISTORY_CHS.MD).
+
 ## v_1.08
 
 * The training of supervised learning is improved, and the batch_size and sequence_length are different from those in reinforcement learning, which enhances the learning effect;

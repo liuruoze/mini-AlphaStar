@@ -1,6 +1,8 @@
-＃Usage
+# Usage
 
 We give some useful guides for mini-AlphaStar (short as mAS) here.
+
+> Chinese version: [`USAGE_CHS.MD`](USAGE_CHS.MD).
 
 ## Question about "Can't find map?"
 
