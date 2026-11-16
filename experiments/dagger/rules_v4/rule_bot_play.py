@@ -78,6 +78,13 @@ def to_func_call(act, ru, max_selected=12, tick=0, busy_tags=None):
     name = act["name"]
     hint = act.get("unit_type_hint")
 
+    # 默认动作 NoOp（v4 的 P9 兜底）：不碰任何单位，直接发 no_op。
+    if act["kind"] == "noop":
+        try:
+            return A.RAW_FUNCTIONS.no_op(), None
+        except Exception as _e:
+            return None, "noop_fc:%s" % str(_e)[:40]
+
     # 一起进攻：所有兵一次性全部下发。12 是标签侧的设计（max_selected），
     # raw 侧 unit_tags 上限是 512；按 12 截断会让多出来的兵永远待命。
     _cap = 512 if act["kind"] == "attack" else max_selected
@@ -162,7 +169,8 @@ def run_one(env, feat, verbose=False, max_steps=40000, build=None, style="tech",
         print("[placement] unavailable:", _e, flush=True)
         V4.PLACEMENT = None
     stats = {"actions": 0, "no_unit": 0, "err": 0,
-             "build_ok": {}, "build_fail": {}, "build_err": {}, "hier_macro": {}}
+             "build_ok": {}, "build_fail": {}, "build_err": {}, "hier_macro": {},
+             "action_dist": {}, "places": []}
     pending = []          # [{"id", "t", "key", "n_before"}]
     _pid = [0]
     issued = []           # [(x, y, frame)] 最近发出的建造点
@@ -242,6 +250,8 @@ def run_one(env, feat, verbose=False, max_steps=40000, build=None, style="tech",
                 if fc is not None and act["name"] == "gather_gas":
                     gas_sent += 3
             stats["actions"] += 1
+            _an = act.get("name", "?")
+            stats["action_dist"][_an] = stats["action_dist"].get(_an, 0) + 1
             if fc is None:
                 if err == "no_unit":
                     stats["no_unit"] += 1
@@ -268,7 +278,9 @@ def run_one(env, feat, verbose=False, max_steps=40000, build=None, style="tech",
                        "build_nexus": "nexus", "build_cyber": "cyber",
                        "build_assimilator": "assimilator"}.get(act["name"])
                 if act.get("place"):
-                    issued.append((int(act["place"][0]), int(act["place"][1]), frame))
+                    _pt = (int(act["place"][0]), int(act["place"][1]), frame)
+                    issued.append(_pt)
+                    stats["places"].append([_pt[0], _pt[1]])
                 if key and any(p["key"] == key for p in pending):
                     pass          # 同类还有未结算的，先不重复下单（否则统计会重复计数）
                 elif key:
@@ -313,6 +325,8 @@ def run_one(env, feat, verbose=False, max_steps=40000, build=None, style="tech",
         "killed": float(o.observation["score_cumulative"][5]) + float(o.observation["score_cumulative"][6]),
         "collected": float(o.observation["score_cumulative"][7]),
         "used": float(o.observation["score_cumulative"][11]),
+        "place_unique_ratio": (round(len(set((x, y) for x, y, _ in issued)) / len(issued), 4)
+                               if issued else None),
         "stats": stats,
     }
 

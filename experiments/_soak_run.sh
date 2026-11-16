@@ -62,11 +62,27 @@ export MAS_KL_MODE=${MAS_KL_MODE:-legacy}
 # 第 72 轮：通知机制 event|sem（默认 event，保持历史行为）
 export MAS_NOTIFY=${MAS_NOTIFY:-event}
 
+# ---- 第 84 轮（DS，#71）：把 §84 长跑里"手工 export"的那批开关固化进脚本 ----
+# 起因（Hunyuan H7）：§84 的长跑是**在命令行里显式 export** 的，不是走这个脚本的默认值。
+# 后来者照脚本复现就会丢掉三条观测通道 + 显式初始化，soak#6 那种
+# "6 个 actor 同停、5 进程全活、零崩溃栈"的情况没法再取证。
+# 这里改成脚本负责，且 RL 初始化权重**必须显式给**：
+#   #47 修的就是"不设 MAS_RL_INIT_MODEL 时静默加载字典序最大的 checkpoint"
+#   （可能是个坏 epoch），所以这里不给默认值，直接报错退出，避免又一次静默。
+export MAS_RL_INIT_MODEL=${MAS_RL_INIT_MODEL:?必须显式指定 SL 初始化权重，例如 MAS_RL_INIT_MODEL=model/BEST_SL_v82_soup_prior3.pth（不设会静默加载字典序最大的 checkpoint）}
+export MAS_STATIC_NUM=${MAS_STATIC_NUM:-4}
+export MAS_HEARTBEAT_SEC=${MAS_HEARTBEAT_SEC:-60}
+export MAS_HB_FILE=${MAS_HB_FILE:-$OUT/heartbeat.txt}
+export MAS_FAULT_FILE=${MAS_FAULT_FILE:-$OUT/fault.txt}
+export MAS_ACTOR_TRACE=${MAS_ACTOR_TRACE:-$OUT/trace.txt}
+
 # 避开 cuda:0（实测偏慢 20~45%）；4 张卡都可见，白名单从 1 开始
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 export MAS_GPU_LIST=1,2,3
 
 echo "=== soak tag=$TAG secs=$SECS batch=$BATCH par=$PAR act=$ACT on_server=$ONSRV kl_mode=$MAS_KL_MODE notify=$MAS_NOTIFY ==="
+echo "=== init=$MAS_RL_INIT_MODEL static_num=$MAS_STATIC_NUM hb=${MAS_HEARTBEAT_SEC}s ==="
+echo "=== hb_file=$MAS_HB_FILE fault_file=$MAS_FAULT_FILE trace=$MAS_ACTOR_TRACE ==="
 echo "=== start $(date '+%F %T') ==="
 
 # 清场：上一轮如果异常退出，SC2 会留着占内存和端口
@@ -79,7 +95,10 @@ python experiments/_soak_monitor.py --out "$OUT/monitor.csv" --interval 10 \
 MON=$!
 
 START=$(date +%s)
-python run_rl.py > "$OUT/run.log" 2>&1
+# 第 84 轮（DS，#71）：`>` 改 `>>`。README #53 说过要改但一直没改：
+# python 父进程与 SC2 子进程共享同一个 stdout fd、各自独立偏移，
+# `>` 会让两边的写入互相覆盖，事后 grep 不到关键行。
+python run_rl.py >> "$OUT/run.log" 2>&1
 RC=$?
 END=$(date +%s)
 

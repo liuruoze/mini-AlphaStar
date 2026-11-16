@@ -24,6 +24,18 @@ import os as _os
 
 import numpy as _np
 
+# ---- 显式随机性（2026-11-13 用户要求：让 30 局不再是同一盘棋）----
+#   MAS_EXPERT_RANDOM=1      总开关（默认开）
+#   MAS_EXPERT_RAND_SEED=N   用 N 播种（采集时按局种子播种 ⇒ 局间不同、局内可复现）
+import random as _random
+_RNG = _random.Random()
+_seed_env = _os.environ.get("MAS_EXPERT_RAND_SEED", "")
+try:
+    _RNG.seed(int(_seed_env) if _seed_env else None)
+except Exception:
+    _RNG.seed()
+RAND_ON = _os.environ.get("MAS_EXPERT_RANDOM", "1") == "1"
+
 from _rule_expert_v3 import (  # noqa: F401
     summarize, _pick, ACT, ACT_RAW,
     NEXUS, PYLON, ASSIMILATOR, GATEWAY, PROBE, ZEALOT, ARMY,
@@ -33,13 +45,15 @@ from _rule_expert_v3 import (  # noqa: F401
 # SC2 里「排队中」的单位可以全额取消（返还 50 矿）。learner 在 medium 下会疯狂造农民
 # （实测堆到 55 个、只出 2 个 Zealot），双命令并行撤不掉它的命令，只能靠取消腾矿。
 ACT.setdefault("cancel_probe", 129)
+ACT.setdefault("noop", 0)
+ACT_RAW.setdefault("noop", "no_op")
 ACT_RAW.setdefault("cancel_probe", "Cancel_Last_quick")
 
 # ---- 可调参数 ----
-PROBE_TARGET = 14      # 农民上限 14（10 个时收入 420 矿/分撑不起 15 兵，放到 14）
-GATEWAY_TARGET = 3     # 三兵营：双兵营产能追不上 medium 的爆兵
+PROBE_TARGET = 18      # 农民上限 14（10 个时收入 420 矿/分撑不起 15 兵，放到 14）
+GATEWAY_TARGET = 4     # 三兵营：双兵营产能追不上 medium 的爆兵
 ZEALOT_MAX = 30        # 造兵上限（防止矿全砸兵不出门）
-ATTACK_AT = 6          # 兵不到 6 个不进攻（2026-11-10 21:14 用户指定）
+ATTACK_AT = int(_os.environ.get("MAS_ATTACK_AT", "10"))          # 兵不到 6 个不进攻（2026-11-10 21:14 用户指定）
 DEFEND_AT = 8          # 敌人贴脸才回防（14 太远，兵被一个个调回来送掉）
 SUPPLY_RESERVE = 6     # 人口留多少余量就补 Pylon（双兵营吃人口快，4->6）
 
@@ -63,7 +77,79 @@ _PYLON_DONE = {}      # pylon tag -> 首次观测到 build>=1.0 的 tick
 # 同一格被多个 Probe 抢建（实测一局堆到 20 个 Pylon、矿堆 8,245 却不造兵）。
 _INFLIGHT = {}
 _GWFAIL = [0]      # Gateway 连续「下令后实体没出现」的次数：>=2 就先补 Pylon 扩能量场
-_ATTACKING = [False]   # 进攻态：一旦攒够 6 个开打就保持，新出的兵立刻全部跟进
+_ATTACKING = [False]
+_DEFEND_UNTIL = [0]    # 回防保持到的 tick
+_DEFEND_POS = [None]   # 回防目标（最后一次看到的入侵者位置）   # 进攻态：一旦攒够 6 个开打就保持，新出的兵立刻全部跟进
+# 退出阈值：兵少于该数就退出进攻态、重新集结。0=永不退出（旧行为）。
+ATTACK_EXIT = int(_os.environ.get("MAS_ATTACK_EXIT", "10"))
+# 回防迟滞：触发一次回防后，接下来这么多 tick 内继续回防（避免"敌人一走来回横跳"）。
+DEFEND_HOLD = int(_os.environ.get("MAS_DEFEND_HOLD", "100"))
+
+# ---------------------------------------------------------------
+# 每局抽一个「策略档」：农民上限 / 兵营数 / 开打兵力 / 撤退节奏 全部不同
+#   fast_rush   少农民、1-2 兵营、5-7 兵就冲
+#   two_gate    标准 2 兵营、10 兵
+#   heavy_gate  4-5 兵营、14-18 兵、后期一波
+#   macro       20+ 农民、20 兵才动
+#   harass      3 兵开始反复骚扰 + 撤退
+# ---------------------------------------------------------------
+STRAT = "fixed"
+if RAND_ON:
+    _STRATS = ["fast_rush", "two_gate", "heavy_gate", "macro", "harass",
+               "turtle", "late"]
+    _forced = _os.environ.get("MAS_EXPERT_STRAT", "")
+    STRAT = _forced if _forced in _STRATS else _RNG.choice(_STRATS)
+    if STRAT == "fast_rush":
+        # 快攻骨架不变，但规模/开打点/节奏全部拉开
+        PROBE_TARGET = _RNG.randint(8, 16)
+        GATEWAY_TARGET = _RNG.randint(1, 3)
+        ATTACK_AT = _RNG.randint(4, 9)
+        RETREAT_EVERY = _RNG.randint(120, 260) if _RNG.random() < 0.35 else 0
+    elif STRAT == "two_gate":
+        PROBE_TARGET = _RNG.randint(14, 18)
+        GATEWAY_TARGET = 2
+        ATTACK_AT = _RNG.randint(9, 12)
+        RETREAT_EVERY = 0
+    elif STRAT == "heavy_gate":
+        PROBE_TARGET = _RNG.randint(16, 22)
+        GATEWAY_TARGET = _RNG.randint(4, 5)
+        ATTACK_AT = _RNG.randint(14, 18)
+        RETREAT_EVERY = 0
+    elif STRAT == "macro":
+        PROBE_TARGET = _RNG.randint(20, 26)
+        GATEWAY_TARGET = _RNG.randint(2, 4)
+        ATTACK_AT = _RNG.randint(18, 24)
+        RETREAT_EVERY = 0
+    elif STRAT == "turtle":
+        # 只守不攻：兵一直攒，靠敌人来撞 ⇒ 对局拉长、数据里出现大量防守/待机状态
+        PROBE_TARGET = _RNG.randint(20, 26)
+        GATEWAY_TARGET = _RNG.randint(3, 4)
+        ATTACK_AT = 999
+        RETREAT_EVERY = 0
+    elif STRAT == "late":
+        PROBE_TARGET = _RNG.randint(18, 24)
+        GATEWAY_TARGET = _RNG.randint(3, 5)
+        ATTACK_AT = _RNG.randint(24, 28)
+        RETREAT_EVERY = 0
+    else:  # harass
+        PROBE_TARGET = _RNG.randint(12, 18)
+        GATEWAY_TARGET = _RNG.randint(1, 3)
+        ATTACK_AT = _RNG.randint(3, 5)
+        RETREAT_EVERY = _RNG.randint(60, 180)
+    ATTACK_EXIT = ATTACK_AT
+    RETREAT_LEN = _RNG.randint(30, 90) if RETREAT_EVERY else 0
+    DEFEND_AT = _RNG.randint(4, 14)
+    print("[v4rand] strat=%s probe=%d gw=%d atk=%d retreat=%d/%d seed=%s"
+          % (STRAT, PROBE_TARGET, GATEWAY_TARGET, ATTACK_AT, RETREAT_EVERY,
+             RETREAT_LEN, _seed_env), flush=True)
+else:
+    RETREAT_EVERY = 0
+    RETREAT_LEN = 0
+# 显式 NoOp —— 这是专家的**默认动作**，不是开关：
+# if-else 全都不命中 ⇒ 专家输出 no_op（"现状 OK，保持"）。
+# 这样专家在**任何**链路（自己玩 / 与 learner 同频 / 高频）都有完整动作空间，
+# 而不是"沉默 = 不下发"。MAS_EXPERT_NOOP=0 可退回旧的沉默行为（仅用于 A/B）。
+NOOP_EMIT = _os.environ.get("MAS_EXPERT_NOOP", "1") != "0"
 # 连续失败的点：下令后整个观察窗口内实体数没增加 ⇒ 该格不可建/被占，本局不再试。
 _BAD_POS = set()
 
@@ -95,6 +181,8 @@ def reset():
     _BAD_POS.clear()
     _GWFAIL[0] = 0
     _ATTACKING[0] = False
+    _DEFEND_UNTIL[0] = 0
+    _DEFEND_POS[0] = None
     _DBG[0] = 0
 
 
@@ -293,22 +381,29 @@ def _simple_pick(summ, tick=0, size=2, avoid_mines=True, near_pylon=False,
     if near_pylon and not pylons:
         return None
     ref_h = _h_at(hm, ax, ay)
+    # 随机版：先把「矿脉外侧」的合法点收全，随机挑一个；没有才退回 anchor 偏移表。
+    # 原来取第一个合法点 ⇒ 30 局 Pylon 永远同一个坐标，数据没有多样性。
+    spots = []
     if not near_pylon:
-        # 先试「矿脉外侧」的固定点（离线枚举得出），再退回通用偏移表
         for tx, ty in _pylon_spots(summ):
             if (_site_ok(tx, ty, occ, mines, hm, vm, ref_h, size, half, None, "spot")
                     and _gw_room(occ, mines, hm, vm, tx, ty, ref_h)):
-                if _os.environ.get("MAS_V4_DEBUG") == "1":
-                    print("[pick] spot anchor=%s -> (%d,%d)" % ((ax, ay), tx, ty),
-                          flush=True)
-                return (tx, ty)
+                spots.append((tx, ty))
+    if spots:
+        loc = _RNG.choice(spots) if RAND_ON else spots[0]
+        if _os.environ.get("MAS_V4_DEBUG") == "1":
+            print("[pick] spot n=%d -> %s" % (len(spots), loc), flush=True)
+        return loc
+    anchors = []
     for dx, dy in _ANCHOR_OFF:
         tx, ty = ax + dx, ay + dy
         if _site_ok(tx, ty, occ, mines, hm, vm, ref_h, size, half, near, "anchor"):
-            if _os.environ.get("MAS_V4_DEBUG") == "1":
-                print("[pick] anchor=%s pylons=%s -> (%d,%d)"
-                      % ((ax, ay), pylons, tx, ty), flush=True)
-            return (tx, ty)
+            anchors.append((tx, ty))
+    if anchors:
+        loc = _RNG.choice(anchors) if RAND_ON else anchors[0]
+        if _os.environ.get("MAS_V4_DEBUG") == "1":
+            print("[pick] anchor n=%d -> %s" % (len(anchors), loc), flush=True)
+        return loc
     return None
 
 
@@ -322,16 +417,42 @@ def _pick_near_pylons(summ, pylons, size=2, half=1.5):
     if not pylons:
         return None
     occ, mines, hm, vm = _ctx(summ)
+    cand = []
     for px, py in pylons:
         ph = _h_at(hm, px, py)
         for dx, dy in _RING_OFF:
             tx, ty = px + dx, py + dy
             if _site_ok(tx, ty, occ, mines, hm, vm, ph, size, half, None, "ring"):
-                if _os.environ.get("MAS_V4_DEBUG") == "1":
-                    print("[pick-near] pylon=(%d,%d) -> (%d,%d)" % (px, py, tx, ty),
-                          flush=True)
-                return (tx, ty)
+                cand.append((tx, ty))
+        if len(cand) >= 24:
+            break
+    if cand:
+        loc = _RNG.choice(cand) if RAND_ON else cand[0]
+        if _os.environ.get("MAS_V4_DEBUG") == "1":
+            print("[pick-near] n=%d -> %s" % (len(cand), loc), flush=True)
+        return loc
     return None
+
+
+_HOLD_UNTIL = {}
+
+
+def _rand_hold(key, tick, p=0.3, lo=4, hi=8):
+    """以概率 p 把该动作推迟 lo..hi 个 agent step（8 game step/step）。
+
+    返回 True = 本 tick 按住不动（发 noop）。进 hold 后整段都按住，
+    所以「2–3 秒后才造兵」是真的延迟，而不是每 tick 掷一次骰子。
+    """
+    if not RAND_ON:
+        return False
+    until = _HOLD_UNTIL.get(key, -1)
+    if tick < until:
+        return True
+    if _RNG.random() < p:
+        _HOLD_UNTIL[key] = int(tick) + _RNG.randint(lo, hi)
+        return True
+    _HOLD_UNTIL.pop(key, None)
+    return False
 
 
 _LAST_TRY = {}
@@ -473,7 +594,7 @@ def decide(summ, tick=0, **_kw):
                   or (ng < GATEWAY_TARGET and _GWFAIL[0] >= 2 and n_pylon_done < 5))
     if (need_pylon and np_ > 0 and not busy.get("building_pylon")
             and not _inflight_block("pylon", tick, n_pylon)):
-        if mins >= 100:
+        if mins >= 100 and not _rand_hold("pylon", tick, p=0.15, lo=2, hi=6):
             # Pylon 是 2x2 world（半径 1.0），这里必须用 half=1.0。
             # 之前走默认 1.5（按 4x4 检查），把 v4spots 枚举出来的好点全判死了
             # ⇒ Pylon 被逼到 (23,23) 悬崖边、Gateway 无处可放。
@@ -486,13 +607,15 @@ def decide(summ, tick=0, **_kw):
     # ⚠ np_==0 时不看 Nexus 忙不忙：medium 下 learner 会把单位送光，
     # 而 learner 一直占着 Nexus 队列 ⇒ 若还要求空闲，农民永远补不出来
     #（实测 4 局全负：fc_no_unit 256–280 次、used_points 0–300、our_units 1–7）。
-    if np_ < PROBE_TARGET and (np_ == 0 or not busy.get("nexus")) and mins >= 50:
+    if (np_ < PROBE_TARGET and (np_ == 0 or not busy.get("nexus")) and mins >= 50
+            and not _rand_hold("probe", tick, p=0.25, lo=3, hi=6)):
         # hint 必须是 NEXUS：Train_Probe_quick 是从 Nexus 训练，
         # 传 PROBE 会让 to_func_call 去找"空闲的 Probe"，而它们都在采矿 ⇒ no_unit
         return True, mk("train_probe", "train", NEXUS), "probe"
 
     # P2 兵营：需要先有 6 个农民支撑经济
     if (ng < GATEWAY_TARGET and np_ >= 6 and mins >= 150
+            and not _rand_hold("gateway", tick, p=0.2, lo=4, hi=9)
             and not busy.get("building_gateway")
             and not _inflight_block("gateway", tick, ng, wait=GATEWAY_WAIT)):
         loc = _pick_near_pylons(summ, _ready_pylons(summ, tick), size=2, half=1.6)
@@ -518,12 +641,28 @@ def decide(summ, tick=0, **_kw):
 
     # P3 造兵：Gateway 空闲就出 Zealot（优先级低于补人口，高于进攻）
     if ng > 0 and nz < ZEALOT_MAX and mins >= 100 and _gateway_idle(summ):
+        # 2–3 秒延迟：8 game step/agent step ⇒ 6–9 step ≈ 2–3 秒（faster 速度）
+        if _rand_hold("zealot", tick, p=0.35, lo=6, hi=9):
+            return True, mk("noop", "noop", None), "hold_zealot"
         return True, mk("train_zealot", "train", GATEWAY), "zealot"
 
     # P4 防守：敌人贴脸才回防，且要求至少 3 个兵
     #（r2/r3 实测：nz>0 就回防时，兵被一个一个调回去送掉，永远滚不起来）
-    if nz > 0 and enemy_near < DEFEND_AT and summ.get("enemy_near_pos"):
-        return True, mk("attack", "attack", None, summ["enemy_near_pos"]), "defend"
+    _ep = summ.get("enemy_near_pos")
+    if enemy_near < DEFEND_AT and _ep:
+        _DEFEND_POS[0] = _ep
+        _DEFEND_UNTIL[0] = int(tick) + DEFEND_HOLD
+    if nz > 0 and int(tick) < _DEFEND_UNTIL[0] and _DEFEND_POS[0]:
+        # 保持窗口内继续回防：部队在家门口集结、把入侵者打掉，
+        # 而不是敌人一退就走、一走又回来（3039 局实测的来回横跳）。
+        _dp = _DEFEND_POS[0]
+        if RAND_ON:
+            try:
+                _dp = (int(_dp[0]) + _RNG.randint(-3, 3),
+                       int(_dp[1]) + _RNG.randint(-3, 3))
+            except Exception:
+                _dp = _DEFEND_POS[0]
+        return True, mk("attack", "attack", None, _dp), "defend_hold"
 
     # P5 进攻：攒够 ATTACK_AT 个才开打（用户 21:14 指定：不到 6 个不打）。
     # 一旦开打就进入「进攻态」并保持：
@@ -531,8 +670,22 @@ def decide(summ, tick=0, **_kw):
     #   * 后面新出的兵一出来就立刻跟进（nz > 0 即继续下发）。
     if nz >= ATTACK_AT:
         _ATTACKING[0] = True
+    elif ATTACK_EXIT > 0 and nz < ATTACK_EXIT:
+        _ATTACKING[0] = False
     if _ATTACKING[0] and nz > 0 and summ.get("enemy_center"):
-        return True, mk("attack", "attack", None, summ["enemy_center"]), "attack_all"
+        # harass 档：打一阵撤一阵，制造不同的战斗节奏
+        if RAND_ON and RETREAT_EVERY:
+            if int(tick) % (RETREAT_EVERY + RETREAT_LEN) >= RETREAT_EVERY:
+                return True, mk("noop", "noop", None), "retreat"
+        _tgt = summ["enemy_center"]
+        if RAND_ON:
+            try:
+                _tx = int(_tgt[0]) + _RNG.randint(-4, 4)
+                _ty = int(_tgt[1]) + _RNG.randint(-4, 4)
+                _tgt = (max(1, min(62, _tx)), max(1, min(62, _ty)))
+            except Exception:
+                _tgt = summ["enemy_center"]
+        return True, mk("attack", "attack", None, _tgt), "attack_all"
 
     # P6 闲农民去采矿。
     # ⚠ 必须限流：n_idle_probe>0 几乎每帧都成立，不限流时 harvest 会占掉
@@ -541,5 +694,13 @@ def decide(summ, tick=0, **_kw):
         if _try_once("harvest", tick, gap=16):
             mf = summ["mineral_fields"][0]
             return True, mk("harvest", "unit", PROBE, None, mf[2]), "gather"
+
+    # P9 默认动作 NoOp：所有规则都没命中 = 现状 OK，专家什么都不做。
+    # 这是**每一步都会发**的兜底动作（不节流、不过冷却）：
+    #   * append 模式下它等价于"专家这步不插话"，但留下可统计的痕迹；
+    #   * replace 模式下它会顶掉 learner 本步动作 ⇒ 专家获得"否决权"，
+    #     于是「专家 + 什么都不做的 learner」= 专家完全自主，和自己玩一致。
+    if NOOP_EMIT:
+        return True, mk("noop", "noop", None), "noop"
 
     return False, None, "idle"
