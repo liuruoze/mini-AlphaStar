@@ -2,14 +2,9 @@
 
 [English](USAGE.MD) | **中文**
 
-> **Abstract (English).** Two answers: (1) "Can't find map" during supervised learning means the map
-> cache is missing — the two commands below fetch it; (2) running reinforcement learning needs
-> SC2 >= 4.0 and PySC2 >= 3.0, plus several SC2 versions side by side (game processes and a replay
-> process). Full English text: [`USAGE.MD`](USAGE.MD).
-
 这里给出 mini-AlphaStar（简称 mAS）的一些实用指南。
 
-> 本文件是 [`USAGE.MD`](USAGE.MD) 的中文镜像，内容与英文版一一对应。
+本文件是 [`USAGE.MD`](USAGE.MD) 的中文镜像，内容与英文版一一对应。
 
 ## 关于"找不到地图（Can't find map?）"
 

@@ -1,26 +1,9 @@
 # SL 智能体实验结论（可复现条件）
 
-> **Abstract (English).** Supervised-learning agents for StarCraft II on Simple64 against the
-> built-in bot at difficulty 3 (medium). Four layers are kept apart: model (lunar-mansion code),
-> recipe (`setting`), run (`sl_YY-MM-DD_HH-MM-SS`) and weight.
-> The best recipe, `HumanHybrid`, reaches **45.6% strict wins over 316 games** (Wilson
-> [40.2, 51.1]) against **31.2%** (80 games) for `ExpertGuided`.
-> The entire gain comes from **4,247 human no_op frames at an 11.86% dose**: a no_op-only
-> dataset reproduces 45.6% (180 games), while the 298 action frames alone give 32.4%
-> (179 games), indistinguishable from the 31.2% baseline.
-> The dose window is narrow: +0.57 pp falls to 15.0%, +1.75 pp to 17.5%, +4.86 pp collapsed
-> in 3 of 3 runs. Validation is a gate with an **upper bound only** — never evaluate val >= 0.57
-> (1/80 = 1.2% wins); below 0.57 the win rate is flat at 37.5-42.5%, so any lower bound
-> would discard usable runs.
-> The official 2021 weight reproduces on this pipeline: 7/8 = 88% at D1 left-top (its
-> documented figure is 0.85), 8/20 = 40% lenient at D1, 2/10 = 20% at D2 and 0/20 at D3.
-> Unless stated otherwise every number is 40k steps, difficulty 3, 20 standard seeds
-> (8 left-top, 12 right-bottom), measured on one machine.
-
-> 目标：用监督学习训练一个能在 Simple64 上击败内置 AI（难度 3）的智能体。
-> 本文只记录**结论**（配方 / 种子数 / 胜率 / 置信区间 / 判定），不收录失败脚本。
-> 判胜（win rule）两套：**真胜**（strict win，`raw_reward == +1`）与**宽胜**（lenient win，`outcome == 1` 或 `killed > 4000`）。
-> 评测统一 `OFF_GAME_STEPS=40000`。完整评测条件与判胜见 [`NAMING.md`](NAMING.md) §7。
+目标：用监督学习训练一个能在 Simple64 上击败内置 AI（难度 3）的智能体。
+本文只记录**结论**（配方 / 种子数 / 胜率 / 置信区间 / 判定），不收录失败脚本。
+判胜（win rule）两套：**真胜**（strict win，`raw_reward == +1`）与**宽胜**（lenient win，`outcome == 1` 或 `killed > 4000`）。
+评测统一 `OFF_GAME_STEPS=40000`。完整评测条件与判胜见 [`NAMING.md`](NAMING.md) §7。
 
 ## 0. 标识与命名（2026-11-16 约定）
 
@@ -45,19 +28,21 @@
 
 | 时间戳 | 权重文件 | 数据 / 配方 | 条件与成绩 |
 |---|---|---|---|
-| `sl_21-12-29_08-15-43` | `model/sl_21-12-29_08-15-43.pth` | 官方权重（代号 **Official**）：90 局人类录像，官方默认预处理；官方代码 + 官方平台（2021-12）；数据只有左上出生点 | 40k：D1 左上 7/8 = 88%（对上其文档 0.85）；D1 8/20 = 40%；D2 2/10 = 20%；D3 0/20 |
-| `sl_26-11-09_15-13-18` | `b0myall_s20261108/…_best.pth` | **纯人类数据**（代号 **Base**）：训练数据与 **Official** **同源**（同一批 90 局人类录像、同一套官方默认预处理产物，≈57 帧/局），用我们 2026-11 的代码训练，10 epoch；其余训练设置与平台未与 Official 对齐，且已难完整追溯 | 早期探索期，只有 3038 单种子、**30k 步旧条件**，无可靠配方级成绩 |
+| `sl_21-12-29_08-15-43` | `model/sl_21-12-29_08-15-43.pth` | 2021 年权重（代号 **Y2021**）：90 局人类录像，2021 年默认预处理；2021 年代码 + 2021 年平台；数据只有左上出生点 | 40k：D1 左上 7/8 = 88%（对上其文档 0.85）；D1 8/20 = 40%；D2 2/10 = 20%；D3 0/20 |
+| `sl_26-11-09_15-13-18` | `b0myall_s20261108/…_best.pth` | **纯人类数据**（代号 **Base**）：训练数据与 **Y2021** **同源**（同一批 90 局人类录像、同一套 2021 年默认预处理产物，≈57 帧/局），用我们 2026-11 的代码训练，10 epoch；其余训练设置与平台未与 `Y2021` 对齐，且已难完整追溯 | 早期探索期，只有 3038 单种子、**30k 步旧条件**，无可靠配方级成绩 |
 | `sl_26-11-13_03-55-05` | `cwB_ep4/…_best.pth` | 配方 **`ExpertGuided`**（4 epoch；历史名 `cwB`） | 40k / D3 31.2%（80 局，配方级） |
 | `sl_26-11-14_15-37-48` | `cwH5_s20261171/…_best.pth` | 配方 **`HumanHybrid`**（历史名 `h5`） | 40k / D3 36/60 = 60% |
 | `sl_26-11-15_09-37-33` | `cwH5h_s20261207/…_best.pth` | 配方 **`HumanHybrid`** | 40k / D3 25/39 = 64% |
 
-> 星宿代号只用于**模型**（当前为 `Hsin`）；**权重不分配代号**，引用一律用时间戳。
-> 同一模型下，配方代号用过就不再复用；跨模型可复用，但引用时模型名不可省略。
+星宿代号只用于**模型**（当前为 `Hsin`）；**权重不分配代号**，引用一律用时间戳。
+同一模型下，配方代号用过就不再复用；跨模型可复用，但引用时模型名不可省略。
 
 ### 0.2 规则
 
-1. **不用"官方 / 最新 / 基线"这类相对词**：它们随版本更新漂移（我们推代码之后就成了别人眼里的上游）。
-   上游那个权重永远叫 `sl_21-12-29_08-15-43`，与谁接管仓库无关。
+1. **不用"官方 / 最新 / 基线"这类相对词**：它们描述的是"谁站在哪个位置"，不是对象本身的属性。
+   本仓库**自身就是官方仓库**，再用"官方"指 2021 年那份权重会造成循环定义；那个权重一律写 `Y2021`。
+   上游那个权重永远叫 `sl_21-12-29_08-15-43.pth`（相对路径 `model/sl_21-12-29_08-15-43.pth`），
+   与谁接管仓库无关。
 2. **配方代号挂配方，时间戳挂运行**；同一个代号下可以有多个时间戳。
 3. **配方 = 数据 + 超参 + 流程的固定组合，不含随机种子**；一个配方产出多个运行。
    配方级成绩（合并所有运行的所有局）与单权重成绩不可混引：
@@ -70,16 +55,16 @@
 ### 0.3 已命名的对象
 
 **当前模型：`Hsin`**（心宿，禽星「心月狐」）。`Base`、`ExpertGuided`、`HumanHybrid` 是挂在它下面的三个配方；
-`Official` 是外部对照权重，不属于 `Hsin`。
+`Y2021` 是外部对照权重（`model/sl_21-12-29_08-15-43.pth`），不属于 `Hsin`。
 
-| 代号 | 数据构成 | 代码 | 历史名 | 权重时间戳 |
+| 代号 | 数据构成 | 代码 | 历史名 | 权重时间戳 / 文件 |
 |---|---|---|---|---|
-| **`Official`** | 90 局人类录像（官方默认设置） | 官方，2021-12 | — | `sl_21-12-29_08-15-43` |
-| **`Base`** | 与 `Official` **同源**（同一批 90 局录像） | 我们，2026-11 | `b0myall` / `B0` | `sl_26-11-09_15-13-18` |
+| **`Y2021`** | 90 局人类录像（2021 年默认设置） | 2021 年代码，2021-12 | — | `sl_21-12-29_08-15-43.pth` |
+| **`Base`** | 与 `Y2021` **同源**（同一批 90 局录像） | 我们，2026-11 | `b0myall` / `B0` | `sl_26-11-09_15-13-18` |
 | **`ExpertGuided`** | 30 局 bot 自战 + 30 局规则专家（DAgger） | 我们 | `cwB` | `sl_26-11-13_03-55-05` |
 | **`HumanHybrid`** | `ExpertGuided` + 5 局人类录像的 no_op 帧（人类占 12.6%） | 我们 | `h5` | `sl_26-11-14_15-37-48`、`sl_26-11-15_09-37-33` |
 
-`Official` 与 `Base` 之间只确认了**训练数据同源**（同一批 90 局、同一套官方默认预处理产物）。
+`Y2021` 与 `Base` 之间只确认了**训练数据同源**（同一批 90 局、同一套 2021 年默认预处理产物）。
 两者的训练设置、代码版本与平台都可能不同，2021 年那次训练的细节已无法完整追溯，
 因此**不能把二者的差距归因于单一变量**，也不能互相当作对方的对照基线。
 `ExpertGuided` → `HumanHybrid` 是另一条线：在同一个机器数据基座上，逐级叠加专家监督与人类示范。
@@ -91,8 +76,8 @@
 | **ExpertGuided** | 30 局 bot 自战 + 30 局规则专家 | 4 | 80 | 31.2% | [22.2, 42.1] | 19.3% | ~43% |
 | **HumanHybrid** | ExpertGuided + 5 局人类录像（人类占 12.6%） | 15 | 196 | **46.9%** | [40.1, 53.9] | **13.2%** | **67%** |
 
-> 上表是 196 局样本（46.9%）；扩样到 316 局后为 **45.6%**（Wilson [40.2, 51.1]），
-> 两次几乎重合。引用配方级成绩时以 316 局为准，见 `ARCHIVE_20261116.md`。
+上表是 196 局样本（46.9%）；扩样到 316 局后为 **45.6%**（Wilson [40.2, 51.1]），
+两次几乎重合。引用配方级成绩时以 316 局为准，见 `ARCHIVE_20261116.md`。
 
 - HumanHybrid 在"可评测运行"上比 ExpertGuided 高约 15.7pp（≈2.4σ），但把塌缩运行计入配方期望后约 36%，
   与历史最好单运行（42.5%）**统计上不可分**。

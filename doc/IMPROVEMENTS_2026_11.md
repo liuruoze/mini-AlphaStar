@@ -1,28 +1,15 @@
 # mini-AlphaStar — 2026-11 系统更新说明
 
-> **Abstract (English).** What changed between 2026-11-02 and 11-16, with the measured numbers,
-> the conclusions that had to be withdrawn, and what is still open.
-> Supervised learning went from **0% to 4.3% strict wins over 230 games**, with resource
-> collection rising from 2,676 to 9,010 per game. Three structural defects were fixed: data
-> silently downgraded to 1/60 of the replays, the action distribution skewed 11-19x by the
-> frame-sampling stride, and model selection by validation accuracy being inverted.
-> Zero-cost weight averaging lifted the kill ceiling from 2,550 to 6,900.
-> The RL loop had never executed: seven patches were needed, and the decisive one was a queue
-> timeout that made the only result consumer kill itself after ten minutes, a failure that looks
-> exactly like a deadlock. It then ran 25 minutes cleanly, but the win rate did not rise.
-> Later results (11-16) identify the human **no_op frames** as the only effective ingredient,
-> put the optimum dose at 11.86%, and reduce the validation gate to an upper bound of 0.57.
+覆盖 2026-11-02 → 11-16：做了什么、测到什么数字、哪些结论被推翻、还有哪些没解决。
+命名与术语遵循 [`docs/exp/NAMING.md`](../docs/exp/NAMING.md)；结论汇总见 [`docs/exp/CONCLUSIONS.md`](../docs/exp/CONCLUSIONS.md)。
 
-> 覆盖 2026-11-02 → 11-16：做了什么、测到什么数字、哪些结论被推翻、还有哪些没解决。
-> 命名与术语遵循 [`docs/exp/NAMING.md`](../docs/exp/NAMING.md)；结论汇总见 [`docs/exp/CONCLUSIONS.md`](../docs/exp/CONCLUSIONS.md)。
->
-> **署名**
-> - 监督 / 仓库所有者：**Ruo-Ze Liu (`liuruoze`)**
-> - 执行：**DeepSeek-V4.1-Flash**（改动编号 #23–#53）
-> - 代码 review：**GLM**（#1–#22）、**Kimi 3.1 Pro**、**MiniMax H3.1**、**space-bunny**
->
-> 记录纪律（由监督者定）：每条结论必须带**可证伪判据 + 实测数字**；
-> 每条被撤回的结论进 `ERRATA.md`（本地笔记，**不随仓库发布**），不静默删除。
+**署名**
+- 监督 / 仓库所有者：**Ruo-Ze Liu (`liuruoze`)**
+- 执行：**DeepSeek-V4.1-Flash**（改动编号 #23–#53）
+- 代码 review：**GLM**（#1–#22）、**Kimi 3.1 Pro**、**MiniMax H3.1**、**space-bunny**
+
+记录纪律（由监督者定）：每条结论必须带**可证伪判据 + 实测数字**；
+每条被撤回的结论进 `ERRATA.md`（本地笔记，**不随仓库发布**），不静默删除。
 
 ---
 
@@ -52,12 +39,14 @@
 | 配方 `HumanHybrid` | 40k / D3 / 双角 / 316 局 | **45.6%** | — | 15 个运行合并，Wilson [40.2, 51.1]，运行级 SD 14.3% |
 | 权重 `sl_26-11-15_09-37-33` | 40k / D3 / 39 局 | **64%** | — | `HumanHybrid` 最强权重；**含选择偏差**，只能当资产 |
 | 配方 `ExpertGuided` | 40k / D3 / 80 局 | **31.2%** | — | 4 个运行合并，Wilson [22.2, 42.1] |
-| 权重 `sl_21-12-29_08-15-43`（`Official`） | 40k / D1 / 20 局 | 15% | 40% | 左上 7/8 = 88%（对上其文档 0.85），右下 1/12 |
+| 权重 `sl_21-12-29_08-15-43.pth`（`Y2021`） | 40k / D1 / 20 局 | 15% | 40% | 左上 7/8 = 88%（对上其文档 0.85），右下 1/12 |
 | 同上 | 40k / D2 / 10 局 | 0% | 20% | 两次"胜"都是撞上步数上限的截断局 |
 | 同上 | 40k / D3 / 20 局 | 0% | 0% | 全程在出兵（9 分钟时 55–61 人口），被 medium 第一波打穿；早期"根本不出兵"的说法是战败快照误读，已撤回 |
 
-一句话：**收益全部来自人类录像里的 no_op 帧**——把 5 局人类录像的 4,247 个 no_op 帧掺进机器数据，
-配方级真胜从 31.2% 升到 45.6%；只掺那 298 个动作帧则毫无作用（32.4% ≈ 基线）。
+一句话：**在机器数据基座之上，收益全部来自人类录像里的 no_op 帧**——把 5 局人类录像的 4,247 个
+no_op 帧掺进机器数据，配方级真胜从 31.2% 升到 45.6%；只掺那 298 个动作帧则毫无作用（32.4% ≈ 基线）。
+⚠️ **边界**：这不等于 `no_op` 单独可用——纯人类数据（`Base`）没有可靠的配方级成绩，纯专家数据 0 胜，
+也没训过"只用 `no_op`"的配方；它必须与机器数据混合，且剂量在 11.86% 附近。
 
 ### 1.2 历史（2026-11-04，条件与 1.1 不同，**不可相减**）
 
@@ -65,10 +54,10 @@
 
 | 阶段 | 起点 | 终点 | 参照 |
 |---|---|---|---|
-| SL 真胜 | 0%（20 局） | **4.3%**（230 局，Wilson [2.4, 7.8]） | 当时测得的 `Official` **5.6%**（36 局，[1.5, 18.1]）<br>~~17.5%（80 局）~~ **已作废**：14 个"胜"是 `killed > 4000` 的宽胜改判，真胜 ≤3/80 = 3.75% |
-| SL 采集 | 2,676 | **9,010** | `Official` 9,494（**95%**） |
-| SL 击杀 | 0 | **1,439** | `Official` 1,811（79%） |
-| SL 军队 | — | **21.2** | `Official` 14.0（**151%**） |
+| SL 真胜 | 0%（20 局） | **4.3%**（230 局，Wilson [2.4, 7.8]） | 当时测得的 `Y2021` **5.6%**（36 局，[1.5, 18.1]）<br>~~17.5%（80 局）~~ **已作废**：14 个"胜"是 `killed > 4000` 的宽胜改判，真胜 ≤3/80 = 3.75% |
+| SL 采集 | 2,676 | **9,010** | `Y2021` 9,494（**95%**） |
+| SL 击杀 | 0 | **1,439** | `Y2021` 1,811（79%） |
+| SL 军队 | — | **21.2** | `Y2021` 14.0（**151%**） |
 | RL 循环 | **从未执行过** | 25 分钟无故障 / 12 局 / 统计链完整 / 自行退出 | — |
 | RL 真胜 | — | 0%（12 局） | — |
 
@@ -102,7 +91,7 @@ if SIMPLE_TEST:
 数据转换按固定帧步长（约每 20 帧取一帧），而 agent 每 8 帧才下一条命令 ——
 绝大多数采样帧落在两条命令之间，标签就是 `no_op`。
 
-| 动作 | 训练数据 | `Official` 实测 | 倍数 |
+| 动作 | 训练数据 | `Y2021` 实测 | 倍数 |
 |---|---|---|---|
 | `no_op` | **81.0%** | 0% | — |
 | `Build_Pylon` | 2.7% | 29.8% | 11× |
@@ -119,10 +108,10 @@ w[a] = clip((target_share[a] / data_share[a]) ** exp, lo=0.1, hi=50)   # exp 必
 ```
 
 - `exp=0.5`（平方根）不够：`no_op` 仍 30%、army 5.4、8 负；
-- `exp=1.0` 才有效：实战 `no_op` **37% → 6.7%**、`Attack` 稳定在 10%（`Official` 9.5%）、
+- `exp=1.0` 才有效：实战 `no_op` **37% → 6.7%**、`Attack` 稳定在 10%（`Y2021` 9.5%）、
   army 16.4 → **24.4**、采集 7,261 → **8,981**。
 
-⚠️ 踩过的坑：第一版把 `Smart_unit` 降权去"对齐官方词汇表"，而**我们的数据里
+⚠️ 踩过的坑：第一版把 `Smart_unit` 降权去"对齐 2021 年的动作词汇表"，而**我们的数据里
 `Harvest_Gather` 是 0%**，Smart 是唯一采集指令 —— 降它等于关掉采矿
 （采集 8,660 → 4,552）。**重加权只能在自己数据的动作空间里做。**
 
@@ -283,16 +272,16 @@ except _queue.Empty:
 | 按交战密度筛回放 | ❌ **灾难** | 32 局 0 胜 4 平 **28 负**，击杀 84（正常 1,222） |
 | 多版本平均越多越稳 | ❌ | 5 个版本：尾部 6,900 → 2,800 |
 | 从最优平均再微调 1 轮 | ❌ | 19 局 1 胜 **6 负**（败局率 32% vs 5.2%） |
-| 攻击坐标总在自家附近 | ❌ | `Official` 均值 4.8 比我们 8.0 **更近**，照样打出 7,875 击杀 |
+| 攻击坐标总在自家附近 | ❌ | `Y2021` 均值 4.8 比我们 8.0 **更近**，照样打出 7,875 击杀 |
 | `unit_tags` 送的是下标所以指令全失效 | ❌ | 强行加 index→tag 映射后**更差**（采集 7,000→3,206） |
-| `Official` 真胜 = 7.1% | ❌ | 7.1% 是 28 局点估计。曾用 80 局"修正"为 17.5%，**该修正本身也作废**：那 80 局跑在 native/custom 字段拆分修好之前，14 个"胜"全部是 `killed_points > 4000` 的宽胜改判（11 局停在 20,992 帧上限），`killed_points` 在 4,000 上一维完全分离（胜 ≥4,625 / 平 ≤2,975）→ **真胜 ≤3/80 = 3.75%**。干净重跑 36 局 = **5.6%**；现行 40k 条件下的分层结果见 §1.1 |
+| `Y2021` 真胜 = 7.1% | ❌ | 7.1% 是 28 局点估计。曾用 80 局"修正"为 17.5%，**该修正本身也作废**：那 80 局跑在 native/custom 字段拆分修好之前，14 个"胜"全部是 `killed_points > 4000` 的宽胜改判（11 局停在 20,992 帧上限），`killed_points` 在 4,000 上一维完全分离（胜 ≥4,625 / 平 ≤2,975）→ **真胜 ≤3/80 = 3.75%**。干净重跑 36 局 = **5.6%**；现行 40k 条件下的分层结果见 §1.1 |
 | 验证准确率可以选权重 | ❌ **反向** | ep03 验证 0.44 / `no_op` 50% **优于** ep10 验证 0.83 / `no_op` 96.8% |
 | `SEQ_LEN×0.5` 是我们改坏的 | ❌ | `git blame`：原作者 2022-05-02 引入，上游一致 |
 | 人类录像的动作帧有用 | ❌ | 只掺 298 个动作帧：真胜 32.4%（179 局），与基线 31.2% 不可分 |
 | no_op 帧可以换来源 | ❌ | 换成 v3 那批（12.43% 剂量）：真胜 15.0%，且 3/4 个运行塌缩 |
 | no_op 剂量可以再抬高 | ❌ | 11.86% 最优；+0.57pp → 15.0%、+1.75pp → 17.5%、+4.86pp → 3/3 全塌 |
 
-> 这份清单里有多条曾被写成结论，后来被自己或 reviewer 撤回（见本地笔记 `ERRATA.md`，不随仓库发布）。
+这份清单里有多条曾被写成结论，后来被自己或 reviewer 撤回（见本地笔记 `ERRATA.md`，不随仓库发布）。
 
 ---
 
@@ -302,7 +291,7 @@ except _queue.Empty:
 |---|---|---|
 | #23 | `sl_train_by_tensor.py` / `run_sl.py` | 显式冒烟、可控文件数/workers、首屏 `[SL-config]` |
 | #24 | `sl_train_by_tensor.py` | 每 epoch 独立 `_epNN.pth` + `_best.pth` |
-| #25 | `sl_train_by_tensor.py` | `MAS_SL_EPOCHS`；`SEQ_LEN` 保持官方设计 |
+| #25 | `sl_train_by_tensor.py` | `MAS_SL_EPOCHS`；`SEQ_LEN` 保持 2021 年设计 |
 | #26 | `sl_loss_multi_gpu.py` | `Smart_unit→Harvest` 替换开关（默认关） |
 | #27 | `sl_train_by_tensor.py` | `MAS_SL_SEQ_LEN` |
 | #28 | `rl_eval_sl.py` | `MAS_ACT_STATS` 实战动作分布 |

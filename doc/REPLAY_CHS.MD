@@ -2,11 +2,6 @@
 
 [English](REPLAY.MD) | **中文**
 
-> **Abstract (English).** Where SC2 replays come from: Blizzard's pack holds hundreds of thousands
-> but stops at 3.16.1; replays for 4.0+ come from the replay-api download route; users in mainland
-> China can follow the Zhihu guide. Replays go into `./data/Replays/filtered_replays_1` before
-> conversion. Sample code sits in `scripts/download_replay/third`. Full English text:/n> [`REPLAY.MD`](REPLAY.MD).
-
 如何下载 SC2 回放？
 
 你可以在[这里](https://github.com/Blizzard/s2client-proto#replay-packs)找到一个很大的回放包
@@ -24,4 +19,4 @@
 
 如果遇到问题，请开 issue，我们可以讨论。
 
-> 本文件是 [`REPLAY.MD`](REPLAY.MD) 的中文镜像，内容与英文版一一对应。
+本文件是 [`REPLAY.MD`](REPLAY.MD) 的中文镜像，内容与英文版一一对应。

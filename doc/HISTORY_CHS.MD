@@ -2,13 +2,7 @@
 
 [English](HISTORY.MD) | **中文**
 
-> **Abstract (English).** Version log: v_0.7 first release; v_0.93/0.96 add the z reward and v-trace;
-> v_1.00–1.04 multi-GPU and masking; v_1.05 refactor (tensor storage cuts disk 70%, SL about 10x
-> faster); v_1.06 reaches 0.8 against the built-in AI; v_1.07 cuts RL memory 86% and sampling 6x;
-> v_1.08 ships an RL model. Entries are reverse-chronological and start at v_0.7.
-> Full English text: [`HISTORY.MD`](HISTORY.MD).
-
-> 本文件是 [`HISTORY.MD`](HISTORY.MD) 的中文镜像，版本顺序与条目与英文版一一对应。
+本文件是 [`HISTORY.MD`](HISTORY.MD) 的中文镜像，版本顺序与条目与英文版一一对应。
 
 ## v_1.08
 

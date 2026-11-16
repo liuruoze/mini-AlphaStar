@@ -1,24 +1,7 @@
 # 命名规则（模型 / 配方 / 运行 / 权重）
 
-> **Abstract (English).** Naming rules only; experimental results live in `CONCLUSIONS.md`.
-> Four layers, each with its own identifier: **model** = lunar-mansion code (currently `Hsin`),
-> **recipe** = a word code such as `ExpertGuided` (English: `setting`, never `recipe`),
-> **run** = the trainer timestamp `sl_YY-MM-DD_HH-MM-SS`, **weight** = timestamp plus
-> `_best` or `_epNN`.
-> The code pool holds **28 mansion names** picked in three descending tiers (Wade-Giles
-> romanisation, then the mansion animal, then a semantic translation), each at most six
-> letters, with no punctuation, no SC2 vocabulary, no common Chinese surname unless listed as
-> an accepted exception, and **no two codes inside one quadrant within one edit**.
-> The four quadrants are `Dragon`, `Turtle`, `Tiger` and `Phoenix`.
-> A 17-entry bilingual glossary fixes one Chinese term (two characters each) and one English
-> term per concept; banned words are listed explicitly so the vocabulary cannot drift back.
-> Evaluation protocol: **strict win** (`raw_reward == +1`) versus **lenient win**
-> (`outcome == 1`, or `outcome == 0` with `killed_points > 4000`), 40,000 steps, seeds split
-> 8 left-top and 12 right-bottom, never pooled across corners.
-> Relative words such as "official", "latest" and "baseline" are banned as identifiers.
-
-> 本文只规定**怎么起名**，不记录实验结论——结论见 `CONCLUSIONS.md`。
-> 建立于 2026-11-16，随命名决策更新。
+本文只规定**怎么起名**，不记录实验结论——结论见 `CONCLUSIONS.md`。
+建立于 2026-11-16，随命名决策更新。
 
 ## 1. 四层结构与标识
 
@@ -118,7 +101,7 @@
 
 ## 4. 运行与权重：时间戳
 
-格式 `sl_<YY-MM-DD>_<HH-MM-SS>`，与上游发布权重同构（`sl_21-12-29_08-15-43`）。
+格式 `sl_<YY-MM-DD>_<HH-MM-SS>`，与上游发布权重同构（`sl_21-12-29_08-15-43.pth`）。
 
 - 一个时间戳 = 一个运行（训练器落盘时自动生成，不需要人工起名）
 - `_best` 与 `_ep01..epNN` 是同一个运行的不同快照，共享该时间戳
@@ -127,12 +110,14 @@
 ## 5. 不用"官方 / 最新 / 基线"这类相对词
 
 它们描述的是"站在谁的位置上看"，会随版本更新漂移（我们推代码之后，这个仓库就成了别人眼里的上游）。
-上游那个权重永远叫 `sl_21-12-29_08-15-43`，与谁接管仓库无关。
-若历史原因必须用（如 `Official`、`Base`），**首次出现必须带上它的时间戳**。
+上游那个权重永远叫 `sl_21-12-29_08-15-43.pth`，与谁接管仓库无关。
+**"官方"在本仓库尤其不能用**：这个仓库本身就是官方仓库，用"官方"去指 2021 年那份权重会造成
+循环定义。那个权重一律写 `Y2021`（完整文件名 `model/sl_21-12-29_08-15-43.pth`）。
+`Base` 这类历史名首次出现必须带上它的时间戳。
 
 ## 6. 术语表（中英对照）
 
-> 中文一律**两字**便于口语；英文是论文与国际表述的标准写法。两边都要能用。
+中文一律**两字**便于口语；英文是论文与国际表述的标准写法。两边都要能用。
 
 ### 6.1 五个层级词
 
@@ -144,7 +129,7 @@
 | **权重** | weight | `*.pth` | 能被加载运行的参数文件 | `…_best.pth` |
 | **版本** | version | `v_1.09`、git tag | 代码发布版 | `v_1.09` |
 
-> **配方 = setting，不译作 `recipe`。** 首次出现写「配方（setting）」，之后单用。
+**配方 = setting，不译作 `recipe`。** 首次出现写「配方（setting）」，之后单用。
 
 ### 6.2 流程与判据
 
@@ -201,17 +186,17 @@
 
 ## 7. 评测条件与判胜
 
-> 报成绩必须带全「**场景 / 步数 / 角位 / 局数**」，并写明用的是**真胜**还是**宽胜**；缺一项即视为无效引用。
+报成绩必须带全「**场景 / 步数 / 角位 / 局数**」，并写明用的是**真胜**还是**宽胜**；缺一项即视为无效引用。
 
 ### 7.1 场景（难度）
 
 | 代号 | 英文 | 说明 |
 |---|---|---|
-| D1 | very_easy | 官方文档的 0.85 指的是这一档，且只在左上 |
+| D1 | very_easy | 2021 年文档里的 0.85 指的是这一档，且只在左上 |
 | D2 | easy | — |
 | D3 | medium | 本项目主用档位 |
 
-**跨场景不可比**：官方 "0.85" 是 D1 左上，本项目 "70%" 是 D3 双角。
+**跨场景不可比**：2021 年文档的 "0.85" 是 D1 左上，本项目 "70%" 是 D3 双角。
 
 ### 7.2 判胜：两套并存，不可混报
 
@@ -220,18 +205,18 @@
 | 判胜 | 定义 | 何时用 |
 |---|---|---|
 | **真胜**（strict win） | `raw_reward == +1` | 严格胜负，首选 |
-| **宽胜**（lenient win） | `outcome == 1`，或 `outcome == 0` 且 `killed_points > 4000` | 需要与官方文档或历史记录可比时 |
+| **宽胜**（lenient win） | `outcome == 1`，或 `outcome == 0` 且 `killed_points > 4000` | 需要与 2021 年文档或历史记录可比时 |
 
 **截断局只认宽胜。** 打满步数上限时 `outcome` 可能为 `+1` 而 `raw_reward = 0`：
 SC2 按积分判胜，但 pysc2 因截断返回 0。这类局会让真胜系统性偏低——
-`Official` 在 D2 的两次"胜"全部来自这种截断局。
+`Y2021` 在 D2 的两次"胜"全部来自这种截断局。
 
 ### 7.3 步数
 
 | 项 | 规定 | 依据 |
 |---|---|---|
 | 标准步数 | **`OFF_GAME_STEPS=40000`** | 30000 会把优势局打成平，历史数字全部偏低 |
-| 官方原用步数 | 21000 | 仅用于与官方对照，不用于自身结论 |
+| 2021 年原用步数 | 21000 | 仅用于与 2021 年结果对照，不用于自身结论 |
 
 ### 7.4 局数与运行数
 
@@ -249,7 +234,7 @@ SC2 按积分判胜，但 pysc2 因截断返回 0。这类局会让真胜系统�
 - **右下 12 个**：其余
 
 **必须分层报**，混报会掩盖差异：同一模型可以左上 50% / 右下 83%；
-`Official` 更极端——左上 88%、右下 8%。
+`Y2021` 更极端——左上 88%、右下 8%。
 
 ### 7.6 统计只许用脚本
 
@@ -291,10 +276,9 @@ SC2 按积分判胜，但 pysc2 因截断返回 0。这类局会让真胜系统�
    `eight fixes` 写成 `7 个补丁`、把 `#23–#52` 写成 `#23–#58`、把 `MAS_QUEUE_TIMEOUT=900`
    写成 `3600`，中文读者拿到的是另一个事实。
 4. **改动必须同时改两边**；只改一边视为未完成。
-5. **每个文件顶部都要有另一种语言的摘要。**「成对」不等于「双语」：一对文件各自只有一种语言的正文，
-   单独打开任何一个，读者都看不到另一种语言。所以英文文件开头放 3–8 行中文摘要，
-   中文镜像开头放 `> **Abstract (English).**` 同行数的英文摘要，双方各带关键数字。
-   判据：任取一个文件，只用另一种语言读它的摘要，能判断这份文件讲什么、关键结论是多少。
+5. **一个文件只写一种语言。** 中文文件里只有中文，英文文件里只有英文，不放另一种语言的摘要：
+   摘要一旦两种语言各写一遍，就会各自漂移，读者也分不清哪份是正文。想去另一种语言，走第 6 条
+   的链接。代码、变量名、`MAS_*` 开关名保持原样，不算"另一种语言"。
 6. **每个成对文件顶部必须有语言切换链接**，紧跟标题、单独一行：
 
    ```
@@ -304,17 +288,17 @@ SC2 按积分判胜，但 pysc2 因截断返回 0。这类局会让真胜系统�
 
    判据：从任一文件出发，一次点击能到另一语言版本；链接用相对路径，且必须可达。
 
-### 8.2 中文正文 + 英文摘要（内部研究文档）
+### 8.2 中文单语（内部研究文档）
 
-| 文档 | 正文 | 摘要 |
-|---|---|---|
-| [`docs/exp/CONCLUSIONS.md`](CONCLUSIONS.md) | 中文 | 开头 `> **Abstract (English).**` |
-| [`docs/exp/NAMING.md`](NAMING.md) | 中文 | 同上 |
-| [`doc/IMPROVEMENTS_2026_11.md`](../../doc/IMPROVEMENTS_2026_11.md) | 中文 | 同上 |
-| [`experiments/README.md`](../../experiments/README.md) | 中文 | 同上 |
+| 文档 | 语言 |
+|---|---|
+| [`docs/exp/CONCLUSIONS.md`](CONCLUSIONS.md) | 中文 |
+| [`docs/exp/NAMING.md`](NAMING.md) | 中文 |
+| [`doc/IMPROVEMENTS_2026_11.md`](../../doc/IMPROVEMENTS_2026_11.md) | 中文 |
+| [`experiments/README.md`](../../experiments/README.md) | 中文 |
 
-摘要必须**自带关键数字**（配方级胜率、样本量、区间、门禁阈值），不能只写"见正文"。
-英文读者读摘要即可判断这份文档是否与自己有关。
+这几份是写给自己人看的，不附英文摘要，也没有对应的英文版；需要对外时另写一份英文文档，
+而不是在一份文件里塞两种语言。
 
 ### 8.3 单语（自动生成）
 

@@ -4,10 +4,6 @@
 
 We give some useful guides for mini-AlphaStar (short as mAS) here.
 
-> **摘要（中文）.** 两个问题的解答：(1) 训练时报 "Can't find map" 是缺地图缓存，按文中两条命令下载即可；
-> (2) 怎么跑强化学习——需要 SC2 >= 4.0 与 PySC2 >= 3.0，并且要同时运行多个 SC2 版本（对局进程 + 回放进程）。
-> 中文全文见 [`USAGE_CHS.MD`](USAGE_CHS.MD)。
-
 ## Question about "Can't find map?"
 
 If you are doing supervised learning, when opening replay and encounter the following errors:
@@ -21,7 +17,6 @@ This is caused by the SC2 cannot find the map, you can execute the following two
 !unzip -P iagreetotheeula SC2.4.1.2.60604_2018_05_16.zip -d ~ && rm -rf SC2.4.1.2.60604_2018_05_16.zip
 
 This operation will download a lot of maps to the cache at the same time, and then you only need to copy it to the place where the map is not found.
-
 
 ## Question about "How to run reinforcement learning?"
 
@@ -37,4 +32,3 @@ However, the replay version may not be the same version as we running the game p
 This also can be done due to SC2 support this mechanism. In the dir of SC2, you can see a "Versions" dir, which stores multi versions of SC2. If the 3.16.1 (Base55958) and 4.1.2 (Base60321) are all in that dir, you can run them meanwhile.
 How to do that, this is the same way as in the before process, download the SC2 version in "https://colab.research.google.com/drive/1TzO2Wi9KLjfBZeOqjGgjlxmwU5IX4wIV#scrollTo=XoZu1wZWLrfP". This version of SC2 already contains 3.16.1 and 4.1.2.
 So we can do the reinforcement learning right now.
-

@@ -1,19 +1,12 @@
 # experiments/ —— 实验与验收脚本
 
-> **Abstract (English).** These scripts are **not** library code: they are the probes,
-> acceptance tests, benchmarks and soak orchestrators written while the batch-acting path was
-> being rebuilt. They are kept so that every number in the log can be traced back to a command.
-> Work from the repository root; the scripts rely on it for `sys.path`.
-> `doc/batch_acting/ERRATA.md` and `BATCH_ACTING_EXECUTION_LOG_DS*.md` are local working notes
-> and are deliberately not shipped, so those references cannot be opened here.
+这些脚本**不是**库代码，不参与 `run_rl.py` / `run_sl.py` 的运行。
+它们是 batch acting 改造过程中写的一次性探针、验收测试、benchmark 和长跑编排。
+保留它们是为了**可复现**：日志里的每个数字都对应这里的某条命令。
 
-> 这些脚本**不是**库代码，不参与 `run_rl.py` / `run_sl.py` 的运行。
-> 它们是 batch acting 改造过程中写的一次性探针、验收测试、benchmark 和长跑编排。
-> 保留它们是为了**可复现**：日志里的每个数字都对应这里的某条命令。
->
-> 注：脚本注释里的 `ERRATA A33` / `B10` / `B17`、`BATCH_ACTING_EXECUTION_LOG_DS*.md` 等，
-> 都指向本地开发笔记（含 `ERRATA.md` 勘误表）。这些笔记含机器相关路径，**不随仓库发布**，
-> 在此无法点开查看；多数注释已把结论直接写在括号外，不依赖笔记即可读懂上下文。
+注：脚本注释里的 `ERRATA A33` / `B10` / `B17`、`BATCH_ACTING_EXECUTION_LOG_DS*.md` 等，
+都指向本地开发笔记（含 `ERRATA.md` 勘误表）。这些笔记含机器相关路径，**不随仓库发布**，
+在此无法点开查看；多数注释已把结论直接写在括号外，不依赖笔记即可读懂上下文。
 
 ## 运行约定
 

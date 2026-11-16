@@ -1,6 +1,6 @@
 # 环境变量开关索引（由 experiments/env_index.py 自动生成）
 
-> 修改代码后重跑 `python3 experiments/env_index.py --md <此文件>` 即可更新。
+修改代码后重跑 `python3 experiments/env_index.py --md <此文件>` 即可更新。
 
 ## 常用开关（人工维护）
 

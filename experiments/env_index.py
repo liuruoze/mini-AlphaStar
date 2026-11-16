@@ -115,7 +115,7 @@ def main():
     if args.md:
         with open(args.md, "w") as f:
             f.write("# 环境变量开关索引（由 experiments/env_index.py 自动生成）\n\n")
-            f.write("> 修改代码后重跑 `python3 experiments/env_index.py --md <此文件>` 即可更新。\n\n")
+            f.write("修改代码后重跑 `python3 experiments/env_index.py --md <此文件>` 即可更新。\n\n")
             f.write("## 常用开关（人工维护）\n\n| 变量 | 默认 | 说明 |\n|---|---|---|\n")
             for k, d, desc in CURATED:
                 f.write("| `%s` | %s | %s |\n" % (k, d, desc))
