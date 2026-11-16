@@ -1,4 +1,11 @@
 # mini-AlphaStar
+> **Abstract (English).** This is the Chinese mirror of [`README.MD`](../README.MD): section order,
+> commands and numbers are identical. mini-AlphaStar is a mini-scale re-implementation of AlphaStar
+> with adjustable hyper-parameters, trainable on one commercial server.
+> On this branch supervised learning reaches **4.3% strict wins over 230 games** while collecting
+> 9,010 resources per game; the RL loop runs 25 minutes cleanly but its win rate does not move;
+> the early negative result of batch acting came from the notification path, not from batching.
+> Latest results: [`docs/exp/CONCLUSIONS.md`](../docs/exp/CONCLUSIONS.md).
 
 > 本文件是 [`README.MD`](../README.MD) 的**中文镜像**：章节顺序、命令、文件名与数字与英文版一一对应。
 > 发现差异按缺陷处理，改动时请两边同时改。

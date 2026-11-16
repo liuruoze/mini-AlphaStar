@@ -1,4 +1,9 @@
 # mini-AlphaStar
+> **摘要（中文）.** mini-AlphaStar 是 DeepMind AlphaStar 的微型复现：超参数可调，可在单台商用服务器上训练。
+> 本分支（v_1.09 加 2026-11 评估补丁）的实测结论：监督学习 **4.3%** 真胜（230 局，每局采集 9,010），
+> RL 主循环能干净跑 25 分钟但胜率未变，batch acting 早期的负收益来自通知路径而非批处理本身。
+> 中文全文见 [`doc/README_CHS.MD`](doc/README_CHS.MD)；最新实验结论见
+> [`docs/exp/CONCLUSIONS.md`](docs/exp/CONCLUSIONS.md)。
 
 ## Introduction
 

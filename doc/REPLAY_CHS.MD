@@ -1,4 +1,8 @@
 # 回放
+> **Abstract (English).** Where SC2 replays come from: Blizzard's pack holds hundreds of thousands
+> but stops at 3.16.1; replays for 4.0+ come from the replay-api download route; users in mainland
+> China can follow the Zhihu guide. Replays go into `./data/Replays/filtered_replays_1` before
+> conversion. Sample code sits in `scripts/download_replay/third`. Full English text:/n> [`REPLAY.MD`](REPLAY.MD).
 
 如何下载 SC2 回放？
 
