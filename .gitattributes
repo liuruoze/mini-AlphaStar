@@ -1,0 +1,7 @@
+# 统一用 LF：代码在 Linux 服务器上跑，避免 CRLF 造成整文件"已修改"
+* text=auto eol=lf
+*.pth binary
+*.png binary
+*.jpg binary
+*.gz binary
+*.tgz binary
