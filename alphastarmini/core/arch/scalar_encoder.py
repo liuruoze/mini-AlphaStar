@@ -24,6 +24,25 @@ __author__ = "Ruo-Ze Liu"
 debug = False
 
 
+# --- HY fullfix B4 (default OFF; shared by training AND evaluation) ---
+# 归一化放在 log(1+x) 之后：原网络已有 torch.log，放在之前会把负值喂给 log。
+# 常量由 compute_scalar_norm.py 生成，训练侧与评测侧通过 MAS_SCALAR_NORM_PATH 共用同一份。
+import os as _ff_os
+import json as _ff_json
+_FULLFIX_SCALAR_NORM = None
+try:
+    _ff_p = _ff_os.environ.get("MAS_SCALAR_NORM_PATH", "")
+    if _ff_p and _ff_os.path.isfile(_ff_p):
+        _ff_d = _ff_json.load(open(_ff_p))
+        _FULLFIX_SCALAR_NORM = (
+            torch.tensor(_ff_d["mean"], dtype=torch.float32),
+            torch.tensor(_ff_d["std"], dtype=torch.float32).clamp(min=1e-3),
+        )
+        print("[scalar-norm] ON path=%s frames=%s" % (_ff_p, _ff_d.get("frames")), flush=True)
+except Exception as _ff_e:
+    print("[scalar-norm] OFF (%s)" % _ff_e, flush=True)
+# --- end HY fullfix B4 ---
+
 class ScalarEncoder(nn.Module):
     '''    
     Inputs: scalar_features, entity_list
@@ -304,6 +323,11 @@ class ScalarEncoder(nn.Module):
 
         # agent_statistics: Embedded by taking log(agent_statistics + 1) and passing through a linear of size 64 and a ReLU
         the_log_statistics = torch.log(agent_statistics + 1)
+
+        if _FULLFIX_SCALAR_NORM is not None:
+            _ff_m, _ff_s = _FULLFIX_SCALAR_NORM
+            the_log_statistics = (the_log_statistics - _ff_m.to(the_log_statistics.device)) \
+                                 / _ff_s.to(the_log_statistics.device)
         x = F.relu(self.statistics_fc(the_log_statistics))
         del agent_statistics
         del the_log_statistics
