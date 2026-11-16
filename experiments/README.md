@@ -59,8 +59,8 @@
 |---|---|
 | `_bench_acting.py` | 单步 acting 耗时 |
 | `_bench_preprocess.py` | `preprocess_state_all` 耗时 |
-| `_bench_mp.py` / `_bench_mp_pipe.py` / `_bench_env_mp.py` | 多进程/管道/环境并行度 |
-| `_bench_scale.py` | 批大小-吞吐曲线（**注意**：纯采样口径，不含 Learner，勿外推到完整训练） |
+| `_bench_mp.py` / `_bench_mp_pipe.py` / `_bench_env_mp.py` | 多进程 / 管道 / 场景并行度 |
+| `_bench_scale.py` | 批大小-吞吐曲线（**注意**：只测采样阶段，不含 Learner，勿外推到完整训练） |
 
 ## 四、长跑编排（`_soak_*`、`_run_regression.sh`）
 

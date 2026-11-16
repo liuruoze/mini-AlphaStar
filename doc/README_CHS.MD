@@ -44,7 +44,7 @@
 
 ⚠️ **参照数字被修正过两次，第二次把第一次推翻了**：官方 SL 的胜率长期被引用为 **7.1%**，
 后来用同一套评测跑 80 局"修正"为 **17.5%（[10.7, 27.3]）**。
-**这个 17.5% 现在也作废**：那次 80 局跑在本仓库修掉"native/custom 口径"之前，日志里没有
+**这个 17.5% 现在也作废**：那次 80 局跑在本仓库修掉 "native/custom 字段拆分" 之前，日志里没有
 `custom_outcome` 字段；它打印成 `native_outcome` 的值，其实已被 `killed_points > 4,000`
 改写成 1。证据是一维完全分离——14 个"胜"的 `killed_points` 全部在 **[4,625, 8,650]**，
 54 个平局**全部 ≤ 2,975**，中间正好空着 4,000 这个阈值；其中 **11 局还停在 20,992 帧上限**
@@ -54,7 +54,7 @@
 ### SL 阶段修掉的三个结构性缺陷
 
 1. **数据被静默降级**：`SIMPLE_TEST = not P.on_server` 加上 `replay_files[:2]`，
-   意味着忘记设一个环境变量，2.5 小时的训练就只用了 **1/60 的 replay**（`train_set = 120`）。
+   意味着忘记设一个开关，2.5 小时的训练就只用了 **1/60 的 replay**（`train_set = 120`）。
    程序不报错、loss 照常下降。改为冒烟必须显式 `MAS_SL_SMOKE=1`，并在首屏打印
    `[SL-config] files=… smoke=…`。
 2. **动作分布被采样方式扭曲 11-19 倍**：转换脚本按固定帧步长（约每 20 帧取一帧），
@@ -144,7 +144,7 @@ python experiments/_avg_models.py \
   --a model/<run>_ep01.pth --b model/<run>_ep02.pth --more model/<other-run>_ep03.pth \
   --out model/BEST_SL.pth
 
-# 3) 评测：4 分片 × N 局，只用 SC2 原生胜负口径
+# 3) 评测：4 分片 × N 局，只报真胜（strict win）
 MAS_ON_SERVER=1 python experiments/_eval_winrate.py \
   --model model/BEST_SL.pth --games-per-shard 15 --shards 4 --gpus 0,1,2,3
 
