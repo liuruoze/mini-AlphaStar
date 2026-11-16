@@ -3,6 +3,7 @@
 
 "Library for SL losses."
 
+import os
 import traceback
 
 import numpy as np
@@ -125,6 +126,19 @@ def get_classify_loss(action_gt, action_pred, criterion, device, use_mask=True):
             units_mask = mask_tensor[:, 3]
             units_mask = units_mask.repeat(select_size, 1).transpose(1, 0)
             units_mask = units_mask.reshape(-1)
+
+            # 第 97 轮（DS，P0/P1 诊断）：**定向**放大“人类在攻击帧上的选择损失”。
+            # 动机：闭环探针显示冠军 Attack_pt 占 7–9%，但 53–60% 的攻击步选中 0 个战斗单位，
+            # 平均选 7.6 个单位里只有 1.9–2.5 个是战斗单位（拿农民当兵）。
+            # 只改 units 头在 Attack_pt/Attack_unit 帧上的权重，不动 no_op（`J26` 的 no_op 降权已证否）。
+            # 默认 1.0 = 完全保持历史行为。
+            _attack_units_w = float(os.environ.get("MAS_SL_ATTACK_UNITS_W", "1.0"))
+            if _attack_units_w != 1.0:
+                _atk = ((action_gt.action_type.argmax(-1) == 2)
+                        | (action_gt.action_type.argmax(-1) == 3))
+                _w = 1.0 + (_attack_units_w - 1.0) * _atk.float()
+                _w = _w.unsqueeze(1).expand(-1, select_size).reshape(-1)
+                units_mask = units_mask * _w
 
             units_loss_split_mask = criterion(action_gt.units.reshape(-1, units_size), action_pred.units.reshape(-1, units_size), mask=units_mask)
 

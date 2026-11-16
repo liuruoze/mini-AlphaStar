@@ -4,6 +4,7 @@
 " Entity Encoder."
 
 from time import time
+import os
 import datetime
 
 import numpy as np
@@ -97,7 +98,7 @@ class EntityEncoder(nn.Module):
         self.transformer = Transformer(d_model=original_256, d_inner=original_1024,
                                        n_layers=3, n_head=2, d_k=original_128, 
                                        d_v=original_128, 
-                                       dropout=0.)  # make dropout=0 to make training and testing consistent
+                                       dropout=float(os.environ.get("MAS_SL_DROPOUT", "0.0")))  # 由 MAS_SL_DROPOUT 覆盖（默认 0.0，行为不变）
         self.conv1 = nn.Conv1d(original_256, original_256, kernel_size=1, stride=1,
                                padding=0, bias=True)
         self.fc1 = nn.Linear(original_256, original_256)

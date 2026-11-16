@@ -95,6 +95,14 @@ def cross_entropy(soft_targets, pred, mask=None,
     if sample_weight is not None:
         x_2 = x_2 * sample_weight.reshape(x_2.shape).to(x_2.device).float()
 
+    # 第 84 轮（DS，#67）：修 #30 引入的静默回归。
+    # 基线 5542067 里 `if outlier_remove:` 与 `x_2 = x_2 * mask` 同属 `if mask is not None:`；
+    # #30 把整块缩进进了 `if sample_weight is not None:`，结果只有唯一传 sample_weight 的
+    # action_type 头（sl_loss_multi_gpu.py:441 附近）会做离群剔除，
+    # units / target_unit 头虽然显式传 outlier_remove=True 却彻底失效（参数成死参数，
+    # 1e6 量级尖峰不再被抹掉，会 silent 放大梯度）。
+    # 这里恢复为「凡传 mask 的头都生效」，并把权重乘法放在阈值判断之前（与基线同序）。
+    if mask is not None:
         if outlier_remove:
             outlier_mask = (x_2 >= 1e6)
             x_2 = x_2 * ~outlier_mask
@@ -359,15 +367,113 @@ def get_sl_loss_for_tensor(features, labels, model, decrease_smart_opertaion=Fal
 
         location_acc = SU.get_location_accuracy(action_gt.target_location, target_location, action_equal_mask, device, 
                                                 strict_comparsion=True)
-        selected_acc = SU.get_selected_units_accuracy(action_gt.units, units, action_gt.action_type, action_pred,
+        # 第 85 轮（DS，#86）：选中单位准确率以前**永远算不出来**。
+        # 依据：`units` 是 `SelectedUnitsHead.mimic_forward` 的返回值，而该函数原样回传**入参 GT**
+        # （selected_units_head.py:526 `return units_logits, units, ...`，units 自始至终没被改写）；
+        # 度量里又用 `predict[i].reshape(-1)` 再按下标取值 → 拿 one-hot 的 0/1 去和实体下标比，
+        # 于是 `selected_units_accuracy` 恒等于 0.000000（1 个 epoch 588 个 batch 全是 0）。
+        # 这不是"模型学不会"，是指标从来没测过模型。改用 logits 的 argmax 才是模型的选择。
+        _units_pred = units_logits.argmax(dim=-1) if units_logits.dim() == 3 else units
+        # 第 93 轮（DS，#102）：分母可比性开关。
+        # `strict_comparsion=True` 会先用 action_equal_mask 过滤样本 —— 而该 mask 由
+        # "模型 action 是否猜对"决定，于是模型越准、进入 sel_acc 的样本越多、分母越大，
+        # 跨 epoch 的 sel_acc 不可比（实测 n_sel_gt 158→726，与 action_acc 的 r=0.91）。
+        # 设 MAS_SL_SEL_STRICT=0 则不过滤，分母 = 全验证集 GT 槽位，跨 epoch 固定。
+        # 默认 1，保持历史口径不变。
+        _sel_strict = os.environ.get("MAS_SL_SEL_STRICT", "1") != "0"
+        selected_acc = SU.get_selected_units_accuracy(action_gt.units, _units_pred, action_gt.action_type, action_pred,
                                                       select_units_num, action_equal_mask,
-                                                      device, unit_types_one, entity_nums, strict_comparsion=True)
+                                                      device, unit_types_one, entity_nums, strict_comparsion=_sel_strict)
         targeted_acc = SU.get_target_unit_accuracy(action_gt.target_unit, target_unit, action_equal_mask,
                                                    device, strict_comparsion=True)
 
         acc_num_list.extend(location_acc)
         acc_num_list.extend(selected_acc)
         acc_num_list.extend(targeted_acc)
+
+        # 第 112 轮（DS，#112）：no_op 主导下的**分层准确率**。
+        # 依据：v3 数据里 no_op 占 92.49%（#105），而 action 头的历史口径只看总体准确率 ——
+        # 一个"永远输出 no_op"的退化模型也能拿 92.49%。实测 scratch60 训到 10 epoch 时
+        # val action=0.9616，减去平凡基线只剩 +3.7pp，**无法判断模型是否学会"动"**。
+        # 这里追加 4 个数（放在列表末尾，不动任何既有下标，location/selected/target 仍是 8..19）：
+        #   [20] no_op 判对数  [21] no_op 总数  [22] 非 no_op 判对数  [23] 非 no_op 总数
+        # 由它们可算 noop_recall / nonnoop_recall / 平衡准确率（两者均值，即 bal）。
+        _gt_act = torch.nonzero(action_gt.action_type, as_tuple=True)[-1].to(device)
+        _pr_act = action_pred.reshape(-1)
+        _m_noop = (_gt_act == 0)
+        _m_non = ~_m_noop
+        _n_noop_ok = int((_pr_act[_m_noop] == 0).sum().item()) if bool(_m_noop.any()) else 0
+        _n_noop = int(_m_noop.sum().item())
+        _n_non_ok = int((_pr_act[_m_non] == _gt_act[_m_non]).sum().item()) if bool(_m_non.any()) else 0
+        _n_non = int(_m_non.sum().item())
+        acc_num_list.extend([_n_noop_ok, _n_noop, _n_non_ok, _n_non])
+
+        # 第 96 轮（DS，#133b）：`act12` 到底被预测成了什么（只在 MAS_SL_ACTCONF=1 时打印）。
+        # 动机（#133）：`Smart_unit(12)` 三个 ckpt 的召回都是 3/44，数据侧已证明它同时带
+        # `target_unit` 和 `target_location` 两种监督（各 100%），是 v3 里唯一的"右键"。
+        # 所以想知道：模型是把它当 no_op 了，还是当 Attack_pt / 别的了。
+        # **纯打印，不进 acc_num_list**，不动任何既有下标；默认零开销。
+        if os.environ.get("MAS_SL_ACTCONF"):
+            try:
+                import torch.distributed as _dist
+                _rank = _dist.get_rank() if _dist.is_initialized() else 0
+            except Exception:
+                _rank = 0
+            if _rank == 0:
+                for _ca in (0, 12, 49, 35):
+                    _cmk = (_gt_act == _ca)
+                    if bool(_cmk.any()):
+                        _bc = torch.bincount(_pr_act[_cmk].clamp(0, 563), minlength=564)
+                        _top = torch.topk(_bc, 6)
+                        _s = " ".join("a%d=%d" % (int(_i), int(_c))
+                                      for _c, _i in zip(_top.values, _top.indices))
+                        print("[ACT-CONF] gt=%d n=%d top6: %s" % (
+                            _ca, int(_cmk.sum().item()), _s), flush=True)
+
+        # 第 112 轮（DS，#112c）：`target` 头的**真实口径**。
+        # 现状：`get_target_unit_accuracy` 用 `gt != NONE_ID(127)` 过滤"不需要打单位"的帧，
+        # 但 #112b 实测 v3 的 `target_unit` 块**每帧都有值**（argmax 全是 1..8，没有 127），
+        # 过滤等于没做 → 分母混进了大量 no_op/建造帧，指标恒为 0，等于从没测过模型。
+        # 正确做法：只统计"动作本身要点单位"的帧，动作集合来自 #112b 的数据审计
+        # （Attack_unit / Select_unit / Build_unit / Smart_unit / Move_unit）。
+        _TGT_ACTS = (3, 5, 7, 12, 14)
+        _m_tgt = torch.zeros_like(_gt_act, dtype=torch.bool)
+        for _a in _TGT_ACTS:
+            _m_tgt |= (_gt_act == _a)
+        _tu_gt = torch.nonzero(action_gt.target_unit, as_tuple=True)[-1].to(device)
+        _tu_pr = target_unit.reshape(-1)
+        _tu_n = int(_m_tgt.sum().item())
+        if _tu_n > 0 and _tu_pr.numel() == _tu_gt.numel():
+            _tu_ok = int((_tu_pr[_m_tgt] == _tu_gt[_m_tgt]).sum().item())
+        else:
+            _tu_ok = 0
+        acc_num_list.extend([_tu_ok, _tu_n])
+
+        # 第 96 轮（DS，#122b）：**逐动作召回**。
+        # 动机（#122 的实测）：`SC_scratch60.pth` 在 36 局闭环里 `army=0`（36 局全 0）、
+        # `used_points≤600`、`killed=0` —— **一个兵都没造过**；可它的 val `bal=0.8747`
+        # 是所有 checkpoint 里最好的。说明"非 no_op 召回"这个粒度还不够：
+        # 非 no_op 里绝大多数是 `Smart_unit`（右键采矿），真正决定"会不会造兵"的是
+        # `Train_*`/`Build_*` 这些**稀疏但关键**的动作 —— 它们各只占 0.2%–2.6%，
+        # 即使召回全错，`nonnoop_r` 也只掉几个百分点。
+        # 下标 26..41，共 8 个动作 × (判对数, 真值数)。
+        #
+        # ⚠️ ID 不能猜。#122c 的第一版我按 `Harvest_Gather=102`、`Build_Gateway=36` 写，
+        # 实测（`experiments/_audit_action_hist.py`，前 2 文件 1,869 帧）：
+        #   0 no_op 81.4% / 12 Smart_unit 7.06% / 2 Attack_pt 4.12% / 49 Train_Zealot_quick 2.62%
+        #   35 Build_Pylon_pt 2.09% / 64 Train_Probe_quick 0.91% / 36 **Build_Assimilator** 0.64%
+        #   37 **Build_Gateway_pt** 0.54% / 50 Train_Stalker_quick 0.21% / 47 Build_CyberneticsCore 0.16%
+        #   `102 Harvest_Gather` **0 帧**（人类的采矿是右键 = `Smart_unit`），`3 Attack_unit` **0 帧**。
+        # 所以下面这 8 个是**量出来的**高频关键动作，不是假设：
+        _KEY_ACTS = (12, 2, 49, 35, 64, 37, 36, 47)
+        for _a in _KEY_ACTS:
+            _mk = (_gt_act == _a)
+            _nk = int(_mk.sum().item())
+            if _nk > 0:
+                _ok = int((_pr_act[_mk] == _a).sum().item())
+            else:
+                _ok = 0
+            acc_num_list.extend([_ok, _nk])
 
     return loss, loss_list, acc_num_list
 
@@ -420,6 +526,29 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
         _ids = action_gt.action_type.argmax(dim=-1)
         _tbl = _ACTION_PRIOR_CACHE.to(_ids.device)
         _sample_w = _tbl[_ids].float()
+
+    # ---- HY26: m30 专用类加权（按动作名前缀；默认空 = 完全不改变历史行为） ----
+    # 不复用 MAS_SL_ACTION_REWEIGHT 的 _ACTION_DATA_SHARE —— 那是人类 90 局的分布常量。
+    _cw_spec = os.environ.get("MAS_SL_CLASS_WEIGHTS", "").strip()
+    if _cw_spec:
+        from pysc2.lib.actions import RAW_FUNCTIONS as _RF
+        _tbl = torch.ones(LS.action_type_encoding, dtype=torch.float32)
+        _rules = []
+        for _item in _cw_spec.split(","):
+            _k, _v = _item.split("=")
+            _pre, _w = _k.strip().lower(), float(_v)
+            _hit = 0
+            for _i in range(LS.action_type_encoding):
+                if _i < len(_RF) and _RF[_i].name.lower().startswith(_pre):
+                    _tbl[_i] = _w
+                    _hit += 1
+            _rules.append("%s=%.2f(n=%d)" % (_pre, _w, _hit))
+        _ids0 = action_gt.action_type.argmax(dim=-1)
+        _cw = _tbl.to(_ids0.device)[_ids0].float()
+        _sample_w = _cw if _sample_w is None else _sample_w * _cw
+        if os.environ.get("MAS_SL_CLASS_WEIGHTS_VERBOSE") == "1":
+            print("[SL-classw] %s" % " ".join(_rules), flush=True)
+    # ---- end HY26 ----
 
     if _noop_w != 1.0 or _attack_w != 1.0:
         _at = action_gt.action_type

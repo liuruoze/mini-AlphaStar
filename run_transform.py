@@ -6,15 +6,15 @@
 不改动 run.py（保持原仓库可对照），用法：
 
     # 冒烟测试：2 个 replay，每个最多 1000 帧
-    MAS_ON_SERVER=0 python run_transform.py \
+    MAS_ON_SERVER=0 MAS_DATA_SMOKE=1 python run_transform.py \
         --no_server_replay_path=data/Replays/filtered_replays_1/
 
-    # 全量：遍历 filtered_replays_1 下所有 replay
+    # 全量：默认 90 局，可用 MAS_DATA_NUM 覆盖
     MAS_ON_SERVER=1 python run_transform.py
 
-为什么要在 import transform 之前设 param.on_server：
-transform_replay_data 在模块级用 `SIMPLE_TEST = not P.on_server` 决定处理的 replay 数量
-（False -> 2 个，True -> 90 个），导入后再改就晚了。
+`MAS_ON_SERVER` 决定 replay 路径与帧上限；处理数量不再随它静默变化。
+默认 90 局（训练纪律）；冒烟用 `MAS_DATA_SMOKE=1`（2 局），也可用 `MAS_DATA_NUM` 覆盖。
+转换结束会比对实际写出数与预期数，不一致时入口以非零码退出。
 """
 
 import os
@@ -26,6 +26,14 @@ os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
 os.environ.setdefault("SC2PATH", os.path.expanduser("~/StarCraftII"))
 
 import param as P
+
+# ---- 可复跑：转换器内部有 6 处 random.uniform 做阈值丢弃，但原文件没有 seed。
+# 不固定种子时同一局两次转换结果不同（实测 1,050 vs 1,019 帧）。
+# 默认不 seed（保持历史行为）；采集/重转时显式传 MAS_TRANSFORM_SEED。
+import os as _os_r, random as _random_r
+if _os_r.environ.get("MAS_TRANSFORM_SEED", "") != "":
+    _random_r.seed(int(_os_r.environ["MAS_TRANSFORM_SEED"]))
+
 
 ON_SERVER = os.environ.get("MAS_ON_SERVER", "0") == "1"
 P.on_server = ON_SERVER
@@ -74,5 +82,9 @@ if __name__ == '__main__':
              TRD.FLAGS.Smart_pt_threshold, TRD.FLAGS.Smart_unit_threshold,
              TRD.FLAGS.Harvest_Gather_unit_threshold, TRD.FLAGS.Attack_pt_threshold))
     print("argv:", sys.argv)
-    TRD.test(on_server=ON_SERVER)
+    written, expected = TRD.test(on_server=ON_SERVER)
     print("== done ==")
+    if written != expected:
+        print("[TRANSFORM-ERROR] written=%d expected=%d; refusing to report success"
+              % (written, expected))
+        sys.exit(1)

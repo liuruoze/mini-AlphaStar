@@ -39,6 +39,7 @@ from alphastarmini.core.sl.label import Label
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 from alphastarmini.lib.hyper_parameters import AlphaStar_Agent_Interface_Format_Params as AAIFP
 from alphastarmini.lib.hyper_parameters import Label_Size as LS
+from alphastarmini.lib import entity_order as EO
 
 from alphastarmini.lib import utils as U
 
@@ -103,13 +104,13 @@ FLAGS(sys.argv)
 RACE = ['Terran', 'Zerg', 'Protoss', 'Random']
 RESULT = ['Victory', 'Defeat', 'Tie']
 
-SIMPLE_TEST = not P.on_server
-if SIMPLE_TEST:
-    DATA_FROM = 0
-    DATA_NUM = 2
-else:
-    DATA_FROM = 0
-    DATA_NUM = 90
+# R7 (2026-11-12): 原先 `SIMPLE_TEST = not P.on_server` 会在忘设 MAS_ON_SERVER 时
+# 静默把 DATA_NUM 降到 2，首屏只显示 "data range: [0, 2)"——正是 11-09 事故的形态。
+# 改为显式开关，默认关闭；90 局上限保持不变（训练纪律：统一 90 replay）。
+# 冒烟用 MAS_DATA_SMOKE=1；也可用 run_transform.py 的 MAS_DATA_NUM 显式覆盖。
+SIMPLE_TEST = os.environ.get("MAS_DATA_SMOKE", "0") == "1"
+DATA_FROM = 0
+DATA_NUM = 2 if SIMPLE_TEST else 90
 SMALL_MAX_STEPS = 1000  # 5000, 60 * 60 * 22.4
 
 
@@ -270,6 +271,90 @@ def getObsAndFunc(obs, func_call, z):
     return step_dict
 
 
+# ---- 重排等价性验证（MAS_VERIFY_ORDER=1，默认关闭，只做只读比较） ----
+_ORDER_VERIFY = {"n": 0, "n_act": 0, "n_bad": 0, "bad": []}
+
+
+def _order_verify(o, feat, obsA, obsB, order):
+    """同一帧分别用原序(obsA)与新序(obsB)生成 label，比较语义是否等价。
+
+    新序的 unit_tags / target_unit_tag 是「新槽索引」，用 order（new->old）
+    映射回原序索引后，应与原序结果完全一致；不一致即说明重排改变了标签语义。
+
+    注意：pysc2 的 FunctionCall.function 是 _Raw_Functions 枚举（只有 .name/.value，
+    没有 .args），参数顺序由 reverse_raw_action 固定为
+    raw_cmd_unit: (queued, unit_tags, target_unit_tag)
+    raw_cmd_pt:   (queued, unit_tags, world)
+    ⇒ 索引映射只对 arguments[1] 和（raw_cmd_unit 的）arguments[2] 生效。
+    """
+    global _ORDER_VERIFY
+    _ORDER_VERIFY["n"] += 1
+    try:
+        fa = getFuncCall(o, feat, obsA)
+        fb = getFuncCall(o, feat, obsB)
+    except Exception as e:
+        _ORDER_VERIFY["n_bad"] += 1
+        if len(_ORDER_VERIFY["bad"]) < 5:
+            _ORDER_VERIFY["bad"].append({"why": "exception", "err": str(e)[:200]})
+        return
+
+    if fa is None and fb is None:
+        return
+    if (fa is None) != (fb is None):
+        _ORDER_VERIFY["n_bad"] += 1
+        if len(_ORDER_VERIFY["bad"]) < 5:
+            _ORDER_VERIFY["bad"].append({
+                "why": "none_mismatch",
+                "a": None if fa is None else len(fa),
+                "b": None if fb is None else len(fb)})
+        return
+
+    _ORDER_VERIFY["n_act"] += 1
+
+    def sig(fc, mp):
+        out = []
+        for f in fc:
+            fname = str(f.function.name)
+            fid = int(f.function.value)
+            args = list(f.arguments)
+            vals = []
+            for i, a in enumerate(args):
+                if isinstance(a, (list, tuple)):
+                    v = [int(x) for x in a]
+                else:
+                    v = [int(a)]
+                if mp is not None:
+                    if i == 1:          # unit_tags（索引）
+                        v = [int(mp[x]) if 0 <= x < len(mp) else -999 for x in v]
+                    elif i == 2 and "unit" in fname:   # target_unit_tag（索引）
+                        v = [int(mp[x]) if 0 <= x < len(mp) else -999 for x in v]
+                if i == 1:              # unit_tags 是无序集合，两侧都要排序后再比
+                    v = sorted(v)
+                vals.append(tuple(v))
+            out.append((fid, tuple(vals)))
+        return sorted(out)
+
+    try:
+        sa = sig(fa, None)
+        sb = sig(fb, order)
+    except Exception as e:
+        _ORDER_VERIFY["n_bad"] += 1
+        if len(_ORDER_VERIFY["bad"]) < 5:
+            _ORDER_VERIFY["bad"].append({"why": "sig_exception", "err": str(e)[:200]})
+        return
+
+    if sa != sb:
+        _ORDER_VERIFY["n_bad"] += 1
+        if len(_ORDER_VERIFY["bad"]) < 5:
+            _ORDER_VERIFY["bad"].append({"why": "sig",
+                                         "a": str(sa)[:260],
+                                         "b": str(sb)[:260]})
+    if _ORDER_VERIFY["n"] % 200 == 0:
+        print("[order-verify] frames=%d act=%d bad=%d"
+              % (_ORDER_VERIFY["n"], _ORDER_VERIFY["n_act"], _ORDER_VERIFY["n_bad"]),
+              flush=True)
+
+
 def getFuncCall(o, feat, obs, use_raw=True):
     func_call = None
 
@@ -288,6 +373,17 @@ def getFuncCall(o, feat, obs, use_raw=True):
             # we should use obs instead. If not it will get the unit index of the last obs, not this one! 
             # not used: raw_func_call = feat.reverse_raw_action(o.actions[0], prev_obs)
             raw_func_call = feat.reverse_raw_action(action, obs)
+
+            if os.environ.get("MAS_DEBUG_FUNCALL") == "1":
+                _aid = -1
+                try:
+                    if action.HasField("action_raw") and action.action_raw.HasField("unit_command"):
+                        _aid = action.action_raw.unit_command.ability_id
+                except Exception:
+                    pass
+                print("[funcall] aid=%s -> %s (value=%s)"
+                      % (_aid, raw_func_call.function.name, raw_func_call.function.value),
+                      flush=True)
 
             if raw_func_call.function.value == 0:
                 # no op
@@ -338,6 +434,16 @@ def get_map_data_for_replay(replay_path):
         map_file = os.path.join(maps_root, map_name)
         if not os.path.exists(map_file):
             target = os.path.basename(map_name)
+            # 用 map_data 建局时 SC2 把地图解到 /tmp 并命名为 TempLaunchMap.SC2Map，
+            # replay 里记录的就是这个临时路径，转换时必然找不到。
+            # 只在识别到该临时名时才兜底，真实地图名找不到仍然抛异常。
+            if "templaunchmap" in target.lower():
+                _fb = os.environ.get(
+                    "MAS_REPLAY_FALLBACK_MAP",
+                    os.path.expanduser("~/StarCraftII/Maps/Melee/Simple64.SC2Map"))
+                print("replay map is TEMP (%s) -> fallback %s" % (map_name, _fb))
+                with open(_fb, "rb") as _f:
+                    return _f.read()
             for root, _, files in os.walk(maps_root):
                 if target in files:
                     map_file = os.path.join(root, target)
@@ -371,6 +477,8 @@ def test(on_server=False):
     replay_files = os.listdir(REPLAY_PATH)
     print('length of replay_files:', len(replay_files))
     replay_files.sort()
+    print("[TRANSFORM-config] replay_files=%d data_from=%d data_num=%d smoke=%s max_steps=%d"
+          % (len(replay_files), DATA_FROM, DATA_NUM, SIMPLE_TEST, SMALL_MAX_STEPS), flush=True)
 
     screen_resolution = point.Point(FLAGS.screen_resolution, FLAGS.screen_resolution)
     minimap_resolution = point.Point(FLAGS.minimap_resolution, FLAGS.minimap_resolution)
@@ -459,12 +567,22 @@ def test(on_server=False):
                 print('observe_id_list', observe_id_list) if debug else None
                 print('observe_result_list', observe_result_list) if debug else None
 
-                win_observe_id = 0
-
-                for i, result in enumerate(observe_result_list):
-                    if result == sc_pb.Victory:
-                        win_observe_id = observe_id_list[i]
-                        break
+                # 默认：观察胜方（历史行为）；MAS_REPLAY_OBSERVER=1/2 时强制指定
+                # MAS_REPLAY_OBSERVER: "0"(默认)=观察胜方; "proto"=强制观察第一个 Protoss(我方), 输赢都保留; "1"/"2"=指定 player_id
+                _obs_env = os.environ.get("MAS_REPLAY_OBSERVER", "0").strip()
+                if _obs_env.lower() in ("proto", "protoss"):
+                    win_observe_id = observe_id_list[0] if observe_id_list else 0
+                    print('[replay] forced observer(proto) =', win_observe_id,
+                          'results=', observe_result_list)
+                else:
+                    win_observe_id = int(_obs_env)
+                    if win_observe_id == 0:
+                        for i, result in enumerate(observe_result_list):
+                            if result == sc_pb.Victory:
+                                win_observe_id = observe_id_list[i]
+                                break
+                    else:
+                        print('[replay] forced observer =', win_observe_id)
 
                 # we observe the winning one
                 print('win_observe_id', win_observe_id)
@@ -544,8 +662,38 @@ def test(on_server=False):
 
                 while True:
                     o = controller.observe()
+                    if (os.environ.get("MAS_DEBUG_FUNCALL_OBS") == "1"
+                            and len(o.actions) > 0):
+                        print("[obs-act] i=%d n=%d gl=%d"
+                              % (i, len(o.actions), o.observation.game_loop),
+                              flush=True)
                     try:
                         obs = feat.transform_obs(o)
+                        _ord_mode = os.environ.get("MAS_ENTITY_ORDER")
+                        if _ord_mode in ("mypref", "myall", "myprune"):
+                            _raw = obs["raw_units"]
+                            _my = np.asarray(_raw[:, F.FeatureUnit.alliance]) == 1
+                            if _ord_mode == "myprune":
+                                # myprune：**不重排**，只在超限时优先删非我方（保位置先验）。
+                                # n <= max_entities 时 order = range(n)，输出与不启用逐位相同。
+                                _order = EO.prune_keep_my(_my, AHP.max_entities)
+                            else:
+                                if _ord_mode == "mypref":
+                                    _sel = np.asarray(_raw[:, F.FeatureUnit.is_selected]) > 0
+                                else:
+                                    # myall：只按 alliance 稳定分区。
+                                    # 不用 is_selected 的原因（J135 实测）：评测端 agent 发
+                                    # raw command，SC2 的 is_selected 恒为 0（nsel=0），
+                                    # 训练端却是人类框选状态 ⇒ 排序键在评测端不可复现。
+                                    # ⚠ 该模式已被 J136 否证（破坏位置先验），仅留作复现。
+                                    _sel = np.zeros(len(_raw), dtype=bool)
+                                _order = EO.reorder_indices(_sel, _my, AHP.max_entities)
+                            if os.environ.get("MAS_VERIFY_ORDER") == "1":
+                                _obsA = dict(obs)
+                                _obsB = dict(obs)
+                                _obsB["raw_units"] = _raw[_order]
+                                _order_verify(o, feat, _obsA, _obsB, _order)
+                            obs["raw_units"] = _raw[_order]
 
                         try:
                             func_call = None
@@ -628,6 +776,13 @@ def test(on_server=False):
                     controller.step()
 
                     i += 1
+
+                if os.environ.get("MAS_VERIFY_ORDER") == "1":
+                    print("[order-verify] FINAL frames=%d act=%d bad=%d"
+                          % (_ORDER_VERIFY["n"], _ORDER_VERIFY["n_act"],
+                             _ORDER_VERIFY["n_bad"]), flush=True)
+                    for _b in _ORDER_VERIFY["bad"]:
+                        print("[order-verify] BAD %s" % (_b,), flush=True)
 
                 print('begin save!')
 
@@ -728,3 +883,16 @@ def test(on_server=False):
     print("end")
     print("replay_length_list:", replay_length_list)
     print("noop_length_list:", noop_length_list)
+
+    # R7: 数量门禁。written 只在成功写盘后累加，单局异常被上面的 except 吞掉时
+    # 会少于 expected；不比对就会静默产出缺局的数据集（11-09 事故的教训）。
+    written = len(replay_length_list)
+    upper = end_index if end_index is not None else len(replay_files)
+    expected = max(0, min(upper, len(replay_files)) - from_index)
+    print("[TRANSFORM-summary] written=%d expected=%d replay_files=%d range=[%d,%s)"
+          % (written, expected, len(replay_files), from_index,
+             str(end_index) if end_index is not None else "end"), flush=True)
+    if written != expected:
+        print("[TRANSFORM-ERROR] written=%d != expected=%d; %d replay(s) failed or were skipped"
+              % (written, expected, expected - written), flush=True)
+    return written, expected

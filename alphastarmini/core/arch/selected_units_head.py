@@ -4,6 +4,7 @@
 " Selected Units Head."
 
 import gc
+import os
 
 import torch
 import torch.nn as nn
@@ -20,6 +21,15 @@ import param as P
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+
+# 第 85 轮（DS，#87）：scheduled sampling 概率。默认 0 = 关闭，行为与改动前完全一致。
+# 训练时以该概率用模型本步的 argmax 代替 GT 作为下一步输入，缓解 exposure bias。
+_SS_P = float(os.environ.get("MAS_SS_P", "0"))
+
+# 第 85 轮（DS，#90）：允许输出 EOF 的最早槽位。默认 1 = 原行为（第 2 个槽起可以结束选择）。
+# 依据（DS14 #89）：模型对 Attack_pt 只选 1 个实体就 EOF（且是农民），而演示平均选 5.96 个。
+# 把它调大 = 只约束"至少选几个"，用模型自己的 logits 排序，不引入任何单位类型白名单。
+_MIN_SEL_AT = max(1, int(os.environ.get("MAS_MIN_SEL", "1")))
 
 
 class SelectedUnitsHead(nn.Module):
@@ -177,7 +187,7 @@ class SelectedUnitsHead(nn.Module):
 
         # AlphaStar: repeated for selecting up to 64 units
         for i in range(self.max_selected):
-            if i == 1:
+            if i == _MIN_SEL_AT:
                 mask[torch.arange(batch_size), end_index] = True  # in the second selection, we can select the EOF
                 if self.is_rl_training and unit_type_entity_mask is not None:
                     unit_type_entity_mask[torch.arange(batch_size), end_index] = True
@@ -439,12 +449,26 @@ class SelectedUnitsHead(nn.Module):
             # note, we add a dimension where is in the seq_one to help
             # we concat to the one : [batch_size x max_selected x ?]
             units_logits_list.append(entity_logits.unsqueeze(-2))
+
+            # 第 85 轮（DS，#87）：scheduled sampling。
+            # 动机：#86 把度量修好之后，teacher forcing 下"下标命中率"约 0.6，
+            # 但自由跑时 61% 的攻击命令一个战斗单位都选不中（#81）→ 典型 exposure bias：
+            # 训练时永远喂 GT，推理时喂自己的输出，一步错、步步错。
+            # 做法：以概率 MAS_SS_P 用**本步自己的 argmax** 代替 GT 作为下一步的输入；
+            # 默认 0.0，完全不影响既有行为；只在训练模式生效（验证/评测不受影响）。
+            if self.training and _SS_P > 0.0:
+                with torch.no_grad():
+                    _pred_id = entity_logits.argmax(dim=-1, keepdim=True)
+                    _use_pred = (torch.rand(batch_size, 1, device=device) < _SS_P)
+                    entity_id = torch.where(_use_pred, _pred_id, units[:, i])
             del entity_logits
 
             # the last EOF should not be considered
             if i != max_seq_len - 1:
 
-                entity_id = units[:, i]
+                # #87：上面 scheduled sampling 已经算过 entity_id 时不再覆盖
+                if not (self.training and _SS_P > 0.0):
+                    entity_id = units[:, i]
                 print('entity_id', entity_id[0]) if show else None
                 print('entity_id.shape', entity_id[0].shape) if show else None
 
