@@ -31,7 +31,7 @@ they are not the model in the update below.
 
 ## Update
 
-This push touches supervised learning (SL) only: the score, the training method, and what differs from
+This push touches **supervised learning (SL)** only: the score, the training method, and what differs from
 v_1.09. Reinforcement learning is untouched and has no usable model yet.
 
 The change is in the **training data**: 5 human replays are mixed into the machine data. Architecture,
@@ -57,7 +57,7 @@ v_1.09 release weight | 90 human replays (2021) | D1 / 40k | 20 | 15% | 40% | le
 same | same | D2 / 40k | 10 | 0% | 20% | both lenient wins stop at the step cap
 same | same | D3 / 40k | 20 | 0% | 0% | 55-61 supply at 9 minutes, overrun by the first push
 `Base` (B0) | the same 90 replays, retrained with the 2026 code | 30k / seed 3038 only | 4 | 0% | 25% | 4 games on seed 3038 only, from different snapshots, not a recipe score
-`ExpertGuided` (self-play plus rule-expert data) | 30 self-play + 30 rule-expert replays (DAgger) | D3 / 40k | 80 | 31.2% | 62.5% (40 games; that run's strict win is 42.5%) | 4 runs pooled; lenient can only be computed on the single run `cwB_ep4`
+`ExpertGuided` (self-play plus rule-expert data) | 30 self-play + 30 rule-expert replays (DAgger) | D3 / 40k | 80 | **31.2%** | 62.5% (40 games; that run's strict win is 42.5%) | 4 runs pooled; lenient can only be computed on the single run `cwB_ep4`
 `HumanHybrid` (that data plus human replays) | the same + 5 human replays | D3 / 40k | 316 | **45.6%** | 51.1% (180 games) | 15 runs pooled, Wilson [40.2, 51.1]; lenient computed on the 6 no_op-only runs, whose strict score is also 45.6%
 `HumanHybrid`, best weight | the same | D3 / 40k | 39 | 64.1% | 66.7% | selection bias, an asset rather than a recipe score
 
@@ -91,10 +91,10 @@ Each game draws a strategy from its seed (fast rush, two gate, heavy gate, macro
 with probe count, gateway count and attack threshold jittering inside a range, so the 30 games are not the
 same game.
 
-Strictly DAgger iterates; here it is round 1 only: 30 bot self-play games, 21,983 frames; 30 rule-expert
+Strictly DAgger iterates; here it is **round 1** only: 30 bot self-play games, 21,983 frames; 30 rule-expert
 games, 9,578 frames; 31,561 frames in total.
 
-The expert frames drop `Cancel_Last_quick` (8.5% of them), which otherwise teaches a cancel-and-reissue
+The expert frames drop **`Cancel_Last_quick`** (8.5% of them), which otherwise teaches a cancel-and-reissue
 loop. Training requires `MAS_DAGGER=1`; without it the trainer refuses to start.
 
 ### The five versions of the rule expert
@@ -113,7 +113,7 @@ v3 | follows PiGBot's B2GM opening table, by default 2-Gate Expand on one base |
 v4 | drops the table for a pure Zealot rush | acts every frame: supply and first Pylon, probes, gateways, units, defence, attack, mining; pulls back when the enemy is within 8 tiles; cancels the learner's queued probes to free minerals | each game draws a strategy from its seed (fast rush, two gate, heavy gate, macro, harass, turtle, late), with probe count, gateway count and attack threshold jittering inside a range | the goal is to beat difficulty 1 on its own with the learner doing nothing
 v5 | same as v4 | same as v4 | same as v4, only the fast-rush branch is retuned: 15-18 probes, 3 gateways, attack threshold 9-12, no retreat refresh; the Zealot hold window goes from 6-9 frames to 3-6 | the current default (`MAS_EXPERT_IMPL=v5`); the expert frames here come from it
 
-This round uses v5; its code is almost identical to v4, only the fast-rush branch was retuned.
+This round uses **v5**; its code is almost identical to v4, only the fast-rush branch was retuned.
 
 Second, the human data: 5 replays from the 2021-11-21 batch, 4,545 frames, 12.6% of all training frames.
 Of these, 4,247 are `no_op` and 298 are action frames. Keeping only the `no_op` frames (11.86%) scores the
