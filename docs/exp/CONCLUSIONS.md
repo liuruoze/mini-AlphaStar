@@ -1,5 +1,22 @@
 # SL 智能体实验结论（可复现条件）
 
+> **Abstract (English).** Supervised-learning agents for StarCraft II on Simple64 against the
+> built-in bot at difficulty 3 (medium). Four layers are kept apart: model (lunar-mansion code),
+> recipe (`setting`), run (`sl_YY-MM-DD_HH-MM-SS`) and weight.
+> The best recipe, `HumanHybrid`, reaches **45.6% strict wins over 316 games** (Wilson
+> [40.2, 51.1]) against **31.2%** (80 games) for `ExpertGuided`.
+> The entire gain comes from **4,247 human no_op frames at an 11.86% dose**: a no_op-only
+> dataset reproduces 45.6% (180 games), while the 298 action frames alone give 32.4%
+> (179 games), indistinguishable from the 31.2% baseline.
+> The dose window is narrow: +0.57 pp falls to 15.0%, +1.75 pp to 17.5%, +4.86 pp collapsed
+> in 3 of 3 runs. Validation is a gate with an **upper bound only** — never evaluate val >= 0.57
+> (1/80 = 1.2% wins); below 0.57 the win rate is flat at 37.5-42.5%, so any lower bound
+> would discard usable runs.
+> The official 2021 weight reproduces on this pipeline: 7/8 = 88% at D1 left-top (its
+> documented figure is 0.85), 8/20 = 40% lenient at D1, 2/10 = 20% at D2 and 0/20 at D3.
+> Unless stated otherwise every number is 40k steps, difficulty 3, 20 standard seeds
+> (8 left-top, 12 right-bottom), measured on one machine.
+
 > 目标：用监督学习训练一个能在 Simple64 上击败内置 AI（难度 3）的智能体。
 > 本文只记录**结论**（配方 / 种子数 / 胜率 / 置信区间 / 判定），不收录失败脚本。
 > 判胜（win rule）两套：**真胜**（strict win，`raw_reward == +1`）与**宽胜**（lenient win，`outcome == 1` 或 `killed > 4000`）。

@@ -1,5 +1,18 @@
 # mini-AlphaStar — 2026-11 系统更新说明
 
+> **Abstract (English).** What changed between 2026-11-02 and 11-16, with the measured numbers,
+> the conclusions that had to be withdrawn, and what is still open.
+> Supervised learning went from **0% to 4.3% strict wins over 230 games**, with resource
+> collection rising from 2,676 to 9,010 per game. Three structural defects were fixed: data
+> silently downgraded to 1/60 of the replays, the action distribution skewed 11-19x by the
+> frame-sampling stride, and model selection by validation accuracy being inverted.
+> Zero-cost weight averaging lifted the kill ceiling from 2,550 to 6,900.
+> The RL loop had never executed: seven patches were needed, and the decisive one was a queue
+> timeout that made the only result consumer kill itself after ten minutes, a failure that looks
+> exactly like a deadlock. It then ran 25 minutes cleanly, but the win rate did not rise.
+> Later results (11-16) identify the human **no_op frames** as the only effective ingredient,
+> put the optimum dose at 11.86%, and reduce the validation gate to an upper bound of 0.57.
+
 > 覆盖 2026-11-02 → 11-16：做了什么、测到什么数字、哪些结论被推翻、还有哪些没解决。
 > 命名与术语遵循 [`docs/exp/NAMING.md`](../docs/exp/NAMING.md)；结论汇总见 [`docs/exp/CONCLUSIONS.md`](../docs/exp/CONCLUSIONS.md)。
 >

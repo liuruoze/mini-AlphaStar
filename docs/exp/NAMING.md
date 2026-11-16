@@ -1,5 +1,22 @@
 # 命名规则（模型 / 配方 / 运行 / 权重）
 
+> **Abstract (English).** Naming rules only; experimental results live in `CONCLUSIONS.md`.
+> Four layers, each with its own identifier: **model** = lunar-mansion code (currently `Hsin`),
+> **recipe** = a word code such as `ExpertGuided` (English: `setting`, never `recipe`),
+> **run** = the trainer timestamp `sl_YY-MM-DD_HH-MM-SS`, **weight** = timestamp plus
+> `_best` or `_epNN`.
+> The code pool holds **28 mansion names** picked in three descending tiers (Wade-Giles
+> romanisation, then the mansion animal, then a semantic translation), each at most six
+> letters, with no punctuation, no SC2 vocabulary, no common Chinese surname unless listed as
+> an accepted exception, and **no two codes inside one quadrant within one edit**.
+> The four quadrants are `Dragon`, `Turtle`, `Tiger` and `Phoenix`.
+> A 17-entry bilingual glossary fixes one Chinese term (two characters each) and one English
+> term per concept; banned words are listed explicitly so the vocabulary cannot drift back.
+> Evaluation protocol: **strict win** (`raw_reward == +1`) versus **lenient win**
+> (`outcome == 1`, or `outcome == 0` with `killed_points > 4000`), 40,000 steps, seeds split
+> 8 left-top and 12 right-bottom, never pooled across corners.
+> Relative words such as "official", "latest" and "baseline" are banned as identifiers.
+
 > 本文只规定**怎么起名**，不记录实验结论——结论见 `CONCLUSIONS.md`。
 > 建立于 2026-11-16，随命名决策更新。
 
@@ -252,3 +269,46 @@ SC2 按积分判胜，但 pysc2 因截断返回 0。这类局会让真胜系统�
 | 不能做什么 | **排序**：同批可用运行里 val 0.2487 → 40%、val 0.2719 → 15%，完全无序 |
 | 为什么没有下限 | 0.57 以下四档胜率平坦（37.5%–42.5%，27 运行 / 758 局），任何下限都会误杀——`sl_26-11-13_03-55-05` val 0.5347 → 42.5% 就是被 ≤0.50 闸门挡掉的那个 |
 | 结论 | "这个配方好不好"只能由评测回答，不能由 val 回答 |
+
+## 8. 文档语言
+
+三类文档，三种规则。**判据是"读者能不能只用一种语言走完这条路径"**，不是"有没有英文"。
+
+### 8.1 成对镜像（对外文档）
+
+| 英文（入口） | 中文（镜像） |
+|---|---|
+| [`README.MD`](../../README.MD) | [`doc/README_CHS.MD`](../../doc/README_CHS.MD) |
+| [`doc/USAGE.MD`](../../doc/USAGE.MD) | [`doc/USAGE_CHS.MD`](../../doc/USAGE_CHS.MD) |
+| [`doc/REPLAY.MD`](../../doc/REPLAY.MD) | [`doc/REPLAY_CHS.MD`](../../doc/REPLAY_CHS.MD) |
+| [`doc/HISTORY.MD`](../../doc/HISTORY.MD) | [`doc/HISTORY_CHS.MD`](../../doc/HISTORY_CHS.MD) |
+
+规则：
+
+1. **同结构**：章节数、章节顺序一一对应（可用 `grep '^## '` 对比，数量必须相同）。
+2. **同数字**：同一事实在两边必须写成同一个数，连样本量、区间、步数一起写。
+3. **不许"精简版"**：中文镜像若省略段落，省略掉的数字就是缺陷——本仓库曾因此把
+   `eight fixes` 写成 `7 个补丁`、把 `#23–#52` 写成 `#23–#58`、把 `MAS_QUEUE_TIMEOUT=900`
+   写成 `3600`，中文读者拿到的是另一个事实。
+4. **改动必须同时改两边**；只改一边视为未完成。
+
+### 8.2 中文正文 + 英文摘要（内部研究文档）
+
+| 文档 | 正文 | 摘要 |
+|---|---|---|
+| [`docs/exp/CONCLUSIONS.md`](CONCLUSIONS.md) | 中文 | 开头 `> **Abstract (English).**` |
+| [`docs/exp/NAMING.md`](NAMING.md) | 中文 | 同上 |
+| [`doc/IMPROVEMENTS_2026_11.md`](../../doc/IMPROVEMENTS_2026_11.md) | 中文 | 同上 |
+
+摘要必须**自带关键数字**（配方级胜率、样本量、区间、门禁阈值），不能只写"见正文"。
+英文读者读摘要即可判断这份文档是否与自己有关。
+
+### 8.3 单语（自动生成）
+
+`experiments/ENV_KNOBS.md` 由 `experiments/env_index.py` 扫描代码生成，变量名本身是英文，
+**不手译**；需要中文说明时写进该变量所在脚本的注释，而不是改这份生成物。
+
+### 8.4 不做的事
+
+- 不在同一个文件里中英并列（会让两份内容互相漂移，且难以 diff）。
+- 不为历史日志（`doc/batch_acting/*`）补翻译：它们是当时的记录，改语言等于篡改记录。
