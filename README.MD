@@ -10,14 +10,10 @@ The "mini-scale" means making the original AS's hyper-parameters **adjustable** 
 
 We referred to the "Occam's Razor Principle" when designing the mini-AS: **simple** is good. Therefore, we build the mini-AS from scratch. Unless the function significantly impacts speed and performance, we shall omit it. Meanwhile, we also try not to use too many dependency packages so that mini-AS should only depend on the PyTorch. In this way, we simplify the learning cost of the mini-AS and make the architecture of mini-AS relatively **easy**. 
 
-The [Chinese README](doc/README_CHS.MD) mirrors this file section by section. Both start with a
-language switch, so neither is a dead end.
-
 ## Demo
 
-These GIFs show mini-AS on Simple64 after supervised learning on 50 expert replays. They come from
-the v_1.09 era rather than the model in the update below; they are here to show what mini-AS looks
-like in play.
+Four GIFs of mini-AS on Simple64 after supervised learning on 50 expert replays, from the v_1.09 era;
+they are not the model in the update below.
 
 <p float="left">
   <img src="https://github.com/liuruoze/Useful-Big-Resources/blob/main/gifs/start.gif" width="360" />
@@ -35,34 +31,25 @@ like in play.
 
 ## Update
 
-This is the change note for this push, limited to supervised learning (SL): the score, how the
-model was trained, and the one thing that differs from v_1.09. Reinforcement learning is untouched
-and has no usable model yet, so it stays out.
+This push touches supervised learning (SL) only: the score, the training method, and what differs from
+v_1.09. Reinforcement learning is untouched and has no usable model yet.
 
-The change sits in the training data: 5 human replays are mixed into the machine data. Architecture,
-hyper-parameters and evaluation are untouched, and the score goes from 31.2% to 45.6%, 14.4
-points up.
-
-Suggested reading order: the summary table first, then the method (DAgger and the rule expert), then
-the training settings and the commands.
+The change is in the training data: 5 human replays are mixed into the machine data. Architecture,
+hyper-parameters and evaluation are unchanged; the strict win rate goes from 31.2% to 45.6% (+14.4 points).
 
 The full record is in [IMPROVEMENTS_2026_11.md](doc/IMPROVEMENTS_2026_11.md), the conclusions and
 the evaluation gates are in [CONCLUSIONS.md](docs/exp/CONCLUSIONS.md), and the naming rules are in
 [NAMING.md](docs/exp/NAMING.md).
 
-Two definitions first, or the table will not make sense. A strict win means `raw_reward == +1`, and
-games that stop at the step cap do not count; that is the number we normally quote. A lenient win
-means `outcome == 1`, or `outcome == 0` with `killed_points > 4000`, and it exists so numbers can be
-lined up with the 2021 documents and older records. Also, only rows with the same condition can be
-compared: different difficulty, step count or seed count means the numbers cannot be subtracted.
+Two win verdicts. Strict: `raw_reward == +1`, games that stop at the step cap do not count. Lenient:
+`outcome == 1`, or `outcome == 0` with `killed_points > 4000`, used to line up with the 2021 documents and
+older records. Numbers from different conditions (difficulty, steps, seeds) cannot be subtracted.
 
-First, the result. The table lines up five objects: the weight released together with v_1.09, B0
-retrained with the new code, the two recipes, and the best weight of this round. Every row carries
-its own condition.
+Results below. Five objects: the v_1.09 release weight, B0 retrained with the new code, the two recipes,
+and the best weight of this round; each row states its own condition.
 
-Two terms recur below. A recipe is one fixed combination of data, hyper-parameters and training
-procedure; running the same recipe with another seed gives one run. The game count is how many games
-were played under that condition.
+Terms: a recipe is one fixed combination of data, hyper-parameters and training procedure; rerunning the
+same recipe with another seed gives one run. Games is the number played under that condition.
 
 Object | Training data | Condition | Games | Strict win | Lenient win | Note
 ------------ | ------------- | ------------- | ------------- | ------------- | ------------- | -------------
@@ -74,62 +61,49 @@ same | same | D3 / 40k | 20 | 0% | 0% | 55-61 supply at 9 minutes, overrun by th
 `HumanHybrid` (that data plus human replays) | the same + 5 human replays | D3 / 40k | 316 | 45.6% | 51.1% (180 games) | 15 runs pooled, Wilson [40.2, 51.1]; lenient computed on the 6 no_op-only runs, whose strict score is also 45.6%
 `HumanHybrid`, best weight | the same | D3 / 40k | 39 | 64.1% | 66.7% | selection bias, an asset rather than a recipe score
 
-Two things need a word. First, the two lenient cells come from the subset whose raw output is still
-on disk, with the game count in brackets; they are not the same games as the full strict totals
-(316 and 80).
+The two lenient cells come from the subset whose raw output is still on disk; the bracket is the game
+count, and they are not the same games as the full strict totals (316 and 80).
 
-Second, only the difficulty 3 rows can be compared directly. On that row v_1.09 is 0/20,
-`ExpertGuided` is 31.2% and `HumanHybrid` is 45.6%.
+Only the difficulty 3 rows can be compared: v_1.09 is 0/20, `ExpertGuided` 31.2%, `HumanHybrid` 45.6%.
 
-Where does the result come from? The base is built with DAgger, 5 human replays are mixed in, and
-the network is trained with the settings at the end of this section. The rest of the section takes
-those steps apart.
+Training has three steps: build the base with DAgger, mix in human replays, train with the settings at the
+end of this section.
 
-DAgger comes first, because the data composition rests on it. DAgger is short for Dataset
-Aggregation. Plain supervised learning only sees the states the expert visited, so once the model
-plays on its own it drifts into states it has never seen and the error compounds. DAgger lets the
-current policy run, collects the states it actually reaches, asks the expert to label the actions
-there, and aggregates that new data into the training set. Repeat for a few rounds and the training
-distribution moves towards the one at inference time.
+DAgger (Dataset Aggregation) lets the current policy run, collects the states it actually reaches, has the
+expert label the actions, and aggregates the new data into the training set; repeat for a few rounds.
+Training only on expert trajectories makes the model drift into unseen states once it plays on its own, and
+the error grows with the number of steps.
 
-DAgger needs an expert. Here it is not a human but the rule expert v5
-(`experiments/_rule_expert_v5.py`).
+The expert is the rule script v5 (`experiments/_rule_expert_v5.py`), not a human.
 
-Its implementation has two parts: how it decides every frame, and how it picks a build site. It is
-plain Python with numpy as its only dependency and no learning framework; it reads the raw
-observation the game gives and emits raw actions, which is what lets it run inside the DAgger
-collector.
+It is split into decisions and placement. Plain Python with numpy only; it reads the raw observation and
+emits raw actions, so it can run inside the DAgger collector.
 
-The decision part walks a fixed priority. Every frame it calls `summarize()` to work out minerals,
-gas, supply, supply cap and idleness, then picks one action: supply, first Pylon, probes, gateways,
-units, defence, attack, mining.
+Each frame it computes minerals, gas, supply, supply cap and idleness with `summarize()`, then emits one
+action by fixed priority: supply, first Pylon, probes, gateways, units, defence, attack, mining.
 
-The placement part does not use hard-coded coordinates. It checks the whole building footprint
-against SC2's `placement_grid`, and a Protoss building must also sit inside a Pylon power field, on
-the same height level, on explored ground and clear of mineral patches. A site that has already been
-ordered goes on cooldown and a blacklist, so a rejected command is not re-sent every frame.
+Placement does not use fixed coordinates. The whole building footprint is checked against
+`placement_grid`; a Protoss building must also sit in a Pylon power field, on the same height level, on
+explored ground and clear of minerals. An ordered site goes on cooldown and a blacklist so a rejected
+command is not re-sent.
 
-One more piece exists for dataset quality. So that 30 games are not the same game, each one draws a
-strategy from its seed (fast rush, two gate, heavy gate, macro, harass, turtle, late), and the probe
-count, gateway count and attack threshold jitter within a range.
+Each game draws a strategy from its seed (fast rush, two gate, heavy gate, macro, harass, turtle, late),
+with probe count, gateway count and attack threshold jittering inside a range, so the 30 games are not the
+same game.
 
-Back to this round's data. Textbooks iterate DAgger, resampling with the current policy every
-round; we ran round 1 only: 30 bot self-play games give 21,983 frames, 30 games played by the rule
-expert give 9,578 expert frames, and the two sets are aggregated into 31,561 frames.
+Strictly DAgger iterates; here it is round 1 only: 30 bot self-play games, 21,983 frames; 30 rule-expert
+games, 9,578 frames; 31,561 frames in total.
 
-The expert frames drop `Cancel_Last_quick`, which is 8.5% of them and otherwise teaches the model a
-cancel-and-reissue loop. Training has to run with `MAS_DAGGER=1`; without the flag the trainer
-refuses to start, so DAgger data cannot be trained as if it were ordinary data.
+The expert frames drop `Cancel_Last_quick` (8.5% of them), which otherwise teaches a cancel-and-reissue
+loop. Training requires `MAS_DAGGER=1`; without it the trainer refuses to start.
 
 ### The five versions of the rule expert
 
-Why does this deserve its own table? Because the strength of the expert sets the quality of the
-expert frames, and those frames are the ceiling of DAgger. From v1 to v5 the changes sit in two
-places: how the decision layer picks an action, and how the placement layer picks a build site.
+Expert strength sets the quality of the expert frames, which is the ceiling of DAgger. From v1 to v5 the
+changes sit in the decision layer and the placement layer.
 
-The last column holds whatever that version could actually measure: a win rate once it could play,
-a build-site dedup rate before that. So the 0.086 and 0.018 in the v1 and v2 rows are dedup rates,
-not win rates.
+The last column holds whatever each version could measure: a win rate once it could play, a build-site
+dedup rate before that (v1 0.086, v2 0.018, neither a win rate).
 
 Version | Play style | Decisions | Randomisation | In a real game
 ------------ | ------------- | ------------- | ------------- | -------------
@@ -139,15 +113,13 @@ v3 | follows PiGBot's B2GM opening table, by default 2-Gate Expand on one base |
 v4 | drops the table for a pure Zealot rush | acts every frame: supply and first Pylon, probes, gateways, units, defence, attack, mining; pulls back when the enemy is within 8 tiles; cancels the learner's queued probes to free minerals | each game draws a strategy from its seed (fast rush, two gate, heavy gate, macro, harass, turtle, late), with probe count, gateway count and attack threshold jittering inside a range | the goal is to beat difficulty 1 on its own with the learner doing nothing
 v5 | same as v4 | same as v4 | same as v4, only the fast-rush branch is retuned: 15-18 probes, 3 gateways, attack threshold 9-12, no retreat refresh; the Zealot hold window goes from 6-9 frames to 3-6 | the current default (`MAS_EXPERT_IMPL=v5`); the expert frames here come from it
 
-This round uses v5: its code is almost the same as v4, only the fast-rush branch was retuned.
+This round uses v5; its code is almost identical to v4, only the fast-rush branch was retuned.
 
-With the base built, the second step is to mix in human data. We take 5 replays from the
-2021-11-21 batch, 4,545 frames, 12.6% of all training frames. Of those, 4,247 are `no_op` frames
-where the human does nothing and 298 are action frames. Keeping only the `no_op` frames (4,247,
-11.86%) scores the same, so that part is what does the work.
+Second, the human data: 5 replays from the 2021-11-21 batch, 4,545 frames, 12.6% of all training frames.
+Of these, 4,247 are `no_op` and 298 are action frames. Keeping only the `no_op` frames (11.86%) scores the
+same, so that part is what does the work.
 
-Training settings come last. They are identical to the previous `ExpertGuided`; only the data
-changed, so there is nothing to compare back and forth below.
+Training settings are identical to `ExpertGuided`; only the data differs.
 
 Item | Value
 ------------ | -------------
@@ -163,10 +135,10 @@ train / validation split | by game, 60 files for training and 5 for validation
 class weights | `train_probe` 0.15, `build_pylon` 8, `build_gateway` 8, `build_nexus` 0.1, `train_zealot` 4
 runs | 15 seeds, about 31 minutes each, score pooled over every game of every run
 
-How do we know those frames are what did it? A control: keeping only the action frames of the same
-5 replays does nothing, 32.4% over 179 games, which is the 31.2% baseline.
+Control: the same 5 replays with action frames only, 32.4% over 179 games, no different from the 31.2%
+baseline.
 
-To reproduce it, two steps. First, train one run:
+Reproducing takes two steps. Train one run:
 
 ```bash
 DATA=$PWD/data/replay_data_a3nc_h5 MAS_ON_SERVER=1 MAS_DAGGER=1 \
@@ -182,9 +154,8 @@ OFF_DIFFICULTY=3 OFF_GAME_STEPS=40000 \
   bash experiments/run_p8_eval.sh <tag> $(seq 3038 3057)
 ```
 
-One pitfall to flag. `MAS_RL_INIT_MODEL` is required: without it the loader takes the
-lexicographically last `sl_*.pth` in `model/`, which during this work was a deliberately broken
-checkpoint.
+Note: `MAS_RL_INIT_MODEL` is required. Without it the loader takes the lexicographically last `sl_*.pth`
+in `model/`, which in this round is a deliberately broken checkpoint.
 
 ## Version
 
