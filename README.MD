@@ -62,7 +62,7 @@ same | same | D3 / 40k | 20 | 0% | 0% | 55-61 supply at 9 minutes, overrun by th
 `HumanHybrid`, best weight | the same | D3 / 40k | 39 | 64.1% | 66.7% | selection bias, an asset rather than a recipe score
 
 The two lenient cells come from the subset whose raw output is still on disk; the bracket is the game
-count, and they are not the same games as the full strict totals (316 and 80).
+count, and they are **not the same games** as the full strict totals (316 and 80).
 
 Only the difficulty 3 rows can be compared: v_1.09 is 0/20, `ExpertGuided` 31.2%, `HumanHybrid` 45.6%.
 
@@ -99,7 +99,7 @@ loop. Training requires `MAS_DAGGER=1`; without it the trainer refuses to start.
 
 ### The five versions of the rule expert
 
-Expert strength sets the quality of the expert frames, which is the ceiling of DAgger. From v1 to v5 the
+Expert strength sets the quality of the expert frames, which is **the ceiling of DAgger**. From v1 to v5 the
 changes sit in the decision layer and the placement layer.
 
 The last column holds whatever each version could measure: a win rate once it could play, a build-site
@@ -116,10 +116,10 @@ v5 | same as v4 | same as v4 | same as v4, only the fast-rush branch is retuned:
 This round uses **v5**; its code is almost identical to v4, only the fast-rush branch was retuned.
 
 Second, the human data: 5 replays from the 2021-11-21 batch, 4,545 frames, 12.6% of all training frames.
-Of these, 4,247 are `no_op` and 298 are action frames. Keeping only the `no_op` frames (11.86%) scores the
+Of these, 4,247 are **`no_op`** and 298 are action frames. Keeping only the `no_op` frames (11.86%) scores the
 same, so that part is what does the work.
 
-Training settings are identical to `ExpertGuided`; only the data differs.
+Training settings are **identical** to `ExpertGuided`; only the data differs.
 
 Item | Value
 ------------ | -------------
@@ -135,7 +135,7 @@ train / validation split | by game, 60 files for training and 5 for validation
 class weights | `train_probe` 0.15, `build_pylon` 8, `build_gateway` 8, `build_nexus` 0.1, `train_zealot` 4
 runs | 15 seeds, about 31 minutes each, score pooled over every game of every run
 
-Control: the same 5 replays with action frames only, 32.4% over 179 games, no different from the 31.2%
+Control: the same 5 replays with action frames only, **32.4%** over 179 games, no different from the 31.2%
 baseline.
 
 Reproducing takes two steps. Train one run:
