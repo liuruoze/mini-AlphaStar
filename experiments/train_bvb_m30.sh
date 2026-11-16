@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # 训练矩阵(10x3)抽稀数据集：1 个 run
-# 用法: bash experiments/train_bvb_m30.sh <tag> <epochs> [seed] [step_size]
+# 用法: [DATA=<数据集目录>] bash experiments/train_bvb_m30.sh <tag> <epochs> [seed] [step_size]
+#
+# 注意：manifest 里声明 "dagger": true 的数据集（如 replay_data_a3nc）必须补 MAS_DAGGER=1，
+#       否则训练器按设计拒绝启动（防"DAgger 数据当普通数据训"）。懒人用法见 smoke_bench.sh。
 #
 # 2026-11-14 R1 加固：
 #   ① 启动前做前置检查（磁盘/内存/已有训练数/GPU 显存/数据目录），不满足直接退出码 9；
