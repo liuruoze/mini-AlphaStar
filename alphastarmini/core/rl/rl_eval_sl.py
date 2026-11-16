@@ -13,6 +13,24 @@ import numpy as np
 
 import torch
 
+# ---- 第 84 轮（DS，#80）：确定性解码开关（MAS_GREEDY=1） ----
+# 动机：BC 的 val action acc 是 0.84–0.97，意味着**每步有 3%–16% 概率选错**；
+# 一局 2625 步，累积下来足以把局面带离演示分布。采样噪声是不是主因，可以用 A/B 判。
+# 做法：只在本进程内把 torch.multinomial 换成 argmax，**不改六个 head 的任何代码**，
+# 变量只有"解码方式"一个，避免为了做对照引入别的改动。
+# 判据：同一 checkpoint、同一批种子，MAS_GREEDY=1 与 =0 的真 native 胜率与 killed 对比。
+if os.environ.get("MAS_GREEDY", "0") == "1":
+    _orig_multinomial = torch.multinomial
+
+    def _greedy_multinomial(input, num_samples=1, replacement=False, **kwargs):
+        idx = torch.argmax(input, dim=-1, keepdim=True)
+        if num_samples == 1:
+            return idx
+        return idx.expand(*([-1] * (idx.dim() - 1)), num_samples)
+
+    torch.multinomial = _greedy_multinomial
+    print("[eval] MAS_GREEDY=1：torch.multinomial 已替换为 argmax（确定性解码）", flush=True)
+
 from pysc2.env.sc2_env import SC2Env, AgentInterfaceFormat, Agent, Race, Bot, Difficulty, BotBuild
 from pysc2.lib import actions as sc2_actions
 from pysc2.lib import units as sc2_units
@@ -49,7 +67,11 @@ if SIMPLE_TEST:
     # 默认值与旧行为完全一致。
     import os as _os
     MAX_EPISODES = int(_os.environ.get("EVAL_EPISODES", "1"))
-    GAME_STEPS_PER_EPISODE = 21000    # 9000
+    # 第 84 轮（DS，#76）：评测时长可配。
+    # 依据（#65）：60 局演示的时长是 5766–17952 loops、中位 6754，而这里固定跑 21000 loops，
+    # 比任何一局演示都长。要把"模型慢"与"模型不会收尾"分开，必须能在演示长度上单独测一次。
+    # 默认 21000 保持历史可比；对照用 EVAL_MAX_LOOPS=6800。
+    GAME_STEPS_PER_EPISODE = int(_os.environ.get("EVAL_MAX_LOOPS", "21000"))
     SAVE_STATISTIC = True
     SAVE_REPLAY = True
     REPLAY_DIR = "./revised_simple64_replays/"
@@ -64,6 +86,22 @@ STEP_MUL = 8
 DIFFICULTY = int(_os.environ.get("EVAL_DIFFICULTY", "1"))
 RANDOM_SEED = int(_os.environ.get("EVAL_SEED", "1"))
 VERSION = SCHP.game_version
+
+# ---- 第 84 轮（DS，#66）：评测局独立化 + native/custom 双口径 ----
+# 问题（Hunyuan H1 弱形式的实测版）：原实现 create_env 在**局循环之外**，
+# 整个分片共用同一个 SC2 random_seed；策略侧 torch.manual_seed(total_episodes)
+# 的 total_episodes 每分片从 1 重数。结果：同分片内对局初始条件完全相同。
+# 实测 ICC(胜负)=0.50（官方 RL，n=28）→ design effect 4.0 → 有效样本仅 7。
+# 修法：每局重建 env 且 seed = RANDOM_SEED + episode_index（默认开启，可用
+# EVAL_SEED_PER_EP=0 退回旧行为做复现对照）。
+SEED_PER_EPISODE = _os.environ.get("EVAL_SEED_PER_EP", "1") == "1"
+EVAL_SEED_STRIDE = int(_os.environ.get("EVAL_SEED_STRIDE", "1"))
+
+# 问题（Hunyuan H2 的实测升级版）：`outcome = reward` 后被
+# `if killed_points > 4000: outcome = 1` 改写成 1，而打印字段仍叫 native_outcome。
+# 实测全库 43 个"胜"里 35 个停在帧上限（截断局），冠军 216 局真胜 0。
+# 修法：native 与 custom 分开计数、分开打印；results 只统计 native。
+CUSTOM_KILL_THRESH = float(_os.environ.get("EVAL_CUSTOM_KILL", "4000"))
 
 RESTORE = True
 
@@ -101,6 +139,8 @@ class ActorEval:
                  replay_dir=REPLAY_DIR):
         # 第 79 轮（DS，#28）：评测时统计模型**实际输出**的动作分布（MAS_ACT_STATS=1 开启）
         self._act_cnt = {}
+        # 第 84 轮（DS，#77）：攻击点诊断。存 (x, y, 到最近敌方单位的距离, 敌方单位数)
+        self._atk = []
         self.player = player
 
         print('initialed player')
@@ -148,6 +188,7 @@ class ActorEval:
 
             # the total numberv_for_all_episodes as [loss, draw, win]
             results = [0, 0, 0]
+            results_custom = [0, 0, 0]   # #66：killed>阈值 改判后的口径，仅作参考
 
             # statistic list
             food_used_list, army_count_list, collected_points_list, used_points_list, killed_points_list, steps_list = [], [], [], [], [], []
@@ -159,7 +200,9 @@ class ActorEval:
             while time() - training_start_time < self.max_time_for_training:
                 agents = [self.player]
 
-                with self.create_env_one_player(self.player) as env:
+                # #66：每局一个独立的 SC2 种子（旧行为 = 整个分片共用一个种子）
+                _env_seed = RANDOM_SEED + (total_episodes * EVAL_SEED_STRIDE if SEED_PER_EPISODE else 0)
+                with self.create_env_one_player(self.player, random_seed=_env_seed) as env:
 
                     # set the obs and action spec
                     observation_spec = env.observation_spec()
@@ -195,8 +238,15 @@ class ActorEval:
                         player_memory = self.player.agent.initial_state()
                         # teacher_memory = self.teacher.initial_state()
 
-                        torch.manual_seed(total_episodes)
-                        np.random.seed(total_episodes)
+                        # #66：策略随机流也按 (分片种子, 局号) 复合，旧版只按局号
+                        # → 所有分片的第 i 局共用同一条随机流。
+                        if SEED_PER_EPISODE:
+                            _policy_seed = RANDOM_SEED * 1000 + total_episodes
+                            torch.manual_seed(_policy_seed)
+                            np.random.seed(_policy_seed)
+                        else:
+                            torch.manual_seed(total_episodes)
+                            np.random.seed(total_episodes)
 
                         # initial build order
                         player_bo = []
@@ -281,6 +331,224 @@ class ActorEval:
                                         player_function_call.function, _new)
                                 except Exception as _e:
                                     print("[TAG-MAP] 失败: %r" % (_e,), flush=True)
+
+                            # ---- 第 84 轮（DS，#81）：oracle 选择消融（诊断用，不是模型能力） ----
+                            # 依据（#77/#77b，seed 971，n=168）：攻击点瞄得准（mean_d=7.7），
+                            # 但每次攻击选中的 9.5 个单位里只有 2.3 个战斗单位，
+                            # **61% 的攻击命令一个战斗单位都没选中** → 兵在家、命令发给了农民。
+                            # 这里把"选中集合"直接换成全部战斗单位，只改这一件事。
+                            # 判读：若 killed 显著上升/出现真胜 → 选择头是瓶颈（因果证据）；
+                            #       若仍不动 → 瓶颈在别处（目标点、交战结算），本条否证。
+                            # ⚠️ 这是 oracle 干预，**不能**当作模型改进对外报。
+                            # 第 85 轮（DS，#90）：`MAS_SEL_GUARD=1` —— 选择性兜底（可部署的解码规则，不是 oracle）。
+                            # 依据（#89 SEL-DUMP 实测）：模型对 Attack_pt 只选 **1 个**实体，而且是 Probe，
+                            # 甚至出现选中 MineralField 的情况；槽位 1 是 EOF（= entity_num），被正确排除。
+                            # 也就是说"有兵不打"的机制是：**攻击命令只发给了一个农民**。
+                            # 规则：只在"模型自己选中的实体里没有任何战斗单位"时才兜底成全部战斗单位。
+                            # ⚠️ 这仍然是人给的先验，对外必须标注为「受限解码」，不得说成模型能力。
+                            _oracle_on = bool(os.environ.get("MAS_ORACLE_SEL"))
+                            _guard_on = bool(os.environ.get("MAS_SEL_GUARD"))
+                            if (_oracle_on or _guard_on) and int(player_function_call.function) in (2, 3, 13, 14):
+                                try:
+                                    from pysc2.lib import actions as _A3
+                                    _rw3 = home_obs.observation.raw_units
+                                    _combat = []
+                                    # 第 93 轮（DS，#105）：战斗单位判定抽成局部函数，
+                                    # 供"全量兜底"（旧 guard）与"清洗选中集合"（新 clean）共用。
+                                    # 旧版把同一段 13 个类型名的判断写了两遍，容易改漏。
+                                    _CT3 = ("Zealot", "Stalker", "Adept", "Immortal", "Sentry",
+                                            "Phoenix", "VoidRay", "Carrier", "Colossus",
+                                            "Archon", "DarkTemplar", "Oracle", "Tempest")
+
+                                    def _is_combat3(_u):
+                                        try:
+                                            _nm0 = sc2_units.get_unit_type(_u.unit_type).name
+                                        except Exception:
+                                            return False
+                                        return any(t in _nm0 for t in _CT3)
+
+                                    for _u3 in _rw3:
+                                        if int(_u3.alliance) != 1:
+                                            continue
+                                        if _is_combat3(_u3):
+                                            _combat.append(_u3)
+                                    # 第 116 轮（DS，#116）：MAE_ARMY_THR=n ——「不够 n 个战斗单位就不出击」。
+                                    # 动机（#116 的难度阶梯）：difficulty=3 下 gtb 输在**开局经济崩**，
+                                    # 终局快照 food=0 / army=0，即"兵一个个走出去被吃掉，家里没有防守"。
+                                    # guard 的原语义是"把**全部**战斗单位派出去"，在 very_easy 上是优点
+                                    # （对方不还手），在 d3 上就是送。这里给一个"攒够再打"的闸门：
+                                    # 我方战斗单位总数 < n 时不接管选择（让模型自己打），够了才全量派出。
+                                    # 计数器 `army_hold/army_go` 会写进 ATKDUMP —— 按 #108 的教训，
+                                    # **新规则必须自带执行计数，否则"没报错"不等于"生效了"**。
+                                    _n_all3 = len(_combat)
+                                    _thr3 = int(os.environ.get("MAS_ARMY_THR", "0") or 0)
+                                    # 兜底只在"模型自己一个战斗单位都没选中"时触发；选中了就完全不动。
+                                    if _guard_on and not _oracle_on and _combat:
+                                        try:
+                                            _n_now = int(player_select_units_num.item())
+                                        except Exception:
+                                            _n_now = int(player_action.units.numel())
+                                        _sel_now = player_action.units.reshape(-1).tolist()[:max(1, _n_now)]
+                                        # 第 93 轮（DS，#105）：MAS_SEL_GUARD_CLEAN=1 —— 把选中集合里的
+                                        # 非战斗单位剔掉，只留战斗单位；剔空了才退回"全部战斗单位"。
+                                        # 动机：#89 实测模型对 Attack_pt 常选 "1 个 Probe"，_hit=1 > 0
+                                        # 于是旧 guard 完全不介入 —— 但送出去的仍然是农民。
+                                        _clean3 = bool(os.environ.get("MAS_SEL_GUARD_CLEAN"))
+                                        # 第 93 轮（DS，#106）：MAS_SEL_GUARD_MIN=k —— 参数化"兜底激进程度"。
+                                        # 模型自己选中的战斗单位数 >= k 才采用它的选中集合；否则退回"全部战斗单位"。
+                                        # k=1 等价于 clean（只要有 1 个能打就用模型的，实测只有 1.9 个 → 越打越弱）；
+                                        # k 越大越接近旧 guard（旧 guard 相当于 k=∞）。
+                                        # 先用它扫一遍，找"一次派多少兵"的最优点。
+                                        _min3 = int(os.environ.get("MAS_SEL_GUARD_MIN", "0") or 0)
+                                        _hit = 0
+                                        _keep = []
+                                        for _i5 in _sel_now:
+                                            _i5 = int(_i5)
+                                            if 0 <= _i5 < len(_rw3) and _is_combat3(_rw3[_i5]):
+                                                _hit += 1
+                                                _keep.append(_rw3[_i5])
+                                        if _min3 > 0:
+                                            if _hit >= _min3:
+                                                _combat = _keep          # 模型选的够多 → 用它的
+                                            # else: _combat 保持"全部战斗单位"（兜底）
+                                            self._guard_fired = getattr(self, "_guard_fired", 0) + (1 if _hit < _min3 else 0)
+                                        else:
+                                            if _hit > 0:
+                                                _combat = _keep if _clean3 else []
+                                                if _clean3:
+                                                    self._guard_clean_n = getattr(self, "_guard_clean_n", 0) + 1
+                                            self._guard_fired = getattr(self, "_guard_fired", 0) + (1 if _hit == 0 else 0)
+                                        self._guard_seen = getattr(self, "_guard_seen", 0) + 1
+
+                                    if _thr3 > 0:
+                                        if _n_all3 < _thr3:
+                                            self._army_hold = getattr(self, "_army_hold", 0) + 1
+                                            _combat = []
+                                        else:
+                                            self._army_go = getattr(self, "_army_go", 0) + 1
+
+                                    if _combat:
+                                        _maxsel = int(player_action.units.numel())
+                                        # 第 93 轮（DS，#105）：MAS_SEL_MAX_SEL=k —— 覆盖"送多少个单位"的上限。
+                                        # 原上限 = 模型动作张量的槽位数（AHP.max_selected=12）。
+                                        # 军队 23 个战斗单位时只送 12 个，可能打不完（54.6% 的对局打满帧数）。
+                                        _ovr3 = int(os.environ.get("MAS_SEL_MAX_SEL", "0") or 0)
+                                        if _ovr3 > 0:
+                                            _maxsel = _ovr3
+                                        _combat = _combat[:_maxsel]
+                                        _all_tags = [int(u.tag) for u in _rw3]
+                                        _tagset = set(_all_tags)
+                                        _names3 = [a.name for a in
+                                                   _A3.RAW_FUNCTIONS[player_function_call.function].args]
+                                        _new3 = []
+                                        for _n3, _v3 in zip(_names3, player_function_call.arguments):
+                                            if _n3 == "unit_tags":
+                                                if any(int(x) in _tagset for x in _v3):
+                                                    _new3.append([int(u.tag) for u in _combat])
+                                                else:
+                                                    _new3.append([_all_tags.index(int(u.tag))
+                                                                  for u in _combat])
+                                            else:
+                                                _new3.append(_v3)
+                                        player_function_call = _A3.FunctionCall(
+                                            player_function_call.function, _new3)
+                                        self._oracle_n = getattr(self, "_oracle_n", 0) + 1
+                                except Exception as _e3:
+                                    print("[ORACLE-SEL] 失败: %r" % (_e3,), flush=True)
+
+                            # 第 93 轮（DS，#106）：MAS_TARGET_BUILDING=1 —— 诊断用（**受限解码，不是模型能力**）。
+                            # 依据（#106 冒烟）：一局 186 次攻击、mean_d=5.8（瞄得很准）、killed 6100、army 27，
+                            # 但 native=0 且打满 20992 帧 —— 兵打死了却**拆不掉家**。
+                            # SC2 的胜利条件是摧毁对方所有建筑，而现有攻击点瞄的是"最近的敌方单位"。
+                            # 本开关只改 Attack_pt 的 world 参数：改成"离我方部队最近的敌方建筑"。
+                            if os.environ.get("MAS_TARGET_BUILDING") and int(player_function_call.function) == 2:
+                                try:
+                                    from pysc2.lib import actions as _A4
+                                    _rw4 = home_obs.observation.raw_units
+                                    self._tb_seen = getattr(self, "_tb_seen", 0) + 1
+                                    # 第 93 轮（DS，#108 修正）：原来只写了 Protoss 建筑名，
+                                    # 而对手是 **Terran**（--bot-race terran）→ `_bld4` 恒空，
+                                    # 整条分支静默失效（smoke_tb 的 target_bld 计数为 0，但没有报错）。
+                                    # 现在把 Terran / Zerg / Protoss 的建筑名都列上。
+                                    _BT4 = ("Nexus", "Pylon", "Gateway", "Assimilator", "CyberneticsCore",
+                                            "Forge", "PhotonCannon", "Stargate", "RoboticsFacility",
+                                            "TwilightCouncil", "TemplarArchives", "FleetBeacon",
+                                            "RoboticsBay", "DarkShrine", "ShieldBattery",
+                                            "CommandCenter", "SupplyDepot", "Barracks", "Refinery",
+                                            "Factory", "Starport", "EngineeringBay", "Bunker",
+                                            "MissileTurret", "SensorTower", "Armory", "GhostAcademy",
+                                            "FusionCore", "PlanetaryFortress", "OrbitalCommand",
+                                            "Reactor", "TechLab",
+                                            "Hatchery", "Lair", "Hive", "Extractor", "SpawningPool",
+                                            "EvolutionChamber", "RoachWarren", "BanelingNest",
+                                            "SpineCrawler", "SporeCrawler", "Spire", "GreaterSpire",
+                                            "NydusNetwork", "InfestationPit", "UltraliskCavern",
+                                            "HydraliskDen", "LurkerDen")
+                                    _bld4, _ours4 = [], []
+                                    for _u4 in _rw4:
+                                        try:
+                                            _nm4 = sc2_units.get_unit_type(_u4.unit_type).name
+                                        except Exception:
+                                            continue
+                                        _isb4 = any(t in _nm4 for t in _BT4)
+                                        if int(_u4.alliance) != 1:
+                                            if _isb4:
+                                                _bld4.append(_u4)
+                                        elif not _isb4:
+                                            _ours4.append(_u4)
+                                    if _bld4 and _ours4:
+                                        _cx4 = sum(float(u.x) for u in _ours4) / len(_ours4)
+                                        _cy4 = sum(float(u.y) for u in _ours4) / len(_ours4)
+                                        # 第 118 轮（DS，#118）：MAS_DEFEND_R=R ——「家附近有敌人就先回防」。
+                                        # 动机（#116/#117）：d3 的负局几乎全是 food≈0 / army=0，
+                                        # 即"部队全被派出去、家里没有一兵"，而 `MAS_ARMY_THR` 只做了
+                                        # "晚点出兵"（按住不动），实测仍被打死（unit 站着不还手）。
+                                        # 真正缺的是**回防**：敌方战斗单位进入我方建筑质心 R 格内时，
+                                        # 把 Attack_pt 的落点从"最近建筑"改回"最近的入侵者"。
+                                        # 计数器 `defend=` 写进 ATKDUMP，证明分支真的执行（#108 的教训）。
+                                        _R5 = int(os.environ.get("MAS_DEFEND_R", "0") or 0)
+                                        _t4 = None
+                                        if _R5 > 0:
+                                            _CT5 = ("Zealot", "Stalker", "Adept", "Immortal", "Sentry",
+                                                    "Phoenix", "VoidRay", "Carrier", "Colossus",
+                                                    "Archon", "DarkTemplar", "Oracle", "Tempest",
+                                                    "Marine", "Marauder", "Medivac", "SiegeTank",
+                                                    "Hellion", "Viking", "Banshee", "Thor",
+                                                    "Zergling", "Roach", "Hydralisk", "Mutalisk")
+                                            _near5 = []
+                                            for _u5 in _rw4:
+                                                if int(_u5.alliance) == 1:
+                                                    continue
+                                                try:
+                                                    _nm5 = sc2_units.get_unit_type(_u5.unit_type).name
+                                                except Exception:
+                                                    continue
+                                                if not any(t in _nm5 for t in _CT5):
+                                                    continue
+                                                _d5 = ((float(_u5.x) - _cx4) ** 2
+                                                       + (float(_u5.y) - _cy4) ** 2)
+                                                if _d5 <= _R5 * _R5:
+                                                    _near5.append((_d5, _u5))
+                                            if _near5:
+                                                _near5.sort(key=lambda p: p[0])
+                                                _t4 = _near5[0][1]
+                                                self._defend_n = getattr(self, "_defend_n", 0) + 1
+                                        if _t4 is None:
+                                            _t4 = min(_bld4, key=lambda u: (float(u.x) - _cx4) ** 2
+                                                      + (float(u.y) - _cy4) ** 2)
+                                        _names4 = [a.name for a in
+                                                   _A4.RAW_FUNCTIONS[player_function_call.function].args]
+                                        _new4 = []
+                                        for _n4, _v4 in zip(_names4, player_function_call.arguments):
+                                            if _n4 == "world":
+                                                _new4.append([float(_t4.x), float(_t4.y)])
+                                            else:
+                                                _new4.append(_v4)
+                                        player_function_call = _A4.FunctionCall(
+                                            player_function_call.function, _new4)
+                                        self._tb_n = getattr(self, "_tb_n", 0) + 1
+                                except Exception as _e4:
+                                    print("[TARGET-BLD] 失败: %r" % (_e4,), flush=True)
 
                             # 第 83 轮（DS，#44）：记录"军队/人口随时间"的曲线。
                             # 目的：判断我们是"造不出来"（产能/人口瓶颈）还是"造了但打不赢"。
@@ -368,6 +636,78 @@ class ActorEval:
                                 except Exception:
                                     pass
 
+                            # ---- 第 84 轮（DS，#77）：攻击点 vs 敌方单位的距离 ----
+                            # 动机：实测 3 局（#64/#76）军队 18–39、人口 70–115，15 分钟只杀 875–1900。
+                            # 说明不是"造不出兵"，是"有兵不打/打空"。Attack_pt 的参数是 world 坐标，
+                            # 与镜头无关，所以只需量：攻击点离最近的敌方单位多远。
+                            # 判据：若 mean_d 很大（>20）而 n 不小 → 攻击点在打空气，问题在坐标/目标选择；
+                            #       若 mean_d 很小（<8）却仍无击杀 → 问题在交战结算（单位没被选中/没输出）。
+                            if os.environ.get("MAS_ATK_DUMP"):
+                                try:
+                                    from pysc2.lib import actions as _A2
+                                    _fn2 = int(player_function_call.function)
+                                    if _fn2 in (2, 3):
+                                        _argnames = [a.name for a in _A2.RAW_FUNCTIONS[player_function_call.function].args]
+                                        _pt = None
+                                        for _n2, _v2 in zip(_argnames, player_function_call.arguments):
+                                            if _n2 == "world":
+                                                _pt = (float(_v2[0]), float(_v2[1]))
+                                        if _pt is not None:
+                                            _enemy = [(float(u.x), float(u.y))
+                                                      for u in home_obs.observation.raw_units
+                                                      if int(u.alliance) != 1]
+                                            # #77b：攻击时**选中的单位**里有多少是战斗单位。
+                                            # 依据：seed 970 一局 176 次 Attack_pt，mean_d=5.9（瞄得准），
+                                            # 却只杀 1350。目标没问题 -> 怀疑"下命令的兵"不对
+                                            # （选中了农民/没选中/选中已死单位）。
+                                            _rw = home_obs.observation.raw_units
+                                            _sel = player_action.units.reshape(-1).tolist()
+                                            _nsel = 0
+                                            _ncombat = 0
+                                            for _ix in _sel:
+                                                if 0 <= int(_ix) < len(_rw):
+                                                    _nsel += 1
+                                                    try:
+                                                        _nm = sc2_units.get_unit_type(
+                                                            _rw[int(_ix)].unit_type).name
+                                                    except Exception:
+                                                        _nm = ""
+                                                    if any(t in _nm for t in (
+                                                            "Zealot", "Stalker", "Adept", "Immortal",
+                                                            "Sentry", "Phoenix", "VoidRay", "Carrier",
+                                                            "Colossus", "Archon", "DarkTemplar",
+                                                            "Oracle", "Tempest")):
+                                                        _ncombat += 1
+                                            if _enemy:
+                                                _d = min(((_pt[0] - ex) ** 2 + (_pt[1] - ey) ** 2) ** 0.5
+                                                         for ex, ey in _enemy)
+                                                self._atk.append((_pt[0], _pt[1], _d, _nsel, _ncombat))
+                                            else:
+                                                self._atk.append((_pt[0], _pt[1], -1.0, _nsel, _ncombat))
+
+                                            # 第 85 轮（DS，#89）：把"模型到底选了哪几个下标"直接打出来。
+                                            # 目的：sel_acc 长期停在 1–4%，需要分辨是"随机选"还是"按位置 0,1,2.. 选"
+                                            # （后者说明选择头退化成了"按序输出"，是标签/特征问题而不是训练不足）。
+                                            if _os.environ.get("MAS_SEL_DUMP") and getattr(self, "_sel_dump_n", 0) < 8:
+                                                self._sel_dump_n = getattr(self, "_sel_dump_n", 0) + 1
+                                                _rw4 = home_obs.observation.raw_units
+                                                _ty = []
+                                                for _i4 in _sel[:12]:
+                                                    _i4 = int(_i4)
+                                                    if 0 <= _i4 < len(_rw4):
+                                                        try:
+                                                            _ty.append(sc2_units.get_unit_type(_rw4[_i4].unit_type).name)
+                                                        except Exception:
+                                                            _ty.append("?")
+                                                    else:
+                                                        _ty.append("OOR")
+                                                print("[SEL-DUMP] step=%d fn=%d n_unit=%d nsel=%d idx=%r types=%r"
+                                                      % (int(home_obs.observation.game_loop[0]), _fn2,
+                                                         len(_rw4), _nsel, [int(x) for x in _sel[:12]], _ty),
+                                                      flush=True)
+                                except Exception:
+                                    pass
+
                             expected_delay = player_action.delay.item()
                             step_mul = max(1, expected_delay)
                             print("step_mul:", step_mul) if debug else None
@@ -384,6 +724,105 @@ class ActorEval:
 
                             print('run_loop, t2', time() - t) if speed else None
                             t = time()
+
+                            # ------------------------------------------------------------------
+                            # 第 97 轮（DS，#147）：`MAS_FINISH=1` —— **收尾规则**。
+                            #
+                            # 与 `MAS_TARGET_BUILDING` 的**本质区别**：`tb` 只改写"已经被选中的 Attack_pt"
+                            # 的 world 落点（见上面 536-548 行）；模型若这一步输出 `no_op`/`Train_*`，
+                            # `tb` 整段不执行。而 `J44` 实测这个权重的输出 **84–86% 是四类"造"动作**
+                            # → `tb` 只能在"模型自己想打"时帮忙瞄准，救不了"压根不下进攻令"。
+                            # 本条在动作送入环境前**替换函数 ID 本身**。
+                            #
+                            # 触发条件（刻意收窄，否则就变成第二个 tb）：
+                            #   敌方**战斗单位数 == 0** 且 敌方还有单位（建筑/农民） 且 我方战斗单位 >= N。
+                            # 依据：`J49` ⑤（`thr8` 输出最高 194/千帧却只兑现 19%）、
+                            #       `J51` ⑥（官方权重 custom-native 的差从 8 局塌到 1 局 = 规则在"收尾"）。
+                            #
+                            # `MAS_FINISH_FORCE=1` 是**仅用于连通性冒烟**的开关（跳过条件判断），
+                            # 只验证"分支能执行、参数构造对、env 不报非法动作"，绝不可用于正式评测。
+                            # ------------------------------------------------------------------
+                            if os.environ.get("MAS_FINISH") and int(player_function_call.function) != 2:
+                                try:
+                                    from pysc2.lib import actions as _A5
+                                    _CT5 = ("Zealot", "Stalker", "Adept", "Immortal", "Sentry", "Phoenix",
+                                            "VoidRay", "Carrier", "Colossus", "Archon", "DarkTemplar",
+                                            "Oracle", "Tempest", "Disruptor",
+                                            "Marine", "Marauder", "Medivac", "SiegeTank", "Hellion",
+                                            "Hellbat", "Viking", "Banshee", "Thor", "Liberator", "Raven",
+                                            "Ghost", "Cyclone", "WidowMine",
+                                            "Zergling", "Baneling", "Roach", "Hydralisk", "Mutalisk",
+                                            "Corruptor", "Ultralisk", "Infestor", "SwarmHost", "Viper",
+                                            "BroodLord", "Ravager", "Lurker", "Queen")
+                                    _ru5 = home_obs.observation.raw_units
+                                    _enemy_combat5, _enemy_any5, _our_combat5 = 0, [], []
+                                    _our_idx5 = []          # raw_units 的**下标**（不是 tag，见 :595 的注释）
+                                    _cx5 = _cy5 = 0.0
+                                    _n5 = 0
+                                    for _idx5, _u5 in enumerate(_ru5):
+                                        try:
+                                            _nm5 = sc2_units.get_unit_type(_u5.unit_type).name
+                                        except Exception:
+                                            continue
+                                        _is_c5 = any(t in _nm5 for t in _CT5)
+                                        if int(_u5.alliance) != 1:
+                                            if _is_c5:
+                                                _enemy_combat5 += 1
+                                            else:
+                                                _enemy_any5.append(_u5)
+                                        elif _is_c5:
+                                            _our_combat5.append(_u5)
+                                            _our_idx5.append(_idx5)
+                                            _cx5 += float(_u5.x)
+                                            _cy5 += float(_u5.y)
+                                            _n5 += 1
+                                    _force5 = bool(os.environ.get("MAS_FINISH_FORCE"))
+                                    _thr5 = int(os.environ.get("MAS_FINISH_ARMY", "8") or 8)
+                                    # `_our_idx5` 必须非空：pysc2 `features.py:1614` 对 count 型
+                                    # 参数的校验是 `1 <= len(arg) <= count`，**空列表直接抛
+                                    # ValueError**；而开局只有 Probe/Nexus 时我方没有战斗单位，
+                                    # 强制模式若不加这一条，第 1 步就崩（08:26 实测踩中）
+                                    _cond5 = _force5 or (_enemy_combat5 == 0 and _enemy_any5
+                                                         and len(_our_combat5) >= _thr5)
+                                    if _cond5 and not _our_idx5:
+                                        # "够格开火但没有可指派的战斗单位" —— 这才是规则不生效的真原因，
+                                        # 必须与"条件不满足"分开计数（FINSTAT skip=）
+                                        self._fin_skip5 = getattr(self, "_fin_skip5", 0) + 1
+                                    if _our_idx5 and _cond5:
+                                        if _n5:
+                                            _cx5 /= _n5
+                                            _cy5 /= _n5
+                                        else:
+                                            _cx5 = _cy5 = 0.0
+                                        if _force5 and not _enemy_any5:
+                                            # 强制模式下若连敌人都没有，就拿地图中心当靶子，只为验证参数构造
+                                            _tgt5 = None
+                                            _wx5, _wy5 = 64.0, 64.0
+                                        else:
+                                            _tgt5 = min(_enemy_any5,
+                                                        key=lambda u: (float(u.x) - _cx5) ** 2
+                                                        + (float(u.y) - _cy5) ** 2)
+                                            _wx5, _wy5 = float(_tgt5.x), float(_tgt5.y)
+                                        # 参数**按名字**填（`RAW_FUNCTIONS[2].args` 的顺序不可假设）
+                                        _names5 = [a.name for a in _A5.RAW_FUNCTIONS[2].args]
+                                        _args5 = []
+                                        for _n5b in _names5:
+                                            if _n5b == "queued":
+                                                _args5.append([0])
+                                            elif _n5b == "unit_tags":
+                                                # 必须给下标，否则动作作用于"当前选中单位"，
+                                                # 没开 `MAS_SEL_GUARD` 时等于白打（这条不填就是空转）
+                                                _args5.append(list(_our_idx5))
+                                            elif _n5b == "world":
+                                                _args5.append([_wx5, _wy5])
+                                            else:
+                                                _args5.append([])
+                                        player_function_call = _A5.FunctionCall(2, _args5)
+                                        self._fin_n = getattr(self, "_fin_n", 0) + 1
+                                        self._fin_seen5 = getattr(self, "_fin_seen5", 0) + 1
+                                except Exception as _e5:
+                                    # #108 的教训：分支静默失效比报错更危险 → 必须打印
+                                    print("[FINISH] 失败: %r" % (_e5,), flush=True)
 
                             env_actions = [player_function_call]
 
@@ -435,6 +874,9 @@ class ActorEval:
 
                             if is_final:
                                 outcome = reward
+                                # #66：native 口径先落定，后续任何"改判"都不再回写它。
+                                native_outcome = outcome
+                                custom_outcome = outcome
                                 print("outcome: ", outcome) if debug else None
 
                                 if SAVE_REPLAY:
@@ -474,8 +916,11 @@ class ActorEval:
 
                                     killed_points = killed_minerals + killed_vespene
 
-                                    if killed_points > 4000:
-                                        outcome = 1
+                                    # #66：原代码是 `outcome = 1`，把原生平局改判成胜，
+                                    # 而打印字段仍叫 native_outcome —— 这是 H2 的实质。
+                                    # 现在改判只写进 custom_outcome，native 保持 SC2 原生值。
+                                    if killed_points > CUSTOM_KILL_THRESH:
+                                        custom_outcome = 1
 
                                     food_used_list.append(food_used)
                                     army_count_list.append(army_count)
@@ -490,8 +935,17 @@ class ActorEval:
 
                                         # 第 76 轮（GLM，#21）：加 native outcome 字段。
                                         # 注意 outcome 默认 0（截断=平局），终局才有真实值。
-                                        statistic = 'Episode: [{}/{}]| native_outcome: {} | food_used: {:.1f} | army_count: {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f}s \n'.format(
-                                            total_episodes, MAX_EPISODES, int(outcome), food_used, army_count, collected_points, used_points, killed_points, game_loop)
+                                        # #66：native 与 custom 两个口径同时打印；
+                                        # trunc=1 表示这局停在了 game_steps_per_episode 上限，
+                                        # 机制上不可能是真胜（实测对照：-1 从不落上限，0 从不提前结束）。
+                                        _trunc = int(game_loop >= GAME_STEPS_PER_EPISODE - 2 * STEP_MUL)
+                                        statistic = ('Episode: [{}/{}]| native_outcome: {} | custom_outcome: {} '
+                                                     '| trunc: {} | sc2_seed: {} | food_used: {:.1f} | army_count: {:.1f} '
+                                                     '| collected_points: {:.1f} | used_points: {:.1f} '
+                                                     '| killed_points: {:.1f} | steps: {:.3f}s \n').format(
+                                            total_episodes, MAX_EPISODES, int(native_outcome), int(custom_outcome),
+                                            _trunc, _env_seed,
+                                            food_used, army_count, collected_points, used_points, killed_points, game_loop)
 
                                         statistic = end_episode_time + " " + statistic
 
@@ -505,6 +959,18 @@ class ActorEval:
                                                 "%d:%d/%d/%d/%d" % t for t in self._tl) + "\n")
                                             self._tl = []
                                             self._tl_last = -1
+
+                                        # #147b：收尾规则的计数**必须无条件落盘**。
+                                        # 原先 `fin=` 只在 `_selinfo` 里（条件是 `self._atk` 非空），
+                                        # 而"整局没攻击"恰好是最需要看 fin 的情形 → 会出现
+                                        # "没有 ATKDUMP 行"就无法判断规则到底触发没有（08:37 实测踩中）。
+                                        if os.environ.get("MAS_FINISH"):
+                                            _finN = getattr(self, "_fin_n", 0)
+                                            _finS = getattr(self, "_fin_seen5", 0)
+                                            _finSkip = getattr(self, "_fin_skip5", 0)
+                                            file.write("FINSTAT fin=%d seen=%d skip=%d army_thr=%s\n"
+                                                       % (_finN, _finS, _finSkip,
+                                                          os.environ.get("MAS_FINISH_ARMY", "8")))
 
                                         if os.environ.get("MAS_LOC_STATS") and getattr(self, "_loc_d", None):
                                             _d = self._loc_d
@@ -527,7 +993,58 @@ class ActorEval:
                                                                  for k2, v2 in _top) + "\n")
                                             self._act_cnt = {}
 
-                                results[outcome + 1] += 1
+                                        # #77：攻击点诊断汇总
+                                        if os.environ.get("MAS_ATK_DUMP") and self._atk:
+                                            _na = len(self._atk)
+                                            _xs = [a[0] for a in self._atk]
+                                            _ys = [a[1] for a in self._atk]
+                                            _ds = sorted(a[2] for a in self._atk if a[2] >= 0)
+                                            # #77b：选中单位构成
+                                            _sels = [a[3] for a in self._atk]
+                                            _combs = [a[4] for a in self._atk]
+                                            _zero = sum(1 for c in _combs if c == 0) / float(_na)
+                                            _selinfo = ("sel_mean=%.1f sel_max=%d combat_mean=%.1f "
+                                                        "combat_max=%d frac_combat0=%.2f"
+                                                        % (sum(_sels) / float(_na), max(_sels),
+                                                           sum(_combs) / float(_na), max(_combs), _zero))
+                                            # #90：兜底触发率（只在 MAS_SEL_GUARD=1 时有意义）
+                                            if getattr(self, "_guard_seen", 0):
+                                                _selinfo += (" guard_fired=%d/%d"
+                                                             % (getattr(self, "_guard_fired", 0),
+                                                                getattr(self, "_guard_seen", 0)))
+                                                if getattr(self, "_guard_clean_n", 0):
+                                                    _selinfo += (" guard_clean=%d" % getattr(self, "_guard_clean_n", 0))
+                                            if getattr(self, "_tb_seen", 0):
+                                                _selinfo += (" tb_seen=%d tb_hit=%d"
+                                                             % (getattr(self, "_tb_seen", 0),
+                                                                getattr(self, "_tb_n", 0)))
+                                            # #116：出击闸门的执行计数（hold=因兵不够而按住，go=放行）
+                                            if getattr(self, "_army_hold", 0) or getattr(self, "_army_go", 0):
+                                                _selinfo += (" army_hold=%d army_go=%d"
+                                                             % (getattr(self, "_army_hold", 0),
+                                                                getattr(self, "_army_go", 0)))
+                                            # #118：回防触发次数
+                                            if getattr(self, "_defend_n", 0):
+                                                _selinfo += (" defend=%d" % getattr(self, "_defend_n", 0))
+                                            # #147：收尾规则的接管次数（MAS_FINISH）
+                                            if getattr(self, "_fin_n", 0):
+                                                _selinfo += (" fin=%d" % getattr(self, "_fin_n", 0))
+                                            if _ds:
+                                                _mean = sum(_ds) / len(_ds)
+                                                _p50 = _ds[len(_ds) // 2]
+                                                _lt = sum(1 for d in _ds if d < 10) / float(len(_ds))
+                                                file.write("ATKDUMP n=%d with_enemy=%d mean_d=%.1f p50_d=%.1f "
+                                                           "frac_d_lt10=%.2f %s x=[%.1f,%.1f] y=[%.1f,%.1f]\n"
+                                                           % (_na, len(_ds), _mean, _p50, _lt, _selinfo,
+                                                              min(_xs), max(_xs), min(_ys), max(_ys)))
+                                            else:
+                                                file.write("ATKDUMP n=%d with_enemy=0 %s x=[%.1f,%.1f] y=[%.1f,%.1f]\n"
+                                                           % (_na, _selinfo, min(_xs), max(_xs), min(_ys), max(_ys)))
+                                            self._atk = []
+
+                                # #66：results 只统计 native；custom 另计。
+                                results[native_outcome + 1] += 1
+                                results_custom[custom_outcome + 1] += 1
 
                             if self.is_training and len(trajectory) >= AHP.sequence_length:                    
                                 trajectories = RU.stack_namedtuple(trajectory)
@@ -563,6 +1080,11 @@ class ActorEval:
                             print("Beyond the max_episodes, return!")
                             raise Exception
 
+                        # #66：每局独立种子 ⇒ 一局一个 env。放在 max_episodes 检查之后，
+                        # 否则会多打一局（先 break 就跳过了上面的收尾判断）。
+                        if SEED_PER_EPISODE:
+                            break
+
         except Exception as e:
             print("ActorLoop.run() Exception cause return, Detials of the Exception:", e)
             print(traceback.format_exc())
@@ -571,15 +1093,18 @@ class ActorEval:
             # 第 76 轮（GLM，#21）：这两行原来在 `if debug` 里 —— 评测模式下不打印，
             # 编排器就汇总不到 results（第一版验证局就是在这里扑空的）。
             print("results: ", results, flush=True)
+            print("results_custom: ", results_custom, flush=True)   # #66
             win_rate = results[2] / (1e-9 + sum(results))
+            win_rate_custom = results_custom[2] / (1e-9 + sum(results_custom))
             print("win rate: ", win_rate, flush=True)
+            print("win rate custom: ", win_rate_custom, flush=True)
 
             total_time = time() - training_start_time
 
             if SAVE_STATISTIC: 
                 with open(OUTPUT_FILE, 'a') as file:
-                    statistic = 'Avg: [{}/{}] | win_rate: {:.1f} | food_used: {:.1f} | army_count: {:.1f} | std(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
-                        total_episodes, MAX_EPISODES, win_rate, np.mean(food_used_list), np.mean(army_count_list), np.std(army_count_list), np.mean(collected_points_list),
+                    statistic = 'Avg: [{}/{}] | win_rate: {:.1f} | win_rate_custom: {:.1f} | food_used: {:.1f} | army_count: {:.1f} | std(army_count): {:.1f} | collected_points: {:.1f} | used_points: {:.1f} | killed_points: {:.1f} | steps: {:.3f} | Total time: {:.3f}s \n'.format(
+                        total_episodes, MAX_EPISODES, win_rate, win_rate_custom, np.mean(food_used_list), np.mean(army_count_list), np.std(army_count_list), np.mean(collected_points_list),
                         np.mean(used_points_list), np.mean(killed_points_list), np.mean(steps_list), total_time)
 
                     print("statistic: ", statistic) if SAVE_STATISTIC else None
@@ -601,7 +1126,19 @@ class ActorEval:
         print('player.name:', player.name)
         print('player.race:', player.race)
 
-        sc2_computer = Bot([Race.terran],
+        # ---- 第 84 轮（DS，#75）：对手种族必须可配 ----
+        # 实测（22:22，replay_info 逐局扫描）：60 局训练演示全部是
+        # **Protoss(P1, 胜) vs Zerg(P2)**，而这里写死 `Race.terran`。
+        # 也就是说：模型学的是"对虫族的开局与打法"，却被放在"对人类"里评测。
+        # 这是评测分布与训练分布不一致，属于测量口径问题，不是策略问题。
+        # 默认仍 terran（保持历史结果可比），用 EVAL_BOT_RACE=zerg 做对照。
+        _RACE_MAP = {"terran": Race.terran, "zerg": Race.zerg,
+                     "protoss": Race.protoss, "random": Race.random}
+        _bot_race_name = _os.environ.get("EVAL_BOT_RACE", "terran").strip().lower()
+        _bot_race = _RACE_MAP.get(_bot_race_name, Race.terran)
+        print('[eval] bot race = %s (EVAL_BOT_RACE=%s)' % (_bot_race_name, _bot_race_name), flush=True)
+
+        sc2_computer = Bot([_bot_race],
                            Difficulty(DIFFICULTY),
                            [BotBuild.random])
 

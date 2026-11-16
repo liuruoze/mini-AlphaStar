@@ -36,6 +36,13 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+# 第 86 轮（DS，#93）：H4 的**运行期判据**。
+# H4 的静态证据是「构造 Learner 时没传 pub_lock/policy_version，pv 恒 0」（DS14 #68），
+# 修完只有静态证据不够 —— 必须看到 pv 真的随 optimizer step 增长。
+# 默认关（每次 step 一行会淹没日志），验证时用 MAS_PV_LOG=1 打开。
+_PV_LOG = os.environ.get("MAS_PV_LOG") == "1"
+_PV_N = [0]
+
 # model path
 MODEL = "rl"
 MODEL_PATH = "./model/"
@@ -339,6 +346,10 @@ class Learner:
                         self.optimizer.step()
                         if self.policy_version is not None:
                             self.policy_version.value += 1
+                            if _PV_LOG:
+                                _PV_N[0] += 1
+                                print("[PV] learner_update n=%d pv=%d"
+                                      % (_PV_N[0], int(self.policy_version.value)), flush=True)
                     finally:
                         if self.pub_lock is not None:
                             self.pub_lock.release()

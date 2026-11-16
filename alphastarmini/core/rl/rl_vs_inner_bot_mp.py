@@ -101,6 +101,11 @@ USE_UPDATE_LOCK = False
 DIFFICULTY = 1
 ONLY_UPDATE_BASELINE = False
 SAVE_LATEST = False
+# 第 97 轮（DS，Kimi 启动前提醒 1.2）：按"统计块"存 ckpt。
+# `SAVE_LATEST` 的分支全部写 `model_path + ".pth"` 同一个路径，
+# 所以它只能留下"最后一次"，拿不到 70/140/210 三个点。
+# 本开关打开后，每个统计块写 `model_path_ep070.pth` 这样的独立文件。
+SAVE_EVERY_BLOCK = os.environ.get("MAS_SAVE_EVERY_BLOCK", "0") == "1"
 BASELINE_WEIGHT = 1
 LR = 1e-6  # 1e-5
 WEIGHT_DECAY = 1e-5
@@ -583,7 +588,19 @@ class ActorVSComputer:
                                     final_outcome = outcome
                                     final_points = points  # killed_points / float(WIN_THRESHOLD)
 
-                                    self.q_winloss.put(final_outcome)
+                                    # 第 97 轮（DS，Kimi 1.3）：队列同时带 native 与 custom。
+                                    # 统计用 native（真胜），但奖励仍走 custom（平局击杀>4000 记 +1），
+                                    # 所以必须**两个都记**：若 custom 涨而 native 不涨，那是刷击杀，不是学赢。
+                                    self.q_winloss.put((int(native_outcome), int(final_outcome)))
+                                    # 第 86 轮（DS，#93）：G6 的**触发开关**。
+                                    # 正常运行时两个 put 间隔是微秒级，points 侧永远不会 Empty，
+                                    # 于是"错位"这条路径**测不出来**（这正是它活着这么久的原因）。
+                                    # MAS_TEST_PUT_GAP=3 人为拉开 3 秒，配合 MAS_QUEUE_TIMEOUT=1，
+                                    # 保证 points.get 至少 Timeout 一次 —— 旧代码在这里就会永久错位。
+                                    # 默认 0 = 不改变任何行为。
+                                    _test_gap = float(os.environ.get("MAS_TEST_PUT_GAP", "0") or 0)
+                                    if _test_gap > 0:
+                                        sleep(_test_gap)
                                     self.q_points.put(final_points)
 
                                     reward = final_outcome
@@ -1176,7 +1193,13 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
                               count_of_batches=COUNT_OF_BATCHES, buffer_size=BUFFER_SIZE,
                               use_random_sample=USE_RANDOM_SAMPLE, only_update_baseline=ONLY_UPDATE_BASELINE,
                               need_save_result=need_save_result, process_lock=process_lock,
-                              update_params_interval=UPDATE_PARAMS_INTERVAL)
+                              update_params_interval=UPDATE_PARAMS_INTERVAL,
+                              # 第 86 轮（DS，#95）：H4 的修复**在 Worker→Learner 这条链上一直是缺的**。
+                              # `Worker(..., pub_lock=None, pv=None)` 收得到这两个参数，但构造 Learner 时没往下传，
+                              # 于是 `self.policy_version is None` → `pv.value += 1` 永不执行。
+                              # 实测（00:27 冒烟）：4 次 optimizer step，`[PV]` 一行都没有 = pv 是 None。
+                              # 传下去之后，pv 才会随 step 增长，轨迹里的 policy_version 才有意义。
+                              pub_lock=pub_lock, policy_version=pv)
             learners.append(learner)
 
             teacher = get_supervised_agent(player.race, model_type="sl", restore=True, device=cuda_device)
@@ -1276,7 +1299,8 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
     update_counter = 0
     max_win_rate, latest_win_rate = 0., 0.
     max_mean_points, latest_mean_points = 0., 0.
-    outcome_list, points_list = [], []
+    outcome_list, points_list = [], []          # custom（旧口径，保留用于对照）
+    native_outcome_list = []                    # native（SC2 原生：1 胜 / 0 平 / -1 负）
     win_rate_list, mean_points_list = [], []
 
     # 第 50 轮：队列超时可配（默认保持 1800 s，不改变既有行为）。
@@ -1298,9 +1322,34 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
     # 至少留一行，`row` 已经有 min(row, shape[0]-1) 的钳位。
     _n_rows = max(1, int(train_iters / static_num))
     episode_outcome = np.ones([_n_rows, static_num], dtype=np.float64) * (-1e9)
+    episode_native = np.ones([_n_rows, static_num], dtype=np.float64) * (-1e9)
     episode_points = np.ones([_n_rows, static_num], dtype=np.float64) * (-1e9)
+
+    # ---- 第 97 轮（DS，Kimi 1.2）：每个统计块一个独立 ckpt ----
+    # 只用 `model_path + ".pth"` 会被后一块覆盖；这里按块编号写不同文件。
+    # 同一个块可能从 win_rate 与 mean_points 两个分支各触发一次，用集合去重。
+    _saved_rows = set()
+
+    def _save_block(_row):
+        if _row in _saved_rows:
+            return
+        _path = "%s_ep%03d.pth" % (model_path, (_row + 1) * static_num)
+        with synchronizer:
+            torch.save(model.state_dict(), _path)
+        _saved_rows.add(_row)
+        print("[ckpt] saved %s" % _path, flush=True)
     print("[Parameter_Server] STATIC_NUM=%d  train_iters=%d  统计表 shape=%s"
           % (static_num, train_iters, episode_outcome.shape), flush=True)
+
+    # ---- 第 86 轮（DS，#93）：G6 的**严格配对**修复 ----
+    # 旧写法把 `outcome_list.append(outcome)` 放在取 points **之前**：
+    #   一旦 points 侧 Empty 走 `continue`，outcome 已入账、真正的 points 还留在队列里，
+    #   下一轮取到的是"下一个 outcome"配"上一个 points" → **此后永久错位**，
+    #   win_rate / mean_points 全部记在错的那一局上，而且不报错。
+    # 这条不是静态猜测：下面两段代码的先后顺序就是证据（append 在 get 之前）。
+    # 新写法：outcome 先存进 `_pending_outcome`，**两边都到手才一起入账**；
+    #   points 侧 Empty 时 `_pending_outcome` 保留，下一轮继续等，不会丢也不会错位。
+    _pending_outcome = None
 
     try: 
         while update_counter < train_iters:
@@ -1312,36 +1361,47 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
             #   统计链（win_rate / mean_points / checkpoint 保存）全部断裂。
             #   表现是"proc=3/4 + q_winloss=6"——看起来像死锁，其实是消费者先自杀了。
             # 现在：队列空只说明"这一局还没打完"，只要**父进程还活着**就继续等。
-            try:
-                outcome = q_winloss.get(timeout=_q_timeout)
-            except _queue.Empty:
+            if _pending_outcome is None:
                 try:
-                    os.kill(os.getppid(), 0)          # 父进程还在？
-                    continue                           # 在 -> 继续等（一局可能 20 分钟）
-                except OSError:
-                    print("[Parameter_Server] 父进程已退出，停止等待", flush=True)
+                    _pending_outcome = q_winloss.get(timeout=_q_timeout)
+                except _queue.Empty:
+                    try:
+                        os.kill(os.getppid(), 0)          # 父进程还在？
+                        continue                           # 在 -> 继续等（一局可能 20 分钟）
+                    except OSError:
+                        print("[Parameter_Server] 父进程已退出，停止等待", flush=True)
+                        break
+                # 第 50 轮：结束哨兵。`test()` 在所有 Worker 退出后投递 None，
+                # 这里必须**先判空**再入账 —— 否则 None 会流进 `(outcome == 1)` 的统计里。
+                if _pending_outcome is None:
+                    print("[Parameter_Server] 收到结束哨兵（Worker 已全部退出），正常收尾", flush=True)
                     break
-            # 第 50 轮：结束哨兵。`test()` 在所有 Worker 退出后投递 None，
-            # 这里必须**先判空**再 append —— 否则 None 会流进 `(outcome == 1)` 的统计里。
-            if outcome is None:
-                print("[Parameter_Server] 收到结束哨兵（Worker 已全部退出），正常收尾", flush=True)
-                break
-            outcome_list.append(outcome)
-            print("Parameter_Server winloss_list", outcome_list) if 1 else None
 
             try:
                 points = q_points.get(timeout=_q_timeout)
             except _queue.Empty:
                 try:
                     os.kill(os.getppid(), 0)
-                    continue
+                    continue      # outcome 留在 _pending_outcome，下轮继续等它的 points
                 except OSError:
                     break
             if points is None:
                 print("[Parameter_Server] 收到结束哨兵（points 队列），正常收尾", flush=True)
                 break
+
+            _payload = _pending_outcome
+            _pending_outcome = None
+            # 第 97 轮：新 actor 投 (native, custom)；旧 actor 投 int，这里兼容，
+            # 避免"改了父进程、子进程还是旧代码"时直接解包崩溃。
+            if isinstance(_payload, tuple):
+                native_outcome, outcome = int(_payload[0]), int(_payload[1])
+            else:
+                native_outcome, outcome = int(_payload), int(_payload)
+            native_outcome_list.append(native_outcome)
+            outcome_list.append(outcome)
             points_list.append(points)
-            print("Parameter_Server points_list", points_list) if 1 else None
+            print("Parameter_Server native_list", native_outcome_list[-8:], flush=True) if 1 else None
+            print("Parameter_Server custom_list ", outcome_list[-8:], flush=True) if 1 else None
 
             row = int(update_counter / static_num)
             col = int(update_counter % static_num)
@@ -1349,12 +1409,13 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
             col = min(col, episode_outcome.shape[1] - 1)
 
             episode_outcome[row, col] = outcome
+            episode_native[row, col] = native_outcome
             print("episode_outcome", episode_outcome) if debug else None
 
             single_episode_outcome = episode_outcome[row]
             if not (single_episode_outcome == (-1e9)).any():
                 win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
-                print("Iter:", row, "win_rate:", win_rate) if 1 else None
+                print("Iter:", row, "win_rate(custom):", win_rate) if 1 else None
 
                 writer.add_scalar('winrate/every_' + str(static_num) + '_episodes', win_rate, row + 1)
                 writer.add_scalar('winrate/update_steps', win_rate, int(v_steps.value))
@@ -1368,9 +1429,27 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
                     with synchronizer:
                         torch.save(model.state_dict(), model_path + ".pth")
 
+                # 第 97 轮（DS，Kimi 1.2）：块级 ckpt，独立文件名
+                if SAVE_EVERY_BLOCK:
+                    _save_block(row)
+
                 latest_win_rate = win_rate
                 del win_rate
 
+            # ---- 第 97 轮（DS，Kimi 1.3）：native 胜率单独统计 ----
+            # custom 是"平局击杀>4000 算赢"，会把刷击杀算成胜；native 才是 SC2 原生结果。
+            single_native = episode_native[row]
+            if not (single_native == (-1e9)).any():
+                native_win_rate = (single_native == 1).sum() / len(single_native)
+                print("Iter:", row, "win_rate(native):", native_win_rate, flush=True) if 1 else None
+                writer.add_scalar('winrate_native/every_' + str(static_num) + '_episodes',
+                                  native_win_rate, row + 1)
+                writer.add_scalar('winrate_native/update_steps', native_win_rate, int(v_steps.value))
+
+                if SAVE_EVERY_BLOCK:
+                    _save_block(row)
+
+            del single_native
             del single_episode_outcome
 
             episode_points[row, col] = points
@@ -1379,7 +1458,7 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
             single_episode_points = episode_points[row]
             if not (single_episode_points == (-1e9)).any():
                 mean_points = np.mean(single_episode_points)
-                print("Iter:", row, "mean_points:", mean_points) if 1 else None
+                print("Iter:", row, "mean_points:", mean_points, flush=True) if 1 else None
 
                 writer.add_scalar('meanpoints/every_' + str(static_num) + '_episodes', mean_points, row + 1)
                 writer.add_scalar('meanpoints/update_steps', mean_points, int(v_steps.value))
@@ -1392,6 +1471,9 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
                 elif ONLY_UPDATE_BASELINE or SAVE_LATEST:
                     with synchronizer:
                         torch.save(model.state_dict(), model_path + ".pth")
+
+                if SAVE_EVERY_BLOCK:
+                    _save_block(row)
 
                 latest_mean_points = mean_points
                 del mean_points
@@ -1424,8 +1506,19 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
         print("latest_mean_points:", latest_mean_points)
         print("max_mean_points:", max_mean_points)
         print("win_rate_list:", win_rate_list)
+        print("native_list:", native_outcome_list[-20:])
+        print("native_counts: W=%d D=%d L=%d"
+              % (sum(1 for _v in native_outcome_list if _v == 1),
+                 sum(1 for _v in native_outcome_list if _v == 0),
+                 sum(1 for _v in native_outcome_list if _v == -1)))
         print("latest_win_rate:", latest_win_rate)
         print("max_win_rate:", max_win_rate)
+        # 第 86 轮（DS，#93）：G6 的**可证伪判据**落成一行。
+        # 严格配对 → 两个长度必须恒等；若不等，说明仍有丢/错配路径。
+        print("[PAIRS] outcomes=%d points=%d equal=%s pending=%s"
+              % (len(outcome_list), len(points_list),
+                 len(outcome_list) == len(points_list),
+                 "yes" if _pending_outcome is not None else "no"), flush=True)
         print("--------------------")
 
 
