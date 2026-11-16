@@ -1,0 +1,4 @@
+# 纯行尾归一提交（不改变任何逻辑）。让 git blame 跳过它们：
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# 校验方式：git show --ignore-cr-at-eol <sha> 应为空
+f16043c9f093b4c8639bff35cb5c22ee3cc36c03
