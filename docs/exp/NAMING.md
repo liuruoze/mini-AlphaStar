@@ -299,6 +299,7 @@ SC2 按积分判胜，但 pysc2 因截断返回 0。这类局会让真胜系统�
 | [`docs/exp/CONCLUSIONS.md`](CONCLUSIONS.md) | 中文 | 开头 `> **Abstract (English).**` |
 | [`docs/exp/NAMING.md`](NAMING.md) | 中文 | 同上 |
 | [`doc/IMPROVEMENTS_2026_11.md`](../../doc/IMPROVEMENTS_2026_11.md) | 中文 | 同上 |
+| [`experiments/README.md`](../../experiments/README.md) | 中文 | 同上 |
 
 摘要必须**自带关键数字**（配方级胜率、样本量、区间、门禁阈值），不能只写"见正文"。
 英文读者读摘要即可判断这份文档是否与自己有关。

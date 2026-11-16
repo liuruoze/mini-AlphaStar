@@ -1,5 +1,12 @@
 # experiments/ —— 实验与验收脚本
 
+> **Abstract (English).** These scripts are **not** library code: they are the probes,
+> acceptance tests, benchmarks and soak orchestrators written while the batch-acting path was
+> being rebuilt. They are kept so that every number in the log can be traced back to a command.
+> Work from the repository root; the scripts rely on it for `sys.path`.
+> `doc/batch_acting/ERRATA.md` and `BATCH_ACTING_EXECUTION_LOG_DS*.md` are local working notes
+> and are deliberately not shipped, so those references cannot be opened here.
+
 > 这些脚本**不是**库代码，不参与 `run_rl.py` / `run_sl.py` 的运行。
 > 它们是 batch acting 改造过程中写的一次性探针、验收测试、benchmark 和长跑编排。
 > 保留它们是为了**可复现**：日志里的每个数字都对应这里的某条命令。
