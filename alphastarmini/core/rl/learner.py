@@ -498,9 +498,9 @@ class Learner:
                         # 2026-11-17：更新门槛原先隐式等于 buffer_size × batches × batch_size。
                         # 开 USE_BUFFER 会同时把门槛从 16 条改成 80 条，采样与节奏两个变量一起变，
                         # 无法归因。MAS_RL_MIN_TRAJ 允许单独固定节奏（默认仍按原公式）。
-                        _min_traj = int(os.environ.get(
-                            "MAS_RL_MIN_TRAJ",
-                            str(self.buffer_size * self.count_of_batches * AHP.batch_size)))
+                        _min_traj_env = os.environ.get("MAS_RL_MIN_TRAJ", "")
+                        _min_traj = (int(_min_traj_env) if _min_traj_env
+                                     else self.buffer_size * self.count_of_batches * AHP.batch_size)
                         if len(self.trajectories) >= _min_traj:
                             print("learner begin to update parameters") if debug else None
                             self.update_parameters()
