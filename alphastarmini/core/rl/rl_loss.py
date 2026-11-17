@@ -40,11 +40,35 @@ __author__ = "Ruo-Ze Liu"
 # 出问题时根本没法读日志。loss 值本身已经写进 tensorboard，屏幕打印只在调试时需要。
 #   MAS_RL_DEBUG=1  -> 恢复原有逐张量打印
 _RL_DEBUG = os.environ.get("MAS_RL_DEBUG", "0") == "1"
+# 2026-11-16 设计裁定 #2：只读诊断开关，默认关闭；打开只打印、不改 loss。
+_RL_VS_DIAG = os.environ.get("MAS_RL_VS_DIAG", "0") == "1"
 
 debug = False
 
-FIELDS_WEIGHT_1 = [1, 0, 1, 0.01, 1, 1]  # [0, 0, 0, 1, 0, 0]
-FIELDS_WEIGHT_2 = [1, 0, 1, 1, 1, 1]
+# ---- 2026-11-16 设计裁定 #3：FIELDS_WEIGHT 默认值不动，开放 A/B 入口 ----
+# 历史依据（`.workbuddy/memory/2026-11-02.md`）：delay 头有梯度但两个 FIELDS_WEIGHT
+# 数组的索引 1 都是 0，即 delay 只被熵项顺带训练、从未被策略梯度训练；
+# 而 delay 决定 step_mul（决策频率）。原文标为"既有设计问题，值得上游关注"，
+# 未给设计依据；units=0.01 同样无出处。
+# 裁定：不擅自改默认（会同时改变 V-trace 与 KL 的语义），但把两组权重环境变量化，
+# 默认逐位等于原值，后续可用 MAS_RL_FIELDS_W1 / MAS_RL_FIELDS_W2 做单变量 A/B。
+# 格式：逗号分隔 6 个数，顺序 action_type,delay,queue,units,target_unit,target_location。
+def _read_fields_weight(env_name, default):
+    raw = os.environ.get(env_name, "").strip()
+    if not raw:
+        return list(default)
+    try:
+        vals = [float(x) for x in raw.split(",")]
+        if len(vals) != len(default):
+            raise ValueError("需要 %d 个数" % len(default))
+        print("[rl_loss] %s = %s（覆盖默认 %s）" % (env_name, vals, default), flush=True)
+        return vals
+    except Exception as e:
+        raise RuntimeError("%s 格式错误（应 6 个逗号分隔数）: %r" % (env_name, e))
+
+
+FIELDS_WEIGHT_1 = _read_fields_weight("MAS_RL_FIELDS_W1", [1, 0, 1, 0.01, 1, 1])
+FIELDS_WEIGHT_2 = _read_fields_weight("MAS_RL_FIELDS_W2", [1, 0, 1, 1, 1, 1])
 
 WINLOSS_BASELINE_COSTS = (10.0, 5.0, "winloss_baseline")
 
@@ -338,7 +362,24 @@ def sum_vtrace_loss(target_logits_all, trajectories, baselines, rewards, selecte
     for i, field in enumerate(ACTION_FIELDS):
         target_log_prob, clipped_rhos, masks = get_logprob_and_rhos(target_logits_all, field, trajectories, mask_provided)
         with torch.no_grad():
-            weighted_advantage = RA.vtrace_advantages(clipped_rhos, rewards, discounts, values, baselines[-1])[1].reshape(-1)
+            # ---- 2026-11-16 设计裁定 #2：默认保持 TD(λ)，只读诊断 vs 差异 ----
+            # 现状：VTraceReturns.vs 算出后被丢弃（只取 [1] pg_advantages），
+            # value 由独立 td_lambda_loss(λ=0.8) 训练。历史只记录"loss = VTrace+UPGO+TD(λ)"，
+            # 没有依据判定这是刻意偏离 IMPALA 还是未完成重构，所以不改默认语义。
+            # 打开 MAS_RL_VS_DIAG=1 时打印 vs 与 TD target 的逐 field 差异统计量，
+            # 为将来裁定提供实测数据；不参与 loss，不改变任何梯度。
+            _vt = RA.vtrace_advantages(clipped_rhos, rewards, discounts, values, baselines[-1])
+            weighted_advantage = _vt[1].reshape(-1)
+            if _RL_VS_DIAG and i == 0:
+                # 只统计 VTraceReturns 自己返回的 vs，不再重算 TD target ——
+                # 后者形状需与 rewards[:-1] 对齐（values[1:] 7 vs 6），
+                # 2026-11-16 首轮冒烟已因这段对齐崩过一次，故只保留零副作用的只读统计。
+                with torch.no_grad():
+                    _vs = _vt[0].reshape(-1).float()
+                    if _vs.numel() > 0:
+                        print("[VS-DIAG] field=%s vs_mean=%.5f vs_std=%.5f vs_min=%.5f vs_max=%.5f"
+                              % (field, _vs.mean().item(), _vs.std().item(),
+                                 _vs.min().item(), _vs.max().item()), flush=True)
 
         loss_field = (-target_log_prob) * weighted_advantage * masks.reshape(-1)
         loss_field = loss_field.mean() * fields_weight[i]

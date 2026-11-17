@@ -3,6 +3,18 @@
 
 "Computing the pseudo-reward (based on distance between the agent and a human player)."
 
+# ---- 2026-11-16 设计裁定 #5：伪奖励四路保留，不删除 ----
+# 现状：`NO_REPLAY_LEARN=True`（rl_vs_inner_bot_mp.py:173）时 loss_function 在
+# reward_index != 0 处 break，只有 winloss 一路真正训练；effects/upgrades 两路
+# 在 :173/:182 权重显式置 0，奖励恒为 0。
+# 但历史依据（`.workbuddy/memory/2026-11-02.md`）明确：
+#   1) 这 4 个辅助 baseline 约占 368 个无梯度参数（95%），**不占优化器显存**
+#      （Adam 对 grad is None 惰性初始化 state）；
+#   2) 设 no_replay_learn=False 会激活它们，**删了会破坏已有 checkpoint**；
+#   3) 无 camera 约束、无 gen_z、无 value pretrain。
+# 结论：这是"默认关闭的功能"，不是废弃代码。保留原样；要启用需同时改
+# NO_REPLAY_LEARN 与 replay 采集链路，属于后续研究议题，不在本次技术债修复范围。
+
 # code for computing the pseudo-reward
 
 import time

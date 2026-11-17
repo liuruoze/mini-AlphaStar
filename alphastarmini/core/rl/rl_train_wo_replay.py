@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# ---- 2026-11-16 设计裁定 #4：历史入口，按当前签名不可运行 ----
+# get_supervised_agent 缺必填 device；Learner 缺 rank/v_steps/cuda_device/optimizer/global_model。
+# 活的训练入口是 `python run_rl.py` -> rl_vs_inner_bot_mp.test()。
+# 本文件保留作历史参考，不物理删除；勿直接运行。
+
+
 " Train for RL by interacting with the environment, without the replay as a plus reward"
 
 import os

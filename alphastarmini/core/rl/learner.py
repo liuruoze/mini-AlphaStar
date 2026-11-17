@@ -43,12 +43,21 @@ debug = False
 _PV_LOG = os.environ.get("MAS_PV_LOG") == "1"
 _PV_N = [0]
 
+# ---- 2026-11-16 技术债 D14：梯度裁剪开关（默认关闭，算法行为改变需 A/B）----
+_GRAD_CLIP = os.environ.get("MAS_RL_CLIP", "0") == "1"
+_GRAD_CLIP_NORM = float(os.environ.get("MAS_RL_CLIP_NORM", str(THP.clip)))
+
 # model path
 MODEL = "rl"
 MODEL_PATH = "./model/"
 if not os.path.exists(MODEL_PATH):
     os.mkdir(MODEL_PATH)
-SAVE_PATH = os.path.join(MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S", localtime()))
+# ---- 2026-11-16 RL 技术债 D13：存盘路径按进程区分、且可环境变量覆盖 ----
+# 原实现 SAVE_PATH 在 import 时由 strftime 固定一次（秒级），同一秒内启动的多个训练
+# 会写到同一个 .pth 互相覆盖；worker 之间虽只有 rank0 存盘，但多次 run 仍会撞名。
+# 现在允许 MAS_RL_SAVE_PATH 显式指定；未指定时追加 pid 保证唯一。
+SAVE_PATH = os.environ.get("MAS_RL_SAVE_PATH", "").strip() or os.path.join(
+    MODEL_PATH, MODEL + "_" + strftime("%y-%m-%d_%H-%M-%S", localtime()) + "_p%d" % os.getpid())
 
 
 class Learner:
@@ -306,12 +315,32 @@ class Learner:
                     loss_dict_items = loss_dict.items()
                     loss_item = loss.item()
 
+                    # ---- 2026-11-16 RL 技术债 D3：清零"算梯度的本地模型" ----
+                    # 原实现只有 optimizer.zero_grad()，而 optimizer 绑定的是 global_model
+                    # （构造见 rl_vs_inner_bot_mp.py:1575-1580），backward 却发生在 local 副本上。
+                    # load_state_dict 只改 data、不改 grad ⇒ local 的 .grad 跨 batch/epoch 累积，
+                    # 每个 batch 的梯度都掺着之前所有批次的残留。
+                    # 修法：backward 前显式清 local；optimizer.zero_grad() 保留（清 global 的旧 grad，
+                    # 让 ensure_shared_grads 的 "shared_param.grad is not None" 分支按预期工作）。
                     print(learner_name, "begin zero_grad") if debug else None
                     self.optimizer.zero_grad()
+                    agent.agent_nn.model.zero_grad(set_to_none=True)
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
                     print(learner_name, "begin backward") if debug else None
                     loss.backward()
+
+                    # ---- 2026-11-16 技术债 D14：可选全局范数梯度裁剪 ----
+                    # THP.clip=0.5 一直定义但从未被使用（全模块 grep clip_grad 0 命中）。
+                    # 15 个 Learner Hogwild 并发、无裁剪，单批出现大优势时 update_norm 可能跳步。
+                    # 裁剪对象必须是 local 模型：backward 的梯度在那里，ensure_shared_grads
+                    # 之后才搬到 global。默认关闭——这是算法行为改变，需 A/B 判定，
+                    # 用 MAS_RL_CLIP=1 打开，可用 MAS_RL_CLIP_NORM 覆盖阈值。
+                    if _GRAD_CLIP:
+                        torch.nn.utils.clip_grad_norm_(
+                            [q for q in agent.agent_nn.model.parameters() if q.grad is not None],
+                            max_norm=_GRAD_CLIP_NORM)
+
                     SA.show_grads(agent.agent_nn.model, self.global_model, debug)
 
                     print(learner_name, "begin shared_grads") if debug else None
@@ -413,7 +442,15 @@ class Learner:
                 del loss_item, loss_dict_items
 
                 agent.steps += AHP.batch_size * AHP.sequence_length
-                self.v_steps.value += AHP.batch_size * AHP.sequence_length
+                # ---- 2026-11-16 RL 技术债 D12：跨进程计数加原子保护 ----
+                # mp.Value('d').value += x 是 read-modify-write，15 个 Learner 并发会丢计数
+                # （Parameter_Server 收尾已自认"可能少计，只做量级校验"）。
+                # 用 Value 自带的锁包住 +=，不改变计数语义、不影响热路径以外的地方。
+                if getattr(self.v_steps, "get_lock", None) is not None:
+                    with self.v_steps.get_lock():
+                        self.v_steps.value += AHP.batch_size * AHP.sequence_length
+                else:
+                    self.v_steps.value += AHP.batch_size * AHP.sequence_length
 
         # agent.agent_nn.model.eval()
         print(learner_name, "end rl update") if debug else None

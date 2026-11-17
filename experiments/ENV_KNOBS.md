@@ -1,6 +1,6 @@
 # 环境变量开关索引（由 experiments/env_index.py 自动生成）
 
-修改代码后重跑 `python3 experiments/env_index.py --md <此文件>` 即可更新。
+> 修改代码后重跑 `python3 experiments/env_index.py --md <此文件>` 即可更新。
 
 ## 常用开关（人工维护）
 
@@ -33,7 +33,7 @@
 | `CUDA_VISIBLE_DEVICES` | CUDA_ | 24 | 24 | 0/1/3 |
 | `DISPLAY` | DISPLAY | 2 | 2 | :1024 |
 | `MAS_ACTOR_NUMS` | MAS_ | 1 | 1 | ACTOR_NUMS |
-| `MAS_ACTOR_TRACE` | MAS_ | 1 | 1 | - |
+| `MAS_ACTOR_TRACE` | MAS_ | 2 | 2 | $OUT/trace.txt |
 | `MAS_ACT_STATS` | MAS_ | 1 | 3 | - |
 | `MAS_ALLOW_EXPAND` | MAS_ | 2 | 2 | 0 |
 | `MAS_ALLOW_MORE` | MAS_ | 1 | 1 | 0 |
@@ -62,7 +62,7 @@
 | `MAS_EVAL_LOGIT_NOISE` | MAS_ | 1 | 1 | 0.0 |
 | `MAS_EVAL_NOISE_SEED` | MAS_ | 1 | 1 | 20261107 |
 | `MAS_EVAL_TEMP` | MAS_ | 1 | 1 | 1.0 |
-| `MAS_FAULT_FILE` | MAS_ | 1 | 1 | - |
+| `MAS_FAULT_FILE` | MAS_ | 2 | 2 | $OUT/fault.txt |
 | `MAS_FILTER_REJECTED` | MAS_ | 1 | 1 | 0 |
 | `MAS_FINISH` | MAS_ | 1 | 2 | - |
 | `MAS_FINISH_ARMY` | MAS_ | 1 | 2 | 8 |
@@ -72,10 +72,10 @@
 | `MAS_GPU_LIST` | MAS_ | 2 | 3 | - |
 | `MAS_GRAD_AUDIT` | MAS_ | 1 | 1 | 0 |
 | `MAS_GREEDY` | MAS_ | 1 | 1 | 0 |
-| `MAS_HB_FILE` | MAS_ | 1 | 1 | - |
-| `MAS_HEARTBEAT_SEC` | MAS_ | 2 | 2 | 0/60 |
+| `MAS_HB_FILE` | MAS_ | 2 | 2 | $OUT/heartbeat.txt |
+| `MAS_HEARTBEAT_SEC` | MAS_ | 3 | 3 | 0/60 |
 | `MAS_JOIN_DELAY` | MAS_ | 2 | 2 | 0.5 |
-| `MAS_KL_MODE` | MAS_ | 4 | 4 | legacy |
+| `MAS_KL_MODE` | MAS_ | 4 | 4 | legacy/renorm |
 | `MAS_LABEL_RULE` | MAS_ | 1 | 1 | fallback |
 | `MAS_LEARNER_NOOP` | MAS_ | 1 | 1 | 0 |
 | `MAS_LOC_STATS` | MAS_ | 1 | 2 | - |
@@ -101,8 +101,13 @@
 | `MAS_REPLAY_OBSERVER` | MAS_ | 4 | 4 | 0 |
 | `MAS_REPLAY_PATH` | MAS_ | 2 | 4 | - |
 | `MAS_RETURN_LOGITS` | MAS_ | 1 | 1 | 0 |
+| `MAS_RL_CLIP` | MAS_ | 1 | 1 | 0 |
+| `MAS_RL_CLIP_NORM` | MAS_ | 1 | 1 | str(THP.clip |
 | `MAS_RL_DEBUG` | MAS_ | 1 | 1 | 0 |
-| `MAS_RL_INIT_MODEL` | MAS_ | 3 | 3 | (unset/model/BEST_SL_v82_soup_prior3.pth |
+| `MAS_RL_INIT_MODEL` | MAS_ | 4 | 4 | (unset/model/BEST_SL_v82_soup_prior3.pth |
+| `MAS_RL_SAVE_PATH` | MAS_ | 1 | 1 | - |
+| `MAS_RL_USE_BUFFER` | MAS_ | 1 | 1 | 0 |
+| `MAS_RL_VS_DIAG` | MAS_ | 1 | 1 | 0 |
 | `MAS_SAVE_EVERY_BLOCK` | MAS_ | 1 | 1 | 0 |
 | `MAS_SCALAR_NORM_PATH` | MAS_ | 4 | 4 | - |
 | `MAS_SEL_DUMP` | MAS_ | 1 | 1 | - |
@@ -115,7 +120,7 @@
 | `MAS_SNAPSHOT_INTERVAL` | MAS_ | 1 | 1 | 8.0 |
 | `MAS_SS_P` | MAS_ | 1 | 1 | 0 |
 | `MAS_START_METHOD` | MAS_ | 1 | 1 | spawn |
-| `MAS_STATIC_NUM` | MAS_ | 1 | 1 | 100 |
+| `MAS_STATIC_NUM` | MAS_ | 2 | 2 | 100/4 |
 | `MAS_TAG_CHECK` | MAS_ | 1 | 1 | - |
 | `MAS_TAG_DETAIL` | MAS_ | 1 | 1 | 0 |
 | `MAS_TAG_MAP` | MAS_ | 1 | 1 | - |
@@ -232,7 +237,7 @@
 | `OFF_MODEL_DIR` | OFF_ | 1 | 1 | ./model_off/ |
 | `OFF_MODEL_PATH` | OFF_ | 5 | 5 | ./model_a//./model_p3//./model_sltrain/ |
 | `OFF_NO_CUSTOM_OVERRIDE` | OFF_ | 1 | 1 | 0 |
-| `OFF_OUT` | OFF_ | 3 | 3 | ./outputs/eval_rl_off.txt/./outputs/eval_sl.txt |
+| `OFF_OUT` | OFF_ | 5 | 5 | ./outputs/eval_rl_off.txt/./outputs/eval_sl.txt |
 | `OFF_PROBE_AT` | OFF_ | 3 | 6 | - |
 | `OFF_PROBE_GREEDY` | OFF_ | 3 | 5 | 0 |
 | `OFF_PROBE_TAG` | OFF_ | 3 | 3 | probe |

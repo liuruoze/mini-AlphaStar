@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# ---- 2026-11-16 设计裁定 #4：历史 actor 变体，非活路径 ----
+# 只在旧 rl_train_with_replay.py 里使用；该入口按当前签名不可运行。
+# 活路径是 rl_vs_inner_bot_mp.py 的 ActorVSComputer。保留作 replay-z 设计参考，不物理删除。
+
+
 " The code for the actor using Z (the reward for imititing the expert in replays) in the actor-learner mode in the IMPALA architecture "
 
 # modified from AlphaStar pseudo-code

@@ -59,6 +59,17 @@ debug = False
 speed = False
 
 
+# ---- 2026-11-16 RL 技术债 D8：正常收尾不再伪装成 Traceback ----
+# 原实现用裸 `raise Exception` 跳出三层循环（max_episodes / max_frames / learner stops），
+# 外层 except 一律 print(traceback.format_exc())，于是每次正常打满一局评测都会
+# 在日志里留下 Traceback，而 finally 又照常写 Avg 行 —— 排障时无法区分
+# "正常收尾"和"真出错"。这里用专用信号类区分两者：finally 的汇总接口不变，
+# 编排器抓的 results/win_rate 行不受影响。
+class EvalEarlyStop(Exception):
+    """评测达到预设上限时的正常退出信号，不是故障。"""
+    pass
+
+
 SIMPLE_TEST = not P.on_server
 if SIMPLE_TEST:
     # ---- 第 76 轮（GLM，#21）：评测参数全部环境变量化 ----
@@ -1060,13 +1071,13 @@ class ActorEval:
                                         print("Learner stops!")
 
                                         print("Actor also stops!")
-                                        raise Exception
+                                        raise EvalEarlyStop
 
                             # use max_frames to end the loop
                             # whether to stop the run
                             if self.max_frames and total_frames >= self.max_frames:
                                 print("Beyond the max_frames, return!")
-                                raise Exception
+                                raise EvalEarlyStop
 
                             # use max_frames_per_episode to end the episode
                             if self.max_frames_per_episode and episode_frames >= self.max_frames_per_episode:
@@ -1078,14 +1089,19 @@ class ActorEval:
                         # use max_frames_per_episode to end the episode
                         if self.max_episodes and total_episodes >= self.max_episodes:
                             print("Beyond the max_episodes, return!")
-                            raise Exception
+                            raise EvalEarlyStop
 
                         # #66：每局独立种子 ⇒ 一局一个 env。放在 max_episodes 检查之后，
                         # 否则会多打一局（先 break 就跳过了上面的收尾判断）。
                         if SEED_PER_EPISODE:
                             break
 
+        except EvalEarlyStop as e:
+            # 正常收尾（打满 max_episodes / max_frames / learner stopped）：
+            # 不打 Traceback，只在日志里明确写"正常结束"。
+            print("[eval] 正常收尾: %s（非故障）" % (e.__class__.__name__), flush=True)
         except Exception as e:
+            # 真异常才打栈，避免再出现"日志有 Traceback 但结果是好的"的误判。
             print("ActorLoop.run() Exception cause return, Detials of the Exception:", e)
             print(traceback.format_exc())
 

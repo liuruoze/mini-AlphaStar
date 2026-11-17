@@ -149,11 +149,19 @@ def ensure_shared_grads(model, shared_model, debug):
     '''
     https://github.com/ikostrikov/pytorch-a3c/blob/master/train.py
     '''
+    # ---- 2026-11-16 RL 技术债 D4：提前 return 改为逐参数 continue ----
+    # 原实现（A3C 经典写法）：一旦发现某个 global 参数已有 .grad 就 `return` 整个函数，
+    # 导致该参数之后的**所有**参数都不搬运。配合 num_epochs=2 / count_of_batches=1 的
+    # 双循环，第二轮 optimizer.zero_grad() 时机与残留 grad 会让这个分支反复触发，
+    # 结果是"模型后半部分参数长期拿不到梯度"。
+    # 修法：只跳过"已有梯度"的那一个参数，继续处理其余参数。
+    # 注意 `_grad` 与 `grad` 在 torch 1.7 是同一对象（2026-11-16 生产环境实测
+    # `p._grad is p.grad == True`），所以这里写入 `_grad` 优化器能正常读到。
     for param, shared_param in zip(model.named_parameters(),
                                    shared_model.named_parameters()):
         if shared_param[1].grad is not None:
-            print('shared_param is not None', shared_param[0]) if debug else None
-            return
+            print('shared_param already has grad, skip', shared_param[0]) if debug else None
+            continue
         if param[1].grad is not None:
             shared_param[1]._grad = param[1].grad.to(shared_param[1].device)
         else:

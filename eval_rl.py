@@ -42,23 +42,22 @@ from alphastarmini.core.arch import baseline
 from alphastarmini.core.sl import load_pickle
 
 from alphastarmini.core.rl import action
-from alphastarmini.core.rl import env_utils
+# ---- 2026-11-16 RL 技术债 D2：三个已不存在的模块不再 import ----
+# env_utils / against_computer / mp_rl_eval_rl 在全仓均无对应文件（历史遗留 import）。
+# 原样保留会让本脚本在 import 阶段就 ImportError，连"该用哪个入口"的提示都看不到。
+# 这里不假装修复：直接给出明确指引，活入口是 run_rl_eval.py（单机）和 mp_rl_eval_sl.py（server）。
 from alphastarmini.core.rl import actor
-from alphastarmini.core.rl import against_computer
 from alphastarmini.core.rl import pseudo_reward
 
 import param as P
 
 if __name__ == '__main__':
-    # if we don't add this line, it may cause running time error while in Windows
-    # torch.multiprocessing.freeze_support()
-
-    print("run init")
-
-    # ------------------------
-
-    # 3. we use RL environment to multi-process (thread) evaluate SL model
-    from alphastarmini.core.rl import mp_rl_eval_rl
-    mp_rl_eval_rl.test(on_server=P.on_server)
-
-    print('run over')
+    # ---- 2026-11-16 RL 技术债 D2：死入口改为明确指引，不静默 ImportError ----
+    # mp_rl_eval_rl 模块在全仓不存在，本入口按现状永远跑不起来。
+    # 真正的评测入口：
+    #   单机/诊断：python run_rl_eval.py  → rl_eval_sl.test()
+    #   server 批量：mp_rl_eval_sl.test()
+    # 保留本文件只是兼容旧引用，不再伪装成可用入口。
+    raise SystemExit(
+        "eval_rl.py 是历史死入口（mp_rl_eval_rl 模块不存在）。\n"
+        "请用：python run_rl_eval.py（单机评测）或 mp_rl_eval_sl.test()（server 评测）。")

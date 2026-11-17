@@ -138,7 +138,12 @@ USE_RESULT_REWARD = True
 REWARD_SCALE = 1e-3
 WINRATE_SCALE = 2
 
-USE_BUFFER = False
+# ---- 2026-11-16 技术债 D15：buffer 策略环境变量化（默认 False，行为零变化）----
+# 原为硬编码常量，无法在不改代码的情况下做 USE_BUFFER=True/False 的 A/B。
+# 默认仍走 False 分支（buffer=2 / epochs=2 / 无随机采样），与历史完全一致；
+# 设 MAS_RL_USE_BUFFER=1 可切到已写好的 True 分支（buffer=10 / epochs=1 / 随机采样），
+# 用于检验"样本相关性是否限制 RL"这一假设，不宣称任何性能结论。
+USE_BUFFER = os.environ.get("MAS_RL_USE_BUFFER", "0") == "1"
 if USE_BUFFER:
     BUFFER_SIZE = 10 
     COUNT_OF_BATCHES = 1

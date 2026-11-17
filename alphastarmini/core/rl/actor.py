@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# ---- 2026-11-16 设计裁定 #4：历史 actor 变体，非活路径 ----
+# 活路径是 rl_vs_inner_bot_mp.py 的 ActorVSComputer + actor_inference.ActorInferenceClient。
+# 本文件的 teacher_logits 直接取 player_logits（见 :157），KL 无意义；仅保留作历史参考。
+
+
 " The code for the actor (loop) in the actor-learner mode in the IMPALA architecture "
 
 # modified from AlphaStar pseudo-code

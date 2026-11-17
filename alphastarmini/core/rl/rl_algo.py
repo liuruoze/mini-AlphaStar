@@ -386,7 +386,17 @@ def entropy(all_logits, selected_mask=None, entity_mask=None, unit_type_entity_m
 #       所以既可能 < 0，概率质量之和也 < 1。历史上出现负数正是这个原因。
 #   renorm —— 严格在共同支撑集上**重归一化后**再算 KL，数学上保证 ≥ 0。
 #       空支撑集定义为 0（不参与 loss）。
-KL_MODE = os.environ.get("MAS_KL_MODE", "legacy").strip().lower()
+# ---- 2026-11-16 设计裁定 #1：默认 legacy → renorm ----
+# 依据（`.workbuddy/memory/2026-11-03.md` §65–68，实测非推断）：
+#   1) legacy 当初默认只是"无消融证据前的保守选择"，原文即如此记录；
+#   2) 同一批真实轨迹、同一权重：action_type legacy 0.4999 vs renorm 0.0212，
+#      大 23.6 倍；设计意图是 0.0021 —— action_type 一直承受约 24 倍蒸馏压力；
+#   3) renorm 三次 30 min 长跑零负 KL；legacy 一次 30 min 就有 2 个负值 head
+#      （units −1.04e-3、target_unit −7.9e-4）；
+#   4) 开销 T_serve 82.69 vs 82.15 ms，仅 +0.7%。
+# 结论：legacy 无设计依据、有实测危害。默认切 renorm，
+# 需要复现旧结果时显式设 MAS_KL_MODE=legacy（开关保留，不删代码）。
+KL_MODE = os.environ.get("MAS_KL_MODE", "renorm").strip().lower()
 
 
 def _merge_keep(x, masks):

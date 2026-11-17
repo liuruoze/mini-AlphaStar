@@ -61,7 +61,19 @@ def get_supervised_agent(race, device, path="./model/", model_type="sl", restore
         # sl_model = load_latest_model(model_type=model_type, path=path)
         # if sl_model is not None:
         #     as_agent.agent_nn.model = sl_model
-        initial_model_state_dict(model_type=model_type, path=path, model=as_agent.agent_nn.model, device=device)
+        # ---- 2026-11-16 RL 技术债 D10：权重加载失败必须显式报错 ----
+        # 原实现不检查 initial_model_state_dict 的返回值：目录里没有匹配权重时
+        # 它只 print("No models are found!") 就 return None，这里继续返回随机初始化的
+        # agent —— 训练/评测照常跑、曲线照常出，但结果毫无意义。
+        # 显式指定 MAS_RL_INIT_MODEL / EVAL_MODEL 且路径写错时，torch.load 会自己抛
+        # FileNotFoundError（这条路径本来就安全）；这里补的是"未指定且目录为空"的静默分支。
+        _loaded = initial_model_state_dict(model_type=model_type, path=path,
+                                           model=as_agent.agent_nn.model, device=device)
+        if _loaded is None:
+            raise RuntimeError(
+                "get_supervised_agent: restore=True 但没有加载到任何权重 "
+                "(model_type=%s, path=%s)。请设 MAS_RL_INIT_MODEL / EVAL_MODEL 显式指定 .pth，"
+                "或确认目录内有匹配文件；拒绝用随机初始化继续。" % (model_type, path))
 
     return as_agent
 
