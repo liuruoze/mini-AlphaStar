@@ -98,7 +98,9 @@ STATIC_NUM = int(os.environ.get("MAS_STATIC_NUM", "100"))
 TRAIN_ITERS = MAX_EPISODES * ACTOR_NUMS * PARALLEL
 
 USE_UPDATE_LOCK = False
-DIFFICULTY = 1
+# 2026-11-17：难度原先写死 1。D1 对 SL 初始化太容易（胜率 0.8–1.0 饱和），
+# 无法作为 A/B 判据。做成开关，默认仍为 1（历史可比）。
+DIFFICULTY = int(os.environ.get("MAS_RL_DIFFICULTY", "1"))
 ONLY_UPDATE_BASELINE = False
 SAVE_LATEST = False
 # 第 97 轮（DS，Kimi 启动前提醒 1.2）：按"统计块"存 ckpt。
