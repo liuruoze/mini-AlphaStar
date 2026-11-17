@@ -105,6 +105,8 @@
 | `MAS_RL_CLIP_NORM` | MAS_ | 1 | 1 | str(THP.clip |
 | `MAS_RL_DEBUG` | MAS_ | 1 | 1 | 0 |
 | `MAS_RL_INIT_MODEL` | MAS_ | 4 | 4 | (unset/model/BEST_SL_v82_soup_prior3.pth |
+| `MAS_RL_LR` | MAS_ | 1 | 1 | 1e-6 |
+| `MAS_RL_MIN_TRAJ` | MAS_ | 1 | 1 | - |
 | `MAS_RL_SAVE_PATH` | MAS_ | 1 | 1 | - |
 | `MAS_RL_USE_BUFFER` | MAS_ | 1 | 1 | 0 |
 | `MAS_RL_VS_DIAG` | MAS_ | 1 | 1 | 0 |
