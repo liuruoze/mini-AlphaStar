@@ -70,6 +70,14 @@
 
 ⚠️ 选模不要用训练内 `win_rate`：它与固定种子评测不是一回事（实测同一个 run 内 34% vs 评测 10%）。
 
+## 三之三、快速回归
+
+| 脚本 | 判据 |
+|---|---|
+| `smoke_rl.sh` | 4 分钟内至少 1 次 optimizer step、无非收尾 Traceback、无 OOM；返回码即结论 |
+
+改了 RL 任何路径（loss、learner、采样、env）之后先跑它，比肉眼看日志可靠。
+
 ## 四、长跑编排（`_soak_*`、`_run_regression.sh`）
 
 | 脚本 | 用途 |

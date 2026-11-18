@@ -1535,6 +1535,14 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
                  "yes" if _pending_outcome is not None else "no"), flush=True)
         print("--------------------")
 
+    # 2026-11-19：显式关闭 SummaryWriter。
+    # 不关的话，退出时它的后台线程还阻塞在队列 get 上，会打一条 threading 的 Traceback，
+    # 在日志里看起来像真故障（今天两次排查都被它误导）。关闭后退出干净。
+    try:
+        writer.close()
+    except Exception:
+        pass
+
 
 def test(on_server=False, replay_path=None):
     if SIMPLE_TEST:
