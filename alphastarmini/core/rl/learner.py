@@ -42,6 +42,13 @@ debug = False
 # 默认关（每次 step 一行会淹没日志），验证时用 MAS_PV_LOG=1 打开。
 _PV_LOG = os.environ.get("MAS_PV_LOG") == "1"
 _PV_N = [0]
+# 2026-11-19：NaN 梯度守卫与 KL 周期日志
+#   NaN_GUARD 默认开：一旦梯度含 NaN/Inf，Adam 会把整个模型写成 NaN，之后所有更新都无意义。
+#   守卫的做法是**跳过这一步**（清零梯度）并计数，而不是静默继续。
+#   KL_LOG 每 N 次更新打一行「当前 KL + 历史极值」，用于观察策略相对 SL teacher 的漂移。
+_NAN_GUARD = os.environ.get("MAS_RL_NAN_GUARD", "1") == "1"
+_KL_LOG = os.environ.get("MAS_RL_KL_LOG") == "1"
+_KL_EVERY = int(os.environ.get("MAS_RL_KL_EVERY", "20"))
 
 # ---- 2026-11-16 技术债 D14：梯度裁剪开关（默认关闭，算法行为改变需 A/B）----
 _GRAD_CLIP = os.environ.get("MAS_RL_CLIP", "0") == "1"
@@ -99,6 +106,8 @@ class Learner:
         self.update_norm_last = None
         self.update_norm_max = 0.0
         self.nan_grad_steps = 0
+        self.nan_guard_skips = 0
+        self.kl_last = {}
         self.traj_recv = {"normal": 0, "final": 0, "win": 0}
 
         # ---- 第 65 轮（Kimi-05 P0）：原子权重发布 + policy_version ----
@@ -292,6 +301,13 @@ class Learner:
 
         for ep_id in range(self.num_epochs):
 
+            # 2026-11-19：轨迹不足一个完整 batch 时直接跳过本次更新。
+            # 原实现会切出半批张量，在 rl_loss 里 reshape 失败（见上面 MIN_TRAJ 的注释）。
+            _need = self.count_of_batches * batch_size
+            if len(trajectories) < _need:
+                print("[learner] skip update: %d trajectories < %d needed"
+                      % (len(trajectories), _need), flush=True)
+                return
             for batch_id in range(self.count_of_batches):
                 update_trajectories = trajectories[batch_id * batch_size: (batch_id + 1) * batch_size]
                 print(learner_name, 'len(update_trajectories)', len(update_trajectories)) if debug else None
@@ -360,7 +376,9 @@ class Learner:
                         _g = _q.grad.detach()
                         _gn += float(_g.norm(2) ** 2)
                     _gn = _gn ** 0.5
-                    if _gn != _gn or _gn in (float("inf"), float("-inf")):
+                    from alphastarmini.lib.utils import is_bad_norm as _is_bad_norm
+                    _gn_bad = _is_bad_norm(_gn)
+                    if _gn_bad:
                         self.nan_grad_steps += 1
                     self.grad_norm_last = _gn
                     if _gn > self.grad_norm_max:
@@ -369,10 +387,21 @@ class Learner:
                     _before = [q.detach().clone() for q in _gps]
 
                     # 第 65 轮：step 与"别人拷快照"互斥，见 __init__ 里 pub_lock 的说明。
+                    if _gn_bad and _NAN_GUARD:
+                        # 跳过这一步：清零梯度，其余流程照走（快照/计数不变），但不污染模型。
+                        for _q in _ps:
+                            _q.grad.zero_()
+                        self.nan_guard_skips += 1
+                        print("[NaN] skip optimizer step (bad grad_norm=%r, skips=%d)"
+                              % (_gn, self.nan_guard_skips), flush=True)
+
                     if self.pub_lock is not None:
                         self.pub_lock.acquire()
                     try:
-                        self.optimizer.step()
+                        if _gn_bad and _NAN_GUARD:
+                            pass
+                        else:
+                            self.optimizer.step()
                         if self.policy_version is not None:
                             self.policy_version.value += 1
                             if _PV_LOG:
@@ -416,8 +445,18 @@ class Learner:
                                 self.kl_min[_f_name] = _f
                             if _f_name not in self.kl_max or _f > self.kl_max[_f_name]:
                                 self.kl_max[_f_name] = _f
+                            self.kl_last[_f_name] = _f
+                            if _f_name == "action_type":
+                                self.kl_last_action_type = _f
                     except Exception:
                         pass
+                    if _KL_LOG and self.update_count % _KL_EVERY == 0 and self.kl_last:
+                        print("[KL] step=%d %s" % (
+                            self.update_count,
+                            " ".join("%s=%.4f[%.4f,%.4f]" % (
+                                _n, self.kl_last[_n], self.kl_min.get(_n, float("nan")),
+                                self.kl_max.get(_n, float("nan")))
+                                for _n in sorted(self.kl_last))), flush=True)
                     SA.show_datas(agent.agent_nn.model, self.global_model, debug)
 
                     # print(learner_name, "begin load_state_dict") if debug else None
@@ -499,8 +538,13 @@ class Learner:
                         # 开 USE_BUFFER 会同时把门槛从 16 条改成 80 条，采样与节奏两个变量一起变，
                         # 无法归因。MAS_RL_MIN_TRAJ 允许单独固定节奏（默认仍按原公式）。
                         _min_traj_env = os.environ.get("MAS_RL_MIN_TRAJ", "")
-                        _min_traj = (int(_min_traj_env) if _min_traj_env
-                                     else self.buffer_size * self.count_of_batches * AHP.batch_size)
+                        # ⚠️ 下限至少是「一次更新要吃的轨迹数」= count_of_batches × batch_size。
+                        #    第一版允许把它设到 4，结果只凑到半个 batch 就去 reshape，
+                        #    直接 `shape '[8, 8, 564]' is invalid for input of size 18048` 崩掉。
+                        _min_traj = max(
+                            int(_min_traj_env) if _min_traj_env
+                            else self.buffer_size * self.count_of_batches * AHP.batch_size,
+                            self.count_of_batches * AHP.batch_size)
                         if len(self.trajectories) >= _min_traj:
                             print("learner begin to update parameters") if debug else None
                             self.update_parameters()

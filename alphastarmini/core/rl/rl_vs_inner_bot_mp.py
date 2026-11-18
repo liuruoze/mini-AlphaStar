@@ -1277,12 +1277,13 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
                 #    `0.0 or -1` 会变成 -1，看起来像"没测"。第一版就栽在这里。
                 _gn_last = getattr(_l, "grad_norm_last", None)
                 _un_last = getattr(_l, "update_norm_last", None)
-                print("[Worker %d] learner[%d] grad_norm last=%s max=%.4g nan=%d | "
+                print("[Worker %d] learner[%d] grad_norm last=%s max=%.4g nan=%d skip=%d | "
                       "update_norm last=%s max=%s | traj recv=%s"
                       % (rank, _i,
                          "n/a" if _gn_last is None else "%.4g" % _gn_last,
                          getattr(_l, "grad_norm_max", -1),
                          getattr(_l, "nan_grad_steps", -1),
+                         getattr(_l, "nan_guard_skips", -1),
                          "n/a" if _un_last is None else "%.4g" % _un_last,
                          getattr(_l, "update_norm_max", None),
                          getattr(_l, "traj_recv", {})), flush=True)

@@ -96,18 +96,24 @@
 | `MAS_PICK_TIMEOUT` | MAS_ | 1 | 1 | 1800 |
 | `MAS_POLL_S` | MAS_ | 1 | 1 | 0.0005 |
 | `MAS_PRUNE_CAP` | MAS_ | 1 | 1 | 128 |
-| `MAS_PV_LOG` | MAS_ | 1 | 1 | - |
+| `MAS_PV_LOG` | MAS_ | 2 | 2 | - |
 | `MAS_QUEUE_TIMEOUT` | MAS_ | 1 | 1 | 60 * 60 |
 | `MAS_REPLAY_OBSERVER` | MAS_ | 4 | 4 | 0 |
 | `MAS_REPLAY_PATH` | MAS_ | 2 | 4 | - |
 | `MAS_RETURN_LOGITS` | MAS_ | 1 | 1 | 0 |
-| `MAS_RL_CLIP` | MAS_ | 1 | 1 | 0 |
-| `MAS_RL_CLIP_NORM` | MAS_ | 1 | 1 | str(THP.clip |
+| `MAS_RL_BUFFER_SIZE` | MAS_ | 1 | 1 | 10 |
+| `MAS_RL_CLIP` | MAS_ | 2 | 2 | 0 |
+| `MAS_RL_CLIP_NORM` | MAS_ | 2 | 2 | str(THP.clip |
 | `MAS_RL_DEBUG` | MAS_ | 1 | 1 | 0 |
-| `MAS_RL_INIT_MODEL` | MAS_ | 4 | 4 | (unset/model/BEST_SL_v82_soup_prior3.pth |
+| `MAS_RL_DIFFICULTY` | MAS_ | 1 | 1 | 1 |
+| `MAS_RL_INIT_MODEL` | MAS_ | 5 | 5 | (unset/model/BEST_SL_v82_soup_prior3.pth |
+| `MAS_RL_KL_EVERY` | MAS_ | 2 | 2 | 20 |
+| `MAS_RL_KL_LOG` | MAS_ | 2 | 2 | - |
 | `MAS_RL_LR` | MAS_ | 1 | 1 | 1e-6 |
-| `MAS_RL_MIN_TRAJ` | MAS_ | 1 | 1 | - |
-| `MAS_RL_SAVE_PATH` | MAS_ | 1 | 1 | - |
+| `MAS_RL_MIN_TRAJ` | MAS_ | 2 | 2 | - |
+| `MAS_RL_NAN_GUARD` | MAS_ | 2 | 2 | 1 |
+| `MAS_RL_SAVE_PATH` | MAS_ | 2 | 2 | - |
+| `MAS_RL_SEED` | MAS_ | 1 | 1 | 1 |
 | `MAS_RL_USE_BUFFER` | MAS_ | 1 | 1 | 0 |
 | `MAS_RL_VS_DIAG` | MAS_ | 1 | 1 | 0 |
 | `MAS_SAVE_EVERY_BLOCK` | MAS_ | 1 | 1 | 0 |
@@ -155,11 +161,11 @@
 | `MAS_EXPERT_TAG_DIR` | MAS_EXPERT_ | 1 | 1 | - |
 | `MAS_SL_ACTCONF` | MAS_SL_ | 1 | 1 | - |
 | `MAS_SL_ACTION_PRIOR` | MAS_SL_ | 1 | 1 | 0 |
-| `MAS_SL_ALLOW_BAD_FILES` | MAS_SL_ | 2 | 2 | 0 |
+| `MAS_SL_ALLOW_BAD_FILES` | MAS_SL_ | 3 | 3 | 0 |
 | `MAS_SL_ATTACK_UNITS_W` | MAS_SL_ | 1 | 1 | 1.0 |
 | `MAS_SL_ATTACK_WEIGHT` | MAS_SL_ | 1 | 1 | 1.0 |
 | `MAS_SL_BALANCE` | MAS_SL_ | 2 | 2 | 0 |
-| `MAS_SL_BALANCE_MAXW` | MAS_SL_ | 2 | 2 | 30 |
+| `MAS_SL_BALANCE_MAXW` | MAS_SL_ | 3 | 3 | 30 |
 | `MAS_SL_BALANCE_MIX` | MAS_SL_ | 1 | 1 | - |
 | `MAS_SL_BATCH` | MAS_SL_ | 2 | 2 | str(3 * AHP.batch_size |
 | `MAS_SL_BN_FREEZE` | MAS_SL_ | 2 | 2 | - |
@@ -272,7 +278,7 @@
 | `EVAL_DIFFICULTY` | 其它 | 1 | 1 | 1 |
 | `EVAL_EPISODES` | 其它 | 1 | 1 | 1 |
 | `EVAL_MAX_LOOPS` | 其它 | 1 | 1 | 21000 |
-| `EVAL_MODEL` | 其它 | 1 | 1 | - |
+| `EVAL_MODEL` | 其它 | 2 | 2 | - |
 | `EVAL_OUT` | 其它 | 1 | 1 | ./outputs/eval_sl.txt |
 | `EVAL_SEED` | 其它 | 1 | 1 | 1 |
 | `EVAL_SEED_PER_EP` | 其它 | 1 | 1 | 1 |

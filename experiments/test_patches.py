@@ -197,6 +197,17 @@ def test_eval_table():
     check("eval_table.官方判负", m.official_win(d3) is False)
 
 
+def test_bad_norm():
+    """is_bad_norm：NaN/±Inf 为坏，有限值为好（2026-11-19 新增）。"""
+    from alphastarmini.lib.utils import is_bad_norm as f
+    check("is_bad_norm(nan)", f(float("nan")) is True)
+    check("is_bad_norm(inf)", f(float("inf")) is True)
+    check("is_bad_norm(-inf)", f(float("-inf")) is True)
+    check("is_bad_norm(0.0)", f(0.0) is False)
+    check("is_bad_norm(1e-3)", f(1e-3) is False)
+    check("is_bad_norm(None)", f(None) is True)
+
+
 def main():
     print("=== 新增代码路径离线单测 ===")
     print("SEQ_LEN=%d" % T.SEQ_LEN)
@@ -206,6 +217,7 @@ def main():
     test_to_fp16()
     test_bad_file()
     test_eval_table()
+    test_bad_norm()
     print("\n=== 结果：%d 项失败 ===" % len(FAIL))
     if FAIL:
         print("失败项: %s" % ", ".join(FAIL))

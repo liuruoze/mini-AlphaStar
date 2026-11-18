@@ -313,6 +313,19 @@ def load_the_model(model_path):
     return model
 
 
+def is_bad_norm(x):
+    """True 表示 grad_norm 非有限（NaN 或 ±Inf）。
+
+    2026-11-19：从 learner 里抽出来，便于离线单测。
+    NaN 的判定必须用 `x != x`（不能写 `x == float("nan")`）。
+    """
+    try:
+        _x = float(x)
+    except Exception:
+        return True  # None / 非数值：当作坏值，宁可跳过这一步
+    return (_x != _x) or _x in (float("inf"), float("-inf"))
+
+
 def initial_model_state_dict(model_type, path, model, device):
     # ---- 第 76 轮（GLM，#21）：允许显式指定 checkpoint（E0 胜率评测需要）----
     # 原来只能取"字典序最大"的一个（models.sort() 后取 [-1]），
@@ -330,6 +343,25 @@ def initial_model_state_dict(model_type, path, model, device):
                  or os.environ.get("EVAL_MODEL", "").strip())
     if _explicit:
         _sd = torch.load(_explicit, map_location=device)
+        # 2026-11-19：加载前先查非有限值。
+        # 起因：用一份全 NaN 的权重做守卫测试，训练不会在加载时报错，而是 4 个 actor 先后
+        # 在 forward 里崩掉，报的是 IndexError/CUDA 错误，看不出根因。
+        # 这里提前拒绝，错误信息直指文件与张量名。
+        _bad = []
+        for _k, _v in _sd.items():
+            if not hasattr(_v, "is_floating_point") or not _v.is_floating_point():
+                continue
+            try:
+                if not bool(torch.isfinite(_v).all()):
+                    _bad.append(_k)
+                    if len(_bad) >= 3:
+                        break
+            except Exception:
+                continue
+        if _bad:
+            raise RuntimeError(
+                "[init] 权重含 NaN/Inf（%s），拒绝加载：%s%s"
+                % (_explicit, ", ".join(_bad), " ..." if len(_bad) >= 3 else ""))
         _incompat = model.load_state_dict(_sd, strict=False)
         # 打印"加载证据"：文件名 + 参数数 + 权重的 L2 范数。
         # 范数能把"真的加载了"和"随机初始化"区分开（随机初始化的范数量级不同）。
