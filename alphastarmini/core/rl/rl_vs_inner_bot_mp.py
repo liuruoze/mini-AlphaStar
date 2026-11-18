@@ -149,7 +149,9 @@ WINRATE_SCALE = 2
 # 用于检验"样本相关性是否限制 RL"这一假设，不宣称任何性能结论。
 USE_BUFFER = os.environ.get("MAS_RL_USE_BUFFER", "0") == "1"
 if USE_BUFFER:
-    BUFFER_SIZE = 10 
+    # 2026-11-18：开 buffer 后原本固定 10；做成开关，便于单独扫 buffer 大小，
+    # 配合 MAS_RL_MIN_TRAJ 固定更新节奏，可把「采样窗口」与「更新频率」分开。
+    BUFFER_SIZE = int(os.environ.get("MAS_RL_BUFFER_SIZE", "10"))
     COUNT_OF_BATCHES = 1
     NUM_EPOCHS = 1
     USE_RANDOM_SAMPLE = True
