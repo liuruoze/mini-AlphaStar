@@ -164,7 +164,8 @@ UPDATE_PARAMS_INTERVAL = 10
 
 RESTORE = True
 SAVE_STATISTIC = True
-RANDOM_SEED = 1
+# 2026-11-18：种子原先写死 1，多次 run 只能靠非确定性区分。做成开关，默认仍为 1。
+RANDOM_SEED = int(os.environ.get("MAS_RL_SEED", "1"))
 
 # model path
 MODEL_TYPE = "sl"
