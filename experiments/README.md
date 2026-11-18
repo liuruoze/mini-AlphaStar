@@ -60,6 +60,16 @@
 | `_bench_mp.py` / `_bench_mp_pipe.py` / `_bench_env_mp.py` | 多进程 / 管道 / 场景并行度 |
 | `_bench_scale.py` | 批大小-吞吐曲线（**注意**：只测采样阶段，不含 Learner，勿外推到完整训练） |
 
+## 三之二、评测与选模
+
+| 脚本 | 用途 |
+|---|---|
+| `rank_checkpoints.py` | 在固定种子上给多个 `.pth` 打分（native 胜率 + Wilson 区间 + JSON），用于选模 |
+| `pool_tags.py` | 多个 run 的评测结果池化 |
+| `eval_table.py` | 解析评测输出，两种判胜口径 |
+
+⚠️ 选模不要用训练内 `win_rate`：它与固定种子评测不是一回事（实测同一个 run 内 34% vs 评测 10%）。
+
 ## 四、长跑编排（`_soak_*`、`_run_regression.sh`）
 
 | 脚本 | 用途 |
