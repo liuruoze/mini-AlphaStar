@@ -406,15 +406,17 @@ class Learner:
                         self.pub_lock.acquire()
                     try:
                         if _gn_bad and _NAN_GUARD:
+                            # 跳过时**不能**递增 policy_version：版本号是"参数变过了"的信号，
+                            # 虚增会让 actor 白同步一次，也会把 optimizer_steps 刷高。
                             pass
                         else:
                             self.optimizer.step()
-                        if self.policy_version is not None:
-                            self.policy_version.value += 1
-                            if _PV_LOG:
-                                _PV_N[0] += 1
-                                print("[PV] learner_update n=%d pv=%d"
-                                      % (_PV_N[0], int(self.policy_version.value)), flush=True)
+                            if self.policy_version is not None:
+                                self.policy_version.value += 1
+                                if _PV_LOG:
+                                    _PV_N[0] += 1
+                                    print("[PV] learner_update n=%d pv=%d"
+                                          % (_PV_N[0], int(self.policy_version.value)), flush=True)
                     finally:
                         if self.pub_lock is not None:
                             self.pub_lock.release()
