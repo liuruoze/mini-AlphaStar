@@ -208,6 +208,20 @@ def test_bad_norm():
     check("is_bad_norm(None)", f(None) is True)
 
 
+
+def test_validate_lr():
+    """validate_lr：(0,1] 内通过，其余抛错（2026-11-19 新增）。"""
+    from alphastarmini.lib.utils import validate_lr as f
+    check("validate_lr(1e-6)", abs(f("1e-6") - 1e-6) < 1e-18)
+    check("validate_lr(3e-6)", abs(f(3e-6) - 3e-6) < 1e-18)
+    for bad in (0, -1e-6, 1.5, "abc"):
+        try:
+            f(bad)
+            check("validate_lr(%r) 应抛错" % (bad,), False)
+        except Exception:
+            check("validate_lr(%r) 抛错" % (bad,), True)
+
+
 def main():
     print("=== 新增代码路径离线单测 ===")
     print("SEQ_LEN=%d" % T.SEQ_LEN)
@@ -218,6 +232,7 @@ def main():
     test_bad_file()
     test_eval_table()
     test_bad_norm()
+    test_validate_lr()
     print("\n=== 结果：%d 项失败 ===" % len(FAIL))
     if FAIL:
         print("失败项: %s" % ", ".join(FAIL))

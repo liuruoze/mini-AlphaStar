@@ -111,7 +111,8 @@ SAVE_EVERY_BLOCK = os.environ.get("MAS_SAVE_EVERY_BLOCK", "0") == "1"
 BASELINE_WEIGHT = 1
 # 2026-11-17：学习率原先写死 1e-6（THP 里的 1e-5 从未生效）。做成开关，默认值不变，
 # 便于做 1e-6 / 3e-6 的 A/B；改默认必须写进 manifest，否则历史结果不可比。
-LR = float(os.environ.get("MAS_RL_LR", "1e-6"))
+from alphastarmini.lib.utils import validate_lr as _validate_lr
+LR = _validate_lr(os.environ.get("MAS_RL_LR", "1e-6"))
 WEIGHT_DECAY = 1e-5
 
 MAX_TIME_FOR_TRAINING = 60 * 60 * 24 * 7

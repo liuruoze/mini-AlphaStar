@@ -107,6 +107,8 @@ class Learner:
         self.update_norm_max = 0.0
         self.nan_grad_steps = 0
         self.nan_guard_skips = 0
+        self.skip_update_count = 0
+        self._last_skip_print = 0.0
         self.kl_last = {}
         self.traj_recv = {"normal": 0, "final": 0, "win": 0}
 
@@ -305,8 +307,13 @@ class Learner:
             # 原实现会切出半批张量，在 rl_loss 里 reshape 失败（见上面 MIN_TRAJ 的注释）。
             _need = self.count_of_batches * batch_size
             if len(trajectories) < _need:
-                print("[learner] skip update: %d trajectories < %d needed"
-                      % (len(trajectories), _need), flush=True)
+                # 限流：主循环 0.05s 一轮，不限流会把这行刷成日志洪水（第一版就是）。
+                self.skip_update_count += 1
+                _now = time()
+                if _now - getattr(self, "_last_skip_print", 0.0) > 10.0:
+                    self._last_skip_print = _now
+                    print("[learner] skip update: %d trajectories < %d needed (total skips=%d)"
+                          % (len(trajectories), _need, self.skip_update_count), flush=True)
                 return
             for batch_id in range(self.count_of_batches):
                 update_trajectories = trajectories[batch_id * batch_size: (batch_id + 1) * batch_size]

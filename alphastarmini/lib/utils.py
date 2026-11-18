@@ -313,6 +313,18 @@ def load_the_model(model_path):
     return model
 
 
+def validate_lr(x):
+    """学习率合法性校验：必须落在 (0, 1]。
+
+    2026-11-19：把单位写错（例如把 1e-6 写成 1e3）不会报错，只会静默训成垃圾。
+    这里在模块加载时就拒绝，错误信息带上实际值。
+    """
+    v = float(x)
+    if not (0.0 < v <= 1.0):
+        raise ValueError("学习率 %r 不合理（应在 (0, 1] 之间）" % v)
+    return v
+
+
 def is_bad_norm(x):
     """True 表示 grad_norm 非有限（NaN 或 ±Inf）。
 
