@@ -34,6 +34,10 @@ import tempfile
 import threading
 
 DEFAULT_SEEDS = list(range(3038, 3058))
+
+# 官方模型/我们的权重都对出生点敏感（官方 SL 只见过左上）：把已知映射写进来，
+# 这样排名表能同时给出「左上 / 右下」两列，避免用混合口径下结论。
+LEFT_TOP = {3038, 3040, 3045, 3046, 3051, 3053, 3054, 3055}
 BASE = os.path.expanduser("~/mini-AlphaStar")
 
 
@@ -158,20 +162,26 @@ def main():
     rows = []
     for w in weights:
         per = results.get(w, {})
-        played = [v for v in per.values() if v is not None]
-        n, k = len(played), sum(1 for v in played if v == 1)
+        played = {sd: v for sd, v in per.items() if v is not None}
+        n, k = len(played), sum(1 for v in played.values() if v == 1)
         lo, hi = wilson(k, n)
-        rows.append((k / n if n else 0.0, w, k, n, lo, hi))
+        lt = [v for sd, v in played.items() if sd in LEFT_TOP]
+        rb = [v for sd, v in played.items() if sd not in LEFT_TOP]
+        rows.append((k / n if n else 0.0, w, k, n, lo, hi,
+                     sum(1 for v in lt if v == 1), len(lt),
+                     sum(1 for v in rb if v == 1), len(rb)))
     rows.sort(reverse=True)
 
-    print("\n%-52s %5s %5s %7s   %s" % ("weight", "win", "n", "rate", "95% CI"))
-    for rate, w, k, n, lo, hi in rows:
-        print("%-52s %5d %5d %6.1f%%   [%.1f, %.1f]"
-              % (os.path.basename(w), k, n, 100 * rate, lo, hi))
+    print("\n%-40s %5s %5s %7s   %-14s %-8s %-8s"
+          % ("weight", "win", "n", "rate", "95% CI", "left-top", "right-bot"))
+    for rate, w, k, n, lo, hi, lk, ln, rk, rn in rows:
+        print("%-40s %5d %5d %6.1f%%   [%4.1f, %4.1f]   %d/%-6d %d/%-6d"
+              % (os.path.basename(w)[:40], k, n, 100 * rate, lo, hi, lk, ln, rk, rn))
 
-    payload = [{"weight": w, "wins": k, "n": n, "rate": rate,
-                "ci": [lo, hi], "per_seed": results.get(w, {})}
-               for rate, w, k, n, lo, hi in rows]
+    payload = [{"weight": w, "wins": k, "n": n, "rate": rate, "ci": [lo, hi],
+                "left_top": [lk, ln], "right_bottom": [rk, rn],
+                "per_seed": results.get(w, {})}
+               for rate, w, k, n, lo, hi, lk, ln, rk, rn in rows]
     dump = os.path.join(os.path.dirname(weights[0]) or ".", "checkpoint_ranking.json")
     try:
         with open(dump, "w") as fh:
