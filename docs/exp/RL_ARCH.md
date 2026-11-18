@@ -182,6 +182,9 @@ D3 单 run 12–16 局不足以判断任何 A/B：任何实验组至少 150–20
 | `MAS_RL_NAN_GUARD` | 1 | 梯度非有限时跳过该步并计数 |
 | `MAS_RL_KL_LOG` / `_EVERY` | 关 / 20 | 每 N 步打印 teacher KL 与极值（漂移观测） |
 
+> ⚠️ `MAS_RL_SAVE_PATH` 要写**不含扩展名**的路径：代码统一在它后面拼 `.pth`，
+> 写成 `a.pth` 会得到 `a.pth.pth`（今晚实际踩到）。
+
 ### 10.5 评测与选模
 
 `experiments/rank_checkpoints.py`：在固定种子上给多个 checkpoint 打分（Wilson 区间 + JSON）。
