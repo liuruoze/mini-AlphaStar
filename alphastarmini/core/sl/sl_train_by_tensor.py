@@ -597,6 +597,8 @@ def train(net, optimizer, scheduler, train_set, train_loader, device,
     # 第 78 轮（DS，#24）：跟踪最佳 val action acc，训练结束给出"该用哪个 epoch"的结论。
     # 判据用 val action acc（与训练 acc 不同源，不会自我印证）。
     best_val_acc, best_ep = -1.0, -1
+    # 2026-11-19：同时按 val loss 记录一份最佳（acc 在塌缩后会虚高，见 LN 系列实验）
+    best_val_loss = float('inf')
 
     # --- EMA（Hunyuan / HY24 T4 + HY25 O1 warmup）：默认关闭，行为不变 ---
     _EMA_DECAY = float(os.environ.get("MAS_SL_EMA_DECAY", "0.0"))
@@ -811,6 +813,17 @@ def train(net, optimizer, scheduler, train_set, train_loader, device,
                     torch.save(net.state_dict(), _best_path)
                 print('[SL-best] new best val_action_acc=%.6f at epoch %d -> %s'
                       % (best_val_acc, best_ep, _best_path), flush=True)
+
+            # 2026-11-19：按 val loss 另存一份 _bestloss.pth。
+            # 动机：action acc 在策略塌缩到多数类时会"跳升"，按 acc 选模型等于选退化权重；
+            # val loss 对塌缩更敏感（今日 b0s1：ep2 acc 0.284/loss 更低，ep4 acc 0.646）。
+            if val_loss < best_val_loss:
+                best_val_loss = float(val_loss)
+                _bl_path = SAVE_PATH + "_bestloss.pth"
+                if SAVE_STATE_DICT:
+                    torch.save(net.state_dict(), _bl_path)
+                print('[SL-bestloss] val_loss=%.6f at epoch %d -> %s'
+                      % (best_val_loss, ep + 1, _bl_path), flush=True)
 
             del val_loss, val_acc
 

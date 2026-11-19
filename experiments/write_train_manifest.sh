@@ -69,6 +69,12 @@ rec = {
         "batch_size_env": env("MAS_SL_BATCH", None),
     },
     "knobs": {
+        # 2026-11-19：架构开关必须进 manifest，否则"这份权重是什么结构"无法追溯
+        "lstm_ln": env("MAS_LSTM_LN", "off"),
+        "lstm_hidden": env("MAS_LSTM_HIDDEN", "128"),
+        "lstm_layers": env("MAS_LSTM_LAYERS", "1"),
+        "ent_weight": env("MAS_SL_ENT_WEIGHT", "0"),
+        "attack_weight": env("MAS_SL_ATTACK_WEIGHT", "1.0"),
         "class_weights": env("MAS_SL_CLASS_WEIGHTS", ""),
         "early_w": env("MAS_SL_EARLY_W", "1.0"),
         "early_frac": env("MAS_SL_EARLY_FRAC", "0.35"),
