@@ -138,6 +138,8 @@ def main():
 
     results, lock = {}, threading.Lock()
     tasks = [(w, s) for w in weights for s in seeds]
+    print("[rank] weights=%d seeds=%d tasks=%d jobs=%d"
+          % (len(weights), len(seeds), len(tasks), args.jobs), flush=True)
     gpus = len([d for d in os.environ.get("OFF_GPUS", "0,1,2,3").split(",") if d.strip()])
     gpus = max(1, gpus)
 
