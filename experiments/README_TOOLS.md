@@ -40,6 +40,15 @@ python experiments/rank_checkpoints.py --weights <ckpt> --seeds 3038-3077 --jobs
 - 一定要用**同一组种子**做配对比较；
 - 默认 40 局；`σ≈16pp`，所以只看 `summarize_runs.py` 的区间，不要看裸胜率。
 
+## 2.5 种子扫射（今天最有效的策略）
+
+```bash
+bash experiments/seed_sweep.sh --seeds 20261201-20261206 --games 40 --dry-run  # 先看计划
+bash experiments/seed_sweep.sh --seeds 20261201-20261206                        # 训练+评测+汇总
+```
+7 个 seed 的实测分布：12.5 / 21.9 / 25 / 27.5 / 32.5 / 40 / **63.8**（%）。
+1/7 的概率能抽到"能打"的模型，所以**扫射 + 实机选型**比单跑调参更可靠。
+
 ## 3. 汇总（必用）
 
 ```bash
