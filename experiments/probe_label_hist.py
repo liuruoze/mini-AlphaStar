@@ -6,6 +6,7 @@
 策略塌缩到少数动作也能拿到不低的分数，这解释了"离线指标好、上线崩"。
 """
 
+import os
 import sys
 import glob
 import argparse
@@ -22,10 +23,11 @@ from pysc2.lib.actions import RAW_FUNCTIONS
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--files", type=int, default=10)
+    ap.add_argument("--data", default="data/replay_data_a3nc_h5")
     ap.add_argument("--stride", type=int, default=1)
     args = ap.parse_args()
 
-    files = sorted(glob.glob("data/replay_data_a3nc_h5/*.pt"))
+    files = sorted(glob.glob(os.path.join(args.data, "*.pt")))
     if args.files > 0:
         files = files[:args.files]
 

@@ -23,6 +23,11 @@ debug = False
 
 
 def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
+    """遗留实现：训练路径实际走 sl_loss_multi_gpu.get_sl_loss_for_tensor。
+
+    2026-11-19：修掉了"按 4 个返回值解包 forward"的崩溃，但本函数的 label 约定
+    与训练路径不同（合成输入上 loss 量级异常），**不要拿它做评估**，只作为参考保留。
+    """
     # criterion = nn.CrossEntropyLoss()
     # due to CrossEntropyLoss only accepts loss with lables.shape = [N]
     # we define a loss accept soft_target, which label.shape = [N, C]
@@ -70,7 +75,11 @@ def get_sl_loss(traj_batch, model, use_mask=True, use_eval=False):
     loss_list = [0., 0., 0., 0., 0., 0.]
     acc_num_list = [0., 0., 0., 0., 0., 0.]    
 
-    action_logits_pred, action_pred, _, select_units_num = model.forward(state, batch_size=batch_size, sequence_length=seq_len, return_logits=True)
+    # 2026-11-19 修复：ArchModel.forward(return_logits=True) 返回 5 个值
+    # (action_logits, action, hidden_state, select_units_num, entity_nums)，
+    # 这里原先按 4 个解包，任何调用者都会 ValueError（训练走的是 get_sl_loss_for_tensor，故未暴露）。
+    action_logits_pred, action_pred, _, select_units_num, _entity_nums = model.forward(
+        state, batch_size=batch_size, sequence_length=seq_len, return_logits=True)
 
     loss, loss_list = get_classify_loss(action_gt, action_logits_pred, criterion, device, use_mask=use_mask)    
 

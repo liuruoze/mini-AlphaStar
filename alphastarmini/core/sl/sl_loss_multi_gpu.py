@@ -27,6 +27,9 @@ __author__ = "Ruo-Ze Liu"
 
 debug = False
 
+# 熵正则日志的节流计数器（2026-11-19）
+_ENT_CALLS = [0]
+
 
 # criterion = nn.CrossEntropyLoss()
 # due to CrossEntropyLoss only accepts loss with lables.shape = [N]
@@ -579,7 +582,10 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
         _p = torch.softmax(action_type_logits, dim=-1)
         _ent = -(_p * (_p + 1e-9).log()).sum(-1).mean()
         loss = loss - _ent_w * _ent
-        print("[SL-ent] w=%.3f entropy=%.3f" % (_ent_w, float(_ent)), flush=True)
+        # 日志节流：一个 epoch 有近 5000 个 batch，逐批打印会把 train log 撑到 9 万行。
+        _ENT_CALLS[0] += 1
+        if os.environ.get("MAS_SL_ENT_VERBOSE") == "1" or _ENT_CALLS[0] % 200 == 1:
+            print("[SL-ent] iter=%d w=%.3f entropy=%.3f" % (_ENT_CALLS[0], _ent_w, float(_ent)), flush=True)
 
     #mask_tensor = get_one_way_mask_in_SL(action_gt.action_type, device)
     mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=False)  # False

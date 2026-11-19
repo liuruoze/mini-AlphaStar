@@ -10,6 +10,7 @@
   MAS_LSTM_HIDDEN=256 MAS_LSTM_LAYERS=2 python experiments/probe_action_dist.py <ckpt>
 """
 
+import os
 import sys
 import glob
 import argparse
@@ -39,12 +40,13 @@ def main():
     ap.add_argument("--nframes", type=int, default=64)
     ap.add_argument("--seq", type=int, default=8)
     ap.add_argument("--file", type=int, default=-1, help="数据集文件序号，-1 表示最后一个")
+    ap.add_argument("--data", default="data/replay_data_a3nc_h5")
     args = ap.parse_args()
 
     bsz = max(1, args.nframes // args.seq)
     n = bsz * args.seq
 
-    files = sorted(glob.glob("data/replay_data_a3nc_h5/*.pt"))
+    files = sorted(glob.glob(os.path.join(args.data, "*.pt")))
     src = files[args.file]
     x = torch.load(src, map_location="cpu")
     n = min(n, x[0].shape[0])

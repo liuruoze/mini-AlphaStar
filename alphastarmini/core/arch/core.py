@@ -74,6 +74,13 @@ class Core(nn.Module):
         # we transform the shape from [batch_seq_size, embedding_size] 
         # to the actual [batch_size, seq_size, embedding_size] 
         embedding_size = input_tensor.shape[-1]
+        # 2026-11-19：显式校验拼接后的维度与 LSTM/门级 cell 的输入维度一致。
+        # 过去这里只做 reshape，维度不匹配时会静默错位（或报一个难以定位的 matmul 错）。
+        _expected = self.hidden_dim if False else None
+        _lstm_in = self.gate_lstm.cells[0].input_size if self.ln_mode == "gate" else self.lstm.input_size
+        assert embedding_size == _lstm_in, (
+            "Core 输入维度不匹配：scalar+entity+spatial 拼接得到 %d，但 LSTM 期望 %d；"
+            "请检查三个编码器的输出维度或 AHP.original_1024" % (embedding_size, _lstm_in))
         input_tensor = input_tensor.reshape(batch_size, sequence_length, embedding_size)
 
         if hidden_state is None:
