@@ -26,6 +26,28 @@ from alphastarmini.lib import utils as L
 __author__ = "Ruo-Ze Liu"
 
 debug = False
+_CLASS_W_CACHE = {}
+
+
+def _load_class_weight_table(path):
+    """读取 make_class_weights.py 生成的 JSON，返回 [n_action_type] 的权重张量。"""
+    if path in _CLASS_W_CACHE:
+        return _CLASS_W_CACHE[path]
+    import json
+    from alphastarmini.lib.hyper_parameters import Label_Size as _LS, LabelIndex as _LI
+    n = _LS[_LI.action_type_encoding]
+    tbl = torch.ones(n, dtype=torch.float32)
+    obj = json.load(open(path))
+    weights = obj.get("weights", obj)
+    for k, v in weights.items():
+        i = int(k)
+        if 0 <= i < n:
+            tbl[i] = float(v)
+    _CLASS_W_CACHE[path] = tbl
+    print("[SL-classw-json] loaded %d entries from %s" % (len(weights), path), flush=True)
+    return tbl
+
+
 
 # 熵正则日志的节流计数器（2026-11-19）
 _ENT_CALLS = [0]
@@ -532,6 +554,15 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
 
     # ---- HY26: m30 专用类加权（按动作名前缀；默认空 = 完全不改变历史行为） ----
     # 不复用 MAS_SL_ACTION_REWEIGHT 的 _ACTION_DATA_SHARE —— 那是人类 90 局的分布常量。
+    # ---- 逆频率类权重表（2026-11-20）：按动作 id 的完整权重表 ----
+    # 与上面的"前缀规则"并存，后者表达式更强但只能覆盖少数动作；这里支持整张表。
+    _cw_json = os.environ.get("MAS_SL_CLASS_WEIGHTS_JSON", "").strip()
+    if _cw_json:
+        _tbl = _load_class_weight_table(_cw_json)
+        _ids1 = action_gt.action_type.argmax(dim=-1)
+        _cw_json_w = _tbl.to(_ids1.device)[_ids1].float()
+        _sample_w = _cw_json_w if _sample_w is None else _sample_w * _cw_json_w
+
     _cw_spec = os.environ.get("MAS_SL_CLASS_WEIGHTS", "").strip()
     if _cw_spec:
         from pysc2.lib.actions import RAW_FUNCTIONS as _RF
