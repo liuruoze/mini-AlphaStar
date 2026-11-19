@@ -14,9 +14,13 @@
 """
 
 import os
+import os
 import sys
 
-sys.path.insert(0, ".")
+# 允许从任意工作目录运行：以脚本所在目录的上一级作为仓库根
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 import torch
 import torch.nn as nn

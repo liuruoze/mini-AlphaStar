@@ -7,12 +7,16 @@
 """
 
 import os
+import os
 import sys
 import glob
 import argparse
 from collections import Counter
 
-sys.path.insert(0, ".")
+# 允许从任意工作目录运行：以脚本所在目录的上一级作为仓库根
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 import torch
 
@@ -23,7 +27,7 @@ from pysc2.lib.actions import RAW_FUNCTIONS
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--files", type=int, default=10)
-    ap.add_argument("--data", default="data/replay_data_a3nc_h5")
+    ap.add_argument("--data", default=os.path.join(REPO_ROOT, "data", "replay_data_a3nc_h5"))
     ap.add_argument("--stride", type=int, default=1)
     args = ap.parse_args()
 

@@ -11,12 +11,16 @@
 """
 
 import os
+import os
 import sys
 import glob
 import argparse
 from collections import Counter
 
-sys.path.insert(0, ".")
+# 允许从任意工作目录运行：以脚本所在目录的上一级作为仓库根
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
 import torch
 
@@ -40,7 +44,7 @@ def main():
     ap.add_argument("--nframes", type=int, default=64)
     ap.add_argument("--seq", type=int, default=8)
     ap.add_argument("--file", type=int, default=-1, help="数据集文件序号，-1 表示最后一个")
-    ap.add_argument("--data", default="data/replay_data_a3nc_h5")
+    ap.add_argument("--data", default=os.path.join(REPO_ROOT, "data", "replay_data_a3nc_h5"))
     args = ap.parse_args()
 
     bsz = max(1, args.nframes // args.seq)
