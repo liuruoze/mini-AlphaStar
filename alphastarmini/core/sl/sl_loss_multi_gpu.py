@@ -570,6 +570,17 @@ def get_masked_classify_loss_for_multi_gpu(action_gt, action_pred, entity_nums, 
                                  mask=move_camera_weight, sample_weight=_sample_w)
     loss += action_type_loss
 
+    # ---- 熵正则（2026-11-19）：抑制 action_type 塌缩到少数动作 ----
+    # 背景：数据集只有 11 类动作、Attack_pt 占 53.6%，CE 会把模型推向"全押少数类"，
+    # 表现为 val acc 升高、实战胜率归零。这里对 action_type 的预测分布加熵奖励。
+    # 默认 0（不改变历史行为），用 MAS_SL_ENT_WEIGHT=0.01 开启。
+    _ent_w = float(os.environ.get("MAS_SL_ENT_WEIGHT", "0.0"))
+    if _ent_w > 0:
+        _p = torch.softmax(action_type_logits, dim=-1)
+        _ent = -(_p * (_p + 1e-9).log()).sum(-1).mean()
+        loss = loss - _ent_w * _ent
+        print("[SL-ent] w=%.3f entropy=%.3f" % (_ent_w, float(_ent)), flush=True)
+
     #mask_tensor = get_one_way_mask_in_SL(action_gt.action_type, device)
     mask_tensor = SU.get_two_way_mask_in_SL(action_gt.action_type, action_pred, device, strict_comparsion=False)  # False
 

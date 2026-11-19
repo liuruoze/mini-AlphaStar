@@ -3,9 +3,13 @@
 
 " Core."
 
+import os
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from alphastarmini.core.arch.ln_lstm import OutLN, PreLN, GatedLSTM
 
 from alphastarmini.lib.hyper_parameters import Arch_Hyper_Parameters as AHP
 
@@ -33,8 +37,21 @@ class Core(nn.Module):
         # Unfortunately, PyTorch doesn't have a LayerNorm RNN cell or LayerNorm LSTM class, so we use the ordinary one.
         # please see https://github.com/pytorch/pytorch/issues/6760
         # TODO: change it to a LayerNorm one (using OpenDI)
-        self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_dim, num_layers=n_layers, 
-                            dropout=drop_prob, batch_first=True)
+        # LayerNorm 开关（2026-11-19）：off / out / pre / gate，默认 off。
+        # off 时不创建任何额外模块，state_dict 与旧实现完全一致（可加载历史权重）。
+        self.ln_mode = os.environ.get("MAS_LSTM_LN", "off").strip().lower()
+        assert self.ln_mode in ("off", "out", "pre", "gate"), "未知 MAS_LSTM_LN=%s" % self.ln_mode
+
+        if self.ln_mode == "gate":
+            self.lstm = None
+            self.gate_lstm = GatedLSTM(embedding_dim, hidden_dim, n_layers)
+        else:
+            self.lstm = nn.LSTM(input_size=embedding_dim, hidden_size=hidden_dim, num_layers=n_layers, 
+                                dropout=drop_prob, batch_first=True)
+            if self.ln_mode == "out":
+                self.out_norm = OutLN(hidden_dim, float(os.environ.get("MAS_LN_GAMMA", "1.0")))
+            elif self.ln_mode == "pre":
+                self.pre_norm = PreLN(embedding_dim)
 
         self.batch_size = batch_size
         self.sequence_length = sequence_length
@@ -71,7 +88,14 @@ class Core(nn.Module):
     def forward_lstm(self, x, hidden):
         # note: No projection is used.
         # note: The outputs of the LSTM are the outputs of this module.
-        lstm_out, hidden = self.lstm(x, hidden)
+        if self.ln_mode == "pre":
+            x = self.pre_norm(x)
+        if self.ln_mode == "gate":
+            lstm_out, hidden = self.gate_lstm(x, hidden)
+        else:
+            lstm_out, hidden = self.lstm(x, hidden)
+            if self.ln_mode == "out":
+                lstm_out = self.out_norm(lstm_out)
 
         return lstm_out, hidden
 
