@@ -66,40 +66,11 @@ class ArchModel(nn.Module):
             self.init_paramters()
 
     def init_paramters(self):
-        if True:
-            for p in self.parameters():
-                if p.dim() > 1:
-                    nn.init.xavier_uniform_(p)
-        else:
-            for m in self.modules():
-                if isinstance(m, nn.Conv1d):
-                    print('Conv1d', m) if debug else None
-                    nn.init.kaiming_normal_(m.weight.data, nonlinearity='relu')
-                    if hasattr(m, 'bias'):
-                        if m.bias is not None: 
-                            nn.init.constant_(m.bias.data, 0)
-                elif isinstance(m, nn.Conv2d):
-                    print('Conv2d', m) if debug else None
-                    nn.init.kaiming_normal_(m.weight.data, nonlinearity='relu')
-                    if hasattr(m, 'bias'):
-                        if m.bias is not None: 
-                            nn.init.constant_(m.bias.data, 0)
-                elif isinstance(m, nn.Linear):
-                    print('Linear', m) if debug else None
-                    nn.init.xavier_normal_(m.weight.data, gain=nn.init.calculate_gain('relu'))
-                    if hasattr(m, 'bias'):
-                        nn.init.constant_(m.bias.data, 0)
-                else:
-                    print('Other', m) if debug else None
-                    if hasattr(m, 'weight'):
-                        if m.weight is not None: 
-                            if m.weight.data.dim() > 1:
-                                nn.init.xavier_uniform_(m.weight.data)
-                    if hasattr(m, 'bias'):
-                        if m.bias is not None: 
-                            if hasattr(m.bias, 'data'):
-                                if m.bias.data.dim() > 1:
-                                    nn.init.constant_(m.bias.data, 0)
+        # 2026-11-19：删掉了原先 `if True: ... else: ...` 的死分支（else 永远不可达），
+        # 行为保持不变（同一 seed 下参数指纹一致，见提交说明）。
+        for p in self.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
     def build_baselines(self):
         self.winloss_baseline = Baseline(baseline_type='winloss')
