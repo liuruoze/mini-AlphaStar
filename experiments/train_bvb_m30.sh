@@ -51,6 +51,9 @@ echo "[$(date '+%F %T')] TRAIN START tag=$TAG epochs=$EPOCHS seed=$SEED ss=$SSTE
 echo "[$PF_TAG] cfg lr=${MAS_SL_LR:-1e-4} gamma=${MAS_SL_GAMMA:-0.2} frame_split=1 val_frac=${MAS_SL_VAL_FRAC:-0.2}"
 echo "[$PF_TAG] cfg class_w=[${MAS_SL_CLASS_WEIGHTS:-none}] balance=${MAS_SL_BALANCE:-0}"
 echo "[$PF_TAG] cfg restore=${MAS_SL_RESTORE_PATH:-none} load_state=${MAS_SL_LOAD_STATE:-0}"
+# 2026-11-20：把架构/目标开关也打出来。manifest 里有，但要等跑完才写；
+# 起跑时就看见"这份权重是什么结构"，能省掉一次 40 分钟的错跑。
+echo "[$PF_TAG] cfg lstm=${MAS_LSTM_HIDDEN:-128}x${MAS_LSTM_LAYERS:-1} ln=${MAS_LSTM_LN:-off} ent=${MAS_SL_ENT_WEIGHT:-0} attack_w=${MAS_SL_ATTACK_WEIGHT:-1.0} noop_w=${MAS_SL_NOOP_WEIGHT:-1.0} classw_json=${MAS_SL_CLASS_WEIGHTS_JSON:-none}"
 
 if [ "${MAS_DRY_RUN:-0}" = "1" ]; then
   echo "[$PF_TAG] DRY-RUN：前置检查与配置已打印，不启动训练"
