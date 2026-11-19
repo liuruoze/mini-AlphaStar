@@ -187,7 +187,7 @@ def main():
     payload = [{"weight": w, "wins": k, "n": n, "n_decided": n_dec, "rate": rate, "ci": [lo, hi],
                 "left_top": [lk, ln], "right_bottom": [rk, rn],
                 "per_seed": results.get(w, {})}
-               for rate, w, k, n, lo, hi, lk, ln, rk, rn in rows]
+               for rate, w, k, n, n_dec, lo, hi, lk, ln, rk, rn in rows]
     dump = os.path.join(os.path.dirname(weights[0]) or ".", "checkpoint_ranking.json")
     try:
         with open(dump, "w") as fh:
