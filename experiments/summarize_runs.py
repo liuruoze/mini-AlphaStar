@@ -71,7 +71,7 @@ def main():
     print("%-14s %4s %4s %4s %7s  %-16s" % ("run", "win", "dec", "all", "rate", "95% CI (Wilson)"))
     for name, d in items:
         r = parse_dir(d)
-        n_all = len(r)                      # 所有有结果行的局（含崩溃=未计入）
+        n_all = len(glob.glob(os.path.join(d, "*.txt")))  # 尝试过的局数（含崩溃、无 outcome 的局）
         k = sum(1 for v in r.values() if v == 1)
         n_dec = sum(1 for v in r.values() if v is not None)
         lo, hi = wilson(k, n_all)

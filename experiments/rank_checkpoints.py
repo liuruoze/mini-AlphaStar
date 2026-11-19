@@ -165,22 +165,26 @@ def main():
     for w in weights:
         per = results.get(w, {})
         played = {sd: v for sd, v in per.items() if v is not None}
-        n, k = len(played), sum(1 for v in played.values() if v == 1)
+        # 2026-11-20：分母改成"尝试过的局数"（含崩溃/无结果的局）。
+        # 只统计有 outcome 的局会把胜率抬高：实测 b0s5 由 62.5%（25/40）变成 80.6%（25/31）。
+        n = len(per)
+        k = sum(1 for v in played.values() if v == 1)
+        n_dec = len(played)
         lo, hi = wilson(k, n)
         lt = [v for sd, v in played.items() if sd in LEFT_TOP]
         rb = [v for sd, v in played.items() if sd not in LEFT_TOP]
-        rows.append((k / n if n else 0.0, w, k, n, lo, hi,
+        rows.append((k / n if n else 0.0, w, k, n, n_dec, lo, hi,
                      sum(1 for v in lt if v == 1), len(lt),
                      sum(1 for v in rb if v == 1), len(rb)))
     rows.sort(reverse=True)
 
-    print("\n%-40s %5s %5s %7s   %-14s %-8s %-8s"
-          % ("weight", "win", "n", "rate", "95% CI", "left-top", "right-bot"))
-    for rate, w, k, n, lo, hi, lk, ln, rk, rn in rows:
-        print("%-40s %5d %5d %6.1f%%   [%4.1f, %4.1f]   %d/%-6d %d/%-6d"
-              % (os.path.basename(w)[:40], k, n, 100 * rate, lo, hi, lk, ln, rk, rn))
+    print("\n%-36s %4s %4s %4s %7s   %-14s %-8s %-8s"
+          % ("weight", "win", "dec", "all", "rate", "95% CI", "left-top", "right-bot"))
+    for rate, w, k, n, n_dec, lo, hi, lk, ln, rk, rn in rows:
+        print("%-36s %4d %4d %4d %6.1f%%   [%4.1f, %4.1f]   %d/%-6d %d/%-6d"
+              % (os.path.basename(w)[:36], k, n_dec, n, 100 * rate, lo, hi, lk, ln, rk, rn))
 
-    payload = [{"weight": w, "wins": k, "n": n, "rate": rate, "ci": [lo, hi],
+    payload = [{"weight": w, "wins": k, "n": n, "n_decided": n_dec, "rate": rate, "ci": [lo, hi],
                 "left_top": [lk, ln], "right_bottom": [rk, rn],
                 "per_seed": results.get(w, {})}
                for rate, w, k, n, lo, hi, lk, ln, rk, rn in rows]
