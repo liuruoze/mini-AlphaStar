@@ -227,8 +227,12 @@ MiniStar_Arch_Hyper_Parameters = ArchHyperParameters(batch_size=int(16 * 8 / P.B
                                                      scalar_encoder_fc2_input=448,
                                                      scalar_feature_size=7327,  # Deprecated
                                                      entity_embedding_size=64,
-                                                     lstm_hidden_dim=128,
-                                                     lstm_layers=1,
+                                                     # LSTM 规模改为环境变量（2026-11-19）：
+                                                     # 权重与代码必须"同规模"才能加载，这是今天反复切代码的根源。
+                                                     # 默认保持 128×1（= 历史基线），实验用 MAS_LSTM_HIDDEN / MAS_LSTM_LAYERS 覆盖。
+                                                     # 例：MAS_LSTM_HIDDEN=256 MAS_LSTM_LAYERS=2 启动即为 B2 架构。
+                                                     lstm_hidden_dim=int(os.environ.get("MAS_LSTM_HIDDEN", "128")),
+                                                     lstm_layers=int(os.environ.get("MAS_LSTM_LAYERS", "1")),
                                                      n_resblocks=4,
                                                      original_1024=256,
                                                      original_512=128,
