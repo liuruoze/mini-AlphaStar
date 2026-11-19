@@ -121,6 +121,8 @@ def main():
     ap.add_argument("--loops", type=int, default=18000)
     ap.add_argument("--jobs", type=int, default=8)
     ap.add_argument("--out-dir", default=os.path.join(BASE, "outputs", "rank"))
+    ap.add_argument("--dry-run", action="store_true",
+                    help="只打印将要跑的任务数与种子范围，不开进程")
     args = ap.parse_args()
 
     weights = []
@@ -138,6 +140,13 @@ def main():
 
     results, lock = {}, threading.Lock()
     tasks = [(w, s) for w in weights for s in seeds]
+    if args.dry_run:
+        # 2026-11-20：先看清"要跑多少局"再开跑，避免 40 个种子只跑 10 局的静默偏差
+        print("[dry-run] weights=%d seeds=%d tasks=%d jobs=%d"
+              % (len(weights), len(seeds), len(tasks), args.jobs))
+        print("[dry-run] seeds: %d..%d" % (min(seeds), max(seeds)))
+        print("[dry-run] out-dir: %s" % args.out_dir)
+        return 0
     print("[rank] weights=%d seeds=%d tasks=%d jobs=%d"
           % (len(weights), len(seeds), len(tasks), args.jobs), flush=True)
     gpus = len([d for d in os.environ.get("OFF_GPUS", "0,1,2,3").split(",") if d.strip()])
