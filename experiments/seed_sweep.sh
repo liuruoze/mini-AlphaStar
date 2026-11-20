@@ -77,7 +77,7 @@ for s in $SEED_LIST; do
 done
 wait
 
-# 评测前先做离线筛选：switch_rate < 0.85 的模型实测基本打不赢（见 SEQ_PROBE_FINDING.md）
+# 评测前先做离线筛选：median switch_rate < 0.86 的模型实测基本打不赢（见 SEQ_PROBE_FINDING.md）
 echo "== 离线筛选（switch_rate，<0.85 视为大概率打不赢）=="
 for s in $SEED_LIST; do
   tag="${PREFIX}${s}"
