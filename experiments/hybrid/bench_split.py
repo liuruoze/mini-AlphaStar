@@ -43,6 +43,17 @@ RULES_EMPH = [
     ("全面进攻", "全面进攻：兵 ≥ 8。"),
 ]
 
+# 第四种变体：把"量产"写成能力问题（现在能不能立刻造出来）
+RULES_CAP = [
+    ("补水晶", "补水晶：没有水晶，或者人口余量（上限−已用）≤ 9 且人口上限未满 200。"),
+    ("补农民", "补农民：农民 ≤ 14 且人口余量 ≥ 1。"),
+    ("补兵营", "补兵营：兵营 < 3 且至少有一个水晶（没有水晶就没有能量场，兵营放不下）。"),
+    ("量产狂热者", "量产狂热者：问的是「现在能不能立刻训练出一个狂热者」。"
+               "必须同时满足：此刻已有至少 1 个兵营、兵 < 24、矿 ≥ 100、农民 ≥ 10、人口余量 ≥ 2。"
+               "缺任何一条都答否。"),
+    ("全面进攻", "全面进攻：兵 ≥ 8。"),
+]
+
 # 每条规则单独成问：system 里只给这一条，避免变相做整题
 RULES = [
     ("补水晶", "补水晶：没有水晶，或者人口余量（上限−已用）≤ 9 且人口上限未满 200。"),
@@ -158,10 +169,14 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--tag", default="split")
     ap.add_argument("--phrasing", default="action", choices=["action", "condition"])
-    ap.add_argument("--rule-style", default="plain", choices=["plain", "simple", "emph"])
+    ap.add_argument("--rule-style", default="plain",
+                    choices=["plain", "simple", "emph", "cap"])
     ap.add_argument("--shots", type=int, default=0, help="0 不给示例；1 给每条的 3 个示例")
     ap.add_argument("--rationale", action="store_true", help="先写一句依据再给结论")
     ap.add_argument("--votes", type=int, default=1, help="每题采样次数，取多数（>1 时温度 0.7）")
+    ap.add_argument("--field", default="prompt", help="用题集里的哪个字段作局面文本（prompt/prompt_json）")
+    ap.add_argument("--parse", default="first", choices=["first", "last"],
+                    help="从输出里取第一个还是最后一个 是/否（思考模型用 last）")
     a = ap.parse_args()
 
     d = json.load(open(a.data, encoding="utf-8"))
@@ -169,7 +184,8 @@ def main():
     llm = llm_client.build(a.backend, base_url=a.base_url, model_name=a.model)
     tmpl = (SYS_TMPL_REASON if a.rationale else
             (SYS_TMPL_COND if a.phrasing == "condition" else SYS_TMPL_ACTION))
-    rules = {"simple": RULES_SIMPLE, "emph": RULES_EMPH}.get(a.rule_style, RULES)
+    rules = {"simple": RULES_SIMPLE, "emph": RULES_EMPH, "cap": RULES_CAP}.get(
+        a.rule_style, RULES)
 
     out_path = a.out or os.path.join(os.path.expanduser("~"), "bvb", "bench",
                                      "%s_%s.jsonl" % (a.model.replace("/", "_"), a.tag))
@@ -185,10 +201,10 @@ def main():
             vs = []
             for _ in range(max(1, a.votes)):
                 r = llm.chat([{"role": "system", "content": sysmsg},
-                              {"role": "user", "content": it["prompt"]}],
+                              {"role": "user", "content": it.get(a.field) or it["prompt"]}],
                              max_new_tokens=(a.max_tokens if a.votes == 1 else 8),
                              temperature=0.0 if a.votes == 1 else 0.7)
-                vs.append(parse_last(r) if a.rationale else parse_yes(r))
+                vs.append(parse_last(r) if (a.rationale or a.parse == "last") else parse_yes(r))
             vs = [v for v in vs if v]
             b = max(set(vs), key=vs.count) if vs else None
             r = "".join(v or "?" for v in vs)
