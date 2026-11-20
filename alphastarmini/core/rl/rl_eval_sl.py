@@ -954,7 +954,15 @@ class ActorEval:
                                         from arbiter import Arbiter
                                         from alphastarmini.core.arch import agent as _agent_mod
                                         _mode = os.environ.get("MAS_HYBRID_MODE", "rule").lower()
-                                        if _mode == "tree":
+                                        if _mode == "tree_d":
+                                            import llm_client as _llmc2
+                                            from commander_tree import TreeDCommander as _TDC
+                                            _llm3 = _llmc2.build("openai",
+                                                                 base_url=os.environ.get("LLM_BASE_URL",
+                                                                                         "http://127.0.0.1:8765/v1"),
+                                                                 model_name=os.environ.get("LLM_MODEL_NAME", "qwen"))
+                                            _cmd_obj, _sum_fn = _TDC(_llm3), None
+                                        elif _mode == "tree":
                                             # 决策树版：3 个二元问题，实测能随状态变化
                                             import llm_client as _llmc
                                             from commander_tree import TreeCommander as _TC

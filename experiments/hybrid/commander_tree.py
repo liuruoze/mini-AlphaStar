@@ -26,6 +26,7 @@ if REPO_ROOT not in sys.path:
 sys.path.insert(0, os.path.join(REPO_ROOT, "experiments", "hybrid"))
 
 from commander import STRATEGIES  # noqa: E402
+from obs_to_text import summarize_obs  # noqa: E402
 
 SYS = "你是数值比较器。只答一个字：是 或 否。"
 
@@ -94,3 +95,53 @@ class TreeCommander:
             return STRATEGIES["S1"][1], "S1", "|".join(raw)
 
         return STRATEGIES["S6"][1], "S6", "|".join(raw)
+
+
+# ---- 派生量版：把"需要做减法"的量预先算好（实测把准确率从 30% 拉到 75%）----
+DT_FEWSHOT = {
+    "gap": ("示例：人口余量=3，问\"≤6?\"→是。\n"
+            "示例：人口余量=30，问\"≤6?\"→否。\n"),
+    "workers": ("示例：农民=14，问\"<18?\"→是。\n"
+                "示例：农民=26，问\"<18?\"→否。\n"),
+    "army": ("示例：军队=4，问\"<10?\"→是。\n"
+             "示例：军队=14，问\"<10?\"→否。\n"),
+}
+
+
+class TreeDCommander(TreeCommander):
+    """接收 obs（不是文本）；阈值取自 V5 专家：余量≤6 / 农民<18 / 军队<10。"""
+
+    def propose(self, obs):
+        if isinstance(obs, str):
+            base = obs
+            gap = None
+        else:
+            base = summarize_obs(obs)
+            pl = getattr(obs, "player", None)
+            gap = int(getattr(pl, "food_cap", 0) or 0) - int(getattr(pl, "food_used", 0) or 0)
+        text = base if gap is None else base + "\n人口余量 %d（上限-已用）" % gap
+
+        raw = []
+        q1 = self._ask_d(text, "人口余量是否小于等于 6？", DT_FEWSHOT["gap"])
+        raw.append("gap=%s" % q1)
+        if q1:
+            return STRATEGIES["S2"][1], "S2", "|".join(raw)
+        q2 = self._ask_d(text, "农民数量是否少于 18？", DT_FEWSHOT["workers"])
+        raw.append("wk=%s" % q2)
+        if q2:
+            return STRATEGIES["S1"][1], "S1", "|".join(raw)
+        q3 = self._ask_d(text, "军队数量是否少于 10？", DT_FEWSHOT["army"])
+        raw.append("army=%s" % q3)
+        if q3:
+            return STRATEGIES["S3"][1], "S3", "|".join(raw)
+        return STRATEGIES["S6"][1], "S6", "|".join(raw)
+
+    def _ask_d(self, text, q, shots):
+        self.stats["calls"] += 1
+        out = self.llm.chat([{"role": "system", "content": "只答一个字：是 或 否。"},
+                             {"role": "user", "content": shots + text + "\n" + q}],
+                            max_new_tokens=8, temperature=0.0)
+        v = yes(out)
+        if v is None:
+            self.stats["unparsed"] += 1
+        return v

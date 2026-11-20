@@ -56,6 +56,9 @@ STRATEGIES = {
     "S6": ("全军进攻敌方主基地", MacroCommand("attack", "enemy_main", count=1, deadline_s=45.0, priority=5)),
     "S7": ("回防，集结在二矿", MacroCommand("defend", "natural", count=1, deadline_s=20.0, priority=5)),
     "S8": ("补气矿", MacroCommand("build", "Assimilator", count=2, priority=2)),
+    # 2026-11-20 用户指出：快攻的核心是"最短时间内造出最多狂热者"，
+    # 所以"补兵营"必须是一等选项，之前漏掉了。
+    "S9": ("补兵营到 3–4 个（狂热者产能）", MacroCommand("build", "Gateway", count=2, priority=4)),
 }
 DEFAULT_KEY = "S3"
 

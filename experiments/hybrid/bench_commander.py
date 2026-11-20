@@ -46,10 +46,31 @@ REGIMES = {
 }
 
 
-def render(st):
-    return ("时间 %d:%02d｜人口 %d/%d｜矿 %d 气 %d\n农民 %d｜军队 %d｜空闲农民 %d" %
+EN = {
+    "S1": "Saturate workers, then add pylons",
+    "S2": "Add pylons (raise supply cap)",
+    "S3": "Mass Zealots",
+    "S4": "Take the natural expansion",
+    "S5": "Tech up: Cybernetics Core",
+    "S6": "Attack the enemy main with everything",
+    "S7": "Fall back and defend the natural",
+    "S8": "Add assimilators (gas)",
+}
+SYS_EN = ("You are a StarCraft II Protoss tactical commander. Pick exactly one option id "
+          "from the list and output only that id, no explanation.")
+
+
+def render_en(st):
+    return ("Time %d:%02d | Supply %d/%d | Minerals %d | Vespene %d\n"
+            "Workers %d | Army %d | Idle workers %d | Gateways %d" %
             (st["t"] // 60, st["t"] % 60, st["used"], st["cap"], st["mins"], st["gas"],
-             st["workers"], st["army"], st["idle"]))
+             st["workers"], st["army"], st["idle"], st.get("gw", 0)))
+
+
+def render(st):
+    return ("时间 %d:%02d｜人口 %d/%d｜矿 %d 气 %d\n农民 %d｜军队 %d｜空闲农民 %d｜兵营 %d 个" %
+            (st["t"] // 60, st["t"] % 60, st["used"], st["cap"], st["mins"], st["gas"],
+             st["workers"], st["army"], st["idle"], st.get("gw", 0)))
 
 
 def gt_strategy(st):
@@ -81,6 +102,37 @@ def gt_diagnosis(st):
     return "其他"
 
 
+# ---- V5 专家的优先级阶梯（取自 experiments/_rule_expert_v5.py 的常量与 P0–P5）----
+V5_SUPPLY_RESERVE = 6     # cap - used <= 6 就补 Pylon
+V5_PROBE_TARGET = 18      # 农民 < 18 先补农民
+V5_ATTACK_AT = 10         # 兵 >= 10 进攻（ATTACK_AT 默认 10）
+V5_GATEWAY_TARGET = 4
+
+
+def gt_v5(st):
+    """V5 的决策阶梯（人口 → 农民 → 兵营 → 造兵 → 进攻）。"""
+    if st["cap"] - st["used"] <= V5_SUPPLY_RESERVE:
+        return "S2", "人口余量≤6，先补水晶"
+    if st["workers"] < V5_PROBE_TARGET:
+        return "S1", "农民<18，先铺农民"
+    if st.get("gw", 99) < V5_GATEWAY_TARGET:
+        return "S9", "兵营不足 4 个，先补兵营（狂热者产能）"
+    if st["army"] < V5_ATTACK_AT:
+        return "S3", "兵<10，继续造兵"
+    return "S6", "兵≥10，A-move 进攻"
+
+
+# V5 阶梯对应的均衡局面（四类各占 25%，避免恒定答案刷分）
+# 五类，对应 V5 阶梯的五个分支（含"补兵营"——2026-11-20 用户指出它是快攻命门）
+REGIMES_V5 = {
+    "人口将满": dict(t=300, used=44, cap=47, army=8, gw=2, mins=250, gas=0, idle=2, workers=24),
+    "农民不足": dict(t=360, used=40, cap=70, army=12, gw=3, mins=200, gas=0, idle=1, workers=14),
+    "兵营不足": dict(t=300, used=35, cap=70, army=6, gw=1, mins=400, gas=0, idle=2, workers=22),
+    "兵少":     dict(t=420, used=50, cap=70, army=4, gw=4, mins=300, gas=0, idle=2, workers=26),
+    "兵多":     dict(t=480, used=60, cap=70, army=14, gw=4, mins=300, gas=0, idle=2, workers=28),
+}
+
+
 # 致命错：与局面直接矛盾的选择
 def is_fatal(st, key):
     if st["used"] >= 0.95 * st["cap"] and key in ("S1", "S3"):   # 满人口还造单位
@@ -102,6 +154,7 @@ def make_states(n_per=6, seed=0):
             st["mins"] = max(0, base["mins"] + rnd.randint(-150, 150))
             st["idle"] = max(0, base["idle"] + rnd.randint(-2, 2))
             st["workers"] = max(1, base["workers"] + rnd.randint(-2, 2))
+            st["gw"] = max(0, base.get("gw", 0) + rnd.randint(-1, 1))
             out.append((name, st))
     return out
 
@@ -119,7 +172,12 @@ def main():
     ap.add_argument("--model-path", default=None)
     ap.add_argument("--repeat", type=int, default=3, help="一致性检查重复次数")
     ap.add_argument("--max-tokens", type=int, default=300)
-    ap.add_argument("--form", default="choice", choices=["choice", "tree"],
+    ap.add_argument("--gt", default="rules", choices=["rules", "v5"],
+                    help="rules=我手写的8条；v5=按 _rule_expert_v5 的优先级阶梯")
+    ap.add_argument("--lang", default="zh", choices=["zh", "en"], help="提问语言")
+    ap.add_argument("--votes", type=int, default=1, help="每个二元问题投票次数（多数决）")
+    ap.add_argument("--form", default="choice",
+                    choices=["choice", "tree", "tree_v5", "tree_d"],
                     help="choice=8选1；tree=决策树（3 个二元问题 + few-shot）")
     ap.add_argument("--priming", default="none",
                     choices=["none", "strategy", "strategy_shots"],
@@ -128,8 +186,14 @@ def main():
 
     llm = llm_client.build(a.backend, model_path=a.model_path, base_url=a.base_url,
                            model_name=a.model_name)
-    states = make_states(n_per=a.n)
-    opts = "\n".join("%s: %s" % (k, v[0]) for k, v in STRATEGIES.items())
+    if a.gt == "v5":
+        global REGIMES
+        REGIMES = REGIMES_V5
+        states = make_states(n_per=a.n)
+    else:
+        states = make_states(n_per=a.n)
+    opts = ("\n".join("%s: %s" % (k, EN[k]) for k in STRATEGIES) if a.lang == "en"
+            else "\n".join("%s: %s" % (k, v[0]) for k, v in STRATEGIES.items()))
 
     # 三种提示词变体：验证"先给背景/战术/示例"到底有没有用
     DOCTRINE = ("本局固定执行**狂热者快攻**，你的职责只是节奏控制：\n"
@@ -153,8 +217,87 @@ def main():
     diag_ok = 0
 
     for name, st in states:
-        text = render(st)
-        gt, why = gt_strategy(st)
+        text = render_en(st) if a.lang == "en" else render(st)
+        gt, why = (gt_v5(st) if a.gt == "v5" else gt_strategy(st))
+        if a.form == "tree_d":
+            # 关键改动：把"需不需要减"的量预先算好写进摘要，模型只做一次比较
+            text2 = (text + "\n人口余量 %d（上限-已用）" % (st["cap"] - st["used"]))
+
+            def askd(q, shots):
+                votes = []
+                for _ in range(max(1, a.votes)):
+                    raw = llm.chat([{"role": "system", "content": "只答一个字：是 或 否。"},
+                                    {"role": "user", "content": shots + text2 + "\n" + q}],
+                                   max_new_tokens=8, temperature=0.0)
+                    t = (raw or "").strip()
+                    if "否" in t[:6]:
+                        votes.append(False)
+                    elif "是" in t[:6]:
+                        votes.append(True)
+                if not votes:
+                    return None
+                return sum(votes) * 2 > len(votes)
+            t0 = time.time()
+            q1 = askd("人口余量是否小于等于 6？",
+                      "示例：人口余量=3，问\"≤6?\"→是。\n示例：人口余量=30，问\"≤6?\"→否。\n")
+            if q1:
+                k = "S2"
+            else:
+                q2 = askd("农民数量是否少于 18？",
+                          "示例：农民=14，问\"<18?\"→是。\n示例：农民=26，问\"<18?\"→否。\n")
+                if q2:
+                    k = "S1"
+                else:
+                    q3 = askd("军队数量是否少于 10？",
+                              "示例：军队=4，问\"<10?\"→是。\n示例：军队=14，问\"<10?\"→否。\n")
+                    k = "S3" if q3 else "S6"
+            lat.append(time.time() - t0)
+            picks[k] += 1
+            if k == gt:
+                correct += 1
+            if is_fatal(st, k):
+                fatal += 1
+            continue
+
+        if a.form == "tree_v5":
+            # 逐条执行 V5 的阶梯：三个 yes/no + few-shot
+            def ask(q, shots):
+                raw = llm.chat([{"role": "system", "content": "只答一个字：是 或 否。"},
+                                {"role": "user", "content": shots + text + "\n" + q}],
+                               max_new_tokens=8, temperature=0.0)
+                t = (raw or "").strip()
+                if "否" in t[:6]:
+                    return False
+                if "是" in t[:6]:
+                    return True
+                return None
+            t0 = time.time()
+            q1 = ask("人口上限减去已用人口，是否小于等于 6？",
+                     "示例：47-44=3，问\"≤6?\"→是。\n示例：70-40=30，问\"≤6?\"→否。\n")
+            if q1:
+                k = "S2"
+            else:
+                q2 = ask("农民数量是否少于 18？",
+                         "示例：农民=14，问\"<18?\"→是。\n示例：农民=26，问\"<18?\"→否。\n")
+                if q2:
+                    k = "S1"
+                else:
+                    q3 = ask("军队数量是否少于 10？",
+                             "示例：军队=4，问\"<10?\"→是。\n示例：军队=14，问\"<10?\"→否。\n")
+                    k = "S3" if q3 else "S6"
+            lat.append(time.time() - t0)
+            picks[k] += 1
+            if k == gt:
+                correct += 1
+            if is_fatal(st, k):
+                fatal += 1
+            d = llm.chat([{"role": "system", "content": "只回答一个词：人口 / 军队 / 存款 / 农民 / 其他。"},
+                          {"role": "user", "content": text + "\n当前最需要解决的问题是哪一类？"}],
+                         max_new_tokens=a.max_tokens, temperature=0.0)
+            if gt_diagnosis(st) in (d or ""):
+                diag_ok += 1
+            continue
+
         if a.form == "tree":
             from commander_tree import TreeCommander
             tc = TreeCommander(llm)
@@ -177,8 +320,11 @@ def main():
         picks_this = []
         for _ in range(a.repeat):
             t0 = time.time()
-            raw = llm.chat([{"role": "system", "content": sys_msg},
-                            {"role": "user", "content": "当前局势：\n%s\n\n可选策略：\n%s\n\n输出编号：" % (text, opts)}],
+            user_msg = (("Situation://n%s//n//nOptions://n%s//n//nAnswer with the id only:" % (text, opts))
+                        if a.lang == "en" else
+                        ("当前局势：\n%s\n\n可选策略：\n%s\n\n输出编号：" % (text, opts)))
+            raw = llm.chat([{"role": "system", "content": SYS_EN if a.lang == "en" else sys_msg},
+                            {"role": "user", "content": user_msg}],
                            max_new_tokens=a.max_tokens, temperature=0.0)
             lat.append(time.time() - t0)
             picks_this.append(parse_choice(raw))
@@ -204,11 +350,12 @@ def main():
     print("B 诊断准确率:            %d/%d = %.0f%%" % (diag_ok, n, 100.0 * diag_ok / n))
     print("C 致命错:                %d 次" % fatal)
     print("D 策略覆盖:              %d/8  分布 %s" % (len([k for k in picks if k]), dict(picks)))
-    if a.form == "tree":
-        print("E 重复一致率:            未测（tree 形式只跑一次决策）")
+    if a.form in ("tree", "tree_v5", "tree_d"):
+        print("E 重复一致率:            未测（该形式只跑一次决策）")
     else:
         print("E 重复一致率:            %d/%d = %.0f%%" % (consistent, n, 100.0 * consistent / n))
-    major = max(Counter(gt_strategy(st)[0] for _, st in states).values())
+    gtf = gt_v5 if a.gt == "v5" else gt_strategy
+    major = max(Counter(gtf(st)[0] for _, st in states).values())
     print("\n多数类基线: %d/%d = %.0f%%（全答同一答案的准确率；超过它才算有判别力）"
           % (major, n, 100.0 * major / n))
     ok = (correct >= 0.8 * n and fatal == 0 and len([k for k in picks if k]) >= 4
