@@ -51,8 +51,31 @@ class LocalBackend:
         self.load_s = time.time() - t0
         self.max_new_tokens = max_new_tokens
 
+    def _render(self, messages):
+        """渲染对话模板。Qwen3 需关思考；GLM-4 老版本没有 chat_template，走手工格式。"""
+        no_think = os.environ.get("LLM_NO_THINK", "") == "1"
+        if no_think:
+            messages = [dict(m) for m in messages]
+            messages[0]["content"] = messages[0]["content"] + "\n/no_think"
+        kw = {"enable_thinking": False} if (no_think and "qwen3" in self.model_path.lower()) else {}
+        try:
+            return self.tok.apply_chat_template(messages, tokenize=False,
+                                                add_generation_prompt=True, **kw)
+        except TypeError:
+            return self.tok.apply_chat_template(messages, tokenize=False,
+                                                add_generation_prompt=True)
+        except Exception:
+            # GLM-4-9B-chat 的旧式模板：[gMASK]<sop><|system|>...<|user|>...<|assistant|>
+            out = ["[gMASK]<sop>"]
+            for m in messages:
+                role = {"system": "<|system|>", "user": "<|user|>",
+                        "assistant": "<|assistant|>"}.get(m["role"], "<|user|>")
+                out.append(role + m["content"])
+            out.append("<|assistant|>")
+            return "".join(out)
+
     def chat(self, messages, max_new_tokens=None, temperature=0.2):
-        text = self.tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        text = self._render(messages)
         ids = self.tok([text], return_tensors="pt").to(self.input_device)
         with self.torch.no_grad():
             out = self.model.generate(
