@@ -176,6 +176,16 @@ def main():
     ck("时间可行性/兵营", not tg, ",".join(tg[:3]))
     ck("时间可行性/兵力", not ta, ",".join(ta[:3]))
 
+    # 12 经济可行性：花掉的矿不超过采到的
+    eco = []
+    for it in items:
+        st = it["state"]
+        mined = 0.75 * (12 + st["workers"]) / 2.0 * st["t"] + 50
+        spent = 50 * st["workers"] + 150 * st["gw"] + 100 * st["pylons"] + 100 * st["army"]
+        if spent > mined * 1.3:
+            eco.append("%s(花%d/采%d)" % (it["id"], spent, mined))
+    ck("经济可行性/矿不超采", not eco, ",".join(eco[:3]))
+
     # 附加：分布与边界翻转
     print("\n各位为 1：" + str({n: sum(1 for it in items if it["label"][i] == "1")
                               for i, n in enumerate(BIT_NAMES)}))

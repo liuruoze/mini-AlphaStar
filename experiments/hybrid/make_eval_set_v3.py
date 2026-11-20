@@ -66,7 +66,7 @@ def render(st):
 
 
 def make(rnd, t, used, workers, army, gw, pylons, minerals, gas=0, idle=0,
-         cyber=0, nexus=1):
+         cyber=0, nexus=1, raw=False):
     # 容量 = 15×基地 + 8×水晶（用户 19:12 更正；基地给 15，每个水晶给 8）
     cap = min(200, 15 * nexus + 8 * pylons)
     used = min(used, cap)
@@ -74,6 +74,17 @@ def make(rnd, t, used, workers, army, gw, pylons, minerals, gas=0, idle=0,
         army = max(0, used - workers)
         if workers + army > used:
             workers = max(1, used - army)
+    if raw:
+        # 边界局面是手工构造的，不做削峰；只保证人口/单位自洽
+        cap = min(200, 15 * nexus + 8 * pylons)
+        used = min(used, cap)
+        if workers + army > used:
+            army = max(0, used - workers)
+        cyber, geysers, gas = 0, 0, 0
+        return dict(t=t, used=used, cap=cap, workers=workers, army=army,
+                    zealots=army, stalkers=0, gw=gw, pylons=pylons, cyber=0,
+                    nexus=nexus, idle=idle, minerals=minerals, gas=0, geysers=0)
+
     # ---- 时间可行性约束（2026-11-20 用户要求"题目不能有问题"）----
     # 农民 12 秒一个（开局 12 个）；兵营约 45 秒一座（含水晶前置）；狂热者 27 秒一个/兵营
     workers = min(workers, int(12 + t / 12.0))
@@ -89,6 +100,22 @@ def make(rnd, t, used, workers, army, gw, pylons, minerals, gas=0, idle=0,
         if workers > used:
             workers = used
         army = max(0, used - workers)
+    # ---- 经济可行性：花的矿不能超过采到的矿 ----
+    # 时间不影响任何一位标签，所以在负担不起时自动延后局面时间
+    while True:
+        _mined = 0.75 * (12 + workers) / 2.0 * t + 50
+        _fixed = 50 * workers + 150 * gw + 100 * pylons
+        if _fixed <= _mined * 1.25 or t >= 900:
+            break
+        t += 60
+    # 单个农民约 45 矿/分；平均农民数按 (12+当前)/2 估；开局 50 矿。
+    mined = 0.75 * (12 + workers) / 2.0 * t + 50
+    spent_fixed = 50 * workers + 150 * gw + 100 * pylons   # 农民/兵营/水晶
+    affordable = max(0, (mined * 1.25 - spent_fixed) / 100.0)   # 每个狂热者 100 矿
+    army = min(army, int(affordable))
+    if workers + army > used:
+        army = max(0, used - workers)
+
     # 纯狂热者快攻：阵中只有狂热者，没有其他兵种
     zealots, stalkers = army, 0
     cyber, geysers, gas = 0, 0, 0     # 不攀科技、不采气，符合纯狂热者快攻
@@ -104,8 +131,15 @@ def boundary_items(rnd):
 
     def one(name, pylons, gap, workers, army, gw, minerals, expect=None, note=""):
         cap = min(200, 15 + 8 * pylons) if pylons else 15
-        st = make(rnd, t=240, used=cap - gap, workers=workers, army=army, gw=gw,
-                  pylons=pylons, minerals=minerals, cyber=0)
+        # 时间只影响"采得够不够花"，不影响任何一位标签，故按需抬高
+        t = 240
+        while t < 900:
+            mined = 0.75 * (12 + workers) / 2.0 * t + 50
+            if 50 * workers + 150 * gw + 100 * pylons + 100 * army <= mined * 1.25:
+                break
+            t += 60
+        st = make(rnd, t=t, used=cap - gap, workers=workers, army=army, gw=gw,
+                  pylons=pylons, minerals=minerals, cyber=0, raw=True)
         return {"name": name, "state": st, "expect": expect, "note": note}
 
     # 农民 14 / 15（人口余量 7，其余固定）
@@ -136,7 +170,11 @@ def boundary_items(rnd):
     out.append(one("无水晶", 0, 1, 12, 0, 0, 80, None, "无能量场，兵营位强制 0"))
     out.append(one("无水晶有兵营", 0, 1, 13, 0, 0, 120, None, "同上；兵营是残存的"))
     # 其余几条（不与上面配对，单独考察）
-    out.append(one("满人口", 24, 0, 60, 60, 6, 800, None, "人口顶格"))
+    # 满人口必须给足时间（4 分钟采不出 24 个水晶 + 6 兵营 + 60 兵的矿），t 单独指定
+    cap24 = min(200, 15 + 8 * 24)
+    st_full = make(rnd, t=900, used=cap24, workers=60, army=60, gw=6, pylons=24,
+                   minerals=800, gas=0, idle=0, cyber=0, nexus=1)
+    out.append({"name": "满人口", "state": st_full, "expect": None, "note": "人口顶格"})
     out.append(one("无兵营有水晶", 3, 5, 18, 3, 0, 250, None, "要造兵营"))
     out.append(one("进攻中带存款", 6, 6, 22, 14, 4, 150, None, "边推边补"))
     out.append(one("低农民高兵", 6, 20, 12, 20, 4, 300, None, "农民少但兵多"))
@@ -195,8 +233,13 @@ def random_state(rnd):
 def build():
     rnd = random.Random(SEED)
     items = []
+    seen_states = set()
     for b in boundary_items(rnd):
         st = b["state"]
+        key = json.dumps(st, sort_keys=True)
+        if key in seen_states:
+            continue
+        seen_states.add(key)
         items.append({"id": "v3-%03d" % (len(items) + 1), "src": "boundary:" + b["name"],
                       "state": st, "label": decide_bits(**st),
                       "expect": b["expect"], "note": b["note"]})
@@ -207,6 +250,10 @@ def build():
     while len(items) < target and guard < 200000:
         guard += 1
         st = random_state(rnd)
+        key = json.dumps(st, sort_keys=True)
+        if key in seen_states:
+            continue
+        seen_states.add(key)
         bits = decide_bits(**st)
         ones = [bits.count("1")]
         pos = sum(1 for it in items if it["label"][0] == "1")
