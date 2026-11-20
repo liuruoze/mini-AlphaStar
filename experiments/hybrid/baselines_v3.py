@@ -25,6 +25,15 @@ def per_bit_acc(predict):
     return hit / (5.0 * N)
 
 
+def score_b(predict):
+    """方案 B（用户 20:27 定）：5 位全对 1 分；只错 1 位 0.5 分；错 2 位及以上 0 分。"""
+    tot = 0.0
+    for it in ITEMS:
+        wrong = sum(1 for a, b in zip(predict(it), it["label"]) if a != b)
+        tot += 1.0 if wrong == 0 else (0.5 if wrong == 1 else 0.0)
+    return tot / float(N)
+
+
 def balanced_acc(predict):
     """每位分别算 (TPR+TNR)/2，再对五位平均 —— 只答一边恒为 50%。"""
     per = []
@@ -67,26 +76,28 @@ def main():
         ("最常见组合 %s" % Counter(it["label"] for it in ITEMS).most_common(1)[0][0],
          lambda it: Counter(x["label"] for x in ITEMS).most_common(1)[0][0]),
     ]
-    print("\n%-28s %-10s %-10s %s" % ("平凡策略", "逐位准确", "平衡准确", "全对率"))
+    print("\n%-28s %8s %10s %10s %8s" % ("平凡策略", "得分B", "逐位准确", "平衡准确", "全对率"))
     for name, fn in strategies:
         if fn is None:
             continue
-        print("%-28s %8.1f%% %10.1f%% %8.1f%%"
-              % (name, 100 * per_bit_acc(fn), 100 * balanced_acc(fn)[0], 100 * exact_acc(fn)))
+        print("%-28s %8.3f %9.1f%% %9.1f%% %7.1f%%"
+              % (name, score_b(fn), 100 * per_bit_acc(fn),
+                 100 * balanced_acc(fn)[0], 100 * exact_acc(fn)))
 
     # 用规则本身当"作弊模型"，验证上限
     from doctrine import decide_bits
     oracle = lambda it: decide_bits(**it["state"])
-    print("%-28s %8.1f%% %10.1f%% %8.1f%%" % ("规则本身（理论上限）", 100 * per_bit_acc(oracle),
-                                             100 * balanced_acc(oracle)[0], 100 * exact_acc(oracle)))
+    print("%-28s %8.3f %9.1f%% %9.1f%% %7.1f%%"
+          % ("规则本身（理论上限）", score_b(oracle), 100 * per_bit_acc(oracle),
+             100 * balanced_acc(oracle)[0], 100 * exact_acc(oracle)))
 
     # 只看"兵≥8"这一条，其余全 0 —— 单一启发式
     def only_attack(it):
         return "0000" + ("1" if it["state"]["army"] >= 8 else "0")
     ba, per = balanced_acc(only_attack)
-    print("%-28s %8.1f%% %10.1f%% %8.1f%%   逐位平衡=%s"
-          % ("只看兵≥8", 100 * per_bit_acc(only_attack), 100 * ba, 100 * exact_acc(only_attack),
-             ["%.0f" % (100 * x) for x in per]))
+    print("%-28s %8.3f %9.1f%% %9.1f%% %7.1f%%   逐位平衡=%s"
+          % ("只看兵≥8", score_b(only_attack), 100 * per_bit_acc(only_attack), 100 * ba,
+             100 * exact_acc(only_attack), ["%.0f" % (100 * x) for x in per]))
 
     # 正常对局占比
     normal = [it for it in ITEMS if it["state"]["pylons"] >= 1 and it["state"]["gw"] >= 1]
