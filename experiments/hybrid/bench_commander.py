@@ -166,7 +166,7 @@ def main():
                 correct += 1
             if k and is_fatal(st, k):
                 fatal += 1
-            consistent += 1
+            # tree 形式只跑一次决策，无法据此判断重复一致性 → 记为未测，不虚报
             d = llm.chat([{"role": "system", "content": "只回答一个词：人口 / 军队 / 存款 / 农民 / 其他。"},
                           {"role": "user", "content": text + "\n当前最需要解决的问题是哪一类？"}],
                          max_new_tokens=a.max_tokens, temperature=0.0)
@@ -204,12 +204,15 @@ def main():
     print("B 诊断准确率:            %d/%d = %.0f%%" % (diag_ok, n, 100.0 * diag_ok / n))
     print("C 致命错:                %d 次" % fatal)
     print("D 策略覆盖:              %d/8  分布 %s" % (len([k for k in picks if k]), dict(picks)))
-    print("E 重复一致率:            %d/%d = %.0f%%" % (consistent, n, 100.0 * consistent / n))
+    if a.form == "tree":
+        print("E 重复一致率:            未测（tree 形式只跑一次决策）")
+    else:
+        print("E 重复一致率:            %d/%d = %.0f%%" % (consistent, n, 100.0 * consistent / n))
     major = max(Counter(gt_strategy(st)[0] for _, st in states).values())
     print("\n多数类基线: %d/%d = %.0f%%（全答同一答案的准确率；超过它才算有判别力）"
           % (major, n, 100.0 * major / n))
     ok = (correct >= 0.8 * n and fatal == 0 and len([k for k in picks if k]) >= 4
-          and consistent >= 0.8 * n and correct > major)
+          and (a.form == "tree" or consistent >= 0.8 * n) and correct > major)
     print("\n判定: %s" % ("✅ 够用，可以进回路" if ok else "❌ 不够用，先只做离线教练"))
 
 
