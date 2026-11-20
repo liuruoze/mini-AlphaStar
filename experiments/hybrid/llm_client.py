@@ -37,14 +37,23 @@ class LocalBackend:
         t0 = time.time()
         self.tok = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype=dtype, trust_remote_code=True).to(self.device).eval()
+        # 14B 单卡放不下：LLM_DEVICE_MAP=auto 时按显存自动切分到多卡
+        if os.environ.get("LLM_DEVICE_MAP", "").lower() == "auto":
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path, torch_dtype=dtype, trust_remote_code=True,
+                device_map="auto").eval()
+            self.device = None
+            self.input_device = next(self.model.parameters()).device
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path, torch_dtype=dtype, trust_remote_code=True).to(self.device).eval()
+            self.input_device = self.device
         self.load_s = time.time() - t0
         self.max_new_tokens = max_new_tokens
 
     def chat(self, messages, max_new_tokens=None, temperature=0.2):
         text = self.tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        ids = self.tok([text], return_tensors="pt").to(self.device)
+        ids = self.tok([text], return_tensors="pt").to(self.input_device)
         with self.torch.no_grad():
             out = self.model.generate(
                 **ids, max_new_tokens=max_new_tokens or self.max_new_tokens,
