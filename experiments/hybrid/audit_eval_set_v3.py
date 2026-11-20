@@ -107,6 +107,10 @@ def main():
             c.append(it["id"] + "(有气无气矿)")
         if s["stalkers"] > 0 and s["cyber"] == 0:
             c.append(it["id"] + "(有使徒无控制核心)")
+        if s["cyber"] > 0 and s["gw"] == 0:
+            c.append(it["id"] + "(有控制核心无兵营)")
+        if s["stalkers"] > 0 and s["cyber"] == 0:
+            c.append(it["id"] + "(有使徒无核心)")
         if s["gw"] > 0 and s["pylons"] == 0 and it["src"] != "boundary:无水晶有兵营":
             c.append(it["id"] + "(有兵营无水晶)")
     ck("因果/资源与建筑", not c, ",".join(c[:3]))

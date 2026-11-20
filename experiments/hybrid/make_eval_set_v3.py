@@ -83,6 +83,8 @@ def make(rnd, t, used, workers, army, gw, pylons, minerals, gas=0, idle=0,
     if army and cyber and rnd.random() < 0.2:
         stalkers = rnd.randint(1, max(1, army // 3))
         zealots = army - stalkers
+    if cyber and gw == 0:      # 控制核心的前置是兵营
+        cyber = 0
     geysers = 0
     if gas > 0:
         geysers = 2 if gas >= 100 else 1
@@ -101,7 +103,8 @@ def boundary_items(rnd):
     def one(name, pylons, gap, workers, army, gw, minerals, expect=None, note=""):
         cap = min(200, 15 + 8 * pylons) if pylons else 15
         st = make(rnd, t=240, used=cap - gap, workers=workers, army=army, gw=gw,
-                  pylons=pylons, minerals=minerals, cyber=1 if army > 20 else 0)
+                  pylons=pylons, minerals=minerals,
+                  cyber=1 if (army > 20 and gw > 0) else 0)
         return {"name": name, "state": st, "expect": expect, "note": note}
 
     # 农民 14 / 15（人口余量 7，其余固定）
@@ -182,10 +185,11 @@ def random_state(rnd):
     gw = rnd.choice([0, 0, 1, 1, 2, 3, 3, 4, 5])
     if gw and pylons == 0:
         gw = 0
+    cyber = rnd.choice([0, 0, 1]) if gw > 0 else 0
     return make(rnd, rnd.choice([60, 120, 180, 240, 300, 360, 420, 480, 540]),
                 used, workers, army, gw, pylons,
                 rnd.randint(0, 700), rnd.choice([0, 0, 0, 50, 100]),
-                rnd.choice([0, 0, 1, 2, 5]), rnd.choice([0, 0, 1]), 1)
+                rnd.choice([0, 0, 1, 2, 5]), cyber, 1)
 
 
 def build():
