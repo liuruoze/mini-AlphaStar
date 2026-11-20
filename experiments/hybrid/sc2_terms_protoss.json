@@ -1,46 +1,283 @@
 {
-  "note": "星际争霸2 神族单位/建筑术语对照。英文名与 ID 取自 pysc2（暴雪官方数据文件）；繁体中文取自暴雪官方新闻稿；简体中文取自中文维基/百科（社区标准译名）。两套中文名在多数单位上一致，少数不同（如 Zealot 简体「狂热者」/ 繁体「狂戰士」）。",
-  "sources": {
-    "en_id": "pysc2.lib.units（本地安装，与游戏数据同源）",
-    "zh_tw_official": "https://news.blizzard.com/zh-tw/article/9882526/ 暴雪官方《學習星海爭霸的語言—第一部》",
-    "zh_cn_community": "星际争霸中文维基 huijiwiki / 百度百科 / 玩家解说术语表"
+ "note": "星际争霸2 神族术语对照。英文名与 ID 取自 pysc2；繁体名中，tw_source=official 的逐字来自暴雪官方《學習星海爭霸的語言》文章，tw_source=community 的为社区通用写法（未经官方逐条核对）。简体名为社区标准译名。",
+ "sources": {
+  "en_id": "pysc2.lib.units（本地安装，与游戏数据同源）",
+  "zh_tw_official": "https://news.blizzard.com/zh-tw/article/9882526/ 暴雪官方《學習星海爭霸的語言—第一部》",
+  "zh_cn_community": "星际争霸中文维基 huijiwiki / 百度百科 / 玩家解说术语表"
+ },
+ "fetched_at": "2026-11-20",
+ "terms": [
+  {
+   "id": 84,
+   "en": "Probe",
+   "cn": "探机",
+   "tw": "探機",
+   "colloquial": "农民",
+   "tw_source": "community"
   },
-  "fetched_at": "2026-11-20",
-  "terms": [
-    {"id": 84,   "en": "Probe",            "cn": "探机",         "tw": "探機",           "colloquial": "农民"},
-    {"id": 73,   "en": "Zealot",           "cn": "狂热者",       "tw": "狂戰士",         "colloquial": "叉子"},
-    {"id": 74,   "en": "Stalker",          "cn": "追猎者",       "tw": "追獵者",         "colloquial": "追猎"},
-    {"id": 311,  "en": "Adept",            "cn": "使徒",         "tw": "使徒",           "colloquial": "使徒"},
-    {"id": 77,   "en": "Sentry",           "cn": "机械哨兵",     "tw": "哨兵",           "colloquial": "哨兵"},
-    {"id": 75,   "en": "HighTemplar",      "cn": "高阶圣堂武士", "tw": "高階聖堂武士",   "colloquial": "电兵/HT"},
-    {"id": 76,   "en": "DarkTemplar",      "cn": "黑暗圣堂武士", "tw": "黑暗聖堂武士",   "colloquial": "隐刀/DT"},
-    {"id": 141,  "en": "Archon",           "cn": "执政官",       "tw": "執政官",         "colloquial": "白球"},
-    {"id": 83,   "en": "Immortal",         "cn": "不朽者",       "tw": "不朽者",         "colloquial": "不朽"},
-    {"id": 4,    "en": "Colossus",         "cn": "巨像",         "tw": "巨像",           "colloquial": "巨像"},
-    {"id": 694,  "en": "Disruptor",        "cn": "干扰者",       "tw": "干擾者",         "colloquial": "自爆球"},
-    {"id": 78,   "en": "Phoenix",          "cn": "凤凰",         "tw": "鳳凰",           "colloquial": "凤凰"},
-    {"id": 495,  "en": "Oracle",           "cn": "先知",         "tw": "先知",           "colloquial": "先知"},
-    {"id": 80,   "en": "VoidRay",          "cn": "虚空辉光舰",   "tw": "虛空艦",         "colloquial": "虚空"},
-    {"id": 79,   "en": "Carrier",          "cn": "航母",         "tw": "航母",           "colloquial": "航母"},
-    {"id": 496,  "en": "Tempest",          "cn": "风暴战舰",     "tw": "風暴戰艦",       "colloquial": "风暴"},
-    {"id": 82,   "en": "Observer",         "cn": "观察者",       "tw": "觀察者",         "colloquial": "OB/叮当"},
-    {"id": 81,   "en": "WarpPrism",        "cn": "折跃棱镜",     "tw": "折躍稜鏡",       "colloquial": "棱镜"},
-    {"id": 10,   "en": "Mothership",       "cn": "母舰",         "tw": "母艦",           "colloquial": "妈妈船"},
-
-    {"id": 59,   "en": "Nexus",            "cn": "星灵枢纽",     "tw": "星核",           "colloquial": "基地"},
-    {"id": 60,   "en": "Pylon",            "cn": "水晶塔",       "tw": "水晶塔",         "colloquial": "水晶"},
-    {"id": 62,   "en": "Gateway",          "cn": "传送门",       "tw": "傳送之門",       "colloquial": "兵营"},
-    {"id": 133,  "en": "WarpGate",         "cn": "折跃门",       "tw": "折躍門",         "colloquial": "折跃门"},
-    {"id": 72,   "en": "CyberneticsCore",  "cn": "控制核心",     "tw": "機械控制核心",   "colloquial": "BY"},
-    {"id": 61,   "en": "Assimilator",      "cn": "吸纳舱",       "tw": "吸收艙",         "colloquial": "气矿"},
-    {"id": 63,   "en": "Forge",            "cn": "锻炉",         "tw": "冶煉廠",         "colloquial": "锻炉"},
-    {"id": 65,   "en": "TwilightCouncil",  "cn": "光影议会",     "tw": "暮光議會",       "colloquial": "VC"},
-    {"id": 71,   "en": "RoboticsFacility", "cn": "机械制造厂",   "tw": "機械製造廠",     "colloquial": "机械台"},
-    {"id": 70,   "en": "RoboticsBay",      "cn": "机械研究所",   "tw": "機械研究所",     "colloquial": "VB"},
-    {"id": 67,   "en": "Stargate",         "cn": "星门",         "tw": "星際之門",       "colloquial": "机场"},
-    {"id": 66,   "en": "PhotonCannon",     "cn": "光子炮台",     "tw": "光子加農砲",     "colloquial": "盘子"},
-    {"id": 69,   "en": "DarkShrine",       "cn": "黑暗圣坛",     "tw": "黑暗聖壇",       "colloquial": "隐刀塔"},
-    {"id": 64,   "en": "FleetBeacon",      "cn": "舰队航标",     "tw": "艦隊航標",       "colloquial": "VF"},
-    {"id": 1910, "en": "ShieldBattery",    "cn": "护盾充能器",   "tw": "護盾充能器",     "colloquial": "电池"}
-  ]
+  {
+   "id": 73,
+   "en": "Zealot",
+   "cn": "狂热者",
+   "tw": "狂戰士",
+   "colloquial": "叉子",
+   "tw_source": "official"
+  },
+  {
+   "id": 74,
+   "en": "Stalker",
+   "cn": "追猎者",
+   "tw": "追獵者",
+   "colloquial": "追猎",
+   "tw_source": "official"
+  },
+  {
+   "id": 311,
+   "en": "Adept",
+   "cn": "使徒",
+   "tw": "使徒",
+   "colloquial": "使徒",
+   "tw_source": "community"
+  },
+  {
+   "id": 77,
+   "en": "Sentry",
+   "cn": "机械哨兵",
+   "tw": "哨兵",
+   "colloquial": "哨兵",
+   "tw_source": "official"
+  },
+  {
+   "id": 75,
+   "en": "HighTemplar",
+   "cn": "高阶圣堂武士",
+   "tw": "高階聖堂武士",
+   "colloquial": "电兵/HT",
+   "tw_source": "official"
+  },
+  {
+   "id": 76,
+   "en": "DarkTemplar",
+   "cn": "黑暗圣堂武士",
+   "tw": "黑暗聖堂武士",
+   "colloquial": "隐刀/DT",
+   "tw_source": "official"
+  },
+  {
+   "id": 141,
+   "en": "Archon",
+   "cn": "执政官",
+   "tw": "執政官",
+   "colloquial": "白球",
+   "tw_source": "community"
+  },
+  {
+   "id": 83,
+   "en": "Immortal",
+   "cn": "不朽者",
+   "tw": "不朽者",
+   "colloquial": "不朽",
+   "tw_source": "community"
+  },
+  {
+   "id": 4,
+   "en": "Colossus",
+   "cn": "巨像",
+   "tw": "巨像",
+   "colloquial": "巨像",
+   "tw_source": "community"
+  },
+  {
+   "id": 694,
+   "en": "Disruptor",
+   "cn": "干扰者",
+   "tw": "干擾者",
+   "colloquial": "自爆球",
+   "tw_source": "community"
+  },
+  {
+   "id": 78,
+   "en": "Phoenix",
+   "cn": "凤凰",
+   "tw": "鳳凰",
+   "colloquial": "凤凰",
+   "tw_source": "community"
+  },
+  {
+   "id": 495,
+   "en": "Oracle",
+   "cn": "先知",
+   "tw": "先知",
+   "colloquial": "先知",
+   "tw_source": "community"
+  },
+  {
+   "id": 80,
+   "en": "VoidRay",
+   "cn": "虚空辉光舰",
+   "tw": "虛空艦",
+   "colloquial": "虚空",
+   "tw_source": "official"
+  },
+  {
+   "id": 79,
+   "en": "Carrier",
+   "cn": "航母",
+   "tw": "航母",
+   "colloquial": "航母",
+   "tw_source": "community"
+  },
+  {
+   "id": 496,
+   "en": "Tempest",
+   "cn": "风暴战舰",
+   "tw": "風暴戰艦",
+   "colloquial": "风暴",
+   "tw_source": "community"
+  },
+  {
+   "id": 82,
+   "en": "Observer",
+   "cn": "观察者",
+   "tw": "觀察者",
+   "colloquial": "OB/叮当",
+   "tw_source": "official"
+  },
+  {
+   "id": 81,
+   "en": "WarpPrism",
+   "cn": "折跃棱镜",
+   "tw": "折躍稜鏡",
+   "colloquial": "棱镜",
+   "tw_source": "community"
+  },
+  {
+   "id": 10,
+   "en": "Mothership",
+   "cn": "母舰",
+   "tw": "母艦",
+   "colloquial": "妈妈船",
+   "tw_source": "community"
+  },
+  {
+   "id": 59,
+   "en": "Nexus",
+   "cn": "星灵枢纽",
+   "tw": "星核",
+   "colloquial": "基地",
+   "tw_source": "official"
+  },
+  {
+   "id": 60,
+   "en": "Pylon",
+   "cn": "水晶塔",
+   "tw": "水晶塔",
+   "colloquial": "水晶",
+   "tw_source": "official"
+  },
+  {
+   "id": 62,
+   "en": "Gateway",
+   "cn": "传送门",
+   "tw": "傳送之門",
+   "colloquial": "兵营",
+   "tw_source": "official"
+  },
+  {
+   "id": 133,
+   "en": "WarpGate",
+   "cn": "折跃门",
+   "tw": "折躍門",
+   "colloquial": "折跃门",
+   "tw_source": "community"
+  },
+  {
+   "id": 72,
+   "en": "CyberneticsCore",
+   "cn": "控制核心",
+   "tw": "機械控制核心",
+   "colloquial": "BY",
+   "tw_source": "official"
+  },
+  {
+   "id": 61,
+   "en": "Assimilator",
+   "cn": "吸纳舱",
+   "tw": "吸收艙",
+   "colloquial": "气矿",
+   "tw_source": "community"
+  },
+  {
+   "id": 63,
+   "en": "Forge",
+   "cn": "锻炉",
+   "tw": "冶煉廠",
+   "colloquial": "锻炉",
+   "tw_source": "official"
+  },
+  {
+   "id": 65,
+   "en": "TwilightCouncil",
+   "cn": "光影议会",
+   "tw": "暮光議會",
+   "colloquial": "VC",
+   "tw_source": "official"
+  },
+  {
+   "id": 71,
+   "en": "RoboticsFacility",
+   "cn": "机械制造厂",
+   "tw": "機械製造廠",
+   "colloquial": "机械台",
+   "tw_source": "official"
+  },
+  {
+   "id": 70,
+   "en": "RoboticsBay",
+   "cn": "机械研究所",
+   "tw": "機械研究所",
+   "colloquial": "VB",
+   "tw_source": "community"
+  },
+  {
+   "id": 67,
+   "en": "Stargate",
+   "cn": "星门",
+   "tw": "星際之門",
+   "colloquial": "机场",
+   "tw_source": "official"
+  },
+  {
+   "id": 66,
+   "en": "PhotonCannon",
+   "cn": "光子炮台",
+   "tw": "光子加農砲",
+   "colloquial": "盘子",
+   "tw_source": "official"
+  },
+  {
+   "id": 69,
+   "en": "DarkShrine",
+   "cn": "黑暗圣坛",
+   "tw": "黑暗聖壇",
+   "colloquial": "隐刀塔",
+   "tw_source": "community"
+  },
+  {
+   "id": 64,
+   "en": "FleetBeacon",
+   "cn": "舰队航标",
+   "tw": "艦隊航標",
+   "colloquial": "VF",
+   "tw_source": "community"
+  },
+  {
+   "id": 1910,
+   "en": "ShieldBattery",
+   "cn": "护盾充能器",
+   "tw": "護盾充能器",
+   "colloquial": "电池",
+   "tw_source": "community"
+  }
+ ]
 }

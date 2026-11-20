@@ -50,17 +50,12 @@ def render(st):
     comp = []
     if st["zealots"]:
         comp.append("%s×%d" % (UNIT_CN["Zealot"], st["zealots"]))
-    if st["stalkers"]:
-        comp.append("%s×%d" % (UNIT_CN["Stalker"], st["stalkers"]))
     bld = ["基地×%d" % st["nexus"]]
     if st["pylons"]:
         bld.append("水晶×%d" % st["pylons"])
     if st["gw"]:
         bld.append("兵营×%d" % st["gw"])
-    if st["cyber"]:
-        bld.append("控制核心×%d" % st["cyber"])
-    if st.get("geysers"):
-        bld.append("气矿×%d" % st["geysers"])
+
     return ("时间 %d:%02d｜人口 %d/%d（余量 %d）\n"
             "矿 %d 气 %d｜农民 %d｜空闲农民 %d\n"
             "部队构成：%s\n"
@@ -79,20 +74,23 @@ def make(rnd, t, used, workers, army, gw, pylons, minerals, gas=0, idle=0,
         army = max(0, used - workers)
         if workers + army > used:
             workers = max(1, used - army)
-    zealots, stalkers = army, 0
-    # 使徒需要控制核心（TECH），没有就不是合法局面
-    if army and cyber and rnd.random() < 0.2:
-        stalkers = rnd.randint(1, max(1, army // 3))
-        zealots = army - stalkers
-    if cyber and gw == 0:      # 控制核心的前置是兵营
-        cyber = 0
-    geysers = 0
-    if gas > 0:
-        geysers = 2 if gas >= 100 else 1
+    # ---- 时间可行性约束（2026-11-20 用户要求"题目不能有问题"）----
+    # 农民 12 秒一个（开局 12 个）；兵营约 45 秒一座（含水晶前置）；狂热者 27 秒一个/兵营
+    workers = min(workers, int(12 + t / 12.0))
+    gw = min(gw, 1 + int(t // 45))
+    if gw == 0:
+        army = 0                      # 没有兵营就不可能已有狂热者
     else:
-        gas = 0
+        army = min(army, int((t / 27.0) * gw))
+    if workers + army > used:
+        if workers > used:
+            workers = used
+        army = max(0, used - workers)
+    # 纯狂热者快攻：阵中只有狂热者，没有其他兵种
+    zealots, stalkers = army, 0
+    cyber, geysers, gas = 0, 0, 0     # 不攀科技、不采气，符合纯狂热者快攻
     return dict(t=t, used=used, cap=cap, workers=workers, army=army,
-                geysers=geysers,
+                geysers=0,
                 zealots=zealots, stalkers=stalkers, gw=gw, pylons=pylons,
                 cyber=cyber, nexus=nexus, idle=idle, minerals=minerals, gas=gas)
 
@@ -104,8 +102,7 @@ def boundary_items(rnd):
     def one(name, pylons, gap, workers, army, gw, minerals, expect=None, note=""):
         cap = min(200, 15 + 8 * pylons) if pylons else 15
         st = make(rnd, t=240, used=cap - gap, workers=workers, army=army, gw=gw,
-                  pylons=pylons, minerals=minerals,
-                  cyber=1 if (army > 20 and gw > 0) else 0)
+                  pylons=pylons, minerals=minerals, cyber=0)
         return {"name": name, "state": st, "expect": expect, "note": note}
 
     # 农民 14 / 15（人口余量 7，其余固定）
@@ -186,11 +183,9 @@ def random_state(rnd):
     gw = rnd.choice([0, 0, 1, 1, 2, 3, 3, 4, 5])
     if gw and pylons == 0:
         gw = 0
-    cyber = rnd.choice([0, 0, 1]) if gw > 0 else 0
     return make(rnd, rnd.choice([60, 120, 180, 240, 300, 360, 420, 480, 540]),
                 used, workers, army, gw, pylons,
-                rnd.randint(0, 700), rnd.choice([0, 0, 0, 50, 100]),
-                rnd.choice([0, 0, 1, 2, 5]), cyber, 1)
+                rnd.randint(0, 700), 0, rnd.choice([0, 0, 1, 2, 5]), 0, 1)
 
 
 def build():

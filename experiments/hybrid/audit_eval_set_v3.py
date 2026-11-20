@@ -134,6 +134,45 @@ def main():
     same = bool(blk) and blk.group(1).strip() == d["system"].strip()
     ck("常量/system 与规范一致", same)
 
+    # 10 名称：题目里出现的单位必须全部来自术语表，且只允许纯狂热者体系的单位
+    from sc2_terms import resolve
+    ALLOWED = {"狂热者", "农民", "基地", "水晶", "兵营", "无"}
+    name_bad = []
+    for it in items:
+        body = it["prompt"].split("输出")[0]
+        seg = []
+        for line in body.splitlines():
+            if line.startswith("部队构成：") or line.startswith("建筑："):
+                seg.append(line.split("：", 1)[1])
+        for chunk in "、".join(seg).split("、"):
+            name = chunk.split("×")[0].strip()
+            if not name:
+                continue
+            if name == "无":
+                continue
+            if name not in ALLOWED:
+                name_bad.append(it["id"] + ":" + name)
+            elif resolve(name) is None:
+                name_bad.append(it["id"] + ":" + name + "(表里查不到)")
+    ck("名称/仅允许狂热者体系且可解析", not name_bad, ",".join(name_bad[:3]))
+
+    # 11 时间可行性：局面在该时间点造得出来
+    tw, tg, ta = [], [], []
+    for it in items:
+        st = it["state"]
+        t = st["t"]
+        if st["workers"] > (12 + t / 12.0) * 1.15:
+            tw.append(it["id"])
+        if st["gw"] > 1 + t // 45:
+            tg.append(it["id"])
+        if st["gw"] == 0 and st["army"] > 0:
+            ta.append(it["id"] + "(无兵营却有兵)")
+        elif st["gw"] > 0 and st["army"] > (t / 27.0) * st["gw"] * 1.2:
+            ta.append(it["id"] + "(兵超出产能)")
+    ck("时间可行性/农民", not tw, ",".join(tw[:3]))
+    ck("时间可行性/兵营", not tg, ",".join(tg[:3]))
+    ck("时间可行性/兵力", not ta, ",".join(ta[:3]))
+
     # 附加：分布与边界翻转
     print("\n各位为 1：" + str({n: sum(1 for it in items if it["label"][i] == "1")
                               for i, n in enumerate(BIT_NAMES)}))
