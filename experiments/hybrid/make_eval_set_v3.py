@@ -69,7 +69,8 @@ def render(st):
 
 def make(rnd, t, used, workers, army, gw, pylons, minerals, gas=0, idle=0,
          cyber=0, nexus=1):
-    cap = min(200, 15 + 8 * pylons) if pylons > 0 else 15
+    # 容量 = 15×基地 + 8×水晶（用户 19:12 更正；基地给 15，每个水晶给 8）
+    cap = min(200, 15 * nexus + 8 * pylons)
     used = min(used, cap)
     if workers + army > used:                    # 单位数不能超过人口
         army = max(0, used - workers)
@@ -122,7 +123,7 @@ def boundary_items(rnd):
 
 def random_state(rnd):
     pylons = rnd.choice([0, 1, 1, 2, 3, 3, 4, 4, 5, 6])
-    cap = min(200, 15 + 8 * pylons) if pylons else 15
+    cap = min(200, 15 * 1 + 8 * pylons)
     used = rnd.randint(max(1, int(cap * 0.4)), cap)
     workers = rnd.randint(max(1, min(used - 1, 8)), max(2, used - 1))
     army = rnd.randint(0, max(0, used - workers))
