@@ -50,12 +50,14 @@ ACT_RAW.setdefault("noop", "no_op")
 ACT_RAW.setdefault("cancel_probe", "Cancel_Last_quick")
 
 # ---- 可调参数 ----
-PROBE_TARGET = 18      # 农民上限 14（10 个时收入 420 矿/分撑不起 15 兵，放到 14）
-GATEWAY_TARGET = 4     # 三兵营：双兵营产能追不上 medium 的爆兵
+PROBE_TARGET = int(_os.environ.get("MAS_PROBE_TARGET", "18"))   # 可用环境变量覆盖（用户钦定 14）
+GATEWAY_TARGET = int(_os.environ.get("MAS_GATEWAY_TARGET", "4"))  # 用户钦定 3
 ZEALOT_MAX = 30        # 造兵上限（防止矿全砸兵不出门）
 ATTACK_AT = int(_os.environ.get("MAS_ATTACK_AT", "10"))          # 兵不到 6 个不进攻（2026-11-10 21:14 用户指定）
 DEFEND_AT = 8          # 敌人贴脸才回防（14 太远，兵被一个个调回来送掉）
-SUPPLY_RESERVE = 6     # 人口留多少余量就补 Pylon（双兵营吃人口快，4->6）
+SUPPLY_RESERVE = int(_os.environ.get("MAS_SUPPLY_RESERVE", "6"))  # 用户钦定 9
+# 2026-11-20：用户要求"7:00 之后且兵≥10 才开打"。tick = 游戏帧，7:00 = 420s × 22.4 ≈ 9408。
+ATTACK_TIME_TICK = int(_os.environ.get("MAS_ATTACK_TIME_TICK", "0"))
 
 BUILD_WAIT = 150       # 一条建造令的观察窗口（帧）：期内不重复下单
 GATEWAY_WAIT = 70
@@ -668,7 +670,7 @@ def decide(summ, tick=0, **_kw):
     # 一旦开打就进入「进攻态」并保持：
     #   * 所有兵一起 A-move（to_func_call 的 attack 分支不再按 12 个截断）；
     #   * 后面新出的兵一出来就立刻跟进（nz > 0 即继续下发）。
-    if nz >= ATTACK_AT:
+    if nz >= ATTACK_AT and int(tick) >= ATTACK_TIME_TICK:
         _ATTACKING[0] = True
     elif ATTACK_EXIT > 0 and nz < ATTACK_EXIT:
         _ATTACKING[0] = False
