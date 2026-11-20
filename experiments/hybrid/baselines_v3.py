@@ -14,6 +14,8 @@ import sys
 from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import score                                          # noqa: E402
 D = json.load(open(os.path.join(HERE, "eval_set_v3.json"), encoding="utf-8"))
 ITEMS = D["items"]
 N = len(ITEMS)
@@ -26,12 +28,9 @@ def per_bit_acc(predict):
 
 
 def score_b(predict):
-    """方案 B（用户 20:27 定）：5 位全对 1 分；只错 1 位 0.5 分；错 2 位及以上 0 分。"""
-    tot = 0.0
-    for it in ITEMS:
-        wrong = sum(1 for a, b in zip(predict(it), it["label"]) if a != b)
-        tot += 1.0 if wrong == 0 else (0.5 if wrong == 1 else 0.0)
-    return tot / float(N)
+    """方案 B —— 唯一实现在 score.py，这里只做适配。"""
+    return score.score_all([predict(it) for it in ITEMS],
+                           [it["label"] for it in ITEMS])[0]
 
 
 def balanced_acc(predict):
