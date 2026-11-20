@@ -52,6 +52,13 @@ def value_at(rows, t, metric, win_s=20):
         return float(r.get("food_cap", 0))
     if metric == "workers":
         return float(r.get("workers", 0))
+    if metric == "idle_ratio":
+        w = float(r.get("workers", 0) or 0)
+        return float(r.get("idle_workers", 0) or 0) / max(w, 1.0)
+    if metric == "d_army":
+        prev = [x for x in rows if abs(x["t_s"] - (t - 120)) <= 20]
+        now = float(r.get("army", 0) or 0)
+        return now - float(prev[0].get("army", 0) or 0) if prev else None
     raise ValueError(metric)
 
 
