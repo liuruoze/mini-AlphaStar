@@ -110,14 +110,17 @@ def main():
     if args.screen:
         # 只输出每个权重的多文件平均 switch_rate：离线秒级，用来决定"值不值得跑 40 局"
         fl = [int(x) for x in args.screen_files.split(",") if x.strip()]
-        print("%-38s %s %8s" % ("ckpt", "per-file", "mean"))
+        print("%-34s %s %8s %8s" % ("ckpt", "per-file", "mean", "median"))
         for c in args.ckpts:
             vals = []
             for fi in fl:
                 r = scan(c, args.data, fi, args.chunk, args.max_frames)
                 vals.append(r["switch_rate"])
-            print("%-38s %s %8.3f" % (os.path.basename(c).replace(".pth", "")[:38],
-                                      " ".join("%.2f" % v for v in vals), sum(vals) / len(vals)))
+            sv = sorted(vals)
+            med = sv[len(sv) // 2] if len(sv) % 2 else 0.5 * (sv[len(sv) // 2 - 1] + sv[len(sv) // 2])
+            print("%-34s %s %8.3f %8.3f" % (os.path.basename(c).replace(".pth", "")[:34],
+                                            " ".join("%.2f" % v for v in vals),
+                                            sum(vals) / len(vals), med))
         return
 
     rows = []
