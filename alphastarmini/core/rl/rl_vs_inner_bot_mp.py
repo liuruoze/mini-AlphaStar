@@ -7,6 +7,7 @@
 
 from time import time, sleep, strftime, localtime
 import gc
+import json
 import os
 import queue as _queue
 
@@ -543,6 +544,61 @@ class ActorVSComputer:
 
                                 game_loop = home_obs.observation.game_loop[0]
                                 print("game_loop", game_loop) if debug else None
+
+                                # 2026-11-20：宏观指标时序采样（每 15 游戏秒一次）。
+                                # 供 experiments/macro_metrics.py 计算 APU/PBR/RUR/TR；
+                                # 不设 EVAL_MACRO_TRACE 时零开销。只写本进程自己的文件，不共享 fd。
+                                _mt = os.environ.get("EVAL_MACRO_TRACE", "").strip()
+                                if _mt and (_mt.endswith(os.sep) or os.path.isdir(_mt)):
+                                    # 传目录时按局命名，避免并发多局写同一个文件
+                                    _base = os.path.basename(os.environ.get("EVAL_OUT", "eval.txt"))
+                                    _mt = os.path.join(_mt, _base.replace(".txt", "") + ".jsonl")
+                                if _mt:
+                                    _last = getattr(self, "_macro_last_loop", -10 ** 9)
+                                    if game_loop - _last >= 15 * 22.4:
+                                        self._macro_last_loop = game_loop
+                                        try:
+                                            _ob = home_obs.observation
+                                            _pl = _ob.player
+                                            _rec = {
+                                                "loop": int(game_loop),
+                                                "t_s": round(game_loop / 22.4, 1),
+                                                "food_used": int(_pl.food_used),
+                                                "food_cap": int(_pl.food_cap),
+                                                "minerals": int(_pl.minerals),
+                                                "vespene": int(_pl.vespene),
+                                                "army": int(getattr(_pl, "army_count", -1)),
+                                                "idle_workers": int(getattr(_pl, "idle_worker_count", -1)),
+                                                "workers": int(getattr(_pl, "food_workers", -1)),
+                                            }
+                                            _sc = getattr(_ob, "score_by_category", None)
+                                            if _sc is not None:
+                                                try:
+                                                    _rec["collected_minerals"] = float(_sc["collected_minerals"])
+                                                    _rec["collected_vespene"] = float(_sc["collected_vespene"])
+                                                    _rec["killed_minerals"] = float(_sc["killed_minerals"])
+                                                except Exception:
+                                                    pass
+                                            # 自己的建筑/单位类型计数：用 id 记录，离线再映射成名字
+                                            try:
+                                                _cnt = {}
+                                                for _u in _ob.raw_units:
+                                                    if _u.alliance == 1:
+                                                        _k = str(int(_u.unit_type))
+                                                        _cnt[_k] = _cnt.get(_k, 0) + 1
+                                                _rec["own"] = _cnt
+                                            except Exception:
+                                                _rec["own"] = {}
+                                            with open(_mt, "a") as _mf:
+                                                _mf.write(json.dumps(_rec, ensure_ascii=False) + "\n")
+                                        except Exception as _e:
+                                            # 采样失败要留下痕迹，否则"没生成文件"无法定位
+                                            try:
+                                                import traceback as _tb
+                                                with open(str(_mt) + ".err", "a") as _ef:
+                                                    _ef.write("loop=%s %r\n%s\n" % (game_loop, _e, _tb.format_exc()[:800]))
+                                            except Exception:
+                                                pass
 
                                 points = get_points(home_next_obs)
 

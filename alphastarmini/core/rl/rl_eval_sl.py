@@ -3,6 +3,7 @@
 
 " Train for RL by fighting against built-in AI (computer), using no replays"
 
+import json
 import os
 import random
 import traceback
@@ -869,6 +870,64 @@ class ActorEval:
 
                             game_loop = home_obs.observation.game_loop[0]
                             print("game_loop", game_loop) if debug else None
+
+                            # 2026-11-20：宏观指标时序采样（每 15 游戏秒），供 macro_metrics.py 计算 APU/PBR/RUR/TR。
+                            # 仅当 EVAL_MACRO_TRACE 指向目录（或文件）时生效，默认零开销。
+                            _mt = os.environ.get("EVAL_MACRO_TRACE", "").strip()
+                            if _mt and (_mt.endswith(os.sep) or os.path.isdir(_mt)):
+                                _base = os.path.basename(os.environ.get("EVAL_OUT", "eval.txt"))
+                                _mt = os.path.join(_mt, _base.replace(".txt", "") + ".jsonl")
+                            if _mt and game_loop - getattr(self, "_macro_last_loop", -10 ** 9) >= 15 * 22.4:
+                                self._macro_last_loop = game_loop
+                                try:
+                                    _ob = home_obs.observation
+                                    _pl = _ob.player
+                                    _rec = {
+                                        "loop": int(game_loop),
+                                        "t_s": round(game_loop / 22.4, 1),
+                                        "food_used": int(_pl.food_used),
+                                        "food_cap": int(_pl.food_cap),
+                                        "minerals": int(_pl.minerals),
+                                        "vespene": int(_pl.vespene),
+                                        "army": int(getattr(_pl, "army_count", -1)),
+                                        "idle_workers": int(getattr(_pl, "idle_worker_count", -1)),
+                                        "workers": int(getattr(_pl, "food_workers", -1)),
+                                    }
+                                    # 资源采集量：优先 score_cumulative（pysc2 每个观测都有），
+                                    # 再退回 score_by_category（只在终局稳定）。RUR 依赖这两个字段。
+                                    _scc = getattr(_ob, "score_cumulative", None)
+                                    if _scc is not None:
+                                        for _k in ("collected_minerals", "collected_vespene"):
+                                            _v = getattr(_scc, _k, None)
+                                            if _v is not None:
+                                                _rec[_k] = float(_v)
+                                    _sc = getattr(_ob, "score_by_category", None)
+                                    if _sc is not None:
+                                        for _k in ("collected_minerals", "collected_vespene", "killed_minerals"):
+                                            if _k in _rec:
+                                                continue
+                                            try:
+                                                _rec[_k] = float(_sc[_k])
+                                            except Exception:
+                                                pass
+                                    try:
+                                        _cnt = {}
+                                        for _u in _ob.raw_units:
+                                            if _u.alliance == 1:
+                                                _k = str(int(_u.unit_type))
+                                                _cnt[_k] = _cnt.get(_k, 0) + 1
+                                        _rec["own"] = _cnt
+                                    except Exception:
+                                        _rec["own"] = {}
+                                    with open(_mt, "a") as _mf:
+                                        _mf.write(json.dumps(_rec, ensure_ascii=False) + "\n")
+                                except Exception as _e:
+                                    try:
+                                        import traceback as _tb
+                                        with open(str(_mt) + ".err", "a") as _ef:
+                                            _ef.write("loop=%s %r\n%s\n" % (game_loop, _e, _tb.format_exc()[:800]))
+                                    except Exception:
+                                        pass
 
                             # note, original AlphaStar pseudo-code has some mistakes, we modified 
                             # them here
