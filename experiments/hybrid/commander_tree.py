@@ -27,7 +27,21 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "experiments", "hybrid"))
 
 from commander import STRATEGIES  # noqa: E402
 
-SYS = "只答一个字：是 或 否。"
+SYS = "你是数值比较器。只答一个字：是 或 否。"
+
+# few-shot：实测 7B 在没有示例时会把"军队 90 是否少于 10"答成"是"，
+# 给 3 个示例后 5/5 全对（含边界 10 与 9）。
+FEWSHOT = {
+    "supply": ("示例：人口 198/200，问\"是否已达上限的 90%?\"→是。\n"
+               "示例：人口 60/63，问\"是否已达上限的 90%?\"→是。\n"
+               "示例：人口 20/47，问\"是否已达上限的 90%?\"→否。\n"),
+    "army": ("示例：军队=90，问\"少于10?\"→否。\n"
+             "示例：军队=1，问\"少于10?\"→是。\n"
+             "示例：军队=20，问\"少于10?\"→否。\n"),
+    "idle": ("示例：空闲农民=2，问\"是否≥8?\"→否。\n"
+             "示例：空闲农民=10，问\"是否≥8?\"→是。\n"
+             "示例：空闲农民=8，问\"是否≥8?\"→是。\n"),
+}
 
 
 def yes(text):
@@ -51,10 +65,11 @@ class TreeCommander:
         self.max_new_tokens = max_new_tokens     # 思考模型需要足够 token 才能吐出答案
         self.stats = {"calls": 0, "unparsed": 0}
 
-    def _ask(self, state_text, question):
+    def _ask(self, state_text, question, kind=""):
         self.stats["calls"] += 1
+        fs = FEWSHOT.get(kind, "")
         out = self.llm.chat([{"role": "system", "content": SYS},
-                             {"role": "user", "content": state_text + "\n" + question}],
+                             {"role": "user", "content": fs + state_text + "\n" + question}],
                             max_new_tokens=self.max_new_tokens, temperature=0.0)
         v = yes(out)
         if v is None:
@@ -63,17 +78,17 @@ class TreeCommander:
 
     def propose(self, state_text):
         raw = []
-        q1 = self._ask(state_text, "人口是否已达到人口上限的 90%？")
+        q1 = self._ask(state_text, "人口是否已达到人口上限的 90%？", "supply")
         raw.append("Q1=%s" % q1)
         if q1:
             return STRATEGIES["S2"][1], "S2", "|".join(raw)
 
-        q2 = self._ask(state_text, "军队数量是否少于 10？")
+        q2 = self._ask(state_text, "军队数量是否少于 10？", "army")
         raw.append("Q2=%s" % q2)
         if q2:
             return STRATEGIES["S3"][1], "S3", "|".join(raw)
 
-        q3 = self._ask(state_text, "空闲农民数量是否大于等于 8？")
+        q3 = self._ask(state_text, "空闲农民数量是否大于等于 8？", "idle")
         raw.append("Q3=%s" % q3)
         if q3:
             return STRATEGIES["S1"][1], "S1", "|".join(raw)
