@@ -77,6 +77,16 @@ for s in $SEED_LIST; do
 done
 wait
 
+# 评测前先做离线筛选：switch_rate < 0.85 的模型实测基本打不赢（见 SEQ_PROBE_FINDING.md）
+echo "== 离线筛选（switch_rate，<0.85 视为大概率打不赢）=="
+for s in $SEED_LIST; do
+  tag="${PREFIX}${s}"
+  ckpt=$(ls "$M/model/sl/$tag"/*_best.pth 2>/dev/null | head -1)
+  [ -z "$ckpt" ] && continue
+  ( cd "$M" && ~/.conda/envs/th_1_7/bin/python experiments/probe_sequence.py "$ckpt" --screen \
+      --max-frames 320 --screen-files 3,7,10 2>/dev/null | tail -1 )
+done
+
 # 逐个评测
 for s in $SEED_LIST; do
   tag="${PREFIX}${s}"

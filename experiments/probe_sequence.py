@@ -102,7 +102,23 @@ def main():
     ap.add_argument("--file", type=int, default=7)
     ap.add_argument("--chunk", type=int, default=8)
     ap.add_argument("--max-frames", type=int, default=400, help="0 = 整个文件")
+    ap.add_argument("--screen", action="store_true",
+                    help="多文件平均 switch_rate（用于评测前的快速筛选）")
+    ap.add_argument("--screen-files", default="3,7,10,20,30")
     args = ap.parse_args()
+
+    if args.screen:
+        # 只输出每个权重的多文件平均 switch_rate：离线秒级，用来决定"值不值得跑 40 局"
+        fl = [int(x) for x in args.screen_files.split(",") if x.strip()]
+        print("%-38s %s %8s" % ("ckpt", "per-file", "mean"))
+        for c in args.ckpts:
+            vals = []
+            for fi in fl:
+                r = scan(c, args.data, fi, args.chunk, args.max_frames)
+                vals.append(r["switch_rate"])
+            print("%-38s %s %8.3f" % (os.path.basename(c).replace(".pth", "")[:38],
+                                      " ".join("%.2f" % v for v in vals), sum(vals) / len(vals)))
+        return
 
     rows = []
     for c in args.ckpts:
