@@ -79,7 +79,7 @@ wait
 
 # 评测前的否决式筛选：median switch_rate < 0.86 的模型实测 6/6 都是 0 胜。
 # 注意：>=0.86 只是"不能否决"，不代表能打（sw01-ep01 是 0.967，实机只有 10%）。
-echo "== 离线筛选（switch_rate，<0.85 视为大概率打不赢）=="
+echo "== 离线筛选（median switch_rate；<0.86 否决，>=0.86 仍需实机验证）=="
 for s in $SEED_LIST; do
   tag="${PREFIX}${s}"
   ckpt=$(ls "$M/model/sl/$tag"/*_best.pth 2>/dev/null | head -1)
