@@ -58,6 +58,8 @@ def render(st):
         bld.append("兵营×%d" % st["gw"])
     if st["cyber"]:
         bld.append("控制核心×%d" % st["cyber"])
+    if st.get("geysers"):
+        bld.append("气矿×%d" % st["geysers"])
     return ("时间 %d:%02d｜人口 %d/%d（余量 %d）\n"
             "矿 %d 气 %d｜农民 %d｜空闲农民 %d\n"
             "部队构成：%s\n"
@@ -77,17 +79,67 @@ def make(rnd, t, used, workers, army, gw, pylons, minerals, gas=0, idle=0,
         if workers + army > used:
             workers = max(1, used - army)
     zealots, stalkers = army, 0
-    if army and rnd.random() < 0.2:
+    # 使徒需要控制核心（TECH），没有就不是合法局面
+    if army and cyber and rnd.random() < 0.2:
         stalkers = rnd.randint(1, max(1, army // 3))
         zealots = army - stalkers
+    geysers = 0
+    if gas > 0:
+        geysers = 2 if gas >= 100 else 1
+    else:
+        gas = 0
     return dict(t=t, used=used, cap=cap, workers=workers, army=army,
+                geysers=geysers,
                 zealots=zealots, stalkers=stalkers, gw=gw, pylons=pylons,
                 cyber=cyber, nexus=nexus, idle=idle, minerals=minerals, gas=gas)
 
 
 def boundary_items(rnd):
-    """24 条卡阈值：成对给出，一次只动一个数。"""
+    """成对给出，每对只动一个数，并声明应当翻转的是哪一位（供体检校验）。"""
     out = []
+
+    def one(name, pylons, gap, workers, army, gw, minerals, expect=None, note=""):
+        cap = min(200, 15 + 8 * pylons) if pylons else 15
+        st = make(rnd, t=240, used=cap - gap, workers=workers, army=army, gw=gw,
+                  pylons=pylons, minerals=minerals, cyber=1 if army > 20 else 0)
+        return {"name": name, "state": st, "expect": expect, "note": note}
+
+    # 农民 14 / 15（人口余量 7，其余固定）
+    out.append(one("农民14", 4, 7, 14, 20, 3, 300, "补农民"))
+    out.append(one("农民15", 4, 7, 15, 20, 3, 300, "补农民"))
+    # 兵营 2 / 3
+    out.append(one("兵营2", 4, 7, 22, 10, 2, 300, "补兵营"))
+    out.append(one("兵营3", 4, 7, 22, 10, 3, 300, "补兵营"))
+    # 兵 7 / 8
+    out.append(one("兵7", 5, 10, 24, 7, 4, 400, "全面进攻"))
+    out.append(one("兵8", 5, 10, 24, 8, 4, 400, "全面进攻"))
+    # 兵 23 / 24（量产上限）
+    out.append(one("兵23", 5, 5, 24, 23, 4, 400, "量产狂热者"))
+    out.append(one("兵24", 5, 5, 24, 24, 4, 400, "量产狂热者"))
+    # 人口余量 9 / 10
+    out.append(one("余量9", 6, 9, 20, 8, 3, 300, "补水晶"))
+    out.append(one("余量10", 6, 10, 20, 8, 3, 300, "补水晶"))
+    # 矿 99 / 100
+    out.append(one("矿99", 5, 10, 20, 5, 3, 99, "量产狂热者"))
+    out.append(one("矿100", 5, 10, 20, 5, 3, 100, "量产狂热者"))
+    # 人口余量 1 / 2（量产要求余量≥2）
+    out.append(one("余量1", 6, 1, 24, 10, 3, 300, "量产狂热者"))
+    out.append(one("余量2", 6, 2, 24, 10, 3, 300, "量产狂热者"))
+    # 农民 10 / 9（量产要求农民≥10）
+    out.append(one("农民10", 4, 17, 10, 6, 2, 200, "量产狂热者"))
+    out.append(one("农民9", 4, 17, 9, 6, 2, 200, "量产狂热者"))
+    # 无水晶（依赖项：第 3 位必须为 0，不期望翻转）
+    out.append(one("无水晶", 0, 1, 12, 0, 0, 80, None, "无能量场，兵营位强制 0"))
+    out.append(one("无水晶有兵营", 0, 1, 13, 0, 0, 120, None, "同上；兵营是残存的"))
+    # 其余几条（不与上面配对，单独考察）
+    out.append(one("满人口", 24, 0, 60, 60, 6, 800, None, "人口顶格"))
+    out.append(one("无兵营有水晶", 3, 5, 18, 3, 0, 250, None, "要造兵营"))
+    out.append(one("进攻中带存款", 6, 6, 22, 14, 4, 150, None, "边推边补"))
+    out.append(one("低农民高兵", 6, 20, 12, 20, 4, 300, None, "农民少但兵多"))
+    out.append(one("零矿", 5, 12, 24, 6, 3, 0, None, "矿为 0，量产应关"))
+    out.append(one("刚补水晶后", 6, 3, 22, 9, 3, 350, None, "余量紧张且兵够"))
+    return out
+
     pairs = [
         # (说明, 基础参数, 变动)
         ("农民14", dict(t=240, used=40, workers=14, army=20, gw=3, pylons=4, minerals=300)),
@@ -139,9 +191,11 @@ def random_state(rnd):
 def build():
     rnd = random.Random(SEED)
     items = []
-    for name, st in boundary_items(rnd):
-        items.append({"id": "v3-%03d" % (len(items) + 1), "src": "boundary:" + name,
-                      "state": st, "label": decide_bits(**st)})
+    for b in boundary_items(rnd):
+        st = b["state"]
+        items.append({"id": "v3-%03d" % (len(items) + 1), "src": "boundary:" + b["name"],
+                      "state": st, "label": decide_bits(**st),
+                      "expect": b["expect"], "note": b["note"]})
 
     # 补齐到 120，并让每一位的 1/0 都不少于 36（120×0.3）
     target = 120
