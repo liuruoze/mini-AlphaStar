@@ -34,7 +34,8 @@ def _action_sets():
         from pysc2.lib.actions import RAW_FUNCTIONS
     except Exception:
         return {}
-    sets = {"build": set(), "train": set(), "move": set(), "attack": set(), "tech": set(), "expand": set()}
+    sets = {"build": set(), "train": set(), "move": set(), "attack": set(),
+            "tech": set(), "expand": set(), "base": set()}
     for i, fn in enumerate(RAW_FUNCTIONS):
         n = fn.name
         if n.startswith("Build_"):
@@ -43,6 +44,10 @@ def _action_sets():
                 sets["expand"].add(i)
         if n.startswith("Train_"):
             sets["train"].add(i)
+        # 基础动作永远放行：否则农民无法交矿、回合无法空转，会把经济打死
+        if n in ("no_op", "Harvest_Gather_screen", "Harvest_Gather_unit",
+                 "Rally_Units_minimap", "Rally_Units_screen", "HoldPosition_pt", "Stop_pt"):
+            sets["base"].add(i)
         if n.startswith(("Move_", "Attack_", "Smart")):
             sets["move"].add(i)
             sets["attack"].add(i)
@@ -98,6 +103,7 @@ class Arbiter:
         kinds = set(self.active)
         allow = set()
         # 任何时刻都保留"移动/攻击"与 no_op 之外的基础操作，避免把局面锁死
+        allow |= ACTIONS.get("base", set())
         allow |= ACTIONS.get("move", set())
         if "build" in kinds or "tech" in kinds or "expand" in kinds:
             allow |= ACTIONS.get("build", set())
@@ -106,7 +112,8 @@ class Arbiter:
         if "attack" in kinds:
             allow |= ACTIONS.get("attack", set())
         if "defend" in kinds:
-            allow |= ACTIONS.get("move", set())
+            allow |= ACTIONS.get("base", set())
+        allow |= ACTIONS.get("move", set())
         return allow or None
 
     def snapshot(self):

@@ -175,8 +175,12 @@ SYSTEM = (
 
 
 def narrate(card_text, llm):
+    """把规则诊断一并给它：模型只组织语言，不许改变结论方向。"""
     msgs = [{"role": "system", "content": SYSTEM},
-            {"role": "user", "content": "这是一局的数据：\n%s\n\n请复盘。" % card_text}]
+            {"role": "user", "content":
+             "这是一局的数据与已诊断出的问题：\n%s\n\n"
+             "请把【问题】和【建议】改写成 3 句通顺的中文，"
+             "不要改变结论方向，不要新增数字，不要评价“高效”或“优秀”。" % card_text}]
     return llm.chat(msgs, max_new_tokens=220, temperature=0.3)
 
 
@@ -246,7 +250,7 @@ def main():
         print(render_diagnosis(card, win))
         if llm is not None:
             print("\n【LLM 复盘】")
-            print("  " + narrate(text, llm).replace("\n", "\n  "))
+            print("  " + narrate(text + "\n" + render_diagnosis(card, win), llm).replace("\n", "\n  "))
 
 
 if __name__ == "__main__":

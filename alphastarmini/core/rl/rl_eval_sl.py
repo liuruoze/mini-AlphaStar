@@ -6,6 +6,7 @@
 import json
 import os
 import random
+import sys
 import traceback
 from time import time, sleep, strftime, localtime
 import threading
@@ -941,6 +942,44 @@ class ActorEval:
                             last_action_type = player_action.action_type.item()
                             last_repeat_queued = player_action.queue.item()
                             last_list = [last_delay, last_action_type, last_repeat_queued]
+
+                            # 2026-11-20（hybrid）：规则指挥官 + 动作遮罩。默认关闭，MAS_HYBRID=1 开启。
+                            # 每个对局独立进程，所以 _hb 状态挂在 self 上不会串局。
+                            if os.environ.get("MAS_HYBRID") == "1":
+                                try:
+                                    if not hasattr(self, "_hb"):
+                                        _hbp = os.path.join(os.getcwd(), "experiments", "hybrid")
+                                        if _hbp not in sys.path:
+                                            sys.path.insert(0, _hbp)
+                                        from policy import RuleCommander
+                                        from arbiter import Arbiter
+                                        from alphastarmini.core.arch import agent as _agent_mod
+                                        self._hb = {"cmd": RuleCommander(), "arb": Arbiter(),
+                                                    "mod": _agent_mod, "last": -1e9}
+                                        self._hb_log = open(os.environ.get("EVAL_OUT", "eval.txt") + ".hybrid.jsonl", "a")
+                                    _hb = self._hb
+                                    _t_hb = float(game_loop) / 22.4
+                                    _iv = float(os.environ.get("MAS_HYBRID_INTERVAL", "8"))
+                                    if _t_hb - _hb["last"] >= _iv:
+                                        _hb["last"] = _t_hb
+                                        _cmd, _key, _ = _hb["cmd"].propose(home_obs.observation)
+                                        _res = "none"
+                                        if _cmd is not None:
+                                            _res = _hb["arb"].submit(_cmd, _t_hb)
+                                        _hb["arb"].tick(_t_hb)
+                                        _mask = _hb["arb"].mask()
+                                        _hb["mod"].set_macro_mask(_mask)
+                                        try:
+                                            self._hb_log.write(json.dumps(
+                                                {"t": round(_t_hb, 1), "key": _key,
+                                                 "cmd": (_cmd.kind + ":" + _cmd.target) if _cmd else None,
+                                                 "res": _res, "active": sorted(_hb["arb"].active.keys()),
+                                                 "mask_n": (len(_mask) if _mask else 0)}, ensure_ascii=False) + "\n")
+                                            self._hb_log.flush()
+                                        except Exception:
+                                            pass
+                                except Exception as _e:
+                                    print("[hybrid] hook failed: %r" % (_e,), flush=True)
 
                             if is_final:
                                 outcome = reward
