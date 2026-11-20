@@ -54,6 +54,20 @@ class LocalBackend:
         return self.tok.decode(gen, skip_special_tokens=True).strip()
 
 
+THINK_TAGS = ("</think>", "<｜end▁of▁thinking｜>", "<｜end▁of▁thinking｜>")
+
+
+def _strip_think(text):
+    """思考模型（Qwen3.5 等）会把思维链塞进 content，取最后一个结束标记之后的内容。"""
+    if not text:
+        return text
+    cut = -1
+    for tag in THINK_TAGS:
+        i = text.rfind(tag)
+        cut = max(cut, i + len(tag) if i >= 0 else -1)
+    return text[cut:] if cut >= 0 else text
+
+
 class OpenAIBackend:
     def __init__(self, base_url, model, api_key="EMPTY", timeout=60):
         self.url = base_url.rstrip("/") + "/chat/completions"
@@ -69,7 +83,7 @@ class OpenAIBackend:
             "Content-Type": "application/json", "Authorization": "Bearer " + self.key})
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             obj = json.loads(resp.read().decode())
-        return obj["choices"][0]["message"]["content"].strip()
+        return _strip_think(obj["choices"][0]["message"]["content"]).strip()
 
 
 def build(backend=None, model_path=None, base_url=None, model_name=None, max_new_tokens=256):

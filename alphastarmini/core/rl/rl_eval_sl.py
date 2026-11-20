@@ -954,7 +954,18 @@ class ActorEval:
                                         from arbiter import Arbiter
                                         from alphastarmini.core.arch import agent as _agent_mod
                                         _mode = os.environ.get("MAS_HYBRID_MODE", "rule").lower()
-                                        if _mode == "llm":
+                                        if _mode == "tree":
+                                            # 决策树版：3 个二元问题，实测能随状态变化
+                                            import llm_client as _llmc
+                                            from commander_tree import TreeCommander as _TC
+                                            from obs_to_text import summarize_obs as _summ2
+                                            _llm2 = _llmc.build("openai",
+                                                                base_url=os.environ.get("LLM_BASE_URL",
+                                                                                        "http://192.168.91.222:11434/v1"),
+                                                                model_name=os.environ.get("LLM_MODEL_NAME",
+                                                                                          "qwen35-9b:latest"))
+                                            _cmd_obj, _sum_fn = _TC(_llm2), _summ2
+                                        elif _mode == "llm":
                                             # 走共享推理服务（8 个对局共用一个 7B，不能各加载一份）
                                             import llm_client as _llmc
                                             from commander import Commander as _Cmd
