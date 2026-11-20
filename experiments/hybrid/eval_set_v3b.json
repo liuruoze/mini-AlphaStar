@@ -1,0 +1,3332 @@
+{
+ "version": "v3",
+ "seed": 20261121,
+ "frozen_at": "2026-11-21T04:00+08:00",
+ "system": "你是星际争霸2神族的战术指挥官。本局固定执行狂热者快攻。以下五件事要分别判断“现在是否该做”，可以同时为真：\n\n1. 补水晶：没有水晶，或（人口余量（上限−已用）≤ 9 且人口上限未满 200）\n2. 补农民：农民 ≤ 14 且人口余量 ≥ 1\n3. 补兵营：兵营 < 3 且至少有一个水晶（没有能量场就放不下）\n4. 量产狂热者：兵 < 24 且矿 ≥ 100 且农民 ≥ 10 且兵营 ≥ 1 且人口余量 ≥ 2\n5. 全面进攻：兵 ≥ 8\n\n按 1..5 的顺序输出 5 位 0/1（1 = 现在该做），不要解释。",
+ "n": 120,
+ "sha256": "abf943da600a1ae8cef38dde2bebd96462480fdfd39c7646f716cb7fc5024660",
+ "items": [
+  {
+   "id": "v3-001",
+   "src": "boundary:农民14",
+   "state": {
+    "t": 300,
+    "used": 40,
+    "cap": 47,
+    "workers": 14,
+    "army": 20,
+    "zealots": 20,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11011",
+   "expect": "补农民",
+   "note": "",
+   "prompt": "时间 5:00｜人口 40/47（余量 7）\n矿 300 气 0｜农民 14\n部队构成：狂热者×20\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-002",
+   "src": "boundary:农民15",
+   "state": {
+    "t": 300,
+    "used": 40,
+    "cap": 47,
+    "workers": 15,
+    "army": 20,
+    "zealots": 20,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10011",
+   "expect": "补农民",
+   "note": "",
+   "prompt": "时间 5:00｜人口 40/47（余量 7）\n矿 300 气 0｜农民 15\n部队构成：狂热者×20\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-003",
+   "src": "boundary:兵营2",
+   "state": {
+    "t": 240,
+    "used": 40,
+    "cap": 47,
+    "workers": 22,
+    "army": 10,
+    "zealots": 10,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10111",
+   "expect": "补兵营",
+   "note": "",
+   "prompt": "时间 4:00｜人口 40/47（余量 7）\n矿 300 气 0｜农民 22\n部队构成：狂热者×10\n建筑：基地×1、水晶×4、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-004",
+   "src": "boundary:兵营3",
+   "state": {
+    "t": 240,
+    "used": 40,
+    "cap": 47,
+    "workers": 22,
+    "army": 10,
+    "zealots": 10,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10011",
+   "expect": "补兵营",
+   "note": "",
+   "prompt": "时间 4:00｜人口 40/47（余量 7）\n矿 300 气 0｜农民 22\n部队构成：狂热者×10\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-005",
+   "src": "boundary:兵7",
+   "state": {
+    "t": 240,
+    "used": 45,
+    "cap": 55,
+    "workers": 24,
+    "army": 7,
+    "zealots": 7,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 400,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00010",
+   "expect": "全面进攻",
+   "note": "",
+   "prompt": "时间 4:00｜人口 45/55（余量 10）\n矿 400 气 0｜农民 24\n部队构成：狂热者×7\n建筑：基地×1、水晶×5、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-006",
+   "src": "boundary:兵8",
+   "state": {
+    "t": 240,
+    "used": 45,
+    "cap": 55,
+    "workers": 24,
+    "army": 8,
+    "zealots": 8,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 400,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00011",
+   "expect": "全面进攻",
+   "note": "",
+   "prompt": "时间 4:00｜人口 45/55（余量 10）\n矿 400 气 0｜农民 24\n部队构成：狂热者×8\n建筑：基地×1、水晶×5、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-007",
+   "src": "boundary:余量9",
+   "state": {
+    "t": 240,
+    "used": 54,
+    "cap": 63,
+    "workers": 20,
+    "army": 8,
+    "zealots": 8,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10011",
+   "expect": "补水晶",
+   "note": "",
+   "prompt": "时间 4:00｜人口 54/63（余量 9）\n矿 300 气 0｜农民 20\n部队构成：狂热者×8\n建筑：基地×1、水晶×6、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-008",
+   "src": "boundary:余量10",
+   "state": {
+    "t": 240,
+    "used": 53,
+    "cap": 63,
+    "workers": 20,
+    "army": 8,
+    "zealots": 8,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00011",
+   "expect": "补水晶",
+   "note": "",
+   "prompt": "时间 4:00｜人口 53/63（余量 10）\n矿 300 气 0｜农民 20\n部队构成：狂热者×8\n建筑：基地×1、水晶×6、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-009",
+   "src": "boundary:余量1",
+   "state": {
+    "t": 240,
+    "used": 62,
+    "cap": 63,
+    "workers": 24,
+    "army": 10,
+    "zealots": 10,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10001",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 62/63（余量 1）\n矿 300 气 0｜农民 24\n部队构成：狂热者×10\n建筑：基地×1、水晶×6、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-010",
+   "src": "boundary:余量2",
+   "state": {
+    "t": 240,
+    "used": 61,
+    "cap": 63,
+    "workers": 24,
+    "army": 10,
+    "zealots": 10,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10011",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 61/63（余量 2）\n矿 300 气 0｜农民 24\n部队构成：狂热者×10\n建筑：基地×1、水晶×6、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-011",
+   "src": "boundary:农民10",
+   "state": {
+    "t": 240,
+    "used": 30,
+    "cap": 47,
+    "workers": 10,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 200,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01110",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 30/47（余量 17）\n矿 200 气 0｜农民 10\n部队构成：狂热者×6\n建筑：基地×1、水晶×4、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-012",
+   "src": "boundary:农民9",
+   "state": {
+    "t": 240,
+    "used": 30,
+    "cap": 47,
+    "workers": 9,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 200,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01100",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 30/47（余量 17）\n矿 200 气 0｜农民 9\n部队构成：狂热者×6\n建筑：基地×1、水晶×4、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-013",
+   "src": "boundary:兵23-1",
+   "state": {
+    "t": 300,
+    "used": 43,
+    "cap": 47,
+    "workers": 20,
+    "army": 23,
+    "zealots": 23,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10011",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 5:00｜人口 43/47（余量 4）\n矿 300 气 0｜农民 20\n部队构成：狂热者×23\n建筑：基地×1、水晶×4、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-014",
+   "src": "boundary:兵23-2",
+   "state": {
+    "t": 300,
+    "used": 45,
+    "cap": 55,
+    "workers": 22,
+    "army": 23,
+    "zealots": 23,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 350,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00011",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 5:00｜人口 45/55（余量 10）\n矿 350 气 0｜农民 22\n部队构成：狂热者×23\n建筑：基地×1、水晶×5、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-015",
+   "src": "boundary:兵23-3",
+   "state": {
+    "t": 300,
+    "used": 47,
+    "cap": 55,
+    "workers": 24,
+    "army": 23,
+    "zealots": 23,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 450,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10011",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 5:00｜人口 47/55（余量 8）\n矿 450 气 0｜农民 24\n部队构成：狂热者×23\n建筑：基地×1、水晶×5、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-016",
+   "src": "boundary:兵23-4",
+   "state": {
+    "t": 300,
+    "used": 49,
+    "cap": 63,
+    "workers": 26,
+    "army": 23,
+    "zealots": 23,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 500,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00011",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 5:00｜人口 49/63（余量 14）\n矿 500 气 0｜农民 26\n部队构成：狂热者×23\n建筑：基地×1、水晶×6、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-017",
+   "src": "boundary:兵24-1",
+   "state": {
+    "t": 300,
+    "used": 44,
+    "cap": 47,
+    "workers": 20,
+    "army": 24,
+    "zealots": 24,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 300,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10001",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 5:00｜人口 44/47（余量 3）\n矿 300 气 0｜农民 20\n部队构成：狂热者×24\n建筑：基地×1、水晶×4、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-018",
+   "src": "boundary:兵24-2",
+   "state": {
+    "t": 300,
+    "used": 46,
+    "cap": 55,
+    "workers": 22,
+    "army": 24,
+    "zealots": 24,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 350,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10001",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 5:00｜人口 46/55（余量 9）\n矿 350 气 0｜农民 22\n部队构成：狂热者×24\n建筑：基地×1、水晶×5、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-019",
+   "src": "boundary:兵24-3",
+   "state": {
+    "t": 300,
+    "used": 48,
+    "cap": 55,
+    "workers": 24,
+    "army": 24,
+    "zealots": 24,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 450,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10001",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 5:00｜人口 48/55（余量 7）\n矿 450 气 0｜农民 24\n部队构成：狂热者×24\n建筑：基地×1、水晶×5、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-020",
+   "src": "boundary:兵24-4",
+   "state": {
+    "t": 300,
+    "used": 50,
+    "cap": 63,
+    "workers": 26,
+    "army": 24,
+    "zealots": 24,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 500,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00001",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 5:00｜人口 50/63（余量 13）\n矿 500 气 0｜农民 26\n部队构成：狂热者×24\n建筑：基地×1、水晶×6、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-021",
+   "src": "boundary:矿99-1",
+   "state": {
+    "t": 240,
+    "used": 45,
+    "cap": 55,
+    "workers": 20,
+    "army": 5,
+    "zealots": 5,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 99,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00000",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 45/55（余量 10）\n矿 99 气 0｜农民 20\n部队构成：狂热者×5\n建筑：基地×1、水晶×5、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "无"
+   ]
+  },
+  {
+   "id": "v3-022",
+   "src": "boundary:矿99-2",
+   "state": {
+    "t": 240,
+    "used": 43,
+    "cap": 55,
+    "workers": 22,
+    "army": 8,
+    "zealots": 8,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 99,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00001",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 43/55（余量 12）\n矿 99 气 0｜农民 22\n部队构成：狂热者×8\n建筑：基地×1、水晶×5、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-023",
+   "src": "boundary:矿99-3",
+   "state": {
+    "t": 240,
+    "used": 49,
+    "cap": 63,
+    "workers": 24,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 99,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00000",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 49/63（余量 14）\n矿 99 气 0｜农民 24\n部队构成：狂热者×6\n建筑：基地×1、水晶×6、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "无"
+   ]
+  },
+  {
+   "id": "v3-024",
+   "src": "boundary:矿99-4",
+   "state": {
+    "t": 240,
+    "used": 38,
+    "cap": 47,
+    "workers": 20,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 99,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10000",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 38/47（余量 9）\n矿 99 气 0｜农民 20\n部队构成：狂热者×3\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶"
+   ]
+  },
+  {
+   "id": "v3-025",
+   "src": "boundary:矿100-1",
+   "state": {
+    "t": 240,
+    "used": 45,
+    "cap": 55,
+    "workers": 20,
+    "army": 5,
+    "zealots": 5,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 100,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00010",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 45/55（余量 10）\n矿 100 气 0｜农民 20\n部队构成：狂热者×5\n建筑：基地×1、水晶×5、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-026",
+   "src": "boundary:矿100-2",
+   "state": {
+    "t": 240,
+    "used": 43,
+    "cap": 55,
+    "workers": 22,
+    "army": 8,
+    "zealots": 8,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 100,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00011",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 43/55（余量 12）\n矿 100 气 0｜农民 22\n部队构成：狂热者×8\n建筑：基地×1、水晶×5、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-027",
+   "src": "boundary:矿100-3",
+   "state": {
+    "t": 240,
+    "used": 49,
+    "cap": 63,
+    "workers": 24,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 100,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00010",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 49/63（余量 14）\n矿 100 气 0｜农民 24\n部队构成：狂热者×6\n建筑：基地×1、水晶×6、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-028",
+   "src": "boundary:矿100-4",
+   "state": {
+    "t": 240,
+    "used": 38,
+    "cap": 47,
+    "workers": 20,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 100,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10010",
+   "expect": "量产狂热者",
+   "note": "",
+   "prompt": "时间 4:00｜人口 38/47（余量 9）\n矿 100 气 0｜农民 20\n部队构成：狂热者×3\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-029",
+   "src": "boundary:无水晶",
+   "state": {
+    "t": 240,
+    "used": 14,
+    "cap": 15,
+    "workers": 12,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 80,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11000",
+   "expect": null,
+   "note": "无能量场，兵营位强制 0",
+   "prompt": "时间 4:00｜人口 14/15（余量 1）\n矿 80 气 0｜农民 12\n部队构成：无\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-030",
+   "src": "boundary:兵营被拆",
+   "state": {
+    "t": 240,
+    "used": 34,
+    "cap": 39,
+    "workers": 18,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 250,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10100",
+   "expect": null,
+   "note": "兵营 0 但仍有兵",
+   "prompt": "时间 4:00｜人口 34/39（余量 5）\n矿 250 气 0｜农民 18\n部队构成：狂热者×6\n建筑：基地×1、水晶×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-031",
+   "src": "boundary:满人口",
+   "state": {
+    "t": 900,
+    "used": 200,
+    "cap": 200,
+    "workers": 60,
+    "army": 60,
+    "zealots": 60,
+    "stalkers": 0,
+    "gw": 6,
+    "pylons": 24,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 800,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00001",
+   "expect": null,
+   "note": "人口顶格，补水晶无意义",
+   "prompt": "时间 15:00｜人口 200/200（余量 0）\n矿 800 气 0｜农民 60\n部队构成：狂热者×60\n建筑：基地×1、水晶×24、兵营×6\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-032",
+   "src": "random",
+   "state": {
+    "t": 540,
+    "used": 13,
+    "cap": 31,
+    "workers": 11,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 2,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 128,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01010",
+   "prompt": "时间 9:00｜人口 13/31（余量 18）\n矿 128 气 0｜农民 11\n部队构成：狂热者×1\n建筑：基地×1、水晶×2、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-033",
+   "src": "random",
+   "state": {
+    "t": 120,
+    "used": 15,
+    "cap": 23,
+    "workers": 13,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 533,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11110",
+   "prompt": "时间 2:00｜人口 15/23（余量 8）\n矿 533 气 0｜农民 13\n部队构成：无\n建筑：基地×1、水晶×1、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-034",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 11,
+    "cap": 23,
+    "workers": 10,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 98,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01000",
+   "prompt": "时间 3:00｜人口 11/23（余量 12）\n矿 98 气 0｜农民 10\n部队构成：无\n建筑：基地×1、水晶×1、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-035",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 31,
+    "cap": 47,
+    "workers": 16,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 215,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00110",
+   "prompt": "时间 6:00｜人口 31/47（余量 16）\n矿 215 气 0｜农民 16\n部队构成：狂热者×1\n建筑：基地×1、水晶×4、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-036",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 55,
+    "cap": 63,
+    "workers": 13,
+    "army": 13,
+    "zealots": 13,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 476,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11111",
+   "prompt": "时间 4:00｜人口 55/63（余量 8）\n矿 476 气 0｜农民 13\n部队构成：狂热者×13\n建筑：基地×1、水晶×6、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "补兵营",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-037",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 15,
+    "cap": 15,
+    "workers": 8,
+    "army": 4,
+    "zealots": 4,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 504,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10000",
+   "prompt": "时间 4:00｜人口 15/15（余量 0）\n矿 504 气 0｜农民 8\n部队构成：狂热者×4\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶"
+   ]
+  },
+  {
+   "id": "v3-038",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 17,
+    "cap": 23,
+    "workers": 15,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 536,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10110",
+   "prompt": "时间 7:00｜人口 17/23（余量 6）\n矿 536 气 0｜农民 15\n部队构成：狂热者×1\n建筑：基地×1、水晶×1、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-039",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 36,
+    "cap": 39,
+    "workers": 28,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 535,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10010",
+   "prompt": "时间 6:00｜人口 36/39（余量 3）\n矿 535 气 0｜农民 28\n部队构成：狂热者×6\n建筑：基地×1、水晶×3、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-040",
+   "src": "random",
+   "state": {
+    "t": 540,
+    "used": 23,
+    "cap": 23,
+    "workers": 22,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 202,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10000",
+   "prompt": "时间 9:00｜人口 23/23（余量 0）\n矿 202 气 0｜农民 22\n部队构成：狂热者×1\n建筑：基地×1、水晶×1、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶"
+   ]
+  },
+  {
+   "id": "v3-041",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 21,
+    "cap": 39,
+    "workers": 19,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 204,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00010",
+   "prompt": "时间 6:00｜人口 21/39（余量 18）\n矿 204 气 0｜农民 19\n部队构成：狂热者×2\n建筑：基地×1、水晶×3、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-042",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 17,
+    "cap": 39,
+    "workers": 9,
+    "army": 7,
+    "zealots": 7,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 394,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01000",
+   "prompt": "时间 8:00｜人口 17/39（余量 22）\n矿 394 气 0｜农民 9\n部队构成：狂热者×7\n建筑：基地×1、水晶×3、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-043",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 44,
+    "cap": 63,
+    "workers": 19,
+    "army": 21,
+    "zealots": 21,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 217,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00011",
+   "prompt": "时间 5:00｜人口 44/63（余量 19）\n矿 217 气 0｜农民 19\n部队构成：狂热者×21\n建筑：基地×1、水晶×6、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-044",
+   "src": "random",
+   "state": {
+    "t": 60,
+    "used": 13,
+    "cap": 15,
+    "workers": 11,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 363,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11000",
+   "prompt": "时间 1:00｜人口 13/15（余量 2）\n矿 363 气 0｜农民 11\n部队构成：狂热者×1\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-045",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 56,
+    "cap": 63,
+    "workers": 51,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 123,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10110",
+   "prompt": "时间 8:00｜人口 56/63（余量 7）\n矿 123 气 0｜农民 51\n部队构成：无\n建筑：基地×1、水晶×6、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-046",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 11,
+    "cap": 15,
+    "workers": 8,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 78,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11000",
+   "prompt": "时间 4:00｜人口 11/15（余量 4）\n矿 78 气 0｜农民 8\n部队构成：狂热者×3\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-047",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 26,
+    "cap": 47,
+    "workers": 21,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 13,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00000",
+   "prompt": "时间 7:00｜人口 26/47（余量 21）\n矿 13 气 0｜农民 21\n部队构成：狂热者×2\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "无"
+   ]
+  },
+  {
+   "id": "v3-048",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 9,
+    "cap": 15,
+    "workers": 8,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 618,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11000",
+   "prompt": "时间 5:00｜人口 9/15（余量 6）\n矿 618 气 0｜农民 8\n部队构成：狂热者×1\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-049",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 11,
+    "cap": 23,
+    "workers": 8,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 327,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01100",
+   "prompt": "时间 4:00｜人口 11/23（余量 12）\n矿 327 气 0｜农民 8\n部队构成：狂热者×3\n建筑：基地×1、水晶×1、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-050",
+   "src": "random",
+   "state": {
+    "t": 120,
+    "used": 39,
+    "cap": 55,
+    "workers": 22,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 75,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00100",
+   "prompt": "时间 2:00｜人口 39/55（余量 16）\n矿 75 气 0｜农民 22\n部队构成：狂热者×2\n建筑：基地×1、水晶×5、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-051",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 48,
+    "cap": 63,
+    "workers": 22,
+    "army": 12,
+    "zealots": 12,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 9,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00101",
+   "prompt": "时间 4:00｜人口 48/63（余量 15）\n矿 9 气 0｜农民 22\n部队构成：狂热者×12\n建筑：基地×1、水晶×6、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-052",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 35,
+    "cap": 39,
+    "workers": 16,
+    "army": 16,
+    "zealots": 16,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 93,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10001",
+   "prompt": "时间 5:00｜人口 35/39（余量 4）\n矿 93 气 0｜农民 16\n部队构成：狂热者×16\n建筑：基地×1、水晶×3、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-053",
+   "src": "random",
+   "state": {
+    "t": 120,
+    "used": 22,
+    "cap": 39,
+    "workers": 15,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 548,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00110",
+   "prompt": "时间 2:00｜人口 22/39（余量 17）\n矿 548 气 0｜农民 15\n部队构成：狂热者×3\n建筑：基地×1、水晶×3、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-054",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 22,
+    "cap": 23,
+    "workers": 9,
+    "army": 10,
+    "zealots": 10,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 99,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11001",
+   "prompt": "时间 4:00｜人口 22/23（余量 1）\n矿 99 气 0｜农民 9\n部队构成：狂热者×10\n建筑：基地×1、水晶×1、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-055",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 45,
+    "cap": 47,
+    "workers": 34,
+    "army": 5,
+    "zealots": 5,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 588,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10110",
+   "prompt": "时间 5:00｜人口 45/47（余量 2）\n矿 588 气 0｜农民 34\n部队构成：狂热者×5\n建筑：基地×1、水晶×4、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-056",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 24,
+    "cap": 55,
+    "workers": 10,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 553,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01010",
+   "prompt": "时间 8:00｜人口 24/55（余量 31）\n矿 553 气 0｜农民 10\n部队构成：狂热者×6\n建筑：基地×1、水晶×5、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-057",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 14,
+    "cap": 15,
+    "workers": 11,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 689,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11000",
+   "prompt": "时间 3:00｜人口 14/15（余量 1）\n矿 689 气 0｜农民 11\n部队构成：狂热者×3\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-058",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 29,
+    "cap": 39,
+    "workers": 27,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 548,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00010",
+   "prompt": "时间 5:00｜人口 29/39（余量 10）\n矿 548 气 0｜农民 27\n部队构成：狂热者×1\n建筑：基地×1、水晶×3、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-059",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 17,
+    "cap": 31,
+    "workers": 14,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 2,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 283,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01010",
+   "prompt": "时间 7:00｜人口 17/31（余量 14）\n矿 283 气 0｜农民 14\n部队构成：无\n建筑：基地×1、水晶×2、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-060",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 46,
+    "cap": 55,
+    "workers": 30,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 167,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10010",
+   "prompt": "时间 4:00｜人口 46/55（余量 9）\n矿 167 气 0｜农民 30\n部队构成：狂热者×6\n建筑：基地×1、水晶×5、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-061",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 26,
+    "cap": 39,
+    "workers": 15,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 165,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00010",
+   "prompt": "时间 3:00｜人口 26/39（余量 13）\n矿 165 气 0｜农民 15\n部队构成：狂热者×3\n建筑：基地×1、水晶×3、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-062",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 30,
+    "cap": 39,
+    "workers": 9,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 209,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11000",
+   "prompt": "时间 8:00｜人口 30/39（余量 9）\n矿 209 气 0｜农民 9\n部队构成：狂热者×2\n建筑：基地×1、水晶×3、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-063",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 32,
+    "cap": 39,
+    "workers": 28,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 371,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10110",
+   "prompt": "时间 7:00｜人口 32/39（余量 7）\n矿 371 气 0｜农民 28\n部队构成：狂热者×3\n建筑：基地×1、水晶×3、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-064",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 25,
+    "cap": 31,
+    "workers": 13,
+    "army": 4,
+    "zealots": 4,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 2,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 220,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11110",
+   "prompt": "时间 7:00｜人口 25/31（余量 6）\n矿 220 气 0｜农民 13\n部队构成：狂热者×4\n建筑：基地×1、水晶×2、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-065",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 19,
+    "cap": 23,
+    "workers": 16,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 492,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10010",
+   "prompt": "时间 3:00｜人口 19/23（余量 4）\n矿 492 气 0｜农民 16\n部队构成：狂热者×3\n建筑：基地×1、水晶×1、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-066",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 14,
+    "cap": 23,
+    "workers": 13,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 69,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11100",
+   "prompt": "时间 7:00｜人口 14/23（余量 9）\n矿 69 气 0｜农民 13\n部队构成：狂热者×1\n建筑：基地×1、水晶×1、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-067",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 7,
+    "cap": 15,
+    "workers": 6,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 443,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11000",
+   "prompt": "时间 6:00｜人口 7/15（余量 8）\n矿 443 气 0｜农民 6\n部队构成：无\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-068",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 15,
+    "cap": 15,
+    "workers": 11,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 554,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10000",
+   "prompt": "时间 6:00｜人口 15/15（余量 0）\n矿 554 气 0｜农民 11\n部队构成：狂热者×1\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶"
+   ]
+  },
+  {
+   "id": "v3-069",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 34,
+    "cap": 63,
+    "workers": 12,
+    "army": 9,
+    "zealots": 9,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 48,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01001",
+   "prompt": "时间 5:00｜人口 34/63（余量 29）\n矿 48 气 0｜农民 12\n部队构成：狂热者×9\n建筑：基地×1、水晶×6、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-070",
+   "src": "random",
+   "state": {
+    "t": 540,
+    "used": 39,
+    "cap": 63,
+    "workers": 26,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 699,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00010",
+   "prompt": "时间 9:00｜人口 39/63（余量 24）\n矿 699 气 0｜农民 26\n部队构成：狂热者×6\n建筑：基地×1、水晶×6、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-071",
+   "src": "random",
+   "state": {
+    "t": 540,
+    "used": 15,
+    "cap": 23,
+    "workers": 10,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 109,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11010",
+   "prompt": "时间 9:00｜人口 15/23（余量 8）\n矿 109 气 0｜农民 10\n部队构成：无\n建筑：基地×1、水晶×1、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-072",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 24,
+    "cap": 55,
+    "workers": 17,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 210,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00110",
+   "prompt": "时间 5:00｜人口 24/55（余量 31）\n矿 210 气 0｜农民 17\n部队构成：狂热者×2\n建筑：基地×1、水晶×5、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-073",
+   "src": "random",
+   "state": {
+    "t": 60,
+    "used": 7,
+    "cap": 15,
+    "workers": 6,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 0,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 398,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11000",
+   "prompt": "时间 1:00｜人口 7/15（余量 8）\n矿 398 气 0｜农民 6\n部队构成：狂热者×1\n建筑：基地×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-074",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 39,
+    "cap": 47,
+    "workers": 26,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 486,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10010",
+   "prompt": "时间 7:00｜人口 39/47（余量 8）\n矿 486 气 0｜农民 26\n部队构成：狂热者×3\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-075",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 43,
+    "cap": 55,
+    "workers": 21,
+    "army": 8,
+    "zealots": 8,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 168,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00111",
+   "prompt": "时间 4:00｜人口 43/55（余量 12）\n矿 168 气 0｜农民 21\n部队构成：狂热者×8\n建筑：基地×1、水晶×5、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-076",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 30,
+    "cap": 31,
+    "workers": 18,
+    "army": 9,
+    "zealots": 9,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 2,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 574,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10101",
+   "prompt": "时间 5:00｜人口 30/31（余量 1）\n矿 574 气 0｜农民 18\n部队构成：狂热者×9\n建筑：基地×1、水晶×2、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-077",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 39,
+    "cap": 63,
+    "workers": 27,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 241,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00010",
+   "prompt": "时间 3:00｜人口 39/63（余量 24）\n矿 241 气 0｜农民 27\n部队构成：狂热者×1\n建筑：基地×1、水晶×6、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-078",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 52,
+    "cap": 55,
+    "workers": 27,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 22,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10000",
+   "prompt": "时间 3:00｜人口 52/55（余量 3）\n矿 22 气 0｜农民 27\n部队构成：狂热者×3\n建筑：基地×1、水晶×5、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶"
+   ]
+  },
+  {
+   "id": "v3-079",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 31,
+    "cap": 39,
+    "workers": 18,
+    "army": 9,
+    "zealots": 9,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 586,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10101",
+   "prompt": "时间 4:00｜人口 31/39（余量 8）\n矿 586 气 0｜农民 18\n部队构成：狂热者×9\n建筑：基地×1、水晶×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-080",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 33,
+    "cap": 39,
+    "workers": 11,
+    "army": 21,
+    "zealots": 21,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 609,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11111",
+   "prompt": "时间 7:00｜人口 33/39（余量 6）\n矿 609 气 0｜农民 11\n部队构成：狂热者×21\n建筑：基地×1、水晶×3、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "补兵营",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-081",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 47,
+    "cap": 47,
+    "workers": 9,
+    "army": 35,
+    "zealots": 35,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 196,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10101",
+   "prompt": "时间 8:00｜人口 47/47（余量 0）\n矿 196 气 0｜农民 9\n部队构成：狂热者×35\n建筑：基地×1、水晶×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-082",
+   "src": "random",
+   "state": {
+    "t": 120,
+    "used": 12,
+    "cap": 23,
+    "workers": 9,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 269,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01000",
+   "prompt": "时间 2:00｜人口 12/23（余量 11）\n矿 269 气 0｜农民 9\n部队构成：狂热者×1\n建筑：基地×1、水晶×1、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-083",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 50,
+    "cap": 55,
+    "workers": 48,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 22,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10100",
+   "prompt": "时间 8:00｜人口 50/55（余量 5）\n矿 22 气 0｜农民 48\n部队构成：无\n建筑：基地×1、水晶×5、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-084",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 27,
+    "cap": 39,
+    "workers": 15,
+    "army": 8,
+    "zealots": 8,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 548,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00111",
+   "prompt": "时间 3:00｜人口 27/39（余量 12）\n矿 548 气 0｜农民 15\n部队构成：狂热者×8\n建筑：基地×1、水晶×3、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-085",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 30,
+    "cap": 55,
+    "workers": 14,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 368,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01110",
+   "prompt": "时间 6:00｜人口 30/55（余量 25）\n矿 368 气 0｜农民 14\n部队构成：狂热者×1\n建筑：基地×1、水晶×5、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-086",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 15,
+    "cap": 23,
+    "workers": 11,
+    "army": 4,
+    "zealots": 4,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 255,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11110",
+   "prompt": "时间 5:00｜人口 15/23（余量 8）\n矿 255 气 0｜农民 11\n部队构成：狂热者×4\n建筑：基地×1、水晶×1、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-087",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 20,
+    "cap": 23,
+    "workers": 18,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 583,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10110",
+   "prompt": "时间 6:00｜人口 20/23（余量 3）\n矿 583 气 0｜农民 18\n部队构成：无\n建筑：基地×1、水晶×1、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-088",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 22,
+    "cap": 31,
+    "workers": 16,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 2,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 437,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10110",
+   "prompt": "时间 5:00｜人口 22/31（余量 9）\n矿 437 气 0｜农民 16\n部队构成：狂热者×1\n建筑：基地×1、水晶×2、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-089",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 18,
+    "cap": 47,
+    "workers": 11,
+    "army": 7,
+    "zealots": 7,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 669,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01110",
+   "prompt": "时间 7:00｜人口 18/47（余量 29）\n矿 669 气 0｜农民 11\n部队构成：狂热者×7\n建筑：基地×1、水晶×4、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-090",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 40,
+    "cap": 47,
+    "workers": 16,
+    "army": 4,
+    "zealots": 4,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 665,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10010",
+   "prompt": "时间 3:00｜人口 40/47（余量 7）\n矿 665 气 0｜农民 16\n部队构成：狂热者×4\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-091",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 42,
+    "cap": 47,
+    "workers": 22,
+    "army": 18,
+    "zealots": 18,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 553,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10011",
+   "prompt": "时间 5:00｜人口 42/47（余量 5）\n矿 553 气 0｜农民 22\n部队构成：狂热者×18\n建筑：基地×1、水晶×4、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-092",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 22,
+    "cap": 23,
+    "workers": 11,
+    "army": 11,
+    "zealots": 11,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 138,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11001",
+   "prompt": "时间 4:00｜人口 22/23（余量 1）\n矿 138 气 0｜农民 11\n部队构成：狂热者×11\n建筑：基地×1、水晶×1、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-093",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 18,
+    "cap": 39,
+    "workers": 12,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 194,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01110",
+   "prompt": "时间 5:00｜人口 18/39（余量 21）\n矿 194 气 0｜农民 12\n部队构成：狂热者×6\n建筑：基地×1、水晶×3、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-094",
+   "src": "random",
+   "state": {
+    "t": 540,
+    "used": 12,
+    "cap": 23,
+    "workers": 10,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 491,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01010",
+   "prompt": "时间 9:00｜人口 12/23（余量 11）\n矿 491 气 0｜农民 10\n部队构成：狂热者×1\n建筑：基地×1、水晶×1、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-095",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 44,
+    "cap": 47,
+    "workers": 15,
+    "army": 4,
+    "zealots": 4,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 472,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10010",
+   "prompt": "时间 3:00｜人口 44/47（余量 3）\n矿 472 气 0｜农民 15\n部队构成：狂热者×4\n建筑：基地×1、水晶×4、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-096",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 55,
+    "cap": 63,
+    "workers": 11,
+    "army": 23,
+    "zealots": 23,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 6,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 234,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11011",
+   "prompt": "时间 7:00｜人口 55/63（余量 8）\n矿 234 气 0｜农民 11\n部队构成：狂热者×23\n建筑：基地×1、水晶×6、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-097",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 23,
+    "cap": 39,
+    "workers": 11,
+    "army": 10,
+    "zealots": 10,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 70,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01101",
+   "prompt": "时间 8:00｜人口 23/39（余量 16）\n矿 70 气 0｜农民 11\n部队构成：狂热者×10\n建筑：基地×1、水晶×3、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-098",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 17,
+    "cap": 39,
+    "workers": 8,
+    "army": 6,
+    "zealots": 6,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 416,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01100",
+   "prompt": "时间 3:00｜人口 17/39（余量 22）\n矿 416 气 0｜农民 8\n部队构成：狂热者×6\n建筑：基地×1、水晶×3、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-099",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 18,
+    "cap": 47,
+    "workers": 10,
+    "army": 5,
+    "zealots": 5,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 407,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01010",
+   "prompt": "时间 4:00｜人口 18/47（余量 29）\n矿 407 气 0｜农民 10\n部队构成：狂热者×5\n建筑：基地×1、水晶×4、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-100",
+   "src": "random",
+   "state": {
+    "t": 120,
+    "used": 27,
+    "cap": 39,
+    "workers": 22,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 87,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00100",
+   "prompt": "时间 2:00｜人口 27/39（余量 12）\n矿 87 气 0｜农民 22\n部队构成：狂热者×1\n建筑：基地×1、水晶×3、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-101",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 15,
+    "cap": 39,
+    "workers": 8,
+    "army": 4,
+    "zealots": 4,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 120,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01100",
+   "prompt": "时间 6:00｜人口 15/39（余量 24）\n矿 120 气 0｜农民 8\n部队构成：狂热者×4\n建筑：基地×1、水晶×3、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-102",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 53,
+    "cap": 55,
+    "workers": 27,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 674,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10010",
+   "prompt": "时间 3:00｜人口 53/55（余量 2）\n矿 674 气 0｜农民 27\n部队构成：狂热者×2\n建筑：基地×1、水晶×5、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-103",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 13,
+    "cap": 23,
+    "workers": 11,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 5,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 249,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01010",
+   "prompt": "时间 4:00｜人口 13/23（余量 10）\n矿 249 气 0｜农民 11\n部队构成：狂热者×1\n建筑：基地×1、水晶×1、兵营×5\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "量产狂热者"
+   ]
+  },
+  {
+   "id": "v3-104",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 27,
+    "cap": 39,
+    "workers": 10,
+    "army": 15,
+    "zealots": 15,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 114,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01111",
+   "prompt": "时间 8:00｜人口 27/39（余量 12）\n矿 114 气 0｜农民 10\n部队构成：狂热者×15\n建筑：基地×1、水晶×3、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营",
+    "量产狂热者",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-105",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 27,
+    "cap": 39,
+    "workers": 20,
+    "army": 4,
+    "zealots": 4,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 27,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00100",
+   "prompt": "时间 5:00｜人口 27/39（余量 12）\n矿 27 气 0｜农民 20\n部队构成：狂热者×4\n建筑：基地×1、水晶×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-106",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 16,
+    "cap": 23,
+    "workers": 12,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 64,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "11100",
+   "prompt": "时间 7:00｜人口 16/23（余量 7）\n矿 64 气 0｜农民 12\n部队构成：无\n建筑：基地×1、水晶×1、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-107",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 38,
+    "cap": 39,
+    "workers": 32,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 519,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10100",
+   "prompt": "时间 4:00｜人口 38/39（余量 1）\n矿 519 气 0｜农民 32\n部队构成：狂热者×2\n建筑：基地×1、水晶×3、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-108",
+   "src": "random",
+   "state": {
+    "t": 360,
+    "used": 39,
+    "cap": 39,
+    "workers": 37,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 388,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10100",
+   "prompt": "时间 6:00｜人口 39/39（余量 0）\n矿 388 气 0｜农民 37\n部队构成：狂热者×2\n建筑：基地×1、水晶×3、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-109",
+   "src": "random",
+   "state": {
+    "t": 540,
+    "used": 31,
+    "cap": 31,
+    "workers": 10,
+    "army": 14,
+    "zealots": 14,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 2,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 687,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "10101",
+   "prompt": "时间 9:00｜人口 31/31（余量 0）\n矿 687 气 0｜农民 10\n部队构成：狂热者×14\n建筑：基地×1、水晶×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补水晶",
+    "补兵营",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-110",
+   "src": "random",
+   "state": {
+    "t": 480,
+    "used": 11,
+    "cap": 23,
+    "workers": 9,
+    "army": 1,
+    "zealots": 1,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 615,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01000",
+   "prompt": "时间 8:00｜人口 11/23（余量 12）\n矿 615 气 0｜农民 9\n部队构成：狂热者×1\n建筑：基地×1、水晶×1、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-111",
+   "src": "random",
+   "state": {
+    "t": 540,
+    "used": 13,
+    "cap": 23,
+    "workers": 10,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 1,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 83,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01100",
+   "prompt": "时间 9:00｜人口 13/23（余量 10）\n矿 83 气 0｜农民 10\n部队构成：狂热者×2\n建筑：基地×1、水晶×1、兵营×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-112",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 29,
+    "cap": 47,
+    "workers": 9,
+    "army": 16,
+    "zealots": 16,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 182,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01101",
+   "prompt": "时间 7:00｜人口 29/47（余量 18）\n矿 182 气 0｜农民 9\n部队构成：狂热者×16\n建筑：基地×1、水晶×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-113",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 30,
+    "cap": 47,
+    "workers": 24,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 4,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 24,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00000",
+   "prompt": "时间 5:00｜人口 30/47（余量 17）\n矿 24 气 0｜农民 24\n部队构成：狂热者×3\n建筑：基地×1、水晶×4、兵营×4\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "无"
+   ]
+  },
+  {
+   "id": "v3-114",
+   "src": "random",
+   "state": {
+    "t": 120,
+    "used": 11,
+    "cap": 23,
+    "workers": 9,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 571,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01000",
+   "prompt": "时间 2:00｜人口 11/23（余量 12）\n矿 571 气 0｜农民 9\n部队构成：无\n建筑：基地×1、水晶×1、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民"
+   ]
+  },
+  {
+   "id": "v3-115",
+   "src": "random",
+   "state": {
+    "t": 420,
+    "used": 45,
+    "cap": 55,
+    "workers": 8,
+    "army": 25,
+    "zealots": 25,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 5,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 694,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01001",
+   "prompt": "时间 7:00｜人口 45/55（余量 10）\n矿 694 气 0｜农民 8\n部队构成：狂热者×25\n建筑：基地×1、水晶×5、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "全面进攻"
+   ]
+  },
+  {
+   "id": "v3-116",
+   "src": "random",
+   "state": {
+    "t": 240,
+    "used": 30,
+    "cap": 47,
+    "workers": 27,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 3,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 58,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00000",
+   "prompt": "时间 4:00｜人口 30/47（余量 17）\n矿 58 气 0｜农民 27\n部队构成：无\n建筑：基地×1、水晶×4、兵营×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "无"
+   ]
+  },
+  {
+   "id": "v3-117",
+   "src": "random",
+   "state": {
+    "t": 300,
+    "used": 15,
+    "cap": 31,
+    "workers": 9,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 2,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 380,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01100",
+   "prompt": "时间 5:00｜人口 15/31（余量 16）\n矿 380 气 0｜农民 9\n部队构成：狂热者×3\n建筑：基地×1、水晶×2、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-118",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 31,
+    "cap": 47,
+    "workers": 22,
+    "army": 3,
+    "zealots": 3,
+    "stalkers": 0,
+    "gw": 2,
+    "pylons": 4,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 45,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "00100",
+   "prompt": "时间 3:00｜人口 31/47（余量 16）\n矿 45 气 0｜农民 22\n部队构成：狂热者×3\n建筑：基地×1、水晶×4、兵营×2\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-119",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 10,
+    "cap": 23,
+    "workers": 9,
+    "army": 0,
+    "zealots": 0,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 1,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 141,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01100",
+   "prompt": "时间 3:00｜人口 10/23（余量 13）\n矿 141 气 0｜农民 9\n部队构成：无\n建筑：基地×1、水晶×1\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营"
+   ]
+  },
+  {
+   "id": "v3-120",
+   "src": "random",
+   "state": {
+    "t": 180,
+    "used": 16,
+    "cap": 39,
+    "workers": 14,
+    "army": 2,
+    "zealots": 2,
+    "stalkers": 0,
+    "gw": 0,
+    "pylons": 3,
+    "cyber": 0,
+    "nexus": 1,
+    "idle": 0,
+    "minerals": 34,
+    "gas": 0,
+    "geysers": 0
+   },
+   "label": "01100",
+   "prompt": "时间 3:00｜人口 16/39（余量 23）\n矿 34 气 0｜农民 14\n部队构成：狂热者×2\n建筑：基地×1、水晶×3\n\n输出（5 位 0/1）：",
+   "label_names": [
+    "补农民",
+    "补兵营"
+   ]
+  }
+ ]
+}

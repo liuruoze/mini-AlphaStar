@@ -160,8 +160,8 @@ def random_state(rnd):
                 used, workers, army, gw, pylons, rnd.randint(0, 700))
 
 
-def build():
-    rnd = random.Random(SEED)
+def build(seed=None):
+    rnd = random.Random(SEED if seed is None else seed)
     items, seen = [], set()
 
     for b in boundary(rnd):
@@ -225,6 +225,8 @@ def digest(items):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--seed", type=int, default=SEED, help="换种子可生成同规则的平行题集")
+    ap.add_argument("--out", default=OUT)
     a = ap.parse_args()
     if a.check:
         d = json.load(open(OUT, encoding="utf-8"))
@@ -232,12 +234,12 @@ def main():
         print("条目 %d｜哈希一致 %s｜标签自洽 %s"
               % (len(d["items"]), digest(d["items"]) == d["sha256"], not bad))
         return
-    items = build()
-    d = {"version": "v3", "frozen_at": "2026-11-20T19:35+08:00",
+    items = build(a.seed)
+    d = {"version": "v3", "seed": a.seed, "frozen_at": "2026-11-21T04:00+08:00",
          "system": SYSTEM, "n": len(items), "sha256": digest(items), "items": items}
-    json.dump(d, open(OUT, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-    open(OUT + ".sha256", "w").write(digest(items) + "\n")
-    print("写入 %s  sha256=%s" % (OUT, d["sha256"]))
+    json.dump(d, open(a.out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    open(a.out + ".sha256", "w").write(digest(items) + "\n")
+    print("写入 %s  sha256=%s" % (a.out, d["sha256"]))
     print("每位为 1：%s" % {n: sum(1 for it in items if it["label"][i] == "1")
                             for i, n in enumerate(BIT_NAMES)})
 
