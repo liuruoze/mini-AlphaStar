@@ -244,7 +244,7 @@ class Agent(object):
                                                                                               hidden_state = hidden_state, 
                                                                                               return_logits = True,
                                                                                               obs_list = obs_list)
-        action_logits = _apply_macro_mask(action_logits)
+        # 遮罩已在 ArchModel.forward 内、action_type 采样之前应用，这里不再事后处理
         return action_logits, actions, new_state, select_units_num, entity_nums
 
     def batch_action_logits_by_state(self, state, hidden_state=None, obs_list=None):

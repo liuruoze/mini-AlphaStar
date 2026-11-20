@@ -105,8 +105,9 @@ class Arbiter:
         # 任何时刻都保留"移动/攻击"与 no_op 之外的基础操作，避免把局面锁死
         allow |= ACTIONS.get("base", set())
         allow |= ACTIONS.get("move", set())
-        if "build" in kinds or "tech" in kinds or "expand" in kinds:
-            allow |= ACTIONS.get("build", set())
+        # 建造类**始终**放行：实测只在 build 指令生效时放行，会让人口/建筑被卡死
+        # （第三次 A/B：胜率 9/20 vs 基线 13/20）。补人口和出兵必须能同时进行。
+        allow |= ACTIONS.get("build", set())
         if "train" in kinds:
             allow |= ACTIONS.get("train", set())
         if "attack" in kinds:
