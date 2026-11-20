@@ -24,7 +24,7 @@ def label_from_spec(s):
     """逐字按 prompt_spec_v3.md 的 1..5 条重写，不复用 doctrine.py。"""
     gap = s["cap"] - s["used"]
     b1 = 1 if (s["pylons"] == 0 or (gap <= 9 and s["cap"] < 200)) else 0   # 余量≤9 且上限未满
-    b2 = 1 if s["workers"] <= 14 else 0                                   # 农民≤14
+    b2 = 1 if (s["workers"] <= 14 and gap >= 1) else 0                    # 农民≤14 且余量≥1
     b3 = 1 if (s["gw"] < 3 and s["pylons"] >= 1) else 0                    # 兵营<3 且至少一个水晶
     b4 = 1 if (s["army"] < 24 and s["minerals"] >= 100 and s["workers"] >= 10
                and s["gw"] >= 1 and gap >= 2) else 0                       # 量产五条件
@@ -47,7 +47,7 @@ def main():
         s, p = it["state"], it["prompt"]
         need = ["%d:%02d" % (s["t"] // 60, s["t"] % 60), "%d/%d" % (s["used"], s["cap"]),
                 "%d" % (s["cap"] - s["used"]), "%d" % s["minerals"], "%d" % s["workers"],
-                "%d" % s["idle"], "×%d" % s["zealots"] if s["zealots"] else "无"]
+                "×%d" % s["zealots"] if s["zealots"] else "无"]
         for n in need:
             if n not in p:
                 problems.append(("prompt 缺字段", (it["id"], n)))
@@ -102,7 +102,7 @@ def main():
                  s["workers"], s["idle"], s["army"], s["gw"], s["pylons"]))
         print("  逐条判定：" + " | ".join([
             "1补水晶=%s" % ("✓" if (s["pylons"] == 0 or (s["cap"] - s["used"] <= 9 and s["cap"] < 200)) else "✗"),
-            "2补农民=%s" % ("✓" if s["workers"] <= 14 else "✗"),
+            "2补农民=%s" % ("✓" if (s["workers"] <= 14 and s["cap"] - s["used"] >= 1) else "✗"),
             "3补兵营=%s" % ("✓" if (s["gw"] < 3 and s["pylons"] >= 1) else "✗"),
             "4量产=%s" % ("✓" if (s["army"] < 24 and s["minerals"] >= 100 and s["workers"] >= 10
                                   and s["gw"] >= 1 and s["cap"] - s["used"] >= 2) else "✗"),

@@ -9,7 +9,7 @@
 优先级（从高到低）：
   1. 水晶 = 0                     → 补水晶
   2. 人口余量 ≤ 9 且上限未满      → 补水晶（上限 200 已满时补水晶无用）
-  3. 农民 ≤ 14                    → 补农民
+  3. 农民 ≤ 14 且余量 ≥ 1        → 补农民
   4. 兵营 < 3                     → 补兵营
   5. 兵 ≥ 8                       → 全面进攻
   6. 其余                         → 量产狂热者
@@ -80,7 +80,8 @@ def decide_bits(t, used, cap, workers, army, gw, minerals, pylons=1, **_):
     # 人口上限已顶格（200）时，再补水晶不可能提高上限 → 不补
     supply_capped = cap >= 200
     b1 = 1 if (pylons <= 0 or (gap <= GAP_PYLON and not supply_capped)) else 0
-    b2 = 1 if workers <= WORKERS_MIN else 0
+    # 没有人口余量就造不出农民（狂热者占 2，农民占 1）
+    b2 = 1 if (workers <= WORKERS_MIN and gap >= 1) else 0
     b3 = 1 if (gw < GATEWAY_MIN and pylons > 0) else 0
     b4 = 1 if (army < ZEALOT_MAX and minerals >= ZEALOT_MINERALS
                and workers >= ZEALOT_WORKERS and gw >= 1 and gap >= 2) else 0
