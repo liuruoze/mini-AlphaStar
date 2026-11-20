@@ -951,10 +951,22 @@ class ActorEval:
                                         _hbp = os.path.join(os.getcwd(), "experiments", "hybrid")
                                         if _hbp not in sys.path:
                                             sys.path.insert(0, _hbp)
-                                        from policy import RuleCommander
                                         from arbiter import Arbiter
                                         from alphastarmini.core.arch import agent as _agent_mod
-                                        self._hb = {"cmd": RuleCommander(), "arb": Arbiter(),
+                                        _mode = os.environ.get("MAS_HYBRID_MODE", "rule").lower()
+                                        if _mode == "llm":
+                                            # 走共享推理服务（8 个对局共用一个 7B，不能各加载一份）
+                                            import llm_client as _llmc
+                                            from commander import Commander as _Cmd
+                                            from obs_to_text import summarize_obs as _summ
+                                            _llm = _llmc.build("openai",
+                                                               base_url=os.environ.get("LLM_BASE_URL",
+                                                                                       "http://127.0.0.1:8765/v1"))
+                                            _cmd_obj, _sum_fn = _Cmd(_llm), _summ
+                                        else:
+                                            from policy import RuleCommander
+                                            _cmd_obj, _sum_fn = RuleCommander(), None
+                                        self._hb = {"cmd": _cmd_obj, "sum": _sum_fn, "arb": Arbiter(),
                                                     "mod": _agent_mod, "last": -1e9}
                                         self._hb_log = open(os.environ.get("EVAL_OUT", "eval.txt") + ".hybrid.jsonl", "a")
                                     _hb = self._hb
@@ -962,7 +974,9 @@ class ActorEval:
                                     _iv = float(os.environ.get("MAS_HYBRID_INTERVAL", "8"))
                                     if _t_hb - _hb["last"] >= _iv:
                                         _hb["last"] = _t_hb
-                                        _cmd, _key, _ = _hb["cmd"].propose(home_obs.observation)
+                                        _arg = (_hb["sum"](home_obs.observation)
+                                                if _hb.get("sum") else home_obs.observation)
+                                        _cmd, _key, _ = _hb["cmd"].propose(_arg)
                                         _res = "none"
                                         # 同类型指令已生效时不再重复提交：否则队列 4 格瞬间塞满，
                                         # 之后全部 rejected（首轮 A/B 里 1070 条指令被拒 621 条）。
@@ -971,8 +985,18 @@ class ActorEval:
                                         elif _cmd is not None:
                                             _res = "skip_active"
                                         _hb["arb"].tick(_t_hb)
-                                        _mask = _hb["arb"].mask()
-                                        _hb["mod"].set_macro_mask(_mask)
+                                        # 两种干预模式：MAS_HYBRID_BIAS=3.0 走软偏置，否则走硬遮罩
+                                        _bw = os.environ.get("MAS_HYBRID_BIAS", "").strip()
+                                        if _bw and _cmd is not None:
+                                            from arbiter import ACTIONS as _ACTS
+                                            _ids = _ACTS.get(_cmd.kind, set())
+                                            _hb["mod"].set_macro_mask(None)
+                                            _hb["mod"].set_macro_bias(_ids, float(_bw))
+                                            _mask = None
+                                        else:
+                                            _hb["mod"].set_macro_bias(None, 0.0)
+                                            _mask = _hb["arb"].mask()
+                                            _hb["mod"].set_macro_mask(_mask)
                                         try:
                                             self._hb_log.write(json.dumps(
                                                 {"t": round(_t_hb, 1), "key": _key,

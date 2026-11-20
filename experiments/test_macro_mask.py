@@ -79,6 +79,16 @@ def main():
         res.append(("T4 遮罩生效且可解除", False))
         print("  T4 异常:", repr(e))
 
+    A.set_macro_bias({7}, 20.0)
+    lg2 = fake_logits(16)
+    act2 = torch.zeros(1, 1, dtype=torch.long)
+    _, a_b = MM.apply(lg2.action_type, act2)
+    A.set_macro_bias(None, 0.0)
+    _, a_0 = MM.apply(lg2.action_type, act2)
+    # 关掉偏置后 apply 原样返回传入的 action（不重算），这才是"不干预"的语义
+    res.append(("T5 软偏置生效且可关", int(a_b.flatten()[0]) == 7
+                and int(a_0.flatten()[0]) == int(act2.flatten()[0])))
+
     A.set_macro_mask(None)
     bad = 0
     print("%-26s %-5s" % ("check", "pass"))

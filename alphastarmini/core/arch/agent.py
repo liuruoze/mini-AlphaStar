@@ -42,7 +42,8 @@ speed = False
 
 # 2026-11-20（hybrid）：遮罩状态放在 macro_mask 模块里，由 arch_model.forward 在
 # action_type 采样之前应用（事后改 logits 不影响已选出的 action —— 这一点踩过坑）。
-from alphastarmini.core.arch.macro_mask import set_macro_mask, get_macro_mask  # noqa: E402,F401
+from alphastarmini.core.arch.macro_mask import (set_macro_mask, get_macro_mask,  # noqa: E402,F401
+                                                  set_macro_bias, get_macro_bias)
 
 
 class Agent(object):
