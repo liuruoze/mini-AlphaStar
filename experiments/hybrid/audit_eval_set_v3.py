@@ -165,10 +165,13 @@ def main():
             tw.append(it["id"])
         if st["gw"] > 1 + t // 45:
             tg.append(it["id"])
-        if st["gw"] == 0 and st["army"] > 0:
-            ta.append(it["id"] + "(无兵营却有兵)")
-        elif st["gw"] > 0 and st["army"] > (t / 27.0) * st["gw"] * 1.2:
+        # 兵营被拆是允许的；兵力上限按"曾经可能有过的兵营数"估
+        max_gw_ever = 1 + int(t // 45)
+        cap_army = (t / 27.0) * (st["gw"] if st["gw"] > 0 else max_gw_ever)
+        if st["army"] > cap_army * 1.2:
             ta.append(it["id"] + "(兵超出产能)")
+        if t < 45 and st["army"] > 0:
+            ta.append(it["id"] + "(开局就有兵)")
     ck("时间可行性/农民", not tw, ",".join(tw[:3]))
     ck("时间可行性/兵营", not tg, ",".join(tg[:3]))
     ck("时间可行性/兵力", not ta, ",".join(ta[:3]))

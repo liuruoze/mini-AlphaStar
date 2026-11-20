@@ -78,10 +78,13 @@ def make(rnd, t, used, workers, army, gw, pylons, minerals, gas=0, idle=0,
     # 农民 12 秒一个（开局 12 个）；兵营约 45 秒一座（含水晶前置）；狂热者 27 秒一个/兵营
     workers = min(workers, int(12 + t / 12.0))
     gw = min(gw, 1 + int(t // 45))
-    if gw == 0:
-        army = 0                      # 没有兵营就不可能已有狂热者
+    # 兵营可以为 0（被对手拆掉），但狂热者只能来自"曾经存在过"的兵营：
+    # 上限按该时间点最多可能造过几座兵营来估。
+    max_gw_ever = 1 + int(t // 45)
+    if t < 45:
+        army = 0                      # 60 秒内连一座兵营都建不完
     else:
-        army = min(army, int((t / 27.0) * gw))
+        army = min(army, int((t / 27.0) * (gw if gw > 0 else max_gw_ever)))
     if workers + army > used:
         if workers > used:
             workers = used
@@ -180,7 +183,8 @@ def random_state(rnd):
     used = rnd.randint(max(1, int(cap * 0.4)), cap)
     workers = rnd.randint(max(1, min(used - 1, 8)), max(2, used - 1))
     army = rnd.randint(0, max(0, used - workers))
-    gw = rnd.choice([0, 0, 1, 1, 2, 3, 3, 4, 5])
+    # 兵营为 0 是"被拆光"的灾难局面，真实对局里少见，故权重压低
+    gw = rnd.choice([0, 1, 1, 2, 2, 3, 3, 4, 5])
     if gw and pylons == 0:
         gw = 0
     return make(rnd, rnd.choice([60, 120, 180, 240, 300, 360, 420, 480, 540]),
