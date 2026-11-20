@@ -1,60 +1,74 @@
 # -*- coding: utf-8 -*-
-"""用户（项目作者）钦定的狂热者快攻策略，2026-11-20 由 33 条人工标注拟合而来。
+"""用户（项目作者）钦定的狂热者快攻战术 —— v2，2026-11-20 19:03 冻结。
 
-来源：
-  · LABEL_SHEET_20261120.md（20 条，盲标）
-  · LABEL_BOUNDARY_20261120.md（13 条，每行只改一个变量）
-拟合结果：**六条规则 33/33 全中**，没有例外。
+来源：33 条人工标注拟合出的 v1（六条规则，33/33 全中），随后按用户口述修订：
+  · 删掉"兵营<4 且矿≥250 且兵<10 → 再补兵营"（用户："意义不明"）
+  · 进攻条件从"7:00 且兵≥10"改为 **兵 ≥ 8**（去掉时间门）
+  · 新增前置条件：水晶 = 0 → 补水晶（兵营必须建在能量场里）
 
-与 V5 专家的差异（V5 是当前训练数据的老师）：
-  | 阈值 | 用户 | V5 |
-  | 人口余量 | ≤9 就补水晶 | ≤6 |
-  | 农民 | ≤14 就补 | <18 就补 |
-  | 兵营 | <3 必补；<4 且矿≥250 且兵<10 也补 | <4 一律补 |
-  | 进攻 | 7:00 之后且兵≥10 | 兵≥10 随时 |
-也就是说：**用户要的是"更早补人口、更少农民、更早开打"的快攻**，
-而 V5（为了稳赢 very_easy 调的）会多补 3–4 个农民、多造 1 个兵营、提前开打。
+优先级（从高到低）：
+  1. 水晶 = 0                     → 补水晶
+  2. 人口余量 ≤ 9                 → 补水晶
+  3. 农民 ≤ 14                    → 补农民
+  4. 兵营 < 3                     → 补兵营
+  5. 兵 ≥ 8                       → 全面进攻
+  6. 其余                         → 量产狂热者
+
+与 V5 老师的差异：农民 14（V5 16±1）；进攻门槛 8 且无时间门（V5 10±1、随时）；
+V5 没有"水晶=0"这个前置判断。
 
 用法：
-    from doctrine import decide
-    key = decide(t=420, used=50, cap=70, workers=25, army=6, gw=3, minerals=300)
+    from doctrine import decide, CODES
+    sid = decide(t=420, used=50, cap=70, workers=25, army=6, gw=3, minerals=300, pylons=2)
+    code = CODE_OF[sid]          # one-hot，投给模型看/收模型答都用它
 """
 
-# 阈值（全部由标注确定；改动前先重新标定）
+# 阈值（改动前先重新标定）
 GAP_PYLON = 9        # 人口余量 ≤9 → 补水晶
 WORKERS_MIN = 14     # 农民 ≤14 → 补农民
 GATEWAY_MIN = 3      # 兵营 <3 → 补兵营
-GATEWAY_MAX = 4      # 兵营 <4 且存款高且兵少 → 再补一个
-BANK_FOR_GATEWAY = 250
-ATTACK_TIME = 420    # 7:00 之后
-ATTACK_ARMY = 10     # 且兵 ≥10 → 进攻
+ATTACK_ARMY = 8      # 兵 ≥8 → 全面进攻
+
+# 冻结的 one-hot 编码（2026-11-20 用户指定：避免数字/字母的顺序先验）
+CODES = {
+    "00001": "S2",   # 补水晶
+    "00010": "S1",   # 补农民
+    "00100": "S9",   # 补兵营
+    "01000": "S3",   # 量产狂热者
+    "10000": "S6",   # 全面进攻
+}
+CODE_OF = {v: k for k, v in CODES.items()}
+
+NAMES = {
+    "S2": "补水晶", "S1": "补农民", "S9": "补兵营",
+    "S3": "量产狂热者", "S6": "全面进攻",
+}
 
 
-def decide(t, used, cap, workers, army, gw, minerals, **_):
-    """返回 S 编号（与 commander.STRATEGIES 对应）。"""
+def decide(t, used, cap, workers, army, gw, minerals, pylons=1, **_):
+    """返回策略编号（S1/S2/S9/S3/S6）。pylons 缺省 1，表示"至少有一个水晶"。"""
+    if pylons <= 0:
+        return "S2"                     # 没有能量场，任何建造都不成立
     if cap - used <= GAP_PYLON:
-        return "S2"          # 补水晶
+        return "S2"
     if workers <= WORKERS_MIN:
-        return "S1"          # 补农民
+        return "S1"
     if gw < GATEWAY_MIN:
-        return "S9"          # 补兵营（产能不够）
-    if gw < GATEWAY_MAX and minerals >= BANK_FOR_GATEWAY and army < ATTACK_ARMY:
-        return "S9"          # 存款高、兵少、还能再加一个兵营 → 把钱变成产能
-    if t >= ATTACK_TIME and army >= ATTACK_ARMY:
-        return "S6"          # 进攻
-    return "S3"              # 量产狂热者
+        return "S9"
+    if army >= ATTACK_ARMY:
+        return "S6"
+    return "S3"
 
 
-def explain(t, used, cap, workers, army, gw, minerals, **_):
+def explain(t, used, cap, workers, army, gw, minerals, pylons=1, **_):
+    if pylons <= 0:
+        return "没有任何水晶，兵营无处可建，必须先补水晶"
     if cap - used <= GAP_PYLON:
         return "人口余量 %d ≤ %d，先补水晶" % (cap - used, GAP_PYLON)
     if workers <= WORKERS_MIN:
         return "农民 %d ≤ %d，先补农民" % (workers, WORKERS_MIN)
     if gw < GATEWAY_MIN:
         return "兵营 %d < %d，先补产能" % (gw, GATEWAY_MIN)
-    if gw < GATEWAY_MAX and minerals >= BANK_FOR_GATEWAY and army < ATTACK_ARMY:
-        return "存款 %d ≥ %d 且兵 %d < %d，再加兵营" % (
-            minerals, BANK_FOR_GATEWAY, army, ATTACK_ARMY)
-    if t >= ATTACK_TIME and army >= ATTACK_ARMY:
-        return "%d 秒 ≥ %d 且兵 %d ≥ %d，开打" % (t, ATTACK_TIME, army, ATTACK_ARMY)
+    if army >= ATTACK_ARMY:
+        return "兵 %d ≥ %d，全面进攻" % (army, ATTACK_ARMY)
     return "以上都不满足，继续量产"

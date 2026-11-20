@@ -94,6 +94,14 @@ DEFEND_HOLD = int(_os.environ.get("MAS_DEFEND_HOLD", "100"))
 #   heavy_gate  4-5 兵营、14-18 兵、后期一波
 #   macro       20+ 农民、20 兵才动
 #   harass      3 兵开始反复骚扰 + 撤退
+# 2026-11-20：把"实际生效的参数"打出来，供验收（不做推断）。
+def _dump_effective():
+    if _os.environ.get("MAS_EXPERT_DEBUG"):
+        print("[expert] file=%s strat=%s PROBE=%d GATEWAY=%d SUPPLY=%d ATTACK_AT=%d ATK_TICK=%d"
+              % (__file__, STRAT, PROBE_TARGET, GATEWAY_TARGET, SUPPLY_RESERVE,
+                 ATTACK_AT, ATTACK_TIME_TICK), flush=True)
+
+
 # ---------------------------------------------------------------
 STRAT = "fixed"
 if RAND_ON:
@@ -102,10 +110,15 @@ if RAND_ON:
     _forced = _os.environ.get("MAS_EXPERT_STRAT", "")
     STRAT = _forced if _forced in _STRATS else _RNG.choice(_STRATS)
     if STRAT == "fast_rush":
-        # 快攻骨架不变，但规模/开打点/节奏全部拉开
-        PROBE_TARGET = 16 + _RNG.randint(-1, 2)
-        GATEWAY_TARGET = 3
-        ATTACK_AT = 10 + _RNG.randint(-1, 2)
+        # 快攻骨架不变，但规模/开打点/节奏全部拉开。
+        # 2026-11-20：环境变量显式指定时必须尊重它，否则用户钦定的阈值会被这里覆盖掉
+        # （实测：设了 MAS_PROBE_TARGET=14，仍补到 16-21 个农民）。
+        if not _os.environ.get("MAS_PROBE_TARGET"):
+            PROBE_TARGET = 16 + _RNG.randint(-1, 2)
+        if not _os.environ.get("MAS_GATEWAY_TARGET"):
+            GATEWAY_TARGET = 3
+        if not _os.environ.get("MAS_ATTACK_AT"):
+            ATTACK_AT = 10 + _RNG.randint(-1, 2)
         RETREAT_EVERY = 0
     elif STRAT == "two_gate":
         PROBE_TARGET = _RNG.randint(14, 18)
