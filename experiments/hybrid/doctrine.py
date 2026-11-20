@@ -60,6 +60,36 @@ def decide(t, used, cap, workers, army, gw, minerals, pylons=1, **_):
     return "S3"
 
 
+# ---- v3：五位独立判断（2026-11-20 用户改为多选）----
+# 顺序固定：1 补水晶 / 2 补农民 / 3 补兵营 / 4 量产狂热者 / 5 全面进攻
+BITS = ["pylon", "probe", "gateway", "zealot", "attack"]
+BIT_NAMES = ["补水晶", "补农民", "补兵营", "量产狂热者", "全面进攻"]
+
+# 量产的条件（用户 19:09 指定）：兵<24 且 矿≥100 且 农民≥10 且 兵营≥1 且 余量≥2
+ZEALOT_MAX = 24
+ZEALOT_MINERALS = 100
+ZEALOT_WORKERS = 10
+
+
+def decide_bits(t, used, cap, workers, army, gw, minerals, pylons=1, **_):
+    """返回 5 位 0/1 串。可同时为 1（基地造农民、兵营造兵、农民造建筑互不冲突）。
+
+    唯一的依赖：没有水晶就没有能量场，兵营放不下去 → 第 3 位强制 0。
+    """
+    gap = cap - used
+    b1 = 1 if (pylons <= 0 or gap <= GAP_PYLON) else 0
+    b2 = 1 if workers <= WORKERS_MIN else 0
+    b3 = 1 if (gw < GATEWAY_MIN and pylons > 0) else 0
+    b4 = 1 if (army < ZEALOT_MAX and minerals >= ZEALOT_MINERALS
+               and workers >= ZEALOT_WORKERS and gw >= 1 and gap >= 2) else 0
+    b5 = 1 if army >= ATTACK_ARMY else 0
+    return "%d%d%d%d%d" % (b1, b2, b3, b4, b5)
+
+
+def explain_bits(t, used, cap, workers, army, gw, minerals, pylons=1, **_):
+    return [b == "1" for b in decide_bits(t, used, cap, workers, army, gw, minerals, pylons)]
+
+
 def explain(t, used, cap, workers, army, gw, minerals, pylons=1, **_):
     if pylons <= 0:
         return "没有任何水晶，兵营无处可建，必须先补水晶"
