@@ -30,6 +30,7 @@ sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.join(REPO_ROOT, "experiments", "hybrid"))
 
 from doctrine import decide_bits, BIT_NAMES  # noqa: E402
+from obs_to_text import CN as UNIT_CN           # 单位名统一走共享映射，禁止手写
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "eval_set_v3.json")
 SEED = 20261120
@@ -48,9 +49,9 @@ SYSTEM = """你是星际争霸2神族的战术指挥官。本局固定执行狂�
 def render(st):
     comp = []
     if st["zealots"]:
-        comp.append("狂热者×%d" % st["zealots"])
+        comp.append("%s×%d" % (UNIT_CN["Zealot"], st["zealots"]))
     if st["stalkers"]:
-        comp.append("使徒×%d" % st["stalkers"])
+        comp.append("%s×%d" % (UNIT_CN["Stalker"], st["stalkers"]))
     bld = ["基地×%d" % st["nexus"]]
     if st["pylons"]:
         bld.append("水晶×%d" % st["pylons"])
