@@ -94,9 +94,12 @@ def main():
         ap.error("目前只支持 --smoke（其余用法见 module docstring）")
 
     llm = build(args.backend, args.model_path, args.base_url, args.model_name)
+    # 2026-11-20：与 commander 的选择题格式保持一致（旧的"一行 JSON"提示词会诱导
+    # 模型自由生成不存在的单位，实测输出了"神族造攻城机枪塔"）。
     msgs = [
-        {"role": "system", "content": "你是星际争霸2神族的战术指挥官。只回答一行 JSON，不要解释。"},
-        {"role": "user", "content": "当前：人口 30/31，矿 400，气 100，兵营 1，使徒 4，敌方未见。给出下一步建造指令。"},
+        {"role": "system", "content": "你是星际争霸2神族的战术指挥官。你只能从给定编号里选一个，只输出编号。"},
+        {"role": "user", "content": "当前：人口 30/31，矿 400，气 100，兵营 1，使徒 4。\n"
+                                    "S1 补农民｜S3 量产狂热者｜S5 攀科技｜S6 进攻\n输出编号："},
     ]
     t0 = time.time()
     out = llm.chat(msgs, max_new_tokens=96)

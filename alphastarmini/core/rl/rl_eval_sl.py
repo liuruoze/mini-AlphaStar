@@ -969,6 +969,24 @@ class ActorEval:
                                         self._hb = {"cmd": _cmd_obj, "sum": _sum_fn, "arb": Arbiter(),
                                                     "mod": _agent_mod, "last": -1e9}
                                         self._hb_log = open(os.environ.get("EVAL_OUT", "eval.txt") + ".hybrid.jsonl", "a")
+                                        try:
+                                            import hashlib as _hl
+                                            _fp = {}
+                                            for _n in ("arbiter.py", "policy.py", "commander.py", "macro_mask.py"):
+                                                for _d in ("experiments/hybrid", "alphastarmini/core/arch"):
+                                                    _p2 = os.path.join(_d, _n)
+                                                    if os.path.exists(_p2):
+                                                        _fp[_n] = _hl.md5(open(_p2, "rb").read()).hexdigest()[:8]
+                                                        break
+                                            self._hb_log.write(json.dumps(
+                                                {"config": {"mode": os.environ.get("MAS_HYBRID_MODE", "rule"),
+                                                            "bias": os.environ.get("MAS_HYBRID_BIAS", ""),
+                                                            "interval": os.environ.get("MAS_HYBRID_INTERVAL", "8"),
+                                                            "weight": os.path.basename(os.environ.get("EVAL_MODEL", "")),
+                                                            "code": _fp}}, ensure_ascii=False) + "\n")
+                                            self._hb_log.flush()
+                                        except Exception:
+                                            pass
                                     _hb = self._hb
                                     _t_hb = float(game_loop) / 22.4
                                     _iv = float(os.environ.get("MAS_HYBRID_INTERVAL", "8"))
@@ -1002,6 +1020,8 @@ class ActorEval:
                                                 {"t": round(_t_hb, 1), "key": _key,
                                                  "cmd": (_cmd.kind + ":" + _cmd.target) if _cmd else None,
                                                  "res": _res, "active": sorted(_hb["arb"].active.keys()),
+                                                 "eff": _hb["arb"].effective_kinds(),
+                                                 "mode": os.environ.get("MAS_HYBRID_BIAS") and "bias" or "mask",
                                                  "mask_n": (len(_mask) if _mask else 0)}, ensure_ascii=False) + "\n")
                                             self._hb_log.flush()
                                         except Exception:

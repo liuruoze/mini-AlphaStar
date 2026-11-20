@@ -117,8 +117,22 @@ class Arbiter:
         allow |= ACTIONS.get("move", set())
         return allow or None
 
+    def effective_kinds(self):
+        """返回真正改变动作集的指令类型：只有 train 会（build/attack 已并入常放行集）。
+        这个自省是为了避免"指令被接受但其实没约束任何动作"的自欺。
+        """
+        eff = []
+        if not ACTIONS:
+            return eff
+        base = ACTIONS.get("base", set()) | ACTIONS.get("move", set()) | ACTIONS.get("build", set())
+        for k in self.active:
+            if k == "train":
+                eff.append(k)
+        return eff
+
     def snapshot(self):
         return {"active": {k: v[0].kind + ":" + v[0].target for k, v in self.active.items()},
+                "effective": self.effective_kinds(),
                 "queued": len(self.queue), "stats": dict(self.stats)}
 
 

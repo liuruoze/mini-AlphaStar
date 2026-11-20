@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "experiments", "hybrid"))
 
 from obs_to_text import summarize_record          # noqa: E402
 from commander import Commander, STRATEGIES, build_prompt  # noqa: E402
+from obs_to_text import NAMES  # noqa: E402
 import llm_client                                  # noqa: E402
 from policy import decide_from_stats               # noqa: E402
 
@@ -44,7 +45,7 @@ def main():
     files = sorted(glob.glob(os.path.join(a.dir, "*.jsonl")))
     rows = []
     for f in files:
-        for r in json.load(open(f)) if False else [json.loads(l) for l in open(f, errors="ignore") if l.strip()]:
+        for r in [json.loads(l) for l in open(f, errors="ignore") if l.strip()]:
             rows.append(r)
     rnd = random.Random(a.seed)
     sample = rnd.sample(rows, min(a.n, len(rows)))
@@ -60,9 +61,14 @@ def main():
         _, key, raw = cmd.propose(text)
         lat.append(time.time() - t0)
         picks[key] += 1
+        # army 用 trace 里的 pysc2 army_count；缺失时退回 own 里非农民的计数（与 obs_to_text 一致）
+        army = r.get("army", None)
+        if army is None or army < 0:
+            own = r.get("own", {}) or {}
+            army = sum(int(v) for k, v in own.items() if NAMES.get(int(k)) != "Probe")
         st = {"t_s": r.get("t_s", 0), "used": r.get("food_used", 0), "cap": r.get("food_cap", 0),
               "minerals": r.get("minerals", 0), "vespene": r.get("vespene", 0),
-              "idle": r.get("idle_workers", 0), "army": r.get("army", 0)}
+              "idle": r.get("idle_workers", 0), "army": int(army or 0)}
         rcmd, rkey = decide_from_stats(st)
         if rkey and key and STRATEGIES.get(key) and rcmd and STRATEGIES[key][1].kind == rcmd.kind:
             agree += 1

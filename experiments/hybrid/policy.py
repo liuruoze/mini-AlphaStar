@@ -54,8 +54,10 @@ def decide_from_stats(st, army_prev=None):
 class RuleCommander:
     """与 Commander.propose(text) 同签名，方便直接替换。"""
 
-    def __init__(self):
+    def __init__(self, stall_window_s=120.0):
         self.last_army = None
+        self.last_t = None
+        self.stall_window_s = stall_window_s
         self.last_key = None
 
     def propose(self, state_text_or_obs):
@@ -64,8 +66,14 @@ class RuleCommander:
             st = state_text_or_obs
         else:
             st = stats_from_obs(state_text_or_obs)
-        cmd, key = decide_from_stats(st, self.last_army)
-        self.last_army = st["army"]
+        # 只在"距上次采样 ≥ 窗口长度"时比较军队增量，避免间隔太短误判停滞
+        prev_army = None
+        if self.last_t is not None and st["t_s"] - self.last_t >= self.stall_window_s:
+            prev_army = self.last_army
+        if prev_army is None or st["t_s"] - (self.last_t or 0) >= self.stall_window_s:
+            self.last_army = st["army"]
+            self.last_t = st["t_s"]
+        cmd, key = decide_from_stats(st, prev_army)
         self.last_key = key
         return cmd, key, ""
 
