@@ -86,7 +86,8 @@ def outcome_of(txt_path):
 def metrics(rows):
     if len(rows) < 2:
         return None
-    apu = [r["food_used"] / max(r["food_cap"], 1) for r in rows]
+    # 采样时偶尔会读到 food_used 略大于 food_cap（正在排队的单位），利用率按 1.0 截断
+    apu = [min(r["food_used"] / max(r["food_cap"], 1), 1.0) for r in rows]
     pbr = [1.0 if r["food_used"] >= 0.95 * r["food_cap"] and r["food_cap"] > 0 else 0.0 for r in rows]
     dur_min = max(rows[-1]["t_s"] - rows[0]["t_s"], 1.0) / 60.0
     gain = 0.0
