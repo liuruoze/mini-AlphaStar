@@ -28,6 +28,7 @@ from obs_to_text import CN as UNIT_CN        # noqa: E402
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "eval_set_v3.json")
 SEED = 20261120
+TARGET_ONES = 60        # 每位目标 60 个 1（共 120 题）
 
 SYSTEM = """你是星际争霸2神族的战术指挥官。本局固定执行狂热者快攻。以下五件事要分别判断“现在是否该做”，可以同时为真：
 
@@ -172,14 +173,41 @@ def build():
                       "state": b["state"], "label": decide_bits(**b["state"]),
                       "expect": b["expect"], "note": b["note"]})
 
+    # ---- 配平：每位接近 50%，同时限制单一组合的条数，避免"全 0/全 1"刷分 ----
+    pool = []
     guard = 0
-    while len(items) < 120 and guard < 500000:
+    while len(pool) < 6000 and guard < 3000000:
         guard += 1
         st = random_state(rnd)
         key = json.dumps(st, sort_keys=True)
         if key in seen:
             continue
         seen.add(key)
+        pool.append(st)
+
+    slots = 120 - len(items)
+    base_ones = [sum(1 for it in items if it["label"][i] == "1") for i in range(5)]
+    bit_ones = list(base_ones)
+    label_count = {}
+    for it in items:
+        label_count[it["label"]] = label_count.get(it["label"], 0) + 1
+
+    rnd.shuffle(pool)
+    picked = []
+    for st in pool:
+        if len(picked) >= slots:
+            break
+        bits = decide_bits(**st)
+        if label_count.get(bits, 0) >= 8:                     # 单一组合最多 8 条
+            continue
+        if any(bits[i] == "1" and bit_ones[i] >= TARGET_ONES for i in range(5)):
+            continue                                          # 某位超过目标
+        picked.append(st)
+        label_count[bits] = label_count.get(bits, 0) + 1
+        for i in range(5):
+            bit_ones[i] += 1 if bits[i] == "1" else 0
+
+    for st in picked:
         items.append({"id": "v3-%03d" % (len(items) + 1), "src": "random",
                       "state": st, "label": decide_bits(**st)})
 
