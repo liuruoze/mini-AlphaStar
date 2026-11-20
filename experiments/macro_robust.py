@@ -121,7 +121,7 @@ def main():
     if args.grid:
         times = [int(t) for t in args.grid.split(",")]
         raw = []
-        print("%-6s %-8s %12s %12s %8s %8s" % ("t", "metric", "win", "loss", "p", "p_holm"))
+        print("%-6s %-8s %12s %12s %8s %8s" % ("t", "metric", "win", "loss", "p", "AUC"))
         for t in times:
             a, b = [], []
             for g in games:
@@ -135,8 +135,8 @@ def main():
                 continue
             p = perm_p(a, b)
             raw.append((t, p))
-            print("%-6d %-8s %5.1f±%-5.1f %5.1f±%-5.1f %8.3f" %
-                  (t, args.metric, st.mean(a), st.pstdev(a), st.mean(b), st.pstdev(b), p))
+            print("%-6d %-8s %5.1f±%-5.1f %5.1f±%-5.1f %8.3f %8.2f" %
+                  (t, args.metric, st.mean(a), st.pstdev(a), st.mean(b), st.pstdev(b), p, auc(a, b)))
         ps = [p for _, p in raw if p is not None]
         if ps:
             adj = holm(ps)
