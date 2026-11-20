@@ -40,48 +40,9 @@ debug = False
 speed = False
 
 
-# 2026-11-20（hybrid）：可选的宏观动作遮罩。
-# 用模块级变量而不是给 forward 加参数，是为了不穿过 rl_eval_sl 里的多行赋值链；
-# 每个 SC2 对局在独立进程里跑，不存在跨对局串扰。不设置时为 None，行为与原来逐位相同。
-_MACRO_MASK = None
-
-
-def set_macro_mask(mask):
-    """mask: set[int] 允许的 action_type id；None = 不限制。返回旧值（便于恢复）。"""
-    global _MACRO_MASK
-    old = _MACRO_MASK
-    _MACRO_MASK = None if mask is None else set(int(x) for x in mask)
-    return old
-
-
-def get_macro_mask():
-    return _MACRO_MASK
-
-
-def _apply_macro_mask(action_logits):
-    """把不允许的 action_type 置 -1e9。ArgsActionLogits 是 __slots__ 的普通类（不是 namedtuple），
-    所以不能 _replace；这里构造同类型的新对象，避免原地改写影响其他引用。"""
-    if _MACRO_MASK is None or action_logits is None:
-        return action_logits
-    try:
-        import torch as _t
-        from alphastarmini.core.rl.action import ArgsActionLogits as _AL
-        at = action_logits.action_type
-        keep = _t.zeros(at.shape[-1], dtype=_t.bool, device=at.device)
-        idx = _t.tensor(sorted(_MACRO_MASK), dtype=_t.long, device=at.device)
-        idx = idx[(idx >= 0) & (idx < at.shape[-1])]
-        if idx.numel() == 0:
-            return action_logits
-        keep[idx] = True
-        masked = _t.where(keep, at, at.new_full((), -1e9))
-        return _AL(masked, action_logits.delay, action_logits.queue, action_logits.units,
-                   action_logits.target_unit, action_logits.target_location)
-    except Exception as _e:
-        # 静默失败会让"遮罩没生效"变成一个很难查的 bug，所以给出可见提示
-        if os.environ.get("MAS_MACRO_MASK_DEBUG"):
-            print("[macro-mask] failed: %r" % (_e,), flush=True)
-            raise
-        return action_logits
+# 2026-11-20（hybrid）：遮罩状态放在 macro_mask 模块里，由 arch_model.forward 在
+# action_type 采样之前应用（事后改 logits 不影响已选出的 action —— 这一点踩过坑）。
+from alphastarmini.core.arch.macro_mask import set_macro_mask, get_macro_mask  # noqa: E402,F401
 
 
 class Agent(object):

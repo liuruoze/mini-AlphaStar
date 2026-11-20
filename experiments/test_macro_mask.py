@@ -31,56 +31,52 @@ def fake_logits(n=16):
 
 def main():
     res = []
+    from alphastarmini.core.arch import macro_mask as MM
 
     A.set_macro_mask(None)
-    lg = fake_logits()
-    out = A._apply_macro_mask(lg)
-    res.append(("T1 无遮罩逐位不变", torch.equal(out.action_type, lg.action_type)))
+    lg = fake_logits(16)
+    act = torch.zeros(1, 1, dtype=torch.long)
+    out_lg, out_a = MM.apply(lg.action_type, act)
+    res.append(("T1 无遮罩不变", torch.equal(out_lg, lg.action_type) and torch.equal(out_a, act)))
 
     A.set_macro_mask({2, 5})
-    out = A._apply_macro_mask(lg)
-    p = torch.softmax(out.action_type, dim=-1)
+    out_lg, out_a = MM.apply(lg.action_type, act)
+    p = torch.softmax(out_lg, dim=-1)
     allowed = torch.zeros(16, dtype=torch.bool)
     allowed[[2, 5]] = True
-    res.append(("T2 屏蔽概率为0",
-                float(p[..., ~allowed].sum()) < 1e-9 and int(out.action_type.argmax()) in (2, 5)))
+    res.append(("T2 屏蔽概率为0", float(p[..., ~allowed].sum()) < 1e-9 and int(out_a.flatten()[0]) in (2, 5)))
 
     A.set_macro_mask({2, 999})
-    try:
-        out = A._apply_macro_mask(lg)
-        ok = int(out.action_type.argmax()) in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 2)
-        # 允许集只有 {2}，其余被屏蔽 → argmax 必须是 2
-        ok = int(out.action_type.argmax()) == 2
-    except Exception:
-        ok = False
-    res.append(("T3 越界 id 忽略", ok))
+    out_lg, out_a = MM.apply(lg.action_type, act)
+    res.append(("T3 越界id忽略", int(out_a.flatten()[0]) == 2))
 
-    # T4 真实 logits 上应用遮罩 + 代码里确实接在 action_logits_by_state 上
+    # T4 真实前向：遮罩必须改变"被选中的动作"，而不只是改 logits
     A.set_macro_mask(None)
     try:
         from alphastarmini.core.arch.arch_model import ArchModel
         from alphastarmini.core.sl.feature import Feature
-        from alphastarmini.core.sl.label import Label
         import glob
-        fs, ls = Feature.getSize(), Label.getSize()
-        f = sorted(glob.glob(os.path.join(REPO_ROOT, "data", "replay_data_a3nc_h5", "*.pt")))[0]
+        fs = Feature.getSize()
+        f = sorted(glob.glob(os.path.join(REPO_ROOT, "data", "replay_data_a3nc_h5", "*.pt")))[7]
         x = torch.load(f, map_location="cpu")
-        b = torch.cat([x[0][:8], x[1][:8], torch.zeros(8, 1)], dim=-1).reshape(1, 8, -1)
-        state = Feature.feature2state(b[:, :, :fs].reshape(8, fs))
+        st = Feature.feature2state(x[0][:8].reshape(8, fs))
         m = ArchModel()
+        m.load_state_dict(torch.load(sorted(glob.glob(os.path.join(
+            REPO_ROOT, "model/sl/b0s5/*_best.pth")))[0], map_location="cpu"), strict=False)
         m.eval()
         with torch.no_grad():
-            l1 = m.forward(state, batch_size=1, sequence_length=8, return_logits=True)[0]
+            a1 = m.forward(st, batch_size=1, sequence_length=8, return_logits=True)[1].action_type
             A.set_macro_mask({2})
-            l2 = A._apply_macro_mask(l1)          # 与 Agent.action_logits_by_state 里同一函数
+            a2 = m.forward(st, batch_size=1, sequence_length=8, return_logits=True)[1].action_type
             A.set_macro_mask(None)
-        sm = torch.softmax(l2.action_type, -1)
-        masked_ok = float(sm[..., 3:].sum()) < 1e-9 and int(l2.action_type.argmax()) % 564 == 2
-        src = open(os.path.join(REPO_ROOT, "alphastarmini/core/arch/agent.py")).read()
-        wired = "action_logits = _apply_macro_mask(action_logits)" in src
-        res.append(("T4 真实logits遮罩+已接线", bool(masked_ok and wired)))
+            a3 = m.forward(st, batch_size=1, sequence_length=8, return_logits=True)[1].action_type
+        # 注意：策略头是**采样**的（同状态两次前向结果不同），所以不能要求 a1==a3。
+        # 能验证的是：遮罩期间动作全部被压到允许集内；解除后恢复多样性。
+        in_mask = bool((a2 == 2).all())
+        released = bool(not (a3 == 2).all())
+        res.append(("T4 遮罩生效且可解除", bool(in_mask and released)))
     except Exception as e:
-        res.append(("T4 真实logits遮罩+已接线", False))
+        res.append(("T4 遮罩生效且可解除", False))
         print("  T4 异常:", repr(e))
 
     A.set_macro_mask(None)

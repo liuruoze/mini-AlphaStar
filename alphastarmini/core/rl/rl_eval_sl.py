@@ -964,8 +964,12 @@ class ActorEval:
                                         _hb["last"] = _t_hb
                                         _cmd, _key, _ = _hb["cmd"].propose(home_obs.observation)
                                         _res = "none"
-                                        if _cmd is not None:
+                                        # 同类型指令已生效时不再重复提交：否则队列 4 格瞬间塞满，
+                                        # 之后全部 rejected（首轮 A/B 里 1070 条指令被拒 621 条）。
+                                        if _cmd is not None and _cmd.kind not in _hb["arb"].active:
                                             _res = _hb["arb"].submit(_cmd, _t_hb)
+                                        elif _cmd is not None:
+                                            _res = "skip_active"
                                         _hb["arb"].tick(_t_hb)
                                         _mask = _hb["arb"].mask()
                                         _hb["mod"].set_macro_mask(_mask)

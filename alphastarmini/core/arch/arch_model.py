@@ -15,6 +15,7 @@ from alphastarmini.core.arch.entity_encoder import EntityEncoder, Entity
 from alphastarmini.core.arch.spatial_encoder import SpatialEncoder
 from alphastarmini.core.arch.core import Core
 from alphastarmini.core.arch.action_type_head import ActionTypeHead
+from alphastarmini.core.arch import macro_mask as _mm
 from alphastarmini.core.arch.delay_head import DelayHead
 from alphastarmini.core.arch.queue_head import QueueHead
 from alphastarmini.core.arch.selected_units_head import SelectedUnitsHead
@@ -145,6 +146,7 @@ class ArchModel(nn.Module):
         print('lstm_output is nan:', torch.isnan(lstm_output).any()) if debug else None
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions)
+        action_type_logits, action_type = _mm.apply(action_type_logits, action_type)  # hybrid 遮罩（默认None）
         if P.skip_autoregressive_embedding:
             autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
             autoregressive_embedding[:] = 0.
@@ -356,6 +358,7 @@ class ArchModel(nn.Module):
             gt_target_unit = gt_action.target_unit
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions, gt_action_type)
+        action_type_logits, action_type = _mm.apply(action_type_logits, action_type)
         if P.skip_autoregressive_embedding:
             autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
             autoregressive_embedding[:] = 0.
