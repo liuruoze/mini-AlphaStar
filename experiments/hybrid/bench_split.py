@@ -54,6 +54,17 @@ RULES_CAP = [
     ("全面进攻", "全面进攻：兵 ≥ 8。"),
 ]
 
+# 第五种变体：把"量产"拆成五条清单，逼它逐条核对
+RULES_CHECK = [
+    ("补水晶", "补水晶：没有水晶，或者人口余量（上限−已用）≤ 9 且人口上限未满 200。"),
+    ("补农民", "补农民：农民 ≤ 14 且人口余量 ≥ 1。"),
+    ("补兵营", "补兵营：兵营 < 3 且至少有一个水晶（没有水晶就没有能量场，兵营放不下）。"),
+    ("量产狂热者", "量产狂热者：下面五条必须同时成立，缺一条就不是。\n"
+               "① 此刻已经有至少 1 个兵营（不是「等下再造」）\n"
+               "② 兵 < 24\n③ 矿 ≥ 100\n④ 农民 ≥ 10\n⑤ 人口余量 ≥ 2"),
+    ("全面进攻", "全面进攻：兵 ≥ 8。"),
+]
+
 # 每条规则单独成问：system 里只给这一条，避免变相做整题
 RULES = [
     ("补水晶", "补水晶：没有水晶，或者人口余量（上限−已用）≤ 9 且人口上限未满 200。"),
@@ -170,7 +181,7 @@ def main():
     ap.add_argument("--tag", default="split")
     ap.add_argument("--phrasing", default="action", choices=["action", "condition"])
     ap.add_argument("--rule-style", default="plain",
-                    choices=["plain", "simple", "emph", "cap"])
+                    choices=["plain", "simple", "emph", "cap", "check"])
     ap.add_argument("--shots", type=int, default=0, help="0 不给示例；1 给每条的 3 个示例")
     ap.add_argument("--rationale", action="store_true", help="先写一句依据再给结论")
     ap.add_argument("--votes", type=int, default=1, help="每题采样次数，取多数（>1 时温度 0.7）")
@@ -184,8 +195,8 @@ def main():
     llm = llm_client.build(a.backend, base_url=a.base_url, model_name=a.model)
     tmpl = (SYS_TMPL_REASON if a.rationale else
             (SYS_TMPL_COND if a.phrasing == "condition" else SYS_TMPL_ACTION))
-    rules = {"simple": RULES_SIMPLE, "emph": RULES_EMPH, "cap": RULES_CAP}.get(
-        a.rule_style, RULES)
+    rules = {"simple": RULES_SIMPLE, "emph": RULES_EMPH, "cap": RULES_CAP,
+             "check": RULES_CHECK}.get(a.rule_style, RULES)
 
     out_path = a.out or os.path.join(os.path.expanduser("~"), "bvb", "bench",
                                      "%s_%s.jsonl" % (a.model.replace("/", "_"), a.tag))
