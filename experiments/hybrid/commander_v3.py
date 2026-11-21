@@ -121,7 +121,11 @@ def render_state(st):
 
 def pick_command(bits):
     """五位（按 RULES 顺序）→ 命令 + 命中名字。抽出来是为了能单测，不用起 LLM。"""
-    answer = {name: bool(on) for (name, _), on in zip(RULES, bits)}
+    # bits 可能是 bool 列表（LLM 臂）或 "01011" 字符串（教条臂）——
+    # 字符串不能用 bool()，bool("0") 是 True（2026-11-22 踩过）。
+    def _t(v):
+        return (v == "1") if isinstance(v, str) else bool(v)
+    answer = {name: _t(on) for (name, _), on in zip(RULES, bits)}
     for name in PRIORITY:
         if answer.get(name):
             return CMD_FACTORY[name](), name

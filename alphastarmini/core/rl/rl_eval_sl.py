@@ -982,6 +982,11 @@ class ActorEval:
                                                                base_url=os.environ.get("LLM_BASE_URL",
                                                                                        "http://127.0.0.1:8765/v1"))
                                             _cmd_obj, _sum_fn = _Cmd(_llm), _summ
+                                        elif _mode == "doctrine":
+                                            # 教条-规则臂：同一套规则，机器直接算，不经 LLM
+                                            from commander_doctrine import DoctrineCommander as _Doc
+                                            _cmd_obj = _Doc()
+                                            _sum_fn = None
                                         elif _mode == "llm_v3":
                                             # 五条规则逐条问（v3 协议）；默认串行，批量需显式开
                                             import llm_client as _llmc
@@ -1004,7 +1009,7 @@ class ActorEval:
                                             import hashlib as _hl
                                             _fp = {}
                                             for _n in ("arbiter.py", "policy.py", "commander.py", "macro_mask.py",
-                                                       "commander_v3.py"):
+                                                       "commander_v3.py", "commander_doctrine.py"):
                                                 for _d in ("experiments/hybrid", "alphastarmini/core/arch"):
                                                     _p2 = os.path.join(_d, _n)
                                                     if os.path.exists(_p2):
