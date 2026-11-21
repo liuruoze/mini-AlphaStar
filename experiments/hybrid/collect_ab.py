@@ -19,7 +19,7 @@ def main(root):
     rows = []
     for p in sorted(glob.glob(os.path.join(root, "d*_*.log"))):
         b = os.path.basename(p)[:-4]
-        mm = re.match(r"d(\d)_(sl|hyb)_s(\d+)$", b)
+        mm = re.match(r"d(\d)_(sl|hyb|doc)_s(\d+)$", b)
         if not mm:
             continue
         r = parse(p)
