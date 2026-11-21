@@ -63,8 +63,12 @@ class Handler(BaseHTTPRequestHandler):
             mt = int(req.get("max_tokens", 8))
             tp = float(req.get("temperature", 0.0))
             t0 = time.time()
-            with LOCK:
-                texts = MODEL.chat_batch(batch, max_new_tokens=mt, temperature=tp)
+            try:
+                with LOCK:
+                    texts = MODEL.chat_batch(batch, max_new_tokens=mt, temperature=tp)
+            except Exception as e:
+                self._send(500, {"error": "%s: %s" % (type(e).__name__, str(e)[:300])})
+                return
             dt = time.time() - t0
             STATS["calls"] += len(batch)
             STATS["total_s"] += dt

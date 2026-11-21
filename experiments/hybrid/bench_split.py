@@ -186,6 +186,7 @@ def main():
     ap.add_argument("--rationale", action="store_true", help="先写一句依据再给结论")
     ap.add_argument("--votes", type=int, default=1, help="每题采样次数，取多数（>1 时温度 0.7）")
     ap.add_argument("--field", default="prompt", help="用题集里的哪个字段作局面文本（prompt/prompt_json）")
+    ap.add_argument("--use-batch", action="store_true", help="5 条规则合并成一次 /batch 请求")
     ap.add_argument("--parse", default="first", choices=["first", "last"],
                     help="从输出里取第一个还是最后一个 是/否（思考模型用 last）")
     a = ap.parse_args()
@@ -205,6 +206,26 @@ def main():
     rows, preds, truths, lat = [], [], [], []
     for n, it in enumerate(items, 1):
         bits, raws, t0 = "", [], time.time()
+        if a.use_batch:
+            msgs = []
+            for name, rule in rules:
+                sm = tmpl % rule
+                if a.shots:
+                    sm = sm + "\n" + SHOTS.get(name, "")
+                msgs.append([{"role": "system", "content": sm},
+                             {"role": "user", "content": it.get(a.field) or it["prompt"]}])
+            texts = llm.batch(msgs, max_new_tokens=8)
+            raws = [(t or "")[:40] for t in texts]
+            for t in texts:
+                b = parse_last(t) if (a.rationale or a.parse == "last") else parse_yes(t)
+                bits += (b if b else "?")
+            lat.append(time.time() - t0)
+            rows.append({"id": it["id"], "label": it["label"], "pred": bits, "raw": raws})
+            preds.append(bits if "?" not in bits else None)
+            truths.append(it["label"])
+            if n % 20 == 0:
+                print("  ...%d/%d" % (n, len(items)), flush=True)
+            continue
         for name, rule in rules:
             sysmsg = tmpl % rule
             if a.shots:

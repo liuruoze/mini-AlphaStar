@@ -132,6 +132,16 @@ class OpenAIBackend:
             obj = json.loads(resp.read().decode())
         return _strip_think(obj["choices"][0]["message"]["content"]).strip()
 
+    def batch(self, batch_msgs, max_new_tokens=8):
+        """一次请求算 N 条；服务端做左填充批处理。"""
+        url = self.url.rsplit("/chat/completions", 1)[0] + "/batch"
+        body = json.dumps({"messages_batch": batch_msgs, "max_tokens": max_new_tokens,
+                           "temperature": 0.0}).encode()
+        req = urllib.request.Request(url, data=body, headers={
+            "Content-Type": "application/json", "Authorization": "Bearer " + self.key})
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            return json.loads(resp.read().decode())["texts"]
+
 
 def build(backend=None, model_path=None, base_url=None, model_name=None, max_new_tokens=256):
     backend = (backend or os.environ.get("LLM_BACKEND", "local")).lower()
