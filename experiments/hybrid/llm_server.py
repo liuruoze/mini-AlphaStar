@@ -59,7 +59,11 @@
 
 ## 启动
 
-  # 7B（单卡）
+  # 32B（四卡自动切分，当前默认）
+  LLM_DEVICE_MAP=auto ~/llm_env/bin/python experiments/hybrid/llm_server.py \
+      --model-path ~/models/Qwen/Qwen/Qwen2___5-32B-Instruct --port 8769
+
+  # 7B（单卡；模型已于 2026-11-21 清理，需先重新下载）
   CUDA_VISIBLE_DEVICES=0 ~/llm_env/bin/python experiments/hybrid/llm_server.py \
       --model-path ~/models/Qwen/Qwen2___5-7B-Instruct --port 8765
 
@@ -70,7 +74,7 @@
 ## 自检
 
   ~/llm_env/bin/python experiments/hybrid/llm_client.py --backend openai \
-      --base-url http://127.0.0.1:8765/v1 --smoke
+      --base-url http://127.0.0.1:8769/v1 --smoke
 """
 
 import argparse
@@ -156,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model-path", default=os.path.expanduser("~/models/Qwen/Qwen2___5-7B-Instruct"))
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=8769)
     ap.add_argument("--host", default="127.0.0.1")
     a = ap.parse_args()
 

@@ -10,7 +10,7 @@
 
 用法：
   python experiments/hybrid/rich_context_test.py --n 24 --backend openai \
-      --base-url http://127.0.0.1:8765/v1 --model-name qwen
+      --base-url http://127.0.0.1:8769/v1 --model-name qwen
 """
 
 import argparse
@@ -104,7 +104,7 @@ def main():
     ap.add_argument("--dir", default=os.path.expanduser("~/bvb/macro_trace"))
     ap.add_argument("--n", type=int, default=24)
     ap.add_argument("--backend", default="openai")
-    ap.add_argument("--base-url", default="http://127.0.0.1:8765/v1")
+    ap.add_argument("--base-url", default="http://127.0.0.1:8769/v1")
     ap.add_argument("--model-name", default="qwen")
     ap.add_argument("--max-tokens", type=int, default=8)
     a = ap.parse_args()

@@ -2,7 +2,7 @@
 """在冻结题集上跑一个模型，输出得分与诊断。
 
 用法：
-  python experiments/hybrid/bench_llm.py --model qwen --base-url http://127.0.0.1:8765/v1 \
+  python experiments/hybrid/bench_llm.py --model qwen --base-url http://127.0.0.1:8769/v1 \
          --out ~/bvb/bench/qwen7b_v3.jsonl
 """
 
@@ -45,7 +45,7 @@ def parse_bits(raw):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen")
-    ap.add_argument("--base-url", default="http://127.0.0.1:8765/v1")
+    ap.add_argument("--base-url", default="http://127.0.0.1:8769/v1")
     ap.add_argument("--backend", default="openai")
     ap.add_argument("--data", default=DATA)
     ap.add_argument("--out", default="")

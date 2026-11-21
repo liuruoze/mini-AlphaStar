@@ -38,7 +38,7 @@ def main():
     ap.add_argument("--n", type=int, default=30)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--backend", default="openai")
-    ap.add_argument("--base-url", default=os.environ.get("LLM_BASE_URL", "http://127.0.0.1:8765/v1"))
+    ap.add_argument("--base-url", default=os.environ.get("LLM_BASE_URL", "http://127.0.0.1:8769/v1"))
     ap.add_argument("--model-path", default=None)
     ap.add_argument("--model-name", default=None, help="openai 后端的模型名（如 qwen35-9b:latest）")
     a = ap.parse_args()

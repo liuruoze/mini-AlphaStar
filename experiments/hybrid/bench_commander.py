@@ -14,7 +14,7 @@
 
 用法：
   python experiments/hybrid/bench_commander.py --n 30 --backend openai \
-      --base-url http://127.0.0.1:8765/v1 --model-name qwen
+      --base-url http://127.0.0.1:8769/v1 --model-name qwen
 """
 
 import argparse
@@ -167,7 +167,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=6, help="每个 regime 的样本数")
     ap.add_argument("--backend", default="openai")
-    ap.add_argument("--base-url", default="http://127.0.0.1:8765/v1")
+    ap.add_argument("--base-url", default="http://127.0.0.1:8769/v1")
     ap.add_argument("--model-name", default="qwen")
     ap.add_argument("--model-path", default=None)
     ap.add_argument("--repeat", type=int, default=3, help="一致性检查重复次数")

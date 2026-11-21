@@ -5,7 +5,7 @@
 拆开后每次只需判断一个条件，输出也从 5 位降到 是/否。
 
 用法：
-  python experiments/hybrid/bench_split.py --model qwen --base-url http://127.0.0.1:8765/v1 --tag split
+  python experiments/hybrid/bench_split.py --model qwen --base-url http://127.0.0.1:8769/v1 --tag split
 """
 
 import argparse
@@ -172,7 +172,7 @@ def parse_yes(raw):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default="qwen")
-    ap.add_argument("--base-url", default="http://127.0.0.1:8765/v1")
+    ap.add_argument("--base-url", default="http://127.0.0.1:8769/v1")
     ap.add_argument("--backend", default="openai")
     ap.add_argument("--data", default=DATA)
     ap.add_argument("--out", default="")
