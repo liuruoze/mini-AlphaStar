@@ -73,8 +73,11 @@ CMD_FACTORY = {
     "attack": lambda: MacroCommand("attack", "enemy_main", count=1, deadline_s=30, priority=2),
 }
 
-# 执行优先级（与 RULES 的顺序无关，显式写出来）
-PRIORITY = ("pylon", "gateway", "probe", "zealot", "attack")
+# 执行优先级：**必须与 doctrine.py 里用户钦定的顺序一致**
+#   1 补水晶 → 2 补农民 → 3 补兵营 → 4 全面进攻 → 5 量产狂热者
+# （2026-11-21 复核发现我原来写成 pylon>gateway>probe>zealot>attack，
+#   既把兵营提到农民前，又让进攻永远排在量产后面——army<24 时进攻永远轮不上。）
+PRIORITY = ("pylon", "probe", "gateway", "attack", "zealot")
 
 
 def state_from_obs(obs):
@@ -132,7 +135,8 @@ def selftest_mapping():
         ([0, 0, 1, 0, 0], "gateway"),   # 只有兵营该造
         ([0, 1, 0, 0, 0], "probe"),     # 只有农民
         ([1, 0, 1, 1, 0], "pylon"),     # 全真时按优先级取水晶
-        ([0, 0, 0, 1, 1], "zealot"),    # 量产优先于进攻
+        ([0, 0, 0, 1, 1], "attack"),    # 教条：兵≥8 先进攻，再补量产
+        ([0, 1, 1, 0, 0], "probe"),     # 教条：补农民优先于补兵营
         ([0, 0, 0, 0, 0], "none"),
     ]
     bad = []
