@@ -1026,7 +1026,7 @@ class ActorEval:
                                         _hb["last"] = _t_hb
                                         _arg = (_hb["sum"](home_obs.observation)
                                                 if _hb.get("sum") else home_obs.observation)
-                                        _cmd, _key, _ = _hb["cmd"].propose(_arg)
+                                        _cmd, _key, _why = _hb["cmd"].propose(_arg)
                                         _res = "none"
                                         # 同类型指令已生效时不再重复提交：否则队列 4 格瞬间塞满，
                                         # 之后全部 rejected（首轮 A/B 里 1070 条指令被拒 621 条）。
@@ -1055,6 +1055,7 @@ class ActorEval:
                                             self._hb_log.write(json.dumps(
                                                 {"t": round(_t_hb, 1), "key": _key,
                                                  "cmd": (_cmd.kind + ":" + _cmd.target) if _cmd else None,
+                                                 "why": _why,
                                                  "res": _res, "active": sorted(_hb["arb"].active.keys()),
                                                  "eff": _hb["arb"].effective_kinds(),
                                                  "mode": os.environ.get("MAS_HYBRID_BIAS") and "bias" or "mask",

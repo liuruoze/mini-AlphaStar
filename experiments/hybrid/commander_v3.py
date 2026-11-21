@@ -63,14 +63,18 @@ RULES = [
 SYS = ("你是星际争霸2神族的战术指挥官，本局打狂热者快攻。现在只判断一件事：\n\n%s\n\n"
        "结合下面的局面，回答“现在是否应该执行这件事”。只输出一个字：是 或 否，不要解释。")
 
-# 五位 → 命令；顺序即优先级
-CMD_ORDER = [
-    ("pylon", lambda: MacroCommand("build", "Pylon", count=1, deadline_s=30, priority=4)),
-    ("gateway", lambda: MacroCommand("build", "Gateway", count=1, deadline_s=45, priority=4)),
-    ("probe", lambda: MacroCommand("train", "Probe", count=2, deadline_s=20, priority=3)),
-    ("zealot", lambda: MacroCommand("train", "Zealot", count=4, deadline_s=30, priority=4)),
-    ("attack", lambda: MacroCommand("attack", "enemy_main", count=1, deadline_s=30, priority=2)),
-]
+# 名字 → 命令工厂。注意：**不能用列表 + zip 配 RULES**——两者顺序一旦不同，
+# 就会出现"兵营的答案执行成补农民"（2026-11-21 实测踩过）。
+CMD_FACTORY = {
+    "pylon": lambda: MacroCommand("build", "Pylon", count=1, deadline_s=30, priority=4),
+    "gateway": lambda: MacroCommand("build", "Gateway", count=1, deadline_s=45, priority=4),
+    "probe": lambda: MacroCommand("train", "Probe", count=2, deadline_s=20, priority=3),
+    "zealot": lambda: MacroCommand("train", "Zealot", count=4, deadline_s=30, priority=4),
+    "attack": lambda: MacroCommand("attack", "enemy_main", count=1, deadline_s=30, priority=2),
+}
+
+# 执行优先级（与 RULES 的顺序无关，显式写出来）
+PRIORITY = ("pylon", "gateway", "probe", "zealot", "attack")
 
 
 def state_from_obs(obs):
@@ -103,7 +107,8 @@ def state_from_obs(obs):
 
 
 def render_state(st):
-    """JSON 渲染（评测里 0.963 的那种格式）。"""
+    """JSON 渲染。**不带**"输出（5 位 0/1）"尾巴：实测带着它时模型会按整题回答，
+    出现"42 个农民还答该补农民"这种错（离线 --clean 也比带尾巴高 2.5pp）。"""
     return ("局面数据（JSON）：\n" + json.dumps({
         "时间秒": int(st["t_s"]), "人口已用": st["used"], "人口上限": st["cap"],
         "人口余量": st["cap"] - st["used"], "矿": st["minerals"],
@@ -112,10 +117,38 @@ def render_state(st):
         + "\n\n输出（5 位 0/1）：")
 
 
+def pick_command(bits):
+    """五位（按 RULES 顺序）→ 命令 + 命中名字。抽出来是为了能单测，不用起 LLM。"""
+    answer = {name: bool(on) for (name, _), on in zip(RULES, bits)}
+    for name in PRIORITY:
+        if answer.get(name):
+            return CMD_FACTORY[name](), name
+    return None, "none"
+
+
+def selftest_mapping():
+    """回归：2026-11-21 的"兵营答案执行成补农民"就是顺序错位。"""
+    cases = [
+        ([0, 0, 1, 0, 0], "gateway"),   # 只有兵营该造
+        ([0, 1, 0, 0, 0], "probe"),     # 只有农民
+        ([1, 0, 1, 1, 0], "pylon"),     # 全真时按优先级取水晶
+        ([0, 0, 0, 1, 1], "zealot"),    # 量产优先于进攻
+        ([0, 0, 0, 0, 0], "none"),
+    ]
+    bad = []
+    for bits, want in cases:
+        _, got = pick_command(bits)
+        if got != want:
+            bad.append((bits, want, got))
+    if bad:
+        raise AssertionError("位→命令映射自测失败：%s" % bad)
+    return len(cases)
+
+
 class V3Commander:
     """五条规则逐条问；一条 tick 只执行优先级最高的一条。"""
 
-    def __init__(self, llm, use_batch=False, prompt_suffix=True, max_new_tokens=8):
+    def __init__(self, llm, use_batch=False, prompt_suffix=False, max_new_tokens=8):
         self.llm = llm
         self.use_batch = use_batch
         self.prompt_suffix = prompt_suffix
@@ -155,11 +188,17 @@ class V3Commander:
         self.stats["decisions"] += 1
         self.last_bits = "".join("1" if b else "0" for b in bits)
 
-        for (name, _), on in zip(CMD_ORDER, bits):
-            if on:
-                cmd = next(f() for n, f in CMD_ORDER if n == name)
-                self.last_cmd = cmd
-                return cmd, self.last_bits, "v3:%s" % name
+        # 把看到的局面一并带出，便于核对"指挥官眼里的世界"是否与游戏一致
+        self.last_state = st
+        tag = "v3:%s|w%d a%d g%d py%d cap%d/%d min%d" % (
+            "none", st["workers"], st["army"], st["gw"], st["pylons"],
+            st["used"], st["cap"], st["minerals"])
+        cmd, name = pick_command(bits)                              # 按名字对齐，不靠位置
+        if cmd is not None:
+            self.last_cmd = cmd
+            return cmd, self.last_bits, tag.replace("none", name, 1)
+        self.last_cmd = None
+        return None, self.last_bits, tag
         self.last_cmd = None
         return None, self.last_bits, "v3:none"
 
