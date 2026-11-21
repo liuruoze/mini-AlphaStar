@@ -19,6 +19,17 @@
   # 离线自测：拿冻结题集的前 N 题，比对五位与标准答案
   python experiments/hybrid/commander_v3.py --selftest --n 20 \
       --base-url http://127.0.0.1:8769/v1
+
+  # 实盘一局（注意 MAS_HYBRID=1 是总开关，漏了会静默退回纯 SL）
+  DISPLAY=:1024 MAS_HYBRID=1 MAS_HYBRID_MODE=llm_v3 \
+  LLM_BASE_URL=http://127.0.0.1:8769/v1 EVAL_MAX_LOOPS=21000 EVAL_OUT=/tmp/v3 \
+      python run_rl_eval.py
+
+坑（2026-11-21 实测）：
+  · EVAL_MAX_LOOPS 的单位是**游戏步**（22.4 步 = 1 游戏秒），设 1500 只够 67 秒；
+  · 盖楼类指令（build:Pylon/Gateway）在 arbiter.mask() 里是**常放行**，
+    不等于强制执行——动作仍由 SL 策略选。arbiter.effective_kinds() 自己只把 train 算作"真正生效"。
+    所以本指挥官目前**只能约束出兵**，补水晶/补兵营只是"允许"，不保证发生。
 """
 
 import argparse
