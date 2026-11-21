@@ -17,12 +17,14 @@ import json
 import os
 import re
 import sys
+import time
 
 PAT = re.compile(r"d(\d)_(sl|hyb|doc)_s(\d+)\.log$")
 
 
 def main(root):
     problems = []
+    inflight = []
     seen = {}
     seeds = {}
     logs = sorted(glob.glob(os.path.join(root, "d*_*.log")))
@@ -43,7 +45,11 @@ def main(root):
 
         txt = open(p, errors="ignore").read()
         if "statistic" not in txt:
-            problems.append("无结果：%s" % os.path.basename(p))
+            # 10 分钟内还在写的日志视为"正在进行"，不算异常
+            if time.time() - os.path.getmtime(p) < 600:
+                inflight.append(os.path.basename(p))
+            else:
+                problems.append("无结果：%s" % os.path.basename(p))
             continue
         st = [float(x) for x in re.findall(r"steps:\s*([0-9.]+)", txt)]
         steps = int(max(st)) if st else 0
@@ -77,7 +83,7 @@ def main(root):
                 if mask_leak:
                     problems.append("遮罩泄漏：%s（%d 次 mask_n>0）" % (os.path.basename(jl), mask_leak))
 
-    print("扫描 %d 个日志" % len(logs))
+    print("扫描 %d 个日志%s" % (len(logs), "（%d 个进行中）" % len(inflight) if inflight else ""))
     for (d, arm), ss in sorted(seeds.items()):
         gaps = sorted(set(range(min(ss), max(ss) + 1)) - ss)
         print("  d%-2d %-4s n=%3d ｜ seed %d–%d%s" % (
