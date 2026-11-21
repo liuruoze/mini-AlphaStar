@@ -40,8 +40,13 @@ def _action_sets():
         n = fn.name
         if n.startswith("Build_"):
             sets["build"].add(i)
-            # 按建筑名单独可寻址：bias 只加在目标建筑上，避免"什么都想造"把经济打死
-            sets["build:" + n[len("Build_"):]] = {i}
+            # 按建筑名单独可寻址：bias 只加在目标建筑上，避免"什么都想造"把经济打死。
+            # 注意 pysc2 的本体名常带 _pt 后缀（Build_Pylon_pt），必须两种都注册，
+            # 否则 "build:Pylon" 取到空集合 → set_macro_bias(空) = 不干预（实测踩过）。
+            _nm = n[len("Build_"):]
+            sets.setdefault("build:" + _nm, set()).add(i)
+            if _nm.endswith("_pt"):
+                sets.setdefault("build:" + _nm[:-3], set()).add(i)
             if n.startswith("Build_Nexus"):
                 sets["expand"].add(i)
         if n.startswith("Train_"):

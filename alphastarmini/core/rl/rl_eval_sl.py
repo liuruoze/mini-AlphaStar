@@ -1026,6 +1026,10 @@ class ActorEval:
                                         _hb["last"] = _t_hb
                                         _arg = (_hb["sum"](home_obs.observation)
                                                 if _hb.get("sum") else home_obs.observation)
+                                        _slp = os.environ.get("MAS_HYBRID_SLEEP", "")
+                                        if _slp:
+                                            import time as _t2
+                                            _t2.sleep(float(_slp))   # 模拟 LLM 延迟，用于隔离"墙钟耗时"这个变量
                                         _cmd, _key, _why = _hb["cmd"].propose(_arg)
                                         _res = "none"
                                         # 同类型指令已生效时不再重复提交：否则队列 4 格瞬间塞满，
@@ -1036,7 +1040,13 @@ class ActorEval:
                                             _res = "skip_active"
                                         _hb["arb"].tick(_t_hb)
                                         # 两种干预模式：MAS_HYBRID_BIAS=3.0 走软偏置，否则走硬遮罩
+                                        # 两种干预模式必须**互斥**：
+                                        #   bias 模式：只加 logits，任何时候都不施加硬遮罩；
+                                        #   mask 模式：只在没有偏置时才用 arb.mask()。
+                                        # 旧代码把"bias 模式下指挥官返回 None"也送进了 else 分支 →
+                                        # 悄悄施加硬遮罩，导致 bias 臂实际是 bias+mask 混合（2026-11-21 复核发现）。
                                         _bw = os.environ.get("MAS_HYBRID_BIAS", "").strip()
+                                        _bias_n = 0
                                         if _bw and _cmd is not None:
                                             from arbiter import ACTIONS as _ACTS
                                             # build 只偏置目标建筑那一支（'build:Pylon'），
@@ -1044,8 +1054,19 @@ class ActorEval:
                                             _ids = _ACTS.get(
                                                 ("build:" + _cmd.target)
                                                 if _cmd.kind == "build" else _cmd.kind, set())
+                                            # 空集合 = 悄悄退化成"不干预"（2026-11-21 踩过：
+                                            # pysc2 的名字带 _pt，查不到就成了纯 SL 跑一局）。
+                                            if not _ids:
+                                                print("[HYBRID] ⚠️ 偏置集合为空：%s:%s"
+                                                      % (_cmd.kind, _cmd.target), flush=True)
                                             _hb["mod"].set_macro_mask(None)
                                             _hb["mod"].set_macro_bias(_ids, float(_bw))
+                                            _bias_n = len(_ids)
+                                            _mask = None
+                                        elif _bw:
+                                            # bias 模式下"无指令"= 不干预（不是退回遮罩）
+                                            _hb["mod"].set_macro_bias(None, 0.0)
+                                            _hb["mod"].set_macro_mask(None)
                                             _mask = None
                                         else:
                                             _hb["mod"].set_macro_bias(None, 0.0)
@@ -1055,7 +1076,7 @@ class ActorEval:
                                             self._hb_log.write(json.dumps(
                                                 {"t": round(_t_hb, 1), "key": _key,
                                                  "cmd": (_cmd.kind + ":" + _cmd.target) if _cmd else None,
-                                                 "why": _why,
+                                                 "why": _why, "bias_n": _bias_n,
                                                  "res": _res, "active": sorted(_hb["arb"].active.keys()),
                                                  "eff": _hb["arb"].effective_kinds(),
                                                  "mode": os.environ.get("MAS_HYBRID_BIAS") and "bias" or "mask",

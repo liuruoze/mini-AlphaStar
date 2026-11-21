@@ -188,6 +188,10 @@ class V3Commander:
         else:
             st = state_from_obs(state_or_obs)
 
+        if os.environ.get("MAS_V3_DRYRUN") == "1":
+            # 诊断用：只读观测、不调 LLM、不发命令，用于隔离"读 obs"本身是否影响对局
+            self.last_state = st
+            return None, "00000", "dryrun"
         bits = self._ask_all(st)
         self.stats["decisions"] += 1
         self.last_bits = "".join("1" if b else "0" for b in bits)

@@ -14,6 +14,27 @@
 _MACRO_MASK = None
 _MACRO_BIAS = None
 
+# 运行期计数：证明偏置到底有没有改变动作（2026-11-21 用于核查 A/B 可信度）
+STATS = {"calls": 0, "flip": 0, "sum_abs_delta": 0.0, "nonfinite": 0}
+
+
+def _dump_stats():
+    import atexit as _a
+    import json as _j
+    import os as _o
+
+    def _w():
+        p = _o.environ.get("MAS_MACRO_STATS")
+        if p:
+            try:
+                open(p, "w").write(_j.dumps(STATS))
+            except Exception:
+                pass
+    _a.register(_w)
+
+
+_dump_stats()
+
 
 def set_macro_mask(mask):
     """mask: set[int] 允许的 action_type id；None = 不限制。返回旧值。"""
@@ -68,7 +89,15 @@ def apply_logits(logits):
         w = _MACRO_BIAS[1]
         delta = torch.zeros(at.shape[-1], dtype=at.dtype, device=at.device)
         delta[idx] = w
-        return at + delta
+        out = at + delta
+        try:
+            STATS["calls"] += 1
+            STATS["sum_abs_delta"] += float(delta.abs().sum().item())
+            if not torch.equal(at.argmax(dim=-1), out.argmax(dim=-1)):
+                STATS["flip"] += 1
+        except Exception:
+            pass
+        return out
     except Exception:
         return logits
 
