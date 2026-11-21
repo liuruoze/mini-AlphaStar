@@ -144,8 +144,8 @@ class OpenAIBackend:
             return json.loads(resp.read().decode())["texts"]
 
 
-_YES_HEAD = ("是", "对", "1", "１")
-_NO_HEAD = ("否", "0", "０")
+_YES_HEAD = ("是", "对")
+_NO_HEAD = ("否",)
 # "不" 只在明确的否定词里才算否，避免"不错，应该补"被判成否
 _NO_PREFIX = ("不是", "不对", "不用", "不需", "不必", "不应该", "不该")
 
@@ -161,6 +161,11 @@ def normalize_bool(text):
         return None
     head = t[:8]
     low = head.lower()
+    # 纯数字答案：单个 0/1 认，多位数字串（如整题模式的 "00000"）视为格式错误，不猜
+    m = re.match(r"^([0１1]+)", head)
+    if m:
+        d = m.group(1)
+        return (d in ("1", "１")) if len(d) == 1 else None
     if head.startswith(_NO_PREFIX) or head.startswith(_NO_HEAD) \
             or re.match(r"^(no|false|n)\b", low):
         return False
@@ -177,6 +182,7 @@ def selftest_normalize():
     """六种输出 + 边界情况的回归测试，任何一条不符就抛异常。"""
     cases = [
         ("是", True), ("否", False), ("1", True), ("0", False),
+        ("00000", None), ("11111", None), ("10", None), ("0.", False),
         ("yes", True), ("no", False), ("YES", True), ("No", False),
         ("true", True), ("false", False), ("对", True), ("不是", False),
         ("是的，应该补", True), ("否，人口还够", False),

@@ -45,17 +45,30 @@ FEWSHOT = {
 }
 
 
+try:                                   # 优先用 client 里的统一实现
+    from experiments.hybrid.llm_client import normalize_bool as _normalize_bool
+except Exception:
+    try:
+        from llm_client import normalize_bool as _normalize_bool
+    except Exception:                  # 最坏情况（离线只用决策树）：本地最小实现
+        def _normalize_bool(text):
+            t = (text or "").strip()[:8]
+            if not t:
+                return None
+            if t[0] in "否0０" or t.startswith(("不是", "不对", "不用", "不需", "不必")):
+                return False
+            if t[0] in "是对1１":
+                return True
+            return None
+
+
 def yes(text):
-    """统一走 llm_client.normalize_bool：0/1/是/否/yes/no 都认。
+    """0/1/是/否/yes/no 都认；解析不出返回 None。
 
     2026-11-21：原实现只认 是/否/yes/no，实测模型有时直接回 "0"，会被判成
-    解析失败（HY 复核指出）。归一化集中在 client 一处，这里不再自写一套。
+    解析失败（HY 复核指出）。归一化集中到 client 一处，这里调用即可。
     """
-    try:
-        from experiments.hybrid.llm_client import normalize_bool
-    except Exception:
-        from llm_client import normalize_bool
-    return normalize_bool(text)
+    return _normalize_bool(text)
 
 
 class TreeCommander:
