@@ -83,12 +83,33 @@ def check_macro_mask():
     return 4
 
 
+def check_arbiter():
+    """仲裁器的提交/排队/过期补位——纯逻辑，不需要游戏。"""
+    from arbiter import Arbiter
+    from commander import MacroCommand
+
+    a = Arbiter()
+    assert a.submit(MacroCommand("build", "Pylon", 1, 30, 4), 0.0) == "accepted"
+    assert a.submit(MacroCommand("train", "Zealot", 4, 30, 4), 0.0) == "accepted"
+    assert a.submit(MacroCommand("build", "Gateway", 1, 45, 4), 0.0) == "queued", "同类未排队"
+    assert "build" in a.active and "train" in a.active
+
+    a.tick(10.0)                      # 未到期
+    assert "build" in a.active
+    a.tick(31.0)                      # 过期 + 从队列补位
+    assert a.active["build"][0].target == "Gateway", "过期后没有补位"
+    a.tick(200.0)                     # 全部过期
+    assert not a.active, "过期指令没有被清理"
+    return 5
+
+
 def main():
     total = 0
     for name, fn in (("normalize_bool", check_normalize),
                      ("位→命令映射", check_mapping),
                      ("教条臂", check_doctrine),
-                     ("macro_mask 偏置/遮罩", check_macro_mask)):
+                     ("macro_mask 偏置/遮罩", check_macro_mask),
+                     ("仲裁器提交/过期", check_arbiter)):
         try:
             n = fn()
             total += n
