@@ -7,6 +7,13 @@
 \usepackage{url}
 \usepackage[hidelinks]{hyperref}
 \usepackage{cite}
+\usepackage{float}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+\definecolor{barA}{RGB}{70,90,120}
+\definecolor{barB}{RGB}{190,120,70}
+\definecolor{barC}{RGB}{120,140,110}
 
 \newcommand{\sB}{S_B}
 
@@ -210,6 +217,43 @@ GLM-4-9B     & 0.113 & 0.050 & --- \\
 \end{tabular}
 \end{table}
 
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  ybar, bar width=6pt,
+  width=\columnwidth, height=5.4cm,
+  ymin=0, ymax=1.12,
+  ylabel={Score $S_B$},
+  symbolic x coords={7B,14B,32B,Q3-8B,Q3-32B,GLM-9B},
+  xtick=data,
+  x tick label style={font=\scriptsize},
+  y tick label style={font=\scriptsize},
+  ylabel style={font=\scriptsize},
+  legend style={font=\scriptsize, at={(0.5,1.03)}, anchor=south,
+                legend columns=2, draw=none, column sep=0.8ex},
+  enlarge x limits=0.13,
+  axis lines*=left,
+  ymajorgrids, grid style={black!12},
+]
+\addplot[fill=barA, draw=none] coordinates
+  {(7B,0.167) (14B,0.208) (32B,0.237) (Q3-8B,0.200) (GLM-9B,0.113)};
+\addplot[fill=barB, draw=none] coordinates
+  {(7B,0.292) (14B,0.558) (32B,0.925) (Q3-8B,0.308) (Q3-32B,0.479) (GLM-9B,0.050)};
+\addplot[black!70, densely dashed, sharp plot, update limits=false] coordinates
+  {(7B,0.221) (GLM-9B,0.221)};
+\addplot[black!70, dotted, sharp plot, update limits=false] coordinates
+  {(7B,0.158) (GLM-9B,0.158)};
+\legend{Whole task, Decomposed, attack-if-8, do nothing}
+\end{axis}
+\end{tikzpicture}
+\caption{Score by model under the two protocols, with the two trivial baselines drawn across.
+The whole-task bars sit near the baselines for every model; decomposition separates them by
+size. Qwen3-32B was run decomposed only.}
+\label{fig:scores}
+\end{figure}
+
 \subsection{Whole-task answers collapse}
 
 Table~\ref{tab:main} shows that no model exceeds 0.237 when asked for five bits at once, and the
@@ -237,6 +281,53 @@ Holding the protocol fixed, the Qwen2.5 family orders cleanly: 0.292, 0.558, 0.9
 and 32B. Across protocols the ordering breaks: a 32B asked for five bits (0.237) is worse than
 a 14B asked one rule at a time (0.558). Task form and model size are not interchangeable
 levers; form dominates.
+
+
+\begin{figure*}[t]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1, horizontal sep=1.4cm},
+  width=0.44\textwidth, height=4.6cm,
+  ymin=0, ymax=132,
+  ylabel={Accuracy (\%)},
+  symbolic x coords={pylon,probe,gateway,zealot,attack},
+  xtick=data,
+  x tick label style={font=\scriptsize},
+  y tick label style={font=\scriptsize},
+  ylabel style={font=\scriptsize},
+  legend style={font=\scriptsize, at={(0.03,0.97)}, anchor=north west,
+                legend columns=1, fill=white, fill opacity=0.92,
+                draw=black!15, row sep=0.5ex},
+  axis lines*=left, ymajorgrids, grid style={black!12},
+  enlarge x limits=0.15,
+]
+\nextgroupplot[ybar, bar width=5pt, title={(a) whole task, five bits in one answer}, title style={font=\small}]
+\addplot[fill=barA, draw=none] coordinates
+  {(pylon,42) (probe,53) (gateway,46) (zealot,62) (attack,63)};
+\addplot[fill=barB, draw=none] coordinates
+  {(pylon,61) (probe,62) (gateway,58) (zealot,59) (attack,57)};
+\addplot[fill=barC, draw=none] coordinates
+  {(pylon,66) (probe,53) (gateway,58) (zealot,68) (attack,61)};
+\draw[densely dashed, black!60] (axis cs:pylon,50) -- (axis cs:attack,50);
+\legend{7B,14B,32B}
+\nextgroupplot[ybar, bar width=5pt, title={(b) decomposed, one rule per answer}, title style={font=\small}]
+\addplot[fill=barA, draw=none] coordinates
+  {(pylon,56) (probe,66) (gateway,72) (zealot,71) (attack,75)};
+\addplot[fill=barB, draw=none] coordinates
+  {(pylon,62) (probe,87) (gateway,98) (zealot,76) (attack,86)};
+\addplot[fill=barC, draw=none] coordinates
+  { (pylon,100) (probe,98) (gateway,100) (zealot,88) (attack,100)};
+\draw[densely dashed, black!60] (axis cs:pylon,50) -- (axis cs:attack,50);
+\end{groupplot}
+\end{tikzpicture}
+\caption{Per-bit accuracy for the three Qwen2.5 sizes. In (a) every model stays within sixteen
+points of chance on every rule, and the 7B falls below it on two. In (b) the same models
+separate: the 32B is exact on three rules, and its one weak rule---zealot production---is the
+same rule that carries almost all of its residual error in Table~\ref{tab:errors}. Dashed line
+marks 50\%.}
+\label{fig:perbit}
+\end{figure*}
 
 \subsection{Prompt variants, and a transfer failure}
 
@@ -458,11 +549,9 @@ Output (five bits):\\
 \end{table}
 
 The baseline script fixes the trivial reference points (always-zero 0.158, always-one 0.042,
-majority vector 0.158, single heuristic 0.221) so that a reported score can be read against
-what a non-reasoning policy achieves. The scoring function exists in exactly one module and is
-exercised by the worked examples of Table~\ref{tab:item} at import time; a second copy of the
-rule would eventually disagree with the first, which is the failure mode the double-entry audit
-exists to prevent.
+single heuristic 0.221) so a reported score can be read against what a non-reasoning policy
+achieves. The scoring function exists in one module only and is exercised by the worked
+examples of Table~\ref{tab:item} at import time.
 
 \section{Limitations of the Item Set}
 
@@ -472,5 +561,50 @@ information, all of which a deployed commander would have. Boundary items are ov
 relative to natural play (26\%) and are, for the strongest model, easier than random items
 (0.968 versus 0.910); the headline figure is therefore not inflated by the constructed cases,
 but the set's difficulty profile is not the profile of a real ladder.
+
+A human baseline is the obvious missing control. Putting the same items to the doctrine's author
+would measure test--retest consistency rather than skill, since his answers define the labels;
+putting them to other strong players would measure how far the doctrine is under-determined by
+the state. Neither has been done. The thirty-three labels collected for an earlier single-choice
+version do not transfer, because both the output space and the scoring rule changed.
+
+\section{Three Failure Cases}
+
+Table~\ref{tab:cases} lists four failures of the best configuration, chosen to cover the clauses
+that were missed. Each is a false positive on the zealot bit: the state satisfies some of the
+five conditions, and the model treats ``some'' as ``all''. The first two have no gateway, the
+third has nine probes against a minimum of ten, and the fourth has three minerals against a
+minimum of one hundred. In every case the remaining bits of the answer are correct, which is why
+the item loses half a point rather than a full one.
+
+\begin{table}[H]
+\centering
+\caption{Zealot-bit false positives: only the clause in the last column fails.}
+\label{tab:cases}
+\footnotesize
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+State ($t$; used/cap; min; P; Z; G) & True & Pred. & Missed clause \\
+\midrule
+4:00; 34/39; 250; 18; 6; 0  & \texttt{10100} & \texttt{10110} & gateways $\ge 1$ \\
+2:00; 18/47; 142; 14; 3; 0  & \texttt{01100} & \texttt{01110} & gateways $\ge 1$ \\
+4:00; 30/47; 200; 9; 6; 2   & \texttt{01100} & \texttt{01110} & probes $\ge 10$ \\
+3:00; 37/47; 3; 27; 1; 5    & \texttt{00000} & \texttt{00010} & minerals $\ge 100$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The pattern is consistent with a model that evaluates the numeric thresholds it can compare
+directly (minerals, zealots) and skips the one that requires a categorical check (does a
+gateway exist), even though that check is stated first in the rule. It also explains why
+restating the precondition more forcefully did not help: the model does not fail to read it,
+it fails to weight it against the conditions that are satisfied.
+
+Two repairs follow from that reading. Splitting the zealot rule into its five clauses and asking
+each separately would show whether the failure lies in reading or in combining: if the clauses
+are answered correctly one at a time and the aggregate is not, the weakness is aggregation.
+Supplying the missed clause as a hint would show the converse, whether the model can use the
+information once it is pointed at it. Neither experiment is in this report, and until one is run
+the three points that separate 0.967 from 1.000 remain unexplained at the mechanism level.
 
 \end{document}
