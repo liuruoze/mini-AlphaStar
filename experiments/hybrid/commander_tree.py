@@ -46,18 +46,16 @@ FEWSHOT = {
 
 
 def yes(text):
-    t = (text or "").strip()
-    if not t:
-        return None
-    if "是" in t[:6] and "否" not in t[:6]:
-        return True
-    if "否" in t[:6]:
-        return False
-    if re.search(r"\byes\b", t[:6], re.I):
-        return True
-    if re.search(r"\bno\b", t[:6], re.I):
-        return False
-    return None
+    """统一走 llm_client.normalize_bool：0/1/是/否/yes/no 都认。
+
+    2026-11-21：原实现只认 是/否/yes/no，实测模型有时直接回 "0"，会被判成
+    解析失败（HY 复核指出）。归一化集中在 client 一处，这里不再自写一套。
+    """
+    try:
+        from experiments.hybrid.llm_client import normalize_bool
+    except Exception:
+        from llm_client import normalize_bool
+    return normalize_bool(text)
 
 
 class TreeCommander:

@@ -15,6 +15,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.request
@@ -141,6 +142,60 @@ class OpenAIBackend:
             "Content-Type": "application/json", "Authorization": "Bearer " + self.key})
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             return json.loads(resp.read().decode())["texts"]
+
+
+_YES_HEAD = ("是", "对", "1", "１")
+_NO_HEAD = ("否", "0", "０")
+# "不" 只在明确的否定词里才算否，避免"不错，应该补"被判成否
+_NO_PREFIX = ("不是", "不对", "不用", "不需", "不必", "不应该", "不该")
+
+
+def normalize_bool(text):
+    """把模型的"是/否"式回答统一成 True / False / None。
+
+    六种常见写法都覆盖：0、1、是、否、yes、no（另含 true/false、对/不）。
+    先判否定，避免"不是"被"是"抢先匹配。
+    """
+    t = _strip_think(text or "").strip()
+    if not t:
+        return None
+    head = t[:8]
+    low = head.lower()
+    if head.startswith(_NO_PREFIX) or head.startswith(_NO_HEAD) \
+            or re.match(r"^(no|false|n)\b", low):
+        return False
+    if head.startswith(_YES_HEAD) or re.match(r"^(yes|true|y)\b", low):
+        return True
+    if "否" in head:
+        return False
+    if "是" in head:
+        return True
+    return None
+
+
+def selftest_normalize():
+    """六种输出 + 边界情况的回归测试，任何一条不符就抛异常。"""
+    cases = [
+        ("是", True), ("否", False), ("1", True), ("0", False),
+        ("yes", True), ("no", False), ("YES", True), ("No", False),
+        ("true", True), ("false", False), ("对", True), ("不是", False),
+        ("是的，应该补", True), ("否，人口还够", False),
+        ("我认为是", True), ("不错，应该补", None), ("不用补", False),
+        ("不应该进攻", False), ("never", None), ("", None), ("……", None),
+    ]
+    bad = []
+    for text, want in cases:
+        got = normalize_bool(text)
+        if got != want:
+            bad.append((text, want, got))
+    if bad:
+        raise AssertionError("normalize_bool 自测失败：%s" % bad)
+    return len(cases)
+
+
+def ask_yes_no(llm, messages, **kw):
+    """问一个是/否问题，返回 True / False / None（解析不出时）。"""
+    return normalize_bool(llm.chat(messages, **kw))
 
 
 def build(backend=None, model_path=None, base_url=None, model_name=None, max_new_tokens=256):
