@@ -1039,7 +1039,11 @@ class ActorEval:
                                         _bw = os.environ.get("MAS_HYBRID_BIAS", "").strip()
                                         if _bw and _cmd is not None:
                                             from arbiter import ACTIONS as _ACTS
-                                            _ids = _ACTS.get(_cmd.kind, set())
+                                            # build 只偏置目标建筑那一支（'build:Pylon'），
+                                            # 否则 50+ 个 Build_* 一起加分会把别的动作全挤掉
+                                            _ids = _ACTS.get(
+                                                ("build:" + _cmd.target)
+                                                if _cmd.kind == "build" else _cmd.kind, set())
                                             _hb["mod"].set_macro_mask(None)
                                             _hb["mod"].set_macro_bias(_ids, float(_bw))
                                             _mask = None

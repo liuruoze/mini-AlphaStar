@@ -40,6 +40,8 @@ def _action_sets():
         n = fn.name
         if n.startswith("Build_"):
             sets["build"].add(i)
+            # 按建筑名单独可寻址：bias 只加在目标建筑上，避免"什么都想造"把经济打死
+            sets["build:" + n[len("Build_"):]] = {i}
             if n.startswith("Build_Nexus"):
                 sets["expand"].add(i)
         if n.startswith("Train_"):

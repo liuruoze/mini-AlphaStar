@@ -45,6 +45,34 @@ def _reshape_like(new_a, action_type):
     return new_a
 
 
+def apply_logits(logits):
+    """在**采样之前**调整 logits（正确做法：采样与 one-hot 都会跟着变）。
+
+    与 apply() 的区别：apply() 在采样之后替换 action_type，导致 autoregressive_embedding
+    仍来自旧动作，后续 head 与执行动作不一致（实测：hybrid 局 0 兵、army=0）。
+    """
+    if logits is None or (_MACRO_MASK is None and _MACRO_BIAS is None):
+        return logits
+    try:
+        import torch
+        at = logits
+        idx_src = _MACRO_MASK if _MACRO_MASK is not None else _MACRO_BIAS[0]
+        idx = torch.tensor(sorted(idx_src), dtype=torch.long, device=at.device)
+        idx = idx[(idx >= 0) & (idx < at.shape[-1])]
+        if idx.numel() == 0:
+            return at
+        if _MACRO_MASK is not None:
+            keep = torch.zeros(at.shape[-1], dtype=torch.bool, device=at.device)
+            keep[idx] = True
+            return torch.where(keep, at, at.new_full((), -1e9))
+        w = _MACRO_BIAS[1]
+        delta = torch.zeros(at.shape[-1], dtype=at.dtype, device=at.device)
+        delta[idx] = w
+        return at + delta
+    except Exception:
+        return logits
+
+
 def apply(action_type_logits, action_type):
     """按当前设置干预 logits 并重算 action_type。返回 (logits, action)。"""
     if action_type_logits is None:

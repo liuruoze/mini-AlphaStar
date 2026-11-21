@@ -111,6 +111,15 @@ class ActionTypeHead(nn.Module):
         # AlphaStar: `action_type` is sampled from these logits using a multinomial with temperature 0.8. 
         # Note that during supervised learning, `action_type` will be the ground truth human action 
         # type, and temperature is 1.0 (and similarly for all other arguments).
+        # hybrid 干预必须在这里、采样之前生效：否则 one-hot 与 autoregressive_embedding
+        # 仍对应旧动作，后续 head 组合出的动作非法（实测 hybrid 局 0 兵）。
+        if not self.is_rl_training and action_type is None:
+            try:
+                from alphastarmini.core.arch import macro_mask as _mm2
+                action_type_logits = _mm2.apply_logits(action_type_logits)
+            except Exception:
+                pass
+
         temperature = self.temperature if self.is_rl_training else 1
         action_type_logits = action_type_logits / temperature
         print('action_type_logits:', action_type_logits) if debug else None

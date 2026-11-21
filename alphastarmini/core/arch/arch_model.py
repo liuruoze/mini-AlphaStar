@@ -146,7 +146,7 @@ class ArchModel(nn.Module):
         print('lstm_output is nan:', torch.isnan(lstm_output).any()) if debug else None
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions)
-        action_type_logits, action_type = _mm.apply(action_type_logits, action_type)  # hybrid 遮罩（默认None）
+        # 干预已前移到 ActionTypeHead 内部（采样前），此处不再覆盖 action_type
         if P.skip_autoregressive_embedding:
             autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
             autoregressive_embedding[:] = 0.
@@ -358,7 +358,7 @@ class ArchModel(nn.Module):
             gt_target_unit = gt_action.target_unit
 
         action_type_logits, action_type, autoregressive_embedding = self.action_type_head(lstm_output, scalar_context, available_actions, gt_action_type)
-        action_type_logits, action_type = _mm.apply(action_type_logits, action_type)
+        # 同上：干预前移，避免 action_type 与 embedding 不一致
         if P.skip_autoregressive_embedding:
             autoregressive_embedding = autoregressive_embedding - autoregressive_embedding
             autoregressive_embedding[:] = 0.
