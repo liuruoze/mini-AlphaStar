@@ -152,7 +152,7 @@ _NO_PREFIX = ("不是", "不对", "不用", "不需", "不必", "不应该", "�
 
 def _head(text, n=8):
     """剥掉"答案：""结论:"之类前缀与包裹符号，取前 n 个字符。"""
-    s = re.sub(r"^(答案|结论|回答|输出|判断)\s*[：:，,、]?\s*", "", text.strip())
+    s = re.sub(r"^(?:(?:答案|结论|回答|输出|判断)\s*[：:，,、]?\s*)+", "", text.strip())
     s = s.strip("（）()[]【】<>《》\"'“”‘’ \t\n")
     return s[:n]
 
@@ -168,11 +168,13 @@ def normalize_bool(text):
         return None
     head = _head(t)
     low = head.lower()
-    # 纯数字答案：单个 0/1 认，多位数字串（如整题模式的 "00000"）视为格式错误，不猜
-    m = re.match(r"^([0０1１]+)", head)
-    if m:
-        d = m.group(1)
-        return (d in ("1", "１")) if len(d) == 1 else None
+    # 纯数字答案：只有"整段就是一个 0/1"才认。
+    # 去掉空白和尾随标点后仍全是数字，且长度 >1（"00000"、"0 0 0 0 1"、"10"）一律视为
+    # 格式错误返回 None——整题模式的五位答案不能当成"否"。
+    core = head.strip(" .,。，、;；:：!！?？")
+    compact = re.sub(r"\s+", "", core)
+    if re.fullmatch(r"[0０1１]+", compact):
+        return (compact in ("1", "１")) if len(compact) == 1 else None
     if head.startswith(_NO_PREFIX) or head.startswith(_NO_HEAD) \
             or re.match(r"^(no|false|n)\b", low):
         return False
@@ -191,6 +193,11 @@ def selftest_normalize():
     cases = [
         ("是", True), ("否", False), ("1", True), ("0", False),
         ("00000", None), ("11111", None), ("10", None), ("0.", False),
+        ("0 0 0 0 1", None), ("1 0", None), ("0 1 0 1 1", None),
+        # 以下取自历史评测的真实输出（/v1/batch 前的老模型也会这么答）
+        ("00000（否）", False), ("00000（即否）", False),
+        ("00000（否，农民数量已经足够，无需再补充农民）", False),
+        ("答案：答案：0", False),
         ("０", False), ("１", True), ("0０1", None),
         ("答案：是", True), ("答案：0", False), ("（否）", False),
         ("并不是", False), ("结论：不应该", False), ("输出：1", True),
