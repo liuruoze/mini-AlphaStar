@@ -92,8 +92,11 @@ def main():
     m_con = statistics.median(conc)
     m_bat = statistics.median(batch)
     print("\n相对串行的加速：并发 %.2fx ｜ 批量 %.2fx" % (m_seq / m_con, m_seq / m_bat))
-    print("单实例可支撑的并发局数（决策间隔 8 游戏秒）：%.1f 局"
-          % (8.0 / m_bat))
+    # 供给与容量的正确算法（早期版本印的是 8/m_bat，把"墙钟秒"当成了"游戏秒"，差 16 倍）
+    qps = 5.0 / m_bat
+    for interval, speed in ((8, 16), (30, 16), (60, 16)):
+        print("供给 %.1f 条/秒 ｜ 间隔 %d 游戏秒、目标 %d× 时可支撑 %.1f 局"
+              % (qps, interval, speed, qps * interval / (5.0 * speed)))
 
 
 if __name__ == "__main__":
