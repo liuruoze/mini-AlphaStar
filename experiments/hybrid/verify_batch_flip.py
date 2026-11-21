@@ -1,22 +1,21 @@
 # -*- coding: utf-8 -*-
-"""复核 HY 的核心指控：batch 与串行是否在边界局面上给出不同答案。
-
-HY 报告：v3-001 的「补农民」串行答"是"、batch 答"否"，30 条里 1 条翻转。
-
-本脚本做三件事：
-  ① 把 v3-001 的补农民问 5 次串行、5 次批量，看是否稳定翻转；
-  ② 扫所有边界局面（农民=14/15、余量=9/10、兵=24 等），串行 vs 批量逐条比；
-  ③ 报告 batch 内部是否自身一致（同一批里重复同一条 3 次，答案是否相同）。
+"""复查 batch 与串行的差异。HY 2026-11-21 审阅后要求补三处：
+  ① 标注"批内自洽"不代表真实批量组成；
+  ② 边界样本补齐（兵 23/24、矿 99/100、兵营 2/3），去掉早退；
+  ③ 把 n=1..5 的震荡实验并入本脚本留档。
 
 用法：
-  python experiments/hybrid/verify_batch_flip.py --base-url http://127.0.0.1:8769/v1
+  python experiments/hybrid/verify_batch_flip.py [--base-url ...] [--max-items 16]
+
+三条判据全过才算干净：
+  A. 真实批量组成（5 条不同规则）下，串行与批量逐位一致；
+  B. 边界样本上也不翻转；
+  C. 同一问题在不同批量大小下答案不变。
 """
 
 import argparse
 import json
 import os
-import sys
-import time
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -28,8 +27,19 @@ RULES = {
     "量产": "量产狂热者：兵 < 24 且矿 ≥ 100 且农民 ≥ 10 且兵营 ≥ 1 且人口余量 ≥ 2。",
     "进攻": "全面进攻：兵 ≥ 8。",
 }
+KEYS = list(RULES)
 SYS = ("你是星际争霸2神族的战术指挥官，本局打狂热者快攻。现在只判断一件事：\n\n%s\n\n"
        "结合下面的局面，回答“现在是否应该执行这件事”。只输出一个字：是 或 否，不要解释。")
+
+# 各规则阈值（与 doctrine.py 同一组常数），用来挑边界样本
+THRESH = {
+    "workers": (14, 15),      # 补农民：≤14
+    "gap": (9, 10),           # 补水晶：余量 ≤9
+    "army_attack": (7, 8),    # 进攻：≥8
+    "army_cap": (23, 24),     # 量产：兵 <24
+    "minerals": (99, 100),    # 量产：矿 ≥100
+    "gw": (2, 3),             # 补兵营：<3
+}
 
 
 def post(url, obj, timeout=600):
@@ -54,52 +64,62 @@ def batch(base, sysmsgs, prompt):
     return [t.strip() for t in r["texts"]]
 
 
+def is_boundary(s):
+    gap = s["cap"] - s["used"]
+    return (s["workers"] in THRESH["workers"] or gap in THRESH["gap"]
+            or s["army"] in THRESH["army_attack"] or s["army"] in THRESH["army_cap"]
+            or s["minerals"] in THRESH["minerals"] or s["gw"] in THRESH["gw"])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base-url", default="http://127.0.0.1:8769/v1")
+    ap.add_argument("--max-items", type=int, default=16)
     a = ap.parse_args()
     base = a.base_url.rstrip("/")
     d = json.load(open(os.path.join(HERE, "eval_set_v3.json"), encoding="utf-8"))
-    items = {it["id"]: it for it in d["items"]}
+    items = d["items"]
+    by_id = {it["id"]: it for it in items}
 
-    # ---------- ① 复现 HY 指出的那一条 ----------
-    it = items["v3-001"]
+    # ① 批内自洽性（只说明"同一批量下稳定"，不代表真实组成）
+    it = by_id["v3-001"]
     sm = SYS % RULES["补农民"]
-    print("① v3-001 的「补农民」，真值 bit=%s" % it["label"][1])
-    print("   局面：农民 %d，人口 %d/%d，真值 %s"
-          % (it["state"]["workers"], it["state"]["used"], it["state"]["cap"], it["label"]))
-    seq = [serial(base, sm, it["prompt"]) for _ in range(5)]
-    bat = [batch(base, [sm] * 5, it["prompt"]) for _ in range(5)]
-    print("   串行 ×5: %s" % seq)
-    print("   批量 ×5（每次批里同一条重复 5 份）: %s" % [b[0] for b in bat])
-    print("   批内是否自洽: %s" % all(len(set(b)) == 1 for b in bat))
+    seq5 = [serial(base, sm, it["prompt"]) for _ in range(5)]
+    bat5 = [batch(base, [sm] * 5, it["prompt"]) for _ in range(5)]
+    print("① 批内自洽性（同一条重复 5 份；**不代表真实批量组成**）")
+    print("   v3-001 补农民（农民=14）：串行 %s ｜ 批量 %s ｜ 批内自洽 %s"
+          % (set(seq5), {b[0] for b in bat5}, all(len(set(b)) == 1 for b in bat5)))
 
-    # ---------- ② 扫边界局面 ----------
-    print("\n② 边界局面：串行 vs 批量（5 条规则全比）")
-    ids = ["v3-001", "v3-002", "v3-003", "v3-004", "v3-005", "v3-006"]
-    # 再补几个已知临界局面
-    for iid, it2 in items.items():
-        s = it2["state"]
-        if s["workers"] in (14, 15) or (s["cap"] - s["used"]) in (9, 10) or s["army"] in (7, 8):
-            if iid not in ids:
-                ids.append(iid)
-        if len(ids) >= 12:
-            break
-
-    sysmsgs = [SYS % RULES[k] for k in RULES]
-    keys = list(RULES)
+    # ② 真实批量组成（5 条不同规则），边界样本全覆盖
+    print("\n② 真实批量组成（5 条不同规则），边界样本全覆盖")
+    bnd = [it2 for it2 in items if is_boundary(it2["state"])][:a.max_items]
+    sysmsgs = [SYS % RULES[k] for k in KEYS]
     total = diff = 0
-    for iid in ids:
-        it2 = items[iid]
-        ref = [serial(base, sm, it2["prompt"]) for sm in sysmsgs]
+    flips = []
+    for it2 in bnd:
+        ref = [serial(base, sm2, it2["prompt"]) for sm2 in sysmsgs]
         got = batch(base, sysmsgs, it2["prompt"])
-        bad = [keys[i] for i in range(5) if ref[i] != got[i]]
+        bad = [KEYS[i] for i in range(5) if ref[i] != got[i]]
         total += 5
         diff += len(bad)
         if bad:
-            print("   %s 翻转：%s" % (iid, ", ".join(
-                "%s 串行=%s 批量=%s" % (k, ref[keys.index(k)], got[keys.index(k)]) for k in bad)))
-    print("   合计 %d 条，不一致 %d 条" % (total, diff))
+            flips.append((it2["id"], bad, ref, got))
+    print("   边界样本 %d 个，共 %d 条，不一致 %d 条" % (len(bnd), total, diff))
+    for fid, bad, ref, got in flips:
+        print("   %s 翻转 %s：%s" % (fid, bad, ", ".join(
+            "%s 串行=%s 批量=%s" % (k, ref[KEYS.index(k)], got[KEYS.index(k)]) for k in bad)))
+
+    # ③ 批量大小震荡（不同规则优先填充，贴近真实组成）
+    print("\n③ 同一问题在不同批量大小下的答案（n=1..5）")
+    probe = by_id["v3-001"]
+    probe_sys = SYS % RULES["补农民"]
+    pad = [SYS % RULES[k] for k in ("进攻", "补兵营", "量产", "补水晶")]
+    for n in range(1, 6):
+        if n == 1:
+            ans = set(batch(base, [probe_sys], probe["prompt"]))
+        else:
+            ans = {batch(base, [probe_sys] + pad[:n - 1], probe["prompt"])[0]}
+        print("   n=%d -> %s" % (n, ans))
 
 
 if __name__ == "__main__":
