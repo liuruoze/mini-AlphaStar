@@ -57,6 +57,19 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             self._send(400, {"error": str(e)})
             return
+        if self.path.rstrip("/").endswith("/batch"):
+            # 一次请求算 N 条，返回顺序与输入一致
+            batch = req.get("messages_batch", [])
+            mt = int(req.get("max_tokens", 8))
+            tp = float(req.get("temperature", 0.0))
+            t0 = time.time()
+            with LOCK:
+                texts = MODEL.chat_batch(batch, max_new_tokens=mt, temperature=tp)
+            dt = time.time() - t0
+            STATS["calls"] += len(batch)
+            STATS["total_s"] += dt
+            self._send(200, {"texts": texts, "latency_s": round(dt, 3)})
+            return
         if not self.path.rstrip("/").endswith("/chat/completions"):
             self._send(404, {"error": "not found"})
             return

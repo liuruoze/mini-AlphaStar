@@ -51,6 +51,21 @@ class LocalBackend:
         self.load_s = time.time() - t0
         self.max_new_tokens = max_new_tokens
 
+    def chat_batch(self, batch_msgs, max_new_tokens=8, temperature=0.0):
+        """一次前向算多条（左填充），用于把 5 条规则合并成一次生成。"""
+        self.tok.padding_side = "left"
+        if self.tok.pad_token is None:
+            self.tok.pad_token = self.tok.eos_token
+        texts = [self._render(m) for m in batch_msgs]
+        enc = self.tok(texts, return_tensors="pt", padding=True).to(self.input_device)
+        with self.torch.no_grad():
+            out = self.model.generate(
+                **enc, max_new_tokens=max_new_tokens,
+                do_sample=temperature > 0, temperature=max(temperature, 1e-5),
+                pad_token_id=self.tok.pad_token_id)
+        gen = out[:, enc["input_ids"].shape[1]:]
+        return [self.tok.decode(g, skip_special_tokens=True).strip() for g in gen]
+
     def _render(self, messages):
         """渲染对话模板。Qwen3 需关思考；GLM-4 老版本没有 chat_template，走手工格式。"""
         no_think = os.environ.get("LLM_NO_THINK", "") == "1"
