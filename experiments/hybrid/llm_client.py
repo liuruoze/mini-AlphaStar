@@ -150,19 +150,26 @@ _NO_HEAD = ("否",)
 _NO_PREFIX = ("不是", "不对", "不用", "不需", "不必", "不应该", "不该")
 
 
+def _head(text, n=8):
+    """剥掉"答案：""结论:"之类前缀与包裹符号，取前 n 个字符。"""
+    s = re.sub(r"^(答案|结论|回答|输出|判断)\s*[：:，,、]?\s*", "", text.strip())
+    s = s.strip("（）()[]【】<>《》\"'“”‘’ \t\n")
+    return s[:n]
+
+
 def normalize_bool(text):
     """把模型的"是/否"式回答统一成 True / False / None。
 
-    六种常见写法都覆盖：0、1、是、否、yes、no（另含 true/false、对/不）。
-    先判否定，避免"不是"被"是"抢先匹配。
+    覆盖：0/1（含全角）、是/否、yes/no、true/false、对，以及 不是/不用/不应 等否定式。
+    顺序：数字 → 否定 → 肯定 → 包含兜底；解析不出返回 None，不猜。
     """
     t = _strip_think(text or "").strip()
     if not t:
         return None
-    head = t[:8]
+    head = _head(t)
     low = head.lower()
     # 纯数字答案：单个 0/1 认，多位数字串（如整题模式的 "00000"）视为格式错误，不猜
-    m = re.match(r"^([0１1]+)", head)
+    m = re.match(r"^([0０1１]+)", head)
     if m:
         d = m.group(1)
         return (d in ("1", "１")) if len(d) == 1 else None
@@ -171,9 +178,10 @@ def normalize_bool(text):
         return False
     if head.startswith(_YES_HEAD) or re.match(r"^(yes|true|y)\b", low):
         return True
-    if "否" in head:
+    # 包含兜底：先否定后肯定，避免"并不是"被"是"抢先
+    if "否" in head or "不是" in head or "不对" in head:
         return False
-    if "是" in head:
+    if "是" in head or "对" in head:
         return True
     return None
 
@@ -183,6 +191,9 @@ def selftest_normalize():
     cases = [
         ("是", True), ("否", False), ("1", True), ("0", False),
         ("00000", None), ("11111", None), ("10", None), ("0.", False),
+        ("０", False), ("１", True), ("0０1", None),
+        ("答案：是", True), ("答案：0", False), ("（否）", False),
+        ("并不是", False), ("结论：不应该", False), ("输出：1", True),
         ("yes", True), ("no", False), ("YES", True), ("No", False),
         ("true", True), ("false", False), ("对", True), ("不是", False),
         ("是的，应该补", True), ("否，人口还够", False),
@@ -220,10 +231,14 @@ def main():
     ap.add_argument("--base-url", default=None)
     ap.add_argument("--model-name", default=None)
     ap.add_argument("--smoke", action="store_true")
+    ap.add_argument("--selftest", action="store_true")
     args = ap.parse_args()
 
+    if args.selftest:
+        print("normalize_bool 自测通过：%d 例" % selftest_normalize())
+        return
     if not args.smoke:
-        ap.error("目前只支持 --smoke（其余用法见 module docstring）")
+        ap.error("目前只支持 --smoke / --selftest（其余用法见 module docstring）")
 
     llm = build(args.backend, args.model_path, args.base_url, args.model_name)
     # 2026-11-20：与 commander 的选择题格式保持一致（旧的"一行 JSON"提示词会诱导
