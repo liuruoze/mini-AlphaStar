@@ -73,11 +73,10 @@ CMD_FACTORY = {
     "attack": lambda: MacroCommand("attack", "enemy_main", count=1, deadline_s=30, priority=2),
 }
 
-# 执行优先级：**必须与 doctrine.py 里用户钦定的顺序一致**
-#   1 补水晶 → 2 补农民 → 3 补兵营 → 4 全面进攻 → 5 量产狂热者
-# （2026-11-21 复核发现我原来写成 pylon>gateway>probe>zealot>attack，
-#   既把兵营提到农民前，又让进攻永远排在量产后面——army<24 时进攻永远轮不上。）
-PRIORITY = ("pylon", "probe", "gateway", "attack", "zealot")
+# 执行优先级：教条顺序为 水晶→农民→兵营→进攻→量产，
+# 2026-11-21 用户裁定把**进攻提到兵营之前**（否则兵营卡在 2 个时部队永远不推）。
+# 结果：水晶 → 农民 → 进攻 → 兵营 → 量产。
+PRIORITY = ("pylon", "probe", "attack", "gateway", "zealot")
 
 
 def state_from_obs(obs):
@@ -135,8 +134,9 @@ def selftest_mapping():
         ([0, 0, 1, 0, 0], "gateway"),   # 只有兵营该造
         ([0, 1, 0, 0, 0], "probe"),     # 只有农民
         ([1, 0, 1, 1, 0], "pylon"),     # 全真时按优先级取水晶
-        ([0, 0, 0, 1, 1], "attack"),    # 教条：兵≥8 先进攻，再补量产
-        ([0, 1, 1, 0, 0], "probe"),     # 教条：补农民优先于补兵营
+        ([0, 0, 0, 1, 1], "attack"),    # 进攻优先于量产
+        ([0, 1, 1, 0, 0], "probe"),     # 补农民优先于补兵营
+        ([0, 0, 1, 0, 1], "attack"),    # 2026-11-21 裁定：进攻提到兵营之前
         ([0, 0, 0, 0, 0], "none"),
     ]
     bad = []
