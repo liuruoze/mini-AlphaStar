@@ -225,6 +225,24 @@ class SharedSnapshot(object):
         return int(self.ver.value)
 
 
+def _abort_process_group(code=70):
+    """卡死自愈：终止**整个进程组**再退出。
+
+    为什么不是 `os._exit` 自己：batch server 只是子进程，自己退出后父进程会继续
+    等 actor，等于没救（2026-11-22 实测：显存被孤儿占住 7 GB）。
+    为什么用 killpg：父进程、actor、SC2 都在同一组里，一起收掉才干净。
+
+    抽成独立函数是为了可测——单测里 monkeypatch `os.killpg` / `os._exit` 即可断言。
+    """
+    import signal as _sig
+    print("[stall] 已确认卡死，终止整个进程组（否则父进程会一直等下去）", flush=True)
+    try:
+        os.killpg(os.getpgid(0), _sig.SIGTERM)
+    except Exception:
+        pass
+    os._exit(code)
+
+
 class BatchInferenceServer(object):
     """同步批推理中心。
 
@@ -798,14 +816,7 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
                         # 而不是无限等待。用 os._exit 是因为此时主线程可能卡在 C 层，
                         # 正常退出路径走不通。
                         if os.environ.get("MAS_BS_STALL_EXIT") == "1":
-                            print("[stall] 已确认卡死，终止整个进程组（否则父进程会一直等下去）",
-                                  flush=True)
-                            try:
-                                import signal as _sig2
-                                os.killpg(os.getpgid(0), _sig2.SIGTERM)
-                            except Exception:
-                                pass
-                            os._exit(70)
+                            _abort_process_group(70)
             try:
                 import threading as _th
                 _th.Thread(target=_stall_watch, daemon=True).start()

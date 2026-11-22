@@ -1370,7 +1370,9 @@ def _tb_event_writer(writer):
             obj = getattr(obj, attr, None)
             if obj is None:
                 break
-        if obj is not None and hasattr(obj, "_event_queue"):
+        # 判据必须是 `_worker`（护栏要用的就是它）——用 `_event_queue` 判会出现
+        # "对象有队列但没有 worker"时静默退回 writer 本身，护栏等于没装（单测抓到过）。
+        if obj is not None and hasattr(obj, "_worker"):
             return obj
     return writer
 
