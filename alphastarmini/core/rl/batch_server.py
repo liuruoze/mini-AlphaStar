@@ -655,14 +655,29 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
 
     # ---------- actor 侧 ----------
 
+    def _wait_done(self, idx):
+        """等本轮结果就绪；超时即判定 server 停摆，抛错而不是无限等。
+
+        背景（2026-11-23）：原来 `sem_done[idx].acquire()` 没有超时。batch server 一旦
+        停止服务（GPU 挂起 / 进程卡死 / 队列堵塞），所有 actor 会永久停在同一 step ——
+        这正是 soak#6 的形态，而且日志里什么都不会留下。加超时后至少能留下一条明确的
+        错误，外层 supervisor 看到就能重启并保留现场。
+        """
+        tmo = float(os.environ.get("MAS_ACTOR_WAIT_SEC", "180"))
+        if self.sem_done is not None:
+            if not self.sem_done[idx].acquire(timeout=tmo):
+                raise RuntimeError("[BatchServer] actor %d 等待动作超过 %.0fs，判定 server 停摆"
+                                   % (idx, tmo))
+        else:
+            if not self.ev_done[idx].wait(timeout=tmo):
+                raise RuntimeError("[BatchServer] actor %d 等待动作超过 %.0fs（event 模式）"
+                                   % (idx, tmo))
+            self.ev_done[idx].clear()
+
     def submit_and_wait(self, idx):
         """提交本轮 state 并阻塞到自己的结果就绪，返回动作字段。"""
         self.req[idx] = self.SUBMITTED
-        if self.sem_done is not None:
-            self.sem_done[idx].acquire()
-        else:
-            self.ev_done[idx].wait()
-            self.ev_done[idx].clear()
+        self._wait_done(idx)
         # #69：批次失败时不能返回旧槽位
         if self.ok[idx] == 0:
             raise RuntimeError("[BatchServer] actor %d 本轮批次前向失败（见 server traceback）；"
@@ -677,11 +692,7 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         `_serve_batch` 在放出 `ev_done` 之前已经把 action 与 logits 都写好了。
         """
         self.req[idx] = self.SUBMITTED
-        if self.sem_done is not None:
-            self.sem_done[idx].acquire()
-        else:
-            self.ev_done[idx].wait()
-            self.ev_done[idx].clear()
+        self._wait_done(idx)
         if self.ok[idx] == 0:
             raise RuntimeError("[BatchServer] actor %d 本轮批次前向失败（见 server traceback）；"
                                "拒绝返回上一轮的陈旧 action/logits" % idx)
