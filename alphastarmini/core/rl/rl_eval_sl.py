@@ -938,6 +938,32 @@ class ActorEval:
 
                             player_memory = tuple(h.detach() for h in player_new_memory)
                             home_obs = home_next_obs
+                            # 2026-11-22：轻量状态采样（任何臂都能开，MAS_STATE_LOG=<path>）。
+                            # 只读观测，不参与动作选择；用于把"为什么赢"从推断变成观测。
+                            # 每 8 游戏秒记一行：人口/农民/兵/兵营/水晶/矿。
+                            _slf = os.environ.get("MAS_STATE_LOG", "")
+                            if _slf:
+                                try:
+                                    if not hasattr(self, "_sl_last"):
+                                        self._sl_last = -1e9
+                                        self._sl_fh = open(_slf, "a")
+                                        _hbp0 = os.path.join(os.getcwd(), "experiments", "hybrid")
+                                        if _hbp0 not in sys.path:
+                                            sys.path.insert(0, _hbp0)
+                                        from commander_v3 import state_from_obs as _sfo
+                                        self._sfo = _sfo
+                                    _t_s = int(home_obs.observation.game_loop[0]) / 22.4
+                                    if _t_s - self._sl_last >= 8.0:
+                                        self._sl_last = _t_s
+                                        _stt = self._sfo(home_obs.observation)
+                                        self._sl_fh.write(json.dumps(
+                                            {"t": round(_t_s, 1),
+                                             **{k: _stt[k] for k in ("used", "cap", "workers",
+                                                                     "army", "gw", "pylons",
+                                                                     "minerals")}}) + "\n")
+                                        self._sl_fh.flush()
+                                except Exception:
+                                    pass
                             last_delay = expected_delay
                             last_action_type = player_action.action_type.item()
                             last_repeat_queued = player_action.queue.item()
