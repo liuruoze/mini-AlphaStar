@@ -794,6 +794,18 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
                               flush=True)
                         faulthandler.dump_traceback(file=_sys.stderr, all_threads=True)
                         self._last_round_ts = time()   # 避免每 15 秒刷一次
+                        # 自愈（默认关）：确认卡住后主动退出，让外层脚本重启，
+                        # 而不是无限等待。用 os._exit 是因为此时主线程可能卡在 C 层，
+                        # 正常退出路径走不通。
+                        if os.environ.get("MAS_BS_STALL_EXIT") == "1":
+                            print("[stall] 已确认卡死，终止整个进程组（否则父进程会一直等下去）",
+                                  flush=True)
+                            try:
+                                import signal as _sig2
+                                os.killpg(os.getpgid(0), _sig2.SIGTERM)
+                            except Exception:
+                                pass
+                            os._exit(70)
             try:
                 import threading as _th
                 _th.Thread(target=_stall_watch, daemon=True).start()
