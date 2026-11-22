@@ -1355,6 +1355,18 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
             print("[Worker %d] 更新计数打印失败: %r" % (rank, _e), flush=True)
 
 
+    # 2026-11-23：Worker 自己的 SummaryWriter 也要关。不关的话，进程退出时它的后台线程
+    # 还在 queue.get() 上，会打一条 EOFError Traceback —— 今晚冒烟测试里抓到的正是这条
+    # （位置在 Worker 结束时，不在日志末尾，所以不是"退出噪音"那么无辜）。
+    try:
+        if writer is not None:
+            _ew = _tb_event_writer(writer)
+            _wk = getattr(_ew, "_worker", None)
+            if _wk is None or _wk.is_alive():
+                writer.close()
+    except Exception:
+        pass
+
 
 def _tb_event_writer(writer):
     """拿到真正的 EventFileWriter。
@@ -1657,8 +1669,13 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
     # 2026-11-19：显式关闭 SummaryWriter。
     # 不关的话，退出时它的后台线程还阻塞在队列 get 上，会打一条 threading 的 Traceback，
     # 在日志里看起来像真故障（今天两次排查都被它误导）。关闭后退出干净。
+    # 2026-11-23：探活后再关。`close()` 内部是 put(shutdown)+join，
+    # 线程已死且队列满时会永久阻塞——不能无条件调用。
     try:
-        writer.close()
+        _ew = _tb_event_writer(writer)
+        _wk = getattr(_ew, "_worker", None)
+        if _wk is None or _wk.is_alive():
+            writer.close()
     except Exception:
         pass
 
