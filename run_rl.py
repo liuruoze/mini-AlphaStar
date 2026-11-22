@@ -29,6 +29,15 @@ if _fault_path:
         _fault_fp = open(_fault_path, "a")
         faulthandler.enable(_fault_fp, all_threads=True)
         _fault_fp.write("\n===== pid %d start: faulthandler enabled =====\n" % os.getpid())
+        # 2026-11-22：ptrace 被 kernel.yama.ptrace_scope=1 限制，py-spy 附不上非子进程。
+        # 注册 SIGUSR1：`kill -USR1 <pid>` 就能让进程把自己的**全部线程栈**写进 fault 文件，
+        # 不需要 root、也不需要 ptrace —— 这正是 soak#6 缺的那份证据。
+        try:
+            import signal as _sig
+            faulthandler.register(_sig.SIGUSR1, file=_fault_fp, all_threads=True)
+            _fault_fp.write("===== pid %d: SIGUSR1 -> dump all threads =====\n" % os.getpid())
+        except Exception as _e:
+            _fault_fp.write("SIGUSR1 register failed: %s\n" % _e)
         _fault_fp.flush()
     except Exception as _e:
         print("faulthandler 启用失败:", _e)

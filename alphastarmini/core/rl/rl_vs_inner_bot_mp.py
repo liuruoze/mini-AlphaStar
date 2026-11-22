@@ -1355,6 +1355,50 @@ def Worker(synchronizer, rank, optimizer, q_winloss, q_points, v_steps, use_cuda
             print("[Worker %d] 更新计数打印失败: %r" % (rank, _e), flush=True)
 
 
+
+def _tb_event_writer(writer):
+    """拿到真正的 EventFileWriter。
+
+    实测 tensorboardX 2.2 的层级是 `SummaryWriter.file_writer.event_writer`；
+    旧版/别的分支可能是 `_file_writer` 或直接 `event_writer`，所以逐条尝试。
+    拿错的后果很严重：探活永远返回 None，护栏形同虚设（2026-11-22 踩过一次）。
+    """
+    for path in (("file_writer", "event_writer"), ("event_writer",),
+                 ("_file_writer", "_writer"), ("_file_writer",)):
+        obj = writer
+        for attr in path:
+            obj = getattr(obj, attr, None)
+            if obj is None:
+                break
+        if obj is not None and hasattr(obj, "_event_queue"):
+            return obj
+    return writer
+
+
+def _safe_scalar(writer, tag, value, step):
+    """写 tensorboard 之前先探活。
+
+    背景（2026-11-22）：tensorboardX 的 `EventFileWriter` 用
+    `multiprocessing.Queue(max_queue_size=10)` 做中转，`add_event` 里是阻塞的 `put()`；
+    而消费者 `_EventLoggerThread.run()` **只捕获 queue.Empty**，任何其它异常都会让
+    这个 daemon 线程静默死掉。线程一死，队列 10 个槽填满后 `add_scalar` 就**永久阻塞**，
+    于是 Parameter_Server 不再消费 q_winloss、不再发布权重，所有 actor 同时停在同一 step，
+    进程全活、faulthandler 零栈 —— 正是 soak#6 的签名。
+
+    这里宁可丢一条曲线，也不让日志把训练拖死。
+    """
+    if os.environ.get("MAS_TB_GUARD", "1") != "1":
+        writer.add_scalar(tag, value, step)   # 关掉护栏（仅用于对照实验）
+        return
+    try:
+        w = getattr(_tb_event_writer(writer), "_worker", None)
+        if w is not None and not w.is_alive():
+            raise RuntimeError("tensorboard writer thread is dead")
+        writer.add_scalar(tag, value, step)   # 这里必须是原调用，不能再走 _safe_scalar（会自递归）
+    except Exception as e:
+        print("[tb] 跳过写入 %s（%s）" % (tag, e), flush=True)
+
+
 def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device, model, log_path, model_path):
     torch.manual_seed(RANDOM_SEED)
 
@@ -1408,6 +1452,23 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
             torch.save(model.state_dict(), _path)
         _saved_rows.add(_row)
         print("[ckpt] saved %s" % _path, flush=True)
+
+    # --- 故障注入（仅诊断用）：模拟"写盘线程已死、队列已满" ---
+    if os.environ.get("MAS_FAULT_TB_DEAD") == "1":
+        # 让写盘线程**真的退出**（不是换个空队列），从而复现"线程已死、队列仍在"的状态：
+        # 之后 add_event 仍然会 put，但没人消费，10 个槽填满后 put 永久阻塞。
+        try:
+            _w = getattr(_tb_event_writer(writer), "_worker", None)
+            _w._queue.put(_w._shutdown_signal)
+            _w.join(timeout=3)
+            print("[fault] 已注入：tensorboard 写盘线程 alive=%s" % (_w.is_alive() if _w else "null"), flush=True)
+            # 队列上限 10；线程已死，第 11 条 put 必然永久阻塞 —— 用来在几十秒内判定因果
+            for _i in range(12):
+                _safe_scalar(writer, "fault/probe", _i, _i)
+                print("[fault] probe %d 写入未阻塞" % _i, flush=True)
+        except Exception as _e:
+            print("[fault] 注入失败：%s" % _e, flush=True)
+
     print("[Parameter_Server] STATIC_NUM=%d  train_iters=%d  统计表 shape=%s"
           % (static_num, train_iters, episode_outcome.shape), flush=True)
 
@@ -1487,8 +1548,8 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
                 win_rate = (single_episode_outcome == 1).sum() / len(single_episode_outcome)
                 print("Iter:", row, "win_rate(custom):", win_rate) if 1 else None
 
-                writer.add_scalar('winrate/every_' + str(static_num) + '_episodes', win_rate, row + 1)
-                writer.add_scalar('winrate/update_steps', win_rate, int(v_steps.value))
+                _safe_scalar(writer, 'winrate/every_' + str(static_num) + '_episodes', win_rate, row + 1)
+                _safe_scalar(writer, 'winrate/update_steps', win_rate, int(v_steps.value))
                 win_rate_list.append(format(win_rate, '.3f'))
 
                 if win_rate >= max_win_rate:
@@ -1512,9 +1573,9 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
             if not (single_native == (-1e9)).any():
                 native_win_rate = (single_native == 1).sum() / len(single_native)
                 print("Iter:", row, "win_rate(native):", native_win_rate, flush=True) if 1 else None
-                writer.add_scalar('winrate_native/every_' + str(static_num) + '_episodes',
+                _safe_scalar(writer, 'winrate_native/every_' + str(static_num) + '_episodes',
                                   native_win_rate, row + 1)
-                writer.add_scalar('winrate_native/update_steps', native_win_rate, int(v_steps.value))
+                _safe_scalar(writer, 'winrate_native/update_steps', native_win_rate, int(v_steps.value))
 
                 if SAVE_EVERY_BLOCK:
                     _save_block(row)
@@ -1530,8 +1591,8 @@ def Parameter_Server(synchronizer, q_winloss, q_points, v_steps, use_cuda_device
                 mean_points = np.mean(single_episode_points)
                 print("Iter:", row, "mean_points:", mean_points, flush=True) if 1 else None
 
-                writer.add_scalar('meanpoints/every_' + str(static_num) + '_episodes', mean_points, row + 1)
-                writer.add_scalar('meanpoints/update_steps', mean_points, int(v_steps.value))
+                _safe_scalar(writer, 'meanpoints/every_' + str(static_num) + '_episodes', mean_points, row + 1)
+                _safe_scalar(writer, 'meanpoints/update_steps', mean_points, int(v_steps.value))
                 mean_points_list.append(format(mean_points, '.3f'))
 
                 if mean_points >= max_mean_points:

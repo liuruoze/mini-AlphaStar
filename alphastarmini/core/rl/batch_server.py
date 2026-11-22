@@ -774,6 +774,31 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         """
         rounds = 0
         last_progress = time()
+
+        # 2026-11-22：停滞看门狗。
+        # soak#6 的签名是"所有 actor 同停、进程全活、零崩溃栈"。batch server 一旦不再
+        # 完成一轮，所有 actor 会同时卡在等待动作上 —— 这条路径此前没有任何取证手段。
+        # 这里在**server 自己的进程里**起一个守护线程：超过 MAS_BS_STALL_SEC 秒没有完成
+        # 一轮，就用 faulthandler 把该进程的全部线程栈打到 stderr（进入 run.log）。
+        self._last_round_ts = time()
+        if os.environ.get("MAS_BS_STALL_WATCH", "1") == "1":
+            def _stall_watch():
+                _limit = float(os.environ.get("MAS_BS_STALL_SEC", "300"))
+                while True:
+                    sleep(15)
+                    _dt = time() - self._last_round_ts
+                    if _dt > _limit:
+                        import faulthandler
+                        import sys as _sys
+                        print("[stall] batch server %.0fs 未完成一轮，dump 全线程栈" % _dt,
+                              flush=True)
+                        faulthandler.dump_traceback(file=_sys.stderr, all_threads=True)
+                        self._last_round_ts = time()   # 避免每 15 秒刷一次
+            try:
+                import threading as _th
+                _th.Thread(target=_stall_watch, daemon=True).start()
+            except Exception:
+                pass
         # 稳态吞吐的测量点（见 async_summary 的说明）。
         # 为什么需要：墙钟吞吐 = 总步数/run() 耗时，而 run() 的前几十轮里 actor 还在
         # env.reset / 首次 preprocess，batch 凑不满 -> 前段显著偏慢。
@@ -804,8 +829,12 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
             last_progress = time()
             idxs = idxs[:self.max_batch]
 
+            if os.environ.get("MAS_FAULT_BS_STALL") == "1" and rounds == 0:
+                print("[fault] batch server 故意停 600s（验证停滞看门狗）", flush=True)
+                sleep(600)
             try:
                 self._serve_batch(idxs)
+                self._last_round_ts = time()
             except Exception:
                 import traceback
                 traceback.print_exc()
