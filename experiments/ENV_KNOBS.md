@@ -34,6 +34,7 @@
 | `DISPLAY` | DISPLAY | 2 | 2 | :1024 |
 | `MAS_ACTOR_NUMS` | MAS_ | 1 | 1 | ACTOR_NUMS |
 | `MAS_ACTOR_TRACE` | MAS_ | 2 | 2 | $OUT/trace.txt |
+| `MAS_ACTOR_WAIT_SEC` | MAS_ | 1 | 1 | 180 |
 | `MAS_ACT_STATS` | MAS_ | 1 | 3 | - |
 | `MAS_ALLOW_EXPAND` | MAS_ | 2 | 2 | 0 |
 | `MAS_ALLOW_MORE` | MAS_ | 1 | 1 | 0 |
