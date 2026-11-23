@@ -819,14 +819,18 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
                     if _dt > _limit:
                         import faulthandler
                         import sys as _sys
-                        print("[stall] batch server %.0fs 未完成一轮，dump 全线程栈" % _dt,
-                              flush=True)
+                        # 两段式（HY 建议 2026-11-23）：
+                        #   第 1 个窗口 → 只 dump，留证据；
+                        #   第 2 个窗口 → 仍然没动静，才终止整组。
+                        # 单段会在故障注入（故意 sleep 600s）时把实验提前掐死，
+                        # 也会让"偶发一次慢轮"直接杀掉健康的长跑。
+                        self._stall_dumps = getattr(self, "_stall_dumps", 0) + 1
+                        print("[stall] batch server %.0fs 未完成一轮（第 %d 次观察），dump 全线程栈"
+                              % (_dt, self._stall_dumps), flush=True)
                         faulthandler.dump_traceback(file=_sys.stderr, all_threads=True)
                         self._last_round_ts = time()   # 避免每 15 秒刷一次
-                        # 自愈（默认关）：确认卡住后主动退出，让外层脚本重启，
-                        # 而不是无限等待。用 os._exit 是因为此时主线程可能卡在 C 层，
-                        # 正常退出路径走不通。
-                        if os.environ.get("MAS_BS_STALL_EXIT") == "1":
+                        if (os.environ.get("MAS_BS_STALL_EXIT", "1") == "1"
+                                and self._stall_dumps >= 2):
                             _abort_process_group(70)
             try:
                 import threading as _th
@@ -869,6 +873,7 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
             try:
                 self._serve_batch(idxs)
                 self._last_round_ts = time()
+                self._stall_dumps = 0   # 恢复服务即清零，避免历史计数影响下一次判定
             except Exception:
                 import traceback
                 traceback.print_exc()
