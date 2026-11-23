@@ -45,7 +45,7 @@
 | `MAS_ATTACK_TIME_TICK` | MAS_ | 1 | 1 | 0 |
 | `MAS_BATCH_ACTING` | MAS_ | 3 | 8 | 0 |
 | `MAS_BATCH_SCALE` | MAS_ | 1 | 1 | 16 |
-| `MAS_BS_STALL_EXIT` | MAS_ | 1 | 1 | - |
+| `MAS_BS_STALL_EXIT` | MAS_ | 1 | 1 | 1 |
 | `MAS_BS_STALL_SEC` | MAS_ | 1 | 1 | 300 |
 | `MAS_BS_STALL_WATCH` | MAS_ | 1 | 1 | 1 |
 | `MAS_BUILD_COOLDOWN` | MAS_ | 2 | 2 | 16 |
@@ -106,7 +106,7 @@
 | `MAS_MAX_TIME` | MAS_ | 1 | 1 | MAX_TIME_FOR_TRAINING |
 | `MAS_MIN_SEL` | MAS_ | 1 | 1 | 1 |
 | `MAS_MULTI_ACTION` | MAS_ | 2 | 2 | index0 |
-| `MAS_NOTIFY` | MAS_ | 5 | 5 | event |
+| `MAS_NOTIFY` | MAS_ | 5 | 5 | event/sem |
 | `MAS_ON_SERVER` | MAS_ | 5 | 5 | 0 |
 | `MAS_ORACLE_SEL` | MAS_ | 1 | 1 | - |
 | `MAS_PARALLEL` | MAS_ | 1 | 1 | PARALLEL |

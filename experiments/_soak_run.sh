@@ -60,7 +60,10 @@ export MAS_QUEUE_TIMEOUT=1800
 # 第 65 轮（Kimi-03）：KL 语义开关。legacy=截断部分和（历史口径，默认）；renorm=共同支撑集重归一化 KL
 export MAS_KL_MODE=${MAS_KL_MODE:-legacy}
 # 第 72 轮：通知机制 event|sem（默认 event，保持历史行为）
-export MAS_NOTIFY=${MAS_NOTIFY:-event}
+# 2026-11-23：默认改 sem。实测（同配置 A/B）通知 14.39 ms → 0.08 ms、
+# 每轮 98.97 → 64.00 ms、单 actor 吞吐 2.90 → 3.51（+21%）。
+# 需要与历史数据可比时显式传 MAS_NOTIFY=event。
+export MAS_NOTIFY=${MAS_NOTIFY:-sem}
 
 # ---- 第 84 轮（DS，#71）：把 §84 长跑里"手工 export"的那批开关固化进脚本 ----
 # 起因（Hunyuan H7）：§84 的长跑是**在命令行里显式 export** 的，不是走这个脚本的默认值。

@@ -647,8 +647,13 @@ class AsyncBatchInferenceServer(BatchInferenceServer):
         #   EVENTS 283 us/次    COND 12 us/次但只送到 5%（广播占住锁，子进程抢不回来）
         #   SEM     0.4 us/次  ← 一次 sem_post，无 Condition 锁，无惊群
         #
-        # 用环境变量切换，默认 event 保持历史行为；MAS_NOTIFY=sem 才走信号量。
-        self.notify_mode = os.environ.get("MAS_NOTIFY", "event").strip().lower()
+        # 2026-11-23 实测（15×2，1800 s vs 600 s 同配置 A/B）：
+        #   通知 14.39 ms → 0.08 ms，每轮 98.97 ms → 64.00 ms，
+        #   单 actor 吞吐 2.90 → 3.51 step/s（+21%）。
+        # 因此**默认改为 sem**；MAS_NOTIFY=event 可回退到历史行为（仅为可比性保留）。
+        # 安全性：sem 路径曾因 `_serve_batch` 异常时漏 release 而永久阻塞（第 84 轮已修），
+        # 现在还有 actor 侧 180 s 超时兜底——真漏 release 会变成可见错误，而不是静默挂死。
+        self.notify_mode = os.environ.get("MAS_NOTIFY", "sem").strip().lower()
         self.sem_done = ([mp.Semaphore(0) for _ in range(self.N)]
                          if self.notify_mode == "sem" else None)
         self.stats = mp.Array('i', 6)   # [rounds, steps, max_batch_seen, sum_batch, 0, 0]
