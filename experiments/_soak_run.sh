@@ -94,6 +94,10 @@ python experiments/_soak_monitor.py --out "$OUT/monitor.csv" --interval 10 \
     --duration $((SECS + 300)) > "$OUT/monitor.log" 2>&1 &
 MON=$!
 
+# 2026-11-23（HY 建议）：记录本轮前后的 GPU 层错误计数。
+# `Xid 43 = GPU stopped processing`，触发后任何 CUDA 调用会永久挂起且不抛 Python 异常——
+# 这正是「六号僵死」的物理候选。若某轮复现僵死且计数增加，假设即被直接证实。
+XID_BEFORE=$(dmesg 2>/dev/null | grep -ci "xid" || true)
 START=$(date +%s)
 # 第 84 轮（DS，#71）：`>` 改 `>>`。README #53 说过要改但一直没改：
 # python 父进程与 SC2 子进程共享同一个 stdout fd、各自独立偏移，
@@ -101,6 +105,14 @@ START=$(date +%s)
 python run_rl.py >> "$OUT/run.log" 2>&1
 RC=$?
 END=$(date +%s)
+XID_AFTER=$(dmesg 2>/dev/null | grep -ci "xid" || true)
+if [ "${XID_AFTER:-0}" != "${XID_BEFORE:-0}" ]; then
+    {
+        echo "[xid] 本轮期间出现新的 GPU 错误：$XID_BEFORE -> $XID_AFTER"
+        dmesg 2>/dev/null | grep -i xid | tail -3
+    } >> "$OUT/xid.log" 2>&1
+    echo "[xid] 见 $OUT/xid.log（$XID_BEFORE -> $XID_AFTER）"
+fi
 
 kill "$MON" 2>/dev/null
 wait "$MON" 2>/dev/null

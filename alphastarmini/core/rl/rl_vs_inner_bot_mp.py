@@ -41,6 +41,7 @@ from alphastarmini.core.rl.learner import Learner
 from alphastarmini.core.rl.actor_inference import ActorInferenceClient   # 第 18 轮：推理路由
 from alphastarmini.core.rl.batch_server import AsyncBatchInferenceServer   # 第 23 轮：中心批推理
 from alphastarmini.core.rl.batch_server import SharedSnapshot   # 第 73 轮：全局不可变快照
+from alphastarmini.core.rl.batch_server import _abort_process_group   # 2026-11-23：卡死自愈
 from alphastarmini.core.rl import rl_utils as RU
 from alphastarmini.core.rl import shared_adam as SA
 
@@ -1903,6 +1904,22 @@ def test(on_server=False, replay_path=None):
                     pass
             print(line, flush=True)
 
+        # 2026-11-23（HY 复核 + DS）：子进程死亡检测与内存守卫。
+        # 背景：dmesg 里有 39 次 OOM 击杀，其中 4 次是 ~51 GB 的巨型进程。
+        # 原来心跳只打印 `proc=N/N`，**发现有人死了也不做任何事**，活着的进程继续等一个
+        # 不会来的东西 —— 这种"沉默"与「六号僵死」的表现无法区分，会把排查带偏。
+        _hb_state = {"joining": False, "dead_since": None, "rss_max": 0.0}
+
+        def _proc_rss_gb(pid):
+            try:
+                with open("/proc/%d/status" % pid) as _f:
+                    for _line in _f:
+                        if _line.startswith("VmRSS:"):
+                            return float(_line.split()[1]) / (1024.0 * 1024.0)
+            except Exception:
+                pass
+            return 0.0
+
         def _heartbeat():
             _t0 = time()
             while True:
@@ -1913,16 +1930,53 @@ def test(on_server=False, replay_path=None):
                         _q = q_winloss.qsize()
                     except Exception:
                         _q = -1
+
+                    # ---- 子进程死亡检测 ----
+                    if not _hb_state["joining"] and _alive < len(processes):
+                        if _hb_state["dead_since"] is None:
+                            _hb_state["dead_since"] = time()
+                            print("[hb] 检测到子进程减少：%d/%d，开始计时" % (_alive, len(processes)),
+                                  flush=True)
+                            for _p in processes:
+                                if not _p.is_alive():
+                                    print("[hb]   已退出: name=%s pid=%s exitcode=%s"
+                                          % (_p.name, _p.pid, _p.exitcode), flush=True)
+                        elif time() - _hb_state["dead_since"] > 60:
+                            print("[hb] 子进程缺失已持续 %.0fs，终止整组（避免活进程空等）"
+                                  % (time() - _hb_state["dead_since"]), flush=True)
+                            for _p in processes:
+                                if not _p.is_alive():
+                                    print("[hb]   缺失: name=%s pid=%s exitcode=%s"
+                                          % (_p.name, _p.pid, _p.exitcode), flush=True)
+                            _abort_process_group(70)
+                    else:
+                        _hb_state["dead_since"] = None
+
+                    # ---- 内存守卫：只报告，超阈值才动手 ----
+                    _rss = [(_p.pid, _proc_rss_gb(_p.pid)) for _p in processes if _p.is_alive()]
+                    if _rss:
+                        _pid_max, _gb_max = max(_rss, key=lambda x: x[1])
+                        _hb_state["rss_max"] = max(_hb_state["rss_max"], _gb_max)
+                        _limit = float(os.environ.get("MAS_RSS_LIMIT_GB", "0") or 0)
+                        if _limit > 0 and _gb_max > _limit:
+                            print("[hb] 进程 %s RSS %.1fGB 超过上限 %.1fGB，终止整组（防止拖垮整机）"
+                                  % (_pid_max, _gb_max, _limit), flush=True)
+                            _abort_process_group(71)
                     # ⚠️ 不再调 torch.cuda.memory_allocated(0)：它会**在父进程初始化 CUDA 上下文**，
                     # 而父进程已经 spawn 过 CUDA 子进程，这个调用本身就有风险，收益又几乎为零。
-                    _hb_write("[hb] t=%5.0fs  proc=%d/%d  q_winloss=%d  v_steps=%.0f  mem_avail=%.1fGB"
+                    _hb_write("[hb] t=%5.0fs  proc=%d/%d  q_winloss=%d  v_steps=%.0f  mem_avail=%.1fGB  rss_max=%.1fGB"
                               % (time() - _t0, _alive, len(processes), _q,
-                                 v_steps.value, _mem_avail_gb()))
+                                 v_steps.value, _mem_avail_gb(), _hb_state["rss_max"]))
                 except Exception as _e:
                     _hb_write("[hb] 心跳失败: %r" % (_e,))
 
         threading.Thread(target=_heartbeat, daemon=True).start()
         print("[test] 心跳已开启：每 %.0f 秒一行 [hb]" % _hb_interval, flush=True)
 
+    # 正常收尾：告诉心跳线程"现在是主动 join"，别把正常退出当成子进程故障
+    try:
+        _hb_state["joining"] = True
+    except Exception:
+        pass
     for p in processes:
         p.join()

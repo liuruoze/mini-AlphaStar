@@ -135,6 +135,7 @@
 | `MAS_RL_SEED` | MAS_ | 1 | 1 | 1 |
 | `MAS_RL_USE_BUFFER` | MAS_ | 1 | 1 | 0 |
 | `MAS_RL_VS_DIAG` | MAS_ | 1 | 1 | 0 |
+| `MAS_RSS_LIMIT_GB` | MAS_ | 1 | 1 | 0 |
 | `MAS_SAVE_EVERY_BLOCK` | MAS_ | 1 | 1 | 0 |
 | `MAS_SCALAR_NORM_PATH` | MAS_ | 4 | 4 | - |
 | `MAS_SEL_DUMP` | MAS_ | 1 | 1 | - |
